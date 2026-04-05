@@ -1,0 +1,98 @@
+---
+# Only the main Sass file needs front matter (the dashes are enough)
+---
+
+// Warm cream/beige color palette
+$base-font-family: "Georgia", "Times New Roman", serif;
+$base-font-size:   17px;
+$base-font-weight: 400;
+$base-line-height: 1.7;
+
+$text-color:       #3E3232;
+$background-color: #FAF9F6;
+$brand-color:      #8B6F4E;
+
+$grey-color:       #9B8E82;
+$grey-color-light: #E8E0D8;
+$grey-color-dark:  #5C4E42;
+
+@import "minima";
+
+// Additional warm theme overrides
+body {
+  font-feature-settings: "liga" 1, "kern" 1;
+}
+
+.site-header {
+  border-top: 3px solid #C4A882;
+  border-bottom: 1px solid #E8E0D8;
+  background-color: #FAF9F6;
+}
+
+.site-title {
+  font-family: "Georgia", serif;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #3E3232;
+
+  &:visited {
+    color: #3E3232;
+  }
+}
+
+a {
+  color: #8B6F4E;
+  transition: color 0.2s ease;
+
+  &:visited {
+    color: #6D5740;
+  }
+
+  &:hover {
+    color: #C4A882;
+  }
+}
+
+.post-title,
+.post-link {
+  color: #3E3232;
+  font-family: "Georgia", serif;
+}
+
+.post-meta {
+  color: #9B8E82;
+}
+
+pre, code {
+  background-color: #F5F0EB;
+  border-color: #E8E0D8;
+  border-radius: 4px;
+}
+
+blockquote {
+  border-left-color: #C4A882;
+  color: #6D5740;
+}
+
+.site-footer {
+  border-top-color: #E8E0D8;
+  background-color: #F5F0EB;
+}
+
+// Selection highlight
+::selection {
+  background-color: #C4A882;
+  color: #FAF9F6;
+}
+
+::-moz-selection {
+  background-color: #C4A882;
+  color: #FAF9F6;
+}
+
+// Subtle heading styles
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Georgia", serif;
+  color: #3E3232;
+  font-weight: 600;
+}
