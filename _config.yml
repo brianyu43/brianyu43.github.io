@@ -23,8 +23,8 @@ email: ""
 description: >-
   A personal blog by Brian.
 baseurl: ""
-url: "https://xavierarm.github.io"
-github_username: xavierarm
+url: "https://brianyu43.github.io"
+github_username: brianyu43
 
 # Build settings
 theme: minima
