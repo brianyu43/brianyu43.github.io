@@ -5,7 +5,7 @@ date:   2026-04-12 00:00:00 +0900
 categories: essay building
 ---
 
-> In a single month, I built nineteen repositories. A RISC-like OS from NAND gates. A Bitcoin arbitrage engine. A quantitative trading system. An FPS zombie game. A mobile antivirus. A WiFi speed lawsuit app. An automatic textbook translator. A macroeconomic dashboard. A knowledge graph of my own conversations. An agent-based simulation of SpaceX's IPO. A fine-tuned biology tutor on cloud A100s.
+> In a single month, I built twenty repositories. A RISC-like OS from NAND gates. A Bitcoin arbitrage engine. A quantitative trading system. An FPS zombie game. A Touhou-style bullet hell. A mobile antivirus. A WiFi speed lawsuit app. An automatic textbook translator. A macroeconomic dashboard. A knowledge graph of my own conversations. An agent-based simulation of SpaceX's IPO. A fine-tuned biology tutor on cloud A100s.
 >
 > Most of them are dead. This is a post about what I learned from the wreckage.
 
@@ -53,7 +53,13 @@ I tried to build a single-player FPS inspired by Left 4 Dead 2. Zombie AI that f
 
 It got surprisingly far. The mechanics worked. Zombies chased you. Stages loaded. Music played. But the skins and animations were garbage, and in a first-person shooter, that's not a cosmetic problem — it's the entire experience. I couldn't push past the uncanny valley of procedurally generated character models. The project died looking like a PS1 fever dream.
 
-## 9. Automatic Textbook Translation
+## 9. Touhou Danmaku
+
+I tried to build a Touhou-style bullet hell — six stages plus an Extra, the full format. BGM was pulled straight from Embodiment of Scarlet Devil. For everything else — character sprites, boss portraits, dialogue scripts — I pointed computer use at GPT's web interface and had it generate all of it, then uploaded the assets directly.
+
+Structurally, it was Touhou. Stages loaded. Bosses appeared. Spell cards fired. Dialogue played between phases. The format was there. The soul was not. The danmaku patterns had no rhythm — no visual poetry, no escalation, just projectiles filling the screen without intent. The bosses had names but no presence. The sprites were clean enough to render but too generic to remember. It was spoiled Touhou — same shape, wrong taste. Thirty seconds of play and you could tell no one who loved the original had been involved.
+
+## 10. Automatic Textbook Translation
 
 My information theory textbook was in English, and I was tired of context-switching between languages while studying. So I pointed Codex at it and told it to translate the whole thing into Korean.
 
@@ -63,7 +69,7 @@ It took almost an hour. The equations didn't survive the round trip — LaTeX fo
 
 ## What I Actually Learned
 
-Nine projects. Nine different domains. Not a single one became something I use daily.
+Ten projects. Ten different domains. Not a single one became something I use daily.
 
 The pattern is obvious in retrospect. Every project where I didn't already understand the domain — arbitrage mechanics, alpha generation, game graphics, typesetting — the AI filled the gap with confident garbage. The code compiled. The outputs looked plausible. But plausible isn't correct, and in domains where I couldn't tell the difference, I was just generating waste at high speed.
 
