@@ -21,15 +21,14 @@
 title: Brian's Blog
 email: ""
 description: >-
-  A personal blog by Xavier.
+  A personal blog by Brian.
 baseurl: ""
 url: "https://xavierarm.github.io"
 github_username: xavierarm
 
 # Build settings
 theme: minima
-plugins:
-  - jekyll-feed
+plugins: []
 
 # Exclude from processing.
 # The following items will not be processed, by default.
