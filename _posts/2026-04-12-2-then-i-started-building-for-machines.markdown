@@ -11,13 +11,13 @@ categories: essay building
 
 ---
 
-## 10. Codex on a Phone
+## 11. Codex on a Phone
 
 I spent four days on this. The idea: run Codex from your phone. Conversations are stored as `.jsonl`, which is easy enough to parse. Reading history on mobile wasn't the hard part. The hard part was everything else — real-time sync, sending commands remotely (which technically worked), and keeping a persistent server connection that didn't drop every time the phone went to sleep.
 
 The app functioned. But it functioned the way a house of cards functions — impressive until someone breathes. I lacked the server infrastructure intuition to make it robust. Four days of building taught me that "it works on my desk" and "it works in production" are separated by an ocean I hadn't learned to cross.
 
-## 11. Clizationer
+## 12. Clizationer
 
 This one started from a genuine frustration: web GUIs are not built for agents. A button that says "Submit" means something to a human looking at a screen. To an LLM, it's noise. I wanted to build a compiler that takes any website — or any API — and converts it into a CLI that agents could call directly.
 
@@ -25,7 +25,7 @@ The vision was ambitious. The execution was not. I hadn't thought through the co
 
 I learned something useful, though: having the right problem doesn't mean you have the right solution. The instinct was correct — the gap between GUI and agent is real. But instinct without architecture is just a README with no code behind it.
 
-## 12. Kiwoom Trade MCP Server
+## 13. Kiwoom Trade MCP Server
 
 I wrapped Kiwoom Securities' trading API as an MCP server — Model Context Protocol, the standard for letting AI clients call external tools. Resources, tools, structured responses, the whole spec.
 
@@ -33,13 +33,13 @@ The surprising lesson: it wasn't hard. Once you understand the protocol, turning
 
 That asymmetry stuck with me. Making software agent-readable might actually be easier than making it human-readable. The hard part was never the protocol. It was knowing whether the agent should be doing the thing at all.
 
-## 13. Conversation Collector
+## 14. Conversation Collector
 
 I built a pipeline to automatically extract ChatGPT conversations — the idea being that past context could be injected into future sessions. A long-term memory system, essentially.
 
 It worked. I just didn't need it. The conversations I wanted to remember, I remembered. The ones I forgot, I forgot for a reason. Automated context retrieval sounds transformative in theory. In practice, most of what I said to ChatGPT last Tuesday is not worth retrieving.
 
-## 14. Knowledge Map / Taste Map
+## 15. Knowledge Map / Taste Map
 
 This was more personal. I took my entire conversation history, embedded it, clustered it, and laid it out as a 2D graph — a map of my own interests, weighted by frequency and semantic proximity.
 
@@ -47,7 +47,7 @@ The graph worked. I could see the clusters: finance here, biology there, infrast
 
 But once I looked at it, I didn't need to look again. The map confirmed what I already knew about myself. It didn't reveal anything I hadn't felt. The tool was technically sound and existentially redundant.
 
-## 15. Mirofish
+## 16. Mirofish
 
 SpaceX IPO speculation was everywhere, so I built an agent-based simulation. Twenty agents — regulators, Elon, retail investors, meme consumers, institutional funds — debating across forty rounds whether SpaceX would go public, and when.
 
@@ -55,7 +55,7 @@ Most simulations converged on the same conclusion: IPO delayed. The agents, play
 
 Whether it was *accurate* is a different question. But as a way to stress-test a thesis by forcing multiple perspectives to argue, it was more interesting than reading five analysts say the same thing.
 
-## 16. arXiv Daily Pipeline
+## 17. arXiv Daily Pipeline
 
 Every day, 1,900 papers hit arXiv. I built a pipeline that ingested all of them, ran a first-pass filter for relevance, summarized the abstracts of survivors, and published the results to a website.
 

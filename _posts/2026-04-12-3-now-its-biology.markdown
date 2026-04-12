@@ -5,11 +5,11 @@ date:   2026-04-12 00:00:00 +0900
 categories: essay building biology
 ---
 
-> Nineteen repositories in thirty days, and now I'm writing code for one domain. Not because I ran out of ideas. Because I finally figured out which ideas were mine.
+> Twenty repositories in thirty days, and now I'm writing code for one domain. Not because I ran out of ideas. Because I finally figured out which ideas were mine.
 
 ---
 
-## 17. LocalBio
+## 18. LocalBio
 
 I tried to fine-tune a biology tutor. Not a general-purpose model that happens to know biology — a model with a specific pedagogical voice. Patient explanations. Gentle correction of misconceptions. Hints before answers. "I don't know" when it didn't know.
 
@@ -19,13 +19,13 @@ Then the infrastructure fell apart. Spot instances interrupted mid-training. A10
 
 I stopped. Not because the idea was wrong, but because the approach was premature. I didn't yet know enough about what makes a good biology explanation to encode it as training signal. I was trying to teach a model something I hadn't fully articulated to myself.
 
-## 18. Biology Researcher Network
+## 19. Biology Researcher Network
 
 I pulled data from Google Scholar and mapped Korean biology researchers into a network graph. Who publishes with whom. Which institutions cluster together. Where the bridges are between subfields.
 
 The graph visualization itself was fine — nodes, edges, force-directed layout, the usual. But the real value wasn't the output. It was the process. Crawling publication data forced me to read hundreds of abstracts I wouldn't have found otherwise. Building the edges forced me to understand how subfields relate. The graph was a byproduct. The education was the product.
 
-## 19. BioNews
+## 20. BioNews
 
 I built a biology news aggregator. It collected, it summarized, it displayed.
 
@@ -33,7 +33,7 @@ And then I realized I could just ask ChatGPT the same questions and get better a
 
 ---
 
-## What Nineteen Repositories Taught Me
+## What Twenty Repositories Taught Me
 
 Here's the uncomfortable truth about vibe coding.
 
@@ -47,7 +47,7 @@ The projects that worked — really worked, not just compiled — were the ones 
 
 This is the part that the "anyone can build anything now" narrative gets wrong. Yes, anyone can generate code. But generating code for a domain you don't understand is not building — it's producing artifacts. It's the software equivalent of AI-generated 20-second videos: technically impressive, semantically empty, and indistinguishable from noise if you don't already know what signal looks like.
 
-Nineteen repositories. The ones I'm proud of are the ones where I knew what I was doing before I opened the terminal.
+Twenty repositories. The ones I'm proud of are the ones where I knew what I was doing before I opened the terminal.
 
 ---
 
@@ -61,7 +61,7 @@ So that's where I am now. Writing code for biology. Reading papers slowly. Build
 
 The repositories will keep coming. But they'll be about one thing. Machine learning applied to biological questions — not because it's trendy, but because it's the intersection where I actually know what "right" looks like. Where I can tell the difference between signal and garbage. Where the AI accelerates my understanding instead of replacing it.
 
-Nineteen projects in thirty days taught me that the most productive thing I can do with AI is to use it in the one place where I don't need AI to tell me if the answer is correct.
+Twenty projects in thirty days taught me that the most productive thing I can do with AI is to use it in the one place where I don't need AI to tell me if the answer is correct.
 
 That place, for me, is biology.
 
