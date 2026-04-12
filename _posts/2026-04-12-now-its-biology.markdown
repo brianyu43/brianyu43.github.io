@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Now It's Biology"
-date:   2026-04-14 00:00:00 +0900
+date:   2026-04-12 00:00:00 +0900
 categories: essay building biology
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Then I Started Building for Machines"
-date:   2026-04-13 00:00:00 +0900
+date:   2026-04-12 00:00:00 +0900
 categories: essay building
 ---
 
