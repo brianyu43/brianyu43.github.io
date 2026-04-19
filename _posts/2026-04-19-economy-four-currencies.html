@@ -1286,7 +1286,7 @@ slug: economy-four-currencies
 <!-- ============ /KOREAN ============ -->
 
 
-<!-- ============ ENGLISH CONTENT (stub, translation in progress) ============ -->
+<!-- ============ ENGLISH CONTENT ============ -->
 <div data-lang="en" hidden>
 
 <!-- HERO -->
@@ -1294,7 +1294,7 @@ slug: economy-four-currencies
   <div class="wrap">
     <div class="eyebrow">Essay · Economy · Society</div>
     <h1 class="title">The Economy Runs on<br>Four <em>Currencies</em></h1>
-    <div class="subtitle">From collateral chains to time-lag credit, and the twelve exchange houses — a question followed all the way through.</div>
+    <div class="subtitle">From collateral chains to time-lag credit, to the twelve exchange houses — a single question followed all the way through.</div>
     <div class="meta">
       <div><span class="label">Reading time</span><span class="val">~22 min</span></div>
       <div><span class="label">Word count</span><span class="val">~8,500 words</span></div>
@@ -1304,12 +1304,314 @@ slug: economy-four-currencies
   </div>
 </div>
 
+<!-- PULLQUOTE -->
+<div class="wrap">
+  <div class="pullquote">
+    I borrowed ₩100 million from A. A pledges that claim as collateral to B, who passes it on to C… the loop continues to Z. Is such a chain possible? When is it dangerous, and when is it useful?<br><br>
+    A record of what happened when I followed this one-sentence question all the way down — tracing how the economy and society actually work, to the end.
+  </div>
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="Contents">
+    <div class="toc-label">Contents</div>
+    <ol>
+      <li><a href="#en-c1">Collateral Chain: A to Z</a></li>
+      <li><a href="#en-c2">The Chain's Essence: Time-Lag Credit</a></li>
+      <li><a href="#en-c3">Intangible Collateral: Invisible Layers</a></li>
+      <li><a href="#en-c4">The People Just Before Z</a></li>
+      <li><a href="#en-c5">The Ultimate Z: Collective Belief</a></li>
+      <li><a href="#en-c6">Gambling: Running the Structure in Reverse</a></li>
+      <li><a href="#en-c7">Found Money: Evidence of Chain Dropout</a></li>
+      <li><a href="#en-c8">The System's Fuel</a></li>
+      <li><a href="#en-c9">Two Edges and the Bluffer</a></li>
+      <li><a href="#en-c10">Four Layers and Twelve Exchange Houses</a></li>
+      <li><a href="#en-c12">Closing — Living in Four Currencies</a></li>
+    </ol>
+  </nav>
+</div>
+
+<!-- BODY -->
 <main class="wrap">
-  <section class="chapter">
-    <p style="text-align:center; color: var(--ink-3); font-style: italic; font-size: 17px; padding: 80px 0;">
-      English translation in progress — full text coming in the next update.
-    </p>
-  </section>
+
+<!-- SECTION 0 — INTRO -->
+<section class="chapter" id="en-c0">
+  <span class="chapter-num">00 · Prologue</span>
+  <h2 class="chapter-title">Opening — A Long Road Led by a Single Question</h2>
+  <p class="dropcap">What if you took a bond, pledged it as collateral, and pledged that collateral again — continuing all the way to the end of the alphabet? Under Korean civil law, such a chain of collateral is in fact possible. Repo markets, securities lending, and rehypothecation all follow this structure.</p>
+  <p>Tracing how far this simple structure can extend leads beyond the technical design of finance into the operating logic of the economic system as a whole. This piece follows that path and attempts to re-describe <strong>the economy as a twelve-exchange system between four currencies: money, time, risk, and trust.</strong></p>
+  <ul>
+    <li>Why does this chain exist?</li>
+    <li>Who stands at the end of the chain?</li>
+    <li>Who is that "someone" at the end, really?</li>
+    <li>In what way are we already part of it?</li>
+    <li>Where does gambling sit in this structure?</li>
+    <li>Why is found money strange?</li>
+    <li>What is it, in the end, that we hand to each other?</li>
+  </ul>
+  <p>This essay tries to thread those questions onto a single line. A tentative conclusion first: <strong>the economy looks like twelve exchange houses operating between four currencies.</strong> And we may already be walking through those exchange houses every day.</p>
+</section>
+
+<!-- SECTION 1 -->
+<section class="chapter" id="en-c1">
+  <span class="chapter-num">01 · Starting Point</span>
+  <h2 class="chapter-title">Collateral Chain: From A to Z</h2>
+  <p class="chapter-lede">Under Korean civil law, a claim is itself treated as property. So it can be pledged, and that pledge can itself be pledged. How far can this chain run?</p>
+
+  <h3>How the chain forms</h3>
+  <p>A claim can be provided as security through a pledge (Civil Code Art. 349) or by security-by-transfer. Perfection against the debtor requires notice or consent; third-party effect requires an instrument with a fixed date (Art. 450).</p>
+  <p>On this structure, the chain can run A→B→C→…→Z. In practice it shows up as the interbank repo market, prime brokerage, and securities lending.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 1.1 — Collateral Re-pledging Chain</div>
+      <div class="viz-title">A single claim flowing to the end of the alphabet</div>
+    </div>
+    <div class="viz-body">
+      <div class="chain-diagram">
+        <div class="chain-row" id="chainRowEn"></div>
+        <div class="chain-legend">
+          <span class="l-accent">A · Original borrower<br><span style="color:var(--mute)">needs liquidity</span></span>
+          <span>Middle links · re-pledge rotation</span>
+          <span class="l-ink">Z · Ultimate credit supplier<br><span style="color:var(--mute)">can afford to wait</span></span>
+        </div>
+      </div>
+    </div>
+    <figcaption>Each node is a party that received a claim as collateral. In real repo and securities-lending markets, the same underlying asset passes through several links, with credit multiplying along the way. IMF/BIS estimates of velocity in normal times: 2–3×.</figcaption>
+  </figure>
+
+  <h3>What risks come with it</h3>
+  <ol>
+    <li><strong>Chained counterparty risk.</strong> In Lehman's 2008 collapse, client assets rehypothecated to the UK entity were frozen in the bankruptcy estate. MF Global's commingling of client funds had a similar structure.</li>
+    <li><strong>Collateral can balloon.</strong> If the same ₩100M claim gets pledged several times along the chain, credit can expand by that multiple. Shadow banking's leverage lives here.</li>
+    <li><strong>Propagation of original-debtor risk.</strong> If the underlying asset wobbles, the entire chain feels it. The subprime MBS chain is a textbook case.</li>
+    <li><strong>Circular extinction.</strong> If the chain loops back to its origin, the claim is extinguished by merger (Art. 507).</li>
+    <li><strong>Defective perfection.</strong> A missing notice or fixed date along the way easily turns into a priority dispute.</li>
+  </ol>
+
+  <h3>Why the structure is still useful</h3>
+  <ol>
+    <li><strong>Activating dormant capital.</strong> A doesn't have to wait until maturity; the needed liquidity arrives now. The same holds for the intermediate parties.</li>
+    <li><strong>Lower funding costs.</strong> As collateral passes through several hands, risk naturally flows toward whoever can bear it best.</li>
+    <li><strong>Efficient credit intermediation.</strong> Even if the final Z cannot directly assess the original debtor, earlier screening by upstream parties provides an indirect credit supply.</li>
+  </ol>
+
+  <h3>Decay of collateral value</h3>
+  <p>Each step accumulates a haircut. At the 12th step M, residual value equals <em>(1−h)<sup>12</sup></em>.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 1.2 — Haircut Decay</div>
+      <div class="viz-title">Collateral remaining after a 12-step chain (starting from ₩100M)</div>
+    </div>
+    <div class="viz-body">
+      <div class="haircut">
+        <div class="hc-row">
+          <div class="hc-label">Treasury-grade <span style="color:var(--mute);font-weight:400">· h 2%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:78.5%"></div></div>
+          <div class="hc-val">₩ 78.5M</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">IG corporate <span style="color:var(--mute);font-weight:400">· h 5%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:54%"></div></div>
+          <div class="hc-val">₩ 54.0M</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">Equities · mid-grade <span style="color:var(--mute);font-weight:400">· h 10%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:28.2%"></div></div>
+          <div class="hc-val">₩ 28.2M</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">Low-grade assets <span style="color:var(--mute);font-weight:400">· h 15%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:14.2%"></div></div>
+          <div class="hc-val">₩ 14.2M</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">Stressed MBS-grade <span style="color:var(--mute);font-weight:400">· h 20%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:6.9%"></div></div>
+          <div class="hc-val">₩ 6.9M</div>
+        </div>
+      </div>
+    </div>
+    <figcaption>When haircuts jump in a crisis (private MBS went 3% → 40%+ in 2008), longer chains reveal fragility fast. Real-world chains rarely reach the mathematical extreme, but a chain that looked "safe" in normal times can lose much of its meaning in a short window.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <div class="tag">Core intuition</div>
+    What Z is really evaluating at step M is less the original debtor's credit and more <strong>"the cumulative legal and operational risk from A through L."</strong> Even if the underlying asset is sound, a wobble in a single intermediate link can drain much of the collateral's meaning.
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section class="chapter" id="en-c2">
+  <span class="chapter-num">02 · The Essence</span>
+  <h2 class="chapter-title">The Chain's Essence Is Time-Lag Credit</h2>
+  <p class="chapter-lede">Look at the chain carefully and it feels less like a structure spread across space, and more like one arranged along a time axis.</p>
+
+  <ul>
+    <li><strong>A</strong> — the "right now" party. Very high discount rate (urgency).</li>
+    <li><strong>Middle (B–Y)</strong> — parties progressively less urgent. The discount rate tapers down.</li>
+    <li><strong>Z</strong> — the party who doesn't mind when compensation arrives. Near-zero discount rate, at times slightly negative.</li>
+  </ul>
+  <p>What the market does can be seen as <strong>connecting parties with different time preferences and letting them share the gains from trade.</strong> A pulls future money into the present; Z converts present slack into a future claim. By each side's own preference, both benefit.</p>
+
+  <h3>Interest rates, revisited</h3>
+  <p>Under this lens, interest is less "the price of money" and more <strong>"the price of time."</strong></p>
+  <ul>
+    <li>High-rate societies — people want "now" relatively more (developing countries, growth periods)</li>
+    <li>Low-rate societies — "now" feels less urgent (aging developed economies)</li>
+    <li>Negative rates — a state where the holder of "now" pays to park the future</li>
+  </ul>
+  <p>Seen this way, monetary policy can be read as an attempt to gently adjust society's overall time preference.</p>
+
+  <h3>Time units grow longer as you move toward Z</h3>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 2.1 — Time Horizon Tower</div>
+      <div class="viz-title">A's day, Z's century</div>
+    </div>
+    <div class="viz-body">
+      <div class="tower">
+        <div class="tower-row"><span class="tower-label">A · Short-term funding</span><span class="tower-horizon">1 day — 1 year</span></div>
+        <div class="tower-row"><span class="tower-label">Middle intermediaries</span><span class="tower-horizon">several years</span></div>
+        <div class="tower-row"><span class="tower-label">Pension · insurance</span><span class="tower-horizon">20 — 40 years</span></div>
+        <div class="tower-row"><span class="tower-label">Treasury bondholders</span><span class="tower-horizon">30 years +</span></div>
+        <div class="tower-row"><span class="tower-label">Intergenerational promises · pensions · care · education</span><span class="tower-horizon">50 — 80 years</span></div>
+        <div class="tower-row"><span class="tower-label">Social trust · institutional collateral</span><span class="tower-horizon">100+ years</span></div>
+        <div class="tower-row"><span class="tower-label">Ultimate Z · civilizational continuity</span><span class="tower-horizon">eternal</span></div>
+      </div>
+    </div>
+    <figcaption>A's "₩100M by this afternoon" is, at a far-out layer, connected to Z's "if society still exists a hundred years from now." The chain works like a converter tying together wildly different time scales.</figcaption>
+  </figure>
+</section>
+
+<!-- SECTION 3 -->
+<section class="chapter" id="en-c3">
+  <span class="chapter-num">03 · Invisible Layers</span>
+  <h2 class="chapter-title">Intangible Collateral — What Flows Beneath Explicit Finance</h2>
+  <p class="chapter-lede">Each link of the chain is held together by more than explicit financial collateral. Beneath it sits a far greater volume of intangible collateral, quietly in place.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 3.1 — Intangible Collateral Stack</div>
+      <div class="viz-title">Seven layers that must hold up before money can move</div>
+    </div>
+    <div class="viz-body">
+      <div class="layers">
+        <div class="layer"><div class="layer-num">01</div><div><div class="layer-name">Reputational collateral</div><div class="layer-desc">A restaurant serving food without prepayment is collateralized by the social trust that "the customer won't skip on the bill."</div></div></div>
+        <div class="layer"><div class="layer-num">02</div><div><div class="layer-name">Relational collateral</div><div class="layer-desc">Lending a friend ₩50K without paperwork works because the continuity of the relationship is the collateral.</div></div></div>
+        <div class="layer"><div class="layer-num">03</div><div><div class="layer-name">Human-capital collateral</div><div class="layer-desc">A new hire at a large firm getting a credit line is collateralized by "30 years of future labor income."</div></div></div>
+        <div class="layer"><div class="layer-num">04</div><div><div class="layer-name">Social-capital collateral</div><div class="layer-desc">Grameen Bank's microcredit was collateralized by village-level mutual liability.</div></div></div>
+        <div class="layer"><div class="layer-num">05</div><div><div class="layer-name">Institutional collateral</div><div class="layer-desc">When a cashier swipes your card at a convenience store, they don't verify your balance — VISA, card networks, banks, and the financial supervisor all sit behind the transaction.</div></div></div>
+        <div class="layer"><div class="layer-num">06</div><div><div class="layer-name">Physical / freedom collateral</div><div class="layer-desc">Contracts work ultimately because the state holds a monopoly on legitimate violence.</div></div></div>
+        <div class="layer"><div class="layer-num">07</div><div><div class="layer-name">Sovereign collateral</div><div class="layer-desc">The won has value because the Bank of Korea — ultimately, the Republic of Korea's taxing power — is the collateral.</div></div></div>
+      </div>
+    </div>
+    <figcaption>The lower you go, the larger and harder-to-rebuild the block. The 2008 crisis, more than a price drop in MBS, can be read as a wobble in the intangible collateral ("AAA labels can be trusted") that rating agencies, due diligence firms, and legal documents had been jointly supplying.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <div class="tag">Summary</div>
+    One view describes social wealth as <strong>physical capital × human capital × institutional/trust capital</strong> (Fukuyama, Putnam, North). Even when the first two are similar, differences in the third explain much of the gap in national prosperity.
+  </div>
+</section>
+
+<!-- SECTION 4 -->
+<section class="chapter" id="en-c4">
+  <span class="chapter-num">04 · The People Just Before Z</span>
+  <h2 class="chapter-title">The People Just Before Z</h2>
+  <p class="chapter-lede">Follow the chain's story and you arrive at a slightly heavy place. The layer just before Z is full of people posting the present of their own life as collateral, waiting for future compensation. This collateral is capital that the system sources remarkably cheaply.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:32%">Group</th><th>What is pledged</th><th style="width:28%">Collateral basis</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Low-wage essential workers</td><td>Present labor of delivery riders, caregivers, day laborers</td><td>"Things will get better someday" · generational hope</td></tr>
+        <tr><td>Professionals in training</td><td>20s–30s of residents, junior law associates, PhD students</td><td>Promise of "reward in 10 years"</td></tr>
+        <tr><td>Founders · artists · researchers</td><td>Career · stability · life-time</td><td>Lottery-like belief in "eventual recognition"</td></tr>
+        <tr><td>Care workers</td><td>Housework · childcare · eldercare. Market price 0.</td><td>"Duty" as norm</td></tr>
+        <tr><td>Immigrants · foreign workers</td><td>Social standing of their own generation</td><td>"Next generation becomes local"</td></tr>
+        <tr><td>Military conscripts (Korea)</td><td>18–21 months of youth</td><td>"Citizen's duty" + implicit recognition promise</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Their commonality: <strong>valuing the collateral at the moment of provision is delayed, or practically difficult.</strong> Whether a resident's low wage was an "investment" or something more takes about ten years to say. How the time of childcare gets recorded in value often only surfaces much later.</p>
+  <p>The consequence: their contribution struggles to fit fully into today's market prices. So this capital is sourced not through market mechanisms but through non-market bases — <strong>norms, hope, obligation, identity.</strong></p>
+
+  <div class="callout">
+    <div class="tag">The cheapest, hardest-to-recover capital</div>
+    These people form the poorly-visible layer just before Z. Korea's low fertility can be read as one signal that trust in this collateral weakened within a single generation. Less a change in the structure itself, more a fading of the trust that had been supporting it.
+  </div>
+</section>
+
+<!-- SECTION 5 -->
+<section class="chapter" id="en-c5">
+  <span class="chapter-num">05 · End of the Chain</span>
+  <h2 class="chapter-title">The Ultimate Z Is Collective Belief</h2>
+  <p class="chapter-lede">So who is the real ultimate Z? Several layers stack up.</p>
+
+  <h4>Visible Z — the state</h4>
+  <p>Trace every chain to its end and it converges on the state. Behind the deposit insurance corporation stands government finance; behind the central bank, the taxing power; behind the courts, police and military.</p>
+
+  <h4>The state's Z — citizens' compliance</h4>
+  <p>The taxing power stands on the majority's consent that "paying taxes is obvious." State legitimacy is the state's foundational capital.</p>
+
+  <h4>Deeper — intergenerational trust</h4>
+  <p>The national pension works because I believe the promise that my benefits come from premiums paid by the next generation thirty years from now. The won works because of the implicit agreement that convenience stores tomorrow will still accept it.</p>
+
+  <h4>Ultimate — collective imagination</h4>
+  <p>Every collateral chain floats on the belief that <strong>"society will exist tomorrow much like today."</strong> Money, property rights, the state, law — all are, in Searle's phrase, "institutional facts," or in Harari's phrase, "intersubjective reality."</p>
+
+  <div class="callout">
+    <div class="tag">Provisional conclusion</div>
+    <strong>The ultimate Z may, in the end, be us.</strong> As long as enough people believe the structure and act on it, Z is real. Conversely, if enough people simultaneously withdraw belief, Z fades. Bank runs are the micro scene; revolutions are the macro scene.
+  </div>
+</section>
+
+<!-- SECTION 6 -->
+<section class="chapter" id="en-c6">
+  <span class="chapter-num">06 · Pathology I</span>
+  <h2 class="chapter-title">Gambling — A Trade That Runs Against the Structure</h2>
+  <p class="chapter-lede">Having come this far, we can say a bit more clearly why gambling differs from other trades in kind.</p>
+
+  <p>The trades examined so far (loans, insurance, stocks, labor) are largely <strong>positive-sum.</strong> Because parties differ in time preference, risk preference, or capability, exchange leaves both sides a little better off. Gambling is structurally different because none of those conditions really hold.</p>
+
+  <ul>
+    <li>Counterparties share essentially the same time preference</li>
+    <li>Not explained by risk-preference differences — rather than sharing an existing risk, gambling tends to <em>create</em> new risk</li>
+    <li>Differences in information or capability don't meaningfully operate (roulette, slots, memecoins have no fundamentals to lean on)</li>
+    <li>A structural house edge exists</li>
+  </ul>
+
+  <div class="callout">
+    <div class="tag">Mathematical character</div>
+    In expected-value terms it's close to a negative-sum game. It creates no new value along any axis — time, risk, or information — and only moves money around, with the total shrinking by the fee.
+  </div>
+
+  <h3>Why people still play</h3>
+  <p>People participate knowing, mathematically, that the expected value is unfavorable — for a reason. Gambling often functions <strong>less as money exchange and more as exchange for something else.</strong></p>
+  <ol>
+    <li><strong>Buying a narrative.</strong> A lottery ticket is closer to purchasing "the feeling that I might be the winner for a week."</li>
+    <li><strong>Recovering meaning.</strong> The more someone has posted their life deep to Z, the closer the fantasy of "change everything at once" feels.</li>
+    <li><strong>A sense of control.</strong> The psychological utility of "I pick."</li>
+    <li><strong>Dopamine reinforcement.</strong> Variable-ratio reinforcement (the slot-machine schedule) is known to fix behavior most firmly.</li>
+  </ol>
+
+  <h3>Memecoins as a special case</h3>
+  <p>A few textures differ from traditional gambling: a <strong>financial veneer</strong> (the "investment" frame makes the gambling character harder to recognize), <strong>information asymmetry</strong> (a structural gap between developers / early accumulators and late entrants), <strong>social contagion</strong> (FOMO spread by "someone made 10×" stories), and <strong>time compression</strong> (24-hour trading).</p>
+  <p>Flourishing gambling industries are, in a sense, <strong>an indicator of fatigue with the social contract.</strong> For those with lives posted deep to Z, as "someday" drifts further away, the imagination of a fast escape grows. Statistics showing that lottery purchases are a relatively higher share of income for low-income groups sit near this context.</p>
+</section>
+
+<!-- SECTION 7–12 placeholder — translation continues in next update -->
+<section class="chapter">
+  <p style="text-align:center; color: var(--ink-3); font-style: italic; font-size: 17px; padding: 80px 0;">
+    Chapters 7 through 12 — translation continues in the next update.
+  </p>
+</section>
+
 </main>
 
 </div>
@@ -1326,21 +1628,23 @@ slug: economy-four-currencies
 </footer>
 
 <script>
-  // Render the collateral chain A → ... → Z dynamically
+  // Render the collateral chain A → ... → Z dynamically (both ko/en)
   (function renderChain() {
-    const row = document.getElementById('chainRow');
-    if (!row) return;
+    const rows = document.querySelectorAll('#chainRow, #chainRowEn');
+    if (!rows.length) return;
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-    letters.forEach((ltr, i) => {
-      const node = document.createElement('div');
-      node.className = 'chain-node ' + (i === 0 ? 'origin' : (i === letters.length - 1 ? 'end' : 'mid'));
-      node.textContent = ltr;
-      row.appendChild(node);
-      if (i < letters.length - 1) {
-        const arr = document.createElement('div');
-        arr.className = 'chain-arrow';
-        row.appendChild(arr);
-      }
+    rows.forEach(row => {
+      letters.forEach((ltr, i) => {
+        const node = document.createElement('div');
+        node.className = 'chain-node ' + (i === 0 ? 'origin' : (i === letters.length - 1 ? 'end' : 'mid'));
+        node.textContent = ltr;
+        row.appendChild(node);
+        if (i < letters.length - 1) {
+          const arr = document.createElement('div');
+          arr.className = 'chain-arrow';
+          row.appendChild(arr);
+        }
+      });
     });
   })();
 
