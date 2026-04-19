@@ -48,7 +48,7 @@ content:
 
       - name: body
         label: HTML 본문
-        description: "<!DOCTYPE html>부터 </html>까지 통째로 붙여넣으세요. 커스텀 CSS·JS 포함 가능."
+        description: "<!DOCTYPE html>부터 </html>까지 통째로 붙여넣으세요. SEO를 위해 <head> 안에 '{% seo title=false %}' 한 줄 추가 권장(description·og:*·twitter:* 자동 주입)."
         type: code
         options:
           language: html
