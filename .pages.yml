@@ -1,0 +1,54 @@
+# Pages CMS 설정 — https://pagescms.org/docs/
+# 사용법:
+#   1) https://app.pagescms.org 로그인 (GitHub 계정)
+#   2) 이 레포(brianyu43.github.io) 연결 권한 승인
+#   3) 자동으로 아래 설정이 읽혀 CMS 편집 화면이 뜹니다
+
+media: assets/uploads
+
+content:
+  - name: posts
+    label: 블로그 포스트
+    type: collection
+    path: _posts
+    format: yaml-frontmatter
+    filename: "{year}-{month}-{day}-{fields.slug}.html"
+    view:
+      fields: [title, date]
+      primary: title
+    fields:
+      - name: title
+        label: 제목
+        type: string
+        required: true
+
+      - name: date
+        label: 발행일시
+        type: date
+        options:
+          time: true
+        required: true
+
+      - name: slug
+        label: URL 슬러그
+        description: "파일명에 들어갑니다. 영문/숫자/하이픈만. 예: economy-four-currencies"
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        required: true
+
+      - name: categories
+        label: 카테고리
+        description: "공백으로 구분. 예: essay economy"
+        type: string
+
+      - name: excerpt
+        label: 요약
+        description: "홈 목록에서 제목 아래에 표시됩니다."
+        type: text
+
+      - name: body
+        label: HTML 본문
+        description: "<!DOCTYPE html>부터 </html>까지 통째로 붙여넣으세요. 커스텀 CSS·JS 포함 가능."
+        type: code
+        options:
+          language: html

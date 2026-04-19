@@ -1,0 +1,1272 @@
+---
+title: "경제는 네 개의 통화로 돌아간다"
+date: 2026-04-19 09:00:00 +0900
+categories: essay economy
+excerpt: "담보 사슬부터 시간차 신용, 그리고 12개의 환전소까지 — 한 질문을 끝까지 따라가 본 기록."
+slug: economy-four-currencies
+---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경제는 네 개의 통화로 돌아간다 — 담보 사슬부터 시간차 신용, 그리고 12개의 환전소까지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;500;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #17171a;
+    --ink-2: #2c2c31;
+    --ink-3: #52525b;
+    --mute: #8a8a93;
+    --paper: #f6f3ec;
+    --paper-2: #ede9df;
+    --paper-3: #e3dfd2;
+    --line: #d9d4c4;
+    --line-soft: #e8e3d4;
+    --accent: #b2441d;     /* 낡은 주홍 */
+    --accent-soft: #e6c7b3;
+    --accent-bg: #f3e4d6;
+    --gold: #8a6a1f;
+    --teal: #2f5a56;
+    --serif: "Noto Serif KR", "Source Serif Pro", Georgia, "Nanum Myeongjo", serif;
+    --sans: "Noto Sans KR", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--serif);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.8;
+    font-size: 17px;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---------- Layout ---------- */
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 28px; }
+  .wide { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- Masthead ---------- */
+  .masthead {
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+    padding: 22px 0;
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(8px);
+    background: rgba(246, 243, 236, 0.92);
+  }
+  .masthead-inner {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .brand { font-weight: 700; color: var(--ink); letter-spacing: 0.2em; }
+  .brand .dot { display: inline-block; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .issue { color: var(--mute); }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 90px 0 60px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--sans); font-size: 12px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: var(--accent); font-weight: 700;
+    margin-bottom: 28px;
+  }
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: clamp(34px, 5.6vw, 62px);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 24px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  h1.title em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .subtitle {
+    font-family: var(--serif);
+    font-size: clamp(18px, 2.2vw, 22px);
+    color: var(--ink-3);
+    font-weight: 400;
+    line-height: 1.5;
+    margin: 0 0 48px;
+    max-width: 620px;
+    text-wrap: pretty;
+  }
+  .meta {
+    display: flex; gap: 32px; flex-wrap: wrap;
+    font-family: var(--sans); font-size: 12.5px;
+    color: var(--ink-3); letter-spacing: 0.04em;
+    padding-top: 28px; border-top: 1px solid var(--line);
+  }
+  .meta .label { color: var(--mute); text-transform: uppercase; letter-spacing: 0.16em; font-size: 10.5px; display: block; margin-bottom: 4px; }
+  .meta .val { color: var(--ink); font-weight: 500; }
+
+  /* ---------- Pullquote ---------- */
+  .pullquote {
+    background: var(--paper-2);
+    border-left: 3px solid var(--accent);
+    padding: 36px 42px;
+    margin: 60px 0;
+    font-family: var(--serif);
+    font-size: 20px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    font-style: italic;
+    position: relative;
+  }
+  .pullquote::before {
+    content: "";
+    font-family: var(--serif);
+    position: absolute;
+    top: -30px; left: 30px;
+    font-size: 96px;
+    color: var(--accent);
+    opacity: 0.3;
+    line-height: 1;
+  }
+
+  /* ---------- Section structure ---------- */
+  section.chapter {
+    padding: 72px 0 20px;
+    border-top: 1px solid var(--line-soft);
+  }
+  section.chapter:first-of-type { border-top: none; }
+
+  .chapter-num {
+    font-family: var(--sans);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: block;
+  }
+  h2.chapter-title {
+    font-family: var(--serif);
+    font-weight: 800;
+    font-size: clamp(28px, 3.6vw, 40px);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    margin: 0 0 18px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .chapter-lede {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--ink-3);
+    line-height: 1.7;
+    margin: 0 0 44px;
+    max-width: 640px;
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 22px;
+    margin: 44px 0 14px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  h4 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 32px 0 12px;
+  }
+  p { margin: 0 0 20px; text-wrap: pretty; }
+  p strong, li strong { font-weight: 700; color: var(--ink); }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+  ul, ol { padding-left: 22px; margin: 0 0 22px; }
+  li { margin-bottom: 8px; }
+
+  /* ---------- Drop cap ---------- */
+  .dropcap::first-letter {
+    font-family: var(--serif);
+    font-weight: 900;
+    float: left;
+    font-size: 72px;
+    line-height: 0.9;
+    padding: 6px 10px 0 0;
+    color: var(--accent);
+  }
+
+  /* ---------- Figure / Viz wrapper ---------- */
+  figure.viz {
+    margin: 48px 0;
+    background: #fbf9f3;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  figure.viz .viz-head {
+    padding: 20px 28px 14px;
+    border-bottom: 1px dashed var(--line);
+  }
+  figure.viz .viz-label {
+    font-family: var(--sans);
+    font-size: 10.5px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  figure.viz .viz-title {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--ink);
+    line-height: 1.35;
+  }
+  figure.viz .viz-body { padding: 28px; }
+  figure.viz figcaption {
+    padding: 14px 28px 20px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--ink-3);
+    line-height: 1.55;
+  }
+
+  /* ---------- Tables ---------- */
+  .tbl-wrap { overflow-x: auto; margin: 24px -4px; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-family: var(--sans); font-size: 13.5px;
+  }
+  thead th {
+    text-align: left; font-weight: 700;
+    padding: 10px 14px;
+    background: var(--paper-2);
+    border-bottom: 2px solid var(--ink);
+    font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-2);
+  }
+  tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+    color: var(--ink-2);
+  }
+  tbody tr:last-child td { border-bottom: 1px solid var(--ink); }
+  tbody td:first-child { font-weight: 600; color: var(--ink); }
+
+  /* ---------- Callout / Key insight ---------- */
+  .callout {
+    background: var(--accent-bg);
+    border: 1px solid var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 22px 26px;
+    margin: 28px 0;
+    font-family: var(--serif);
+    font-size: 16.5px;
+    line-height: 1.7;
+    color: var(--ink-2);
+  }
+  .callout .tag {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 10.5px; letter-spacing: 0.22em;
+    text-transform: uppercase; font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  /* ---------- TOC ---------- */
+  .toc {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    padding: 32px 36px;
+    margin: 56px 0 0;
+  }
+  .toc-label {
+    font-family: var(--sans); font-size: 11px;
+    letter-spacing: 0.26em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-3);
+    margin-bottom: 18px;
+  }
+  .toc ol { list-style: none; padding: 0; margin: 0; counter-reset: toc; columns: 2; column-gap: 40px; }
+  .toc li {
+    counter-increment: toc;
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--line);
+    font-family: var(--serif); font-size: 15px;
+    break-inside: avoid;
+    display: flex; gap: 12px; align-items: baseline;
+  }
+  .toc li::before {
+    content: counter(toc, decimal-leading-zero);
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); font-weight: 500;
+    flex-shrink: 0;
+  }
+  .toc li a { color: var(--ink-2); border-bottom: none; }
+  .toc li a:hover { color: var(--accent); }
+  @media (max-width: 640px) { .toc ol { columns: 1; } }
+
+  /* ---------- Diagram: Collateral chain ---------- */
+  .chain-diagram { padding: 10px 0; }
+  .chain-row { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center; }
+  .chain-node {
+    width: 42px; height: 42px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--sans); font-weight: 700; font-size: 14px;
+    background: #fff; border: 1px solid var(--ink-3); color: var(--ink);
+    flex-shrink: 0;
+  }
+  .chain-node.origin { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chain-node.end { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .chain-node.mid { background: #fff; }
+  .chain-arrow {
+    flex: 1; min-width: 6px; max-width: 28px;
+    height: 1px; background: var(--ink-3);
+    position: relative;
+  }
+  .chain-arrow::after {
+    content: ""; position: absolute; right: -1px; top: -3px;
+    border-left: 6px solid var(--ink-3);
+    border-top: 3.5px solid transparent;
+    border-bottom: 3.5px solid transparent;
+  }
+  .chain-legend {
+    display: flex; justify-content: space-between;
+    margin-top: 24px; padding: 0 8px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-3);
+  }
+  .chain-legend span { text-align: center; }
+  .chain-legend .l-accent { color: var(--accent); font-weight: 600; }
+  .chain-legend .l-ink { color: var(--ink); font-weight: 600; }
+
+  /* ---------- Haircut bars ---------- */
+  .haircut { display: flex; flex-direction: column; gap: 16px; }
+  .hc-row { display: grid; grid-template-columns: 160px 1fr 100px; gap: 16px; align-items: center; font-family: var(--sans); font-size: 13px; }
+  .hc-label { font-weight: 600; color: var(--ink); }
+  .hc-bar { height: 26px; background: var(--paper-3); position: relative; overflow: hidden; }
+  .hc-fill { height: 100%; background: linear-gradient(90deg, var(--ink) 0%, var(--accent) 100%); }
+  .hc-val { font-family: var(--mono); font-size: 12px; color: var(--ink-2); text-align: right; }
+  @media (max-width: 640px) {
+    .hc-row { grid-template-columns: 1fr; gap: 4px; }
+    .hc-val { text-align: left; }
+  }
+
+  /* ---------- Time horizon tower ---------- */
+  .tower { display: flex; flex-direction: column; gap: 3px; font-family: var(--sans); }
+  .tower-row {
+    display: grid; grid-template-columns: 1fr 180px;
+    gap: 16px; padding: 14px 18px;
+    align-items: center;
+  }
+  .tower-label { font-size: 14px; font-weight: 500; }
+  .tower-horizon { font-family: var(--mono); font-size: 12px; color: var(--ink-3); text-align: right; letter-spacing: 0.03em; }
+  .tower-row:nth-child(1) { background: #fcebd6; }
+  .tower-row:nth-child(2) { background: #f9dfc0; }
+  .tower-row:nth-child(3) { background: #f2d0a7; }
+  .tower-row:nth-child(4) { background: #e8be8d; }
+  .tower-row:nth-child(5) { background: #d9a972; }
+  .tower-row:nth-child(6) { background: #b5875a; color: #fff; }
+  .tower-row:nth-child(6) .tower-horizon { color: rgba(255,255,255,0.8); }
+  .tower-row:nth-child(7) { background: #7d5a3a; color: #fff; }
+  .tower-row:nth-child(7) .tower-horizon { color: rgba(255,255,255,0.8); }
+
+  /* ---------- Four currencies card ---------- */
+  .currencies {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+  .curr-card {
+    background: #fbf9f3;
+    padding: 26px 22px;
+    text-align: left;
+  }
+  .curr-glyph {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 56px;
+    line-height: 1;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  .curr-name {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--ink);
+    margin-bottom: 4px;
+    letter-spacing: 0.02em;
+  }
+  .curr-unit {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+  .curr-hint {
+    font-family: var(--serif);
+    font-size: 13.5px;
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  @media (max-width: 720px) { .currencies { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---------- Intangible collateral layers ---------- */
+  .layers { display: flex; flex-direction: column; gap: 0; }
+  .layer {
+    display: grid; grid-template-columns: 40px 1fr;
+    gap: 20px; padding: 18px 4px;
+    border-top: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .layer:first-child { border-top: none; }
+  .layer-num {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent); font-weight: 500; letter-spacing: 0.08em;
+    padding-top: 4px;
+  }
+  .layer-name {
+    font-family: var(--sans); font-size: 15px; font-weight: 700;
+    color: var(--ink); margin-bottom: 4px;
+  }
+  .layer-desc {
+    font-family: var(--serif); font-size: 14.5px;
+    color: var(--ink-3); line-height: 1.6;
+  }
+
+  /* ---------- Exchange matrix ---------- */
+  .matrix-wrap { overflow-x: auto; margin: 24px -4px; }
+  table.matrix {
+    width: 100%; border-collapse: collapse;
+    font-family: var(--sans); font-size: 12.5px;
+    min-width: 620px;
+  }
+  table.matrix thead th {
+    background: var(--ink); color: var(--paper);
+    font-size: 11px; letter-spacing: 0.1em;
+    padding: 12px 10px; text-align: center;
+    border-bottom: none;
+    text-transform: none;
+  }
+  table.matrix thead th:first-child { background: var(--ink-2); text-align: left; }
+  table.matrix tbody th {
+    background: var(--paper-2); color: var(--ink);
+    font-weight: 700; font-size: 11px; letter-spacing: 0.08em;
+    padding: 10px 12px; text-align: left;
+    border-right: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.matrix tbody td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    border-right: 1px solid var(--line-soft);
+    vertical-align: top;
+    text-align: center;
+  }
+  table.matrix .cell-empty {
+    background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-soft) 4px 5px);
+  }
+  table.matrix .cell-strong {
+    font-weight: 700; color: var(--ink);
+    display: block; margin-bottom: 2px;
+    font-size: 13.5px;
+  }
+  table.matrix .cell-mute {
+    color: var(--ink-3); font-size: 11px;
+    font-family: var(--mono);
+  }
+  table.matrix .cell-accent .cell-strong { color: var(--accent); }
+
+  /* ---------- Equation ---------- */
+  .equation {
+    font-family: "Cambria Math", "Latin Modern Math", var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    text-align: center;
+    padding: 26px 20px;
+    background: var(--paper-2);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin: 32px 0;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .equation .op { color: var(--accent); font-style: normal; padding: 0 6px; }
+
+  /* ---------- Two-path fork ---------- */
+  .fork { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+  .fork-card { padding: 24px; border: 1px solid var(--line); background: #fbf9f3; }
+  .fork-card.pos { border-top: 3px solid var(--teal); }
+  .fork-card.neg { border-top: 3px solid var(--accent); }
+  .fork-tag { font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .fork-card.pos .fork-tag { color: var(--teal); }
+  .fork-card.neg .fork-tag { color: var(--accent); }
+  .fork-head { font-family: var(--serif); font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--ink); }
+  .fork-card ul { font-family: var(--sans); font-size: 13px; padding-left: 18px; }
+  .fork-card li { margin-bottom: 5px; color: var(--ink-2); }
+  @media (max-width: 640px) { .fork { grid-template-columns: 1fr; } }
+
+  /* ---------- End matter ---------- */
+  .end-rule {
+    text-align: center;
+    font-family: var(--serif);
+    color: var(--accent);
+    letter-spacing: 0.8em;
+    margin: 80px 0 60px;
+    font-size: 14px;
+  }
+  .colophon {
+    padding: 40px 0 80px;
+    border-top: 1px solid var(--line);
+    font-family: var(--serif);
+    font-size: 14.5px;
+    color: var(--ink-3);
+    line-height: 1.7;
+    font-style: italic;
+  }
+  .final-oneliner {
+    margin: 60px 0;
+    padding: 48px 0;
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    text-align: center;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(22px, 3vw, 30px);
+    line-height: 1.5;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .final-oneliner em { color: var(--accent); font-style: italic; font-weight: 500; }
+
+  /* ---------- Footer ---------- */
+  footer.site-foot {
+    padding: 40px 0;
+    border-top: 1px solid var(--line);
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--mute);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* ---------- Print ---------- */
+  @media print {
+    .masthead { position: static; }
+    body { font-size: 11pt; background: #fff; }
+    figure.viz, .callout { break-inside: avoid; }
+    .hero { padding: 40px 0; }
+  }
+
+  /* ---------- Mobile adjustments ---------- */
+  @media (max-width: 640px) {
+    body { font-size: 16px; line-height: 1.75; }
+    .hero { padding: 48px 0 32px; }
+    .pullquote { padding: 24px 22px; font-size: 17px; margin: 40px 0; }
+    figure.viz .viz-body { padding: 20px 16px; }
+    figure.viz .viz-head, figure.viz figcaption { padding-left: 18px; padding-right: 18px; }
+    section.chapter { padding: 48px 0 16px; }
+    .tower-row { grid-template-columns: 1fr; gap: 2px; }
+    .tower-horizon { text-align: left; }
+    .chain-node { width: 32px; height: 32px; font-size: 12px; }
+  }
+
+  .sub-divider {
+    font-family: var(--serif);
+    color: var(--accent);
+    letter-spacing: 0.4em;
+    margin: 40px 0 28px;
+    font-size: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- MASTHEAD -->
+<header class="masthead">
+  <div class="wide masthead-inner">
+    <div class="brand"><span class="dot"></span>ESSAYS ON EXCHANGE</div>
+    <div class="issue">Vol. 01 · 2026.04.19 · 장문 에세이</div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">에세이 · 경제 · 사회</div>
+    <h1 class="title">경제는 네 개의 <em>통화</em>로<br>돌아간다</h1>
+    <div class="subtitle">담보 사슬부터 시간차 신용, 그리고 12개의 환전소까지 — 한 질문을 끝까지 따라가 본 기록.</div>
+    <div class="meta">
+      <div><span class="label">Reading time</span><span class="val">약 22분</span></div>
+      <div><span class="label">Word count</span><span class="val">13,526자</span></div>
+      <div><span class="label">Chapters</span><span class="val">12장</span></div>
+      <div><span class="label">Published</span><span class="val">2026.04.19</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- PULLQUOTE -->
+<div class="wrap">
+  <div class="pullquote">
+    내가 A에게 1억을 빌렸다. A는 그 채권을 B에게 담보로 맡기고, B는 다시 C에게… 이 순환이 Z까지 이어진다. 이 사슬은 가능한가? 언제 위험하고 언제 좋은가?<br><br>
+    이 한 문장의 질문에서 시작해, 경제와 사회가 실제로 어떻게 작동하는지를 끝까지 따라가 본 기록이다.
+  </div>
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="목차">
+    <div class="toc-label">Contents · 목차</div>
+    <ol>
+      <li><a href="#c1">담보 사슬: A에서 Z까지</a></li>
+      <li><a href="#c2">사슬의 본질: 시간차 신용</a></li>
+      <li><a href="#c3">무형 담보: 보이지 않는 층</a></li>
+      <li><a href="#c4">Z 직전의 사람들</a></li>
+      <li><a href="#c5">궁극의 Z: 집합적 믿음</a></li>
+      <li><a href="#c6">도박: 구조를 역행하는 행위</a></li>
+      <li><a href="#c7">주운 돈: 사슬 이탈의 증거</a></li>
+      <li><a href="#c8">시스템의 연료</a></li>
+      <li><a href="#c9">엣지의 두 경로</a></li>
+      <li><a href="#c10">네 층위와 12교환</a></li>
+      <li><a href="#c12">마치며 — 네 통화로 사는 삶</a></li>
+    </ol>
+  </nav>
+</div>
+
+<!-- BODY -->
+<main class="wrap">
+
+<!-- SECTION 0 — INTRO -->
+<section class="chapter" id="c0">
+  <span class="chapter-num">00 · Prologue</span>
+  <h2 class="chapter-title">들어가며 — 한 질문이 끌고 간 먼 길</h2>
+  <p class="dropcap">채권을 담보로 잡히고, 그것을 또 담보로 잡히는 방식으로 알파벳 끝까지 이어 간다면 어떻게 될까. 한국 민법상 이런 담보 연쇄는 실제로 가능하다. 레포(repo) 시장, 증권대차, 재담보(rehypothecation)가 모두 이 구조를 따른다.</p>
+  <p>이 단순한 구조가 어디까지 확장될 수 있는지를 따라가다 보면 금융의 기술적 설계를 넘어 경제 시스템 전반의 작동 원리로 이어진다. 이 글은 그 경로를 따라가며 <strong>경제를 네 개의 통화(돈·시간·리스크·신뢰) 사이의 12개 환전 시스템</strong>으로 재서술해 보는 시도다.</p>
+  <ul>
+    <li>이 사슬은 왜 존재하는가?</li>
+    <li>사슬의 끝에는 누가 있는가?</li>
+    <li>그 끝의 "누군가"는 실제로 누구인가?</li>
+    <li>우리는 어떤 방식으로 이 사슬에 참여하고 있는가?</li>
+    <li>도박은 이 구조에서 어떤 위치인가?</li>
+    <li>주운 돈은 왜 이상한가?</li>
+    <li>경제는 결국 사람들이 서로에게 무엇을 주는 것인가?</li>
+  </ul>
+  <p>이 글은 그 질문들을 하나의 실로 꿰어보려는 시도다. 잠정적인 결론을 먼저 적으면, <strong>경제는 네 개의 통화 사이에서 이루어지는 12개의 환전 시스템</strong>처럼 보인다. 그리고 우리는 아마 이미 이 환전소를 매일 드나들고 있는지도 모른다.</p>
+</section>
+
+<!-- SECTION 1 -->
+<section class="chapter" id="c1">
+  <span class="chapter-num">01 · 시작점</span>
+  <h2 class="chapter-title">담보 사슬: A에서 Z까지</h2>
+  <p class="chapter-lede">한국 민법상 채권은 그 자체로 재산으로 취급된다. 그래서 담보로 제공할 수 있고, 그 담보는 다시 담보가 될 수 있다. 이 사슬은 어디까지 이어질 수 있을까.</p>
+
+  <h3>사슬은 어떻게 성립하는가</h3>
+  <p>질권 설정(민법 제349조)이나 양도담보로 채권을 제공할 수 있다. 대항요건은 채무자에 대한 통지 또는 승낙, 제3자 대항을 위해서는 확정일자 있는 증서(민법 제450조).</p>
+  <p>이 구조를 따라 A→B→C→…→Z까지 사슬이 이어질 수 있다. 현실에서는 이게 은행간 레포 시장, 프라임브로커리지, 증권대차로 나타난다.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 1.1 — 담보 재담보 사슬</div>
+      <div class="viz-title">하나의 채권이 알파벳 끝까지 흘러가는 구조</div>
+    </div>
+    <div class="viz-body">
+      <div class="chain-diagram">
+        <div class="chain-row" id="chainRow"></div>
+        <div class="chain-legend">
+          <span class="l-accent">A · 원차입자<br><span style="color:var(--mute)">유동성 필요</span></span>
+          <span>중간 고리들 · 재담보 회전</span>
+          <span class="l-ink">Z · 최종 신용공급자<br><span style="color:var(--mute)">기다릴 여유</span></span>
+        </div>
+      </div>
+    </div>
+    <figcaption>각 노드는 채권을 담보로 받은 주체. 실제 레포·증권대차 시장에서는 같은 원자산이 여러 고리를 통과하며 신용이 증식한다. IMF/BIS 추산 회전율은 평시 2~3회.</figcaption>
+  </figure>
+
+  <h3>어떤 위험이 함께 오는가</h3>
+  <ol>
+    <li><strong>카운터파티 리스크의 연쇄화.</strong> 2008년 리먼 파산 때, 영국 법인에 재담보된 고객 자산이 파산재단에 묶인 사례가 있다. MF Global의 고객자금 혼용도 비슷한 구조였다.</li>
+    <li><strong>담보가 과하게 불어날 가능성.</strong> 같은 1억 원어치 채권이 사슬을 따라 여러 번 담보로 쓰이면 신용이 그만큼 부풀 수 있다. 그림자금융의 레버리지가 여기서 나온다.</li>
+    <li><strong>원채무자 리스크의 전파.</strong> 원자산이 흔들리면 사슬 전체가 영향을 받는다. 서브프라임 MBS 사슬이 대표적인 예다.</li>
+    <li><strong>순환 귀결.</strong> 사슬이 돌아 원래 자리로 돌아오면 혼동(민법 제507조)으로 채권이 소멸한다.</li>
+    <li><strong>대항요건 하자.</strong> 중간에 통지나 확정일자가 누락되면 우선순위 분쟁으로 이어지기 쉽다.</li>
+  </ol>
+
+  <h3>그럼에도 이 구조가 유용한 이유</h3>
+  <ol>
+    <li><strong>잠들어 있던 자본의 활성화.</strong> A는 상환일을 기다리지 않고 지금 필요한 유동성을 확보할 수 있다. 중간 주체들도 마찬가지다.</li>
+    <li><strong>자금조달비용의 완화.</strong> 담보가 여러 손을 거치며 리스크를 더 잘 감당할 수 있는 쪽으로 자연스럽게 흘러간다.</li>
+    <li><strong>신용 중개의 효율성.</strong> 최종 Z가 원채무자를 직접 평가하지 못해도, 앞선 단계들의 심사를 매개로 간접적인 신용 공급이 가능해진다.</li>
+  </ol>
+
+  <h3>담보 가치의 감쇠</h3>
+  <p>각 단계에서 haircut(담보인정비율 차감)이 누적된다. M(12번째 단계)에서 잔존가치는 <em>(1−h)<sup>12</sup></em>.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 1.2 — Haircut Decay</div>
+      <div class="viz-title">12단계 사슬 끝에 남는 담보 가치 (원자산 1억 원 기준)</div>
+    </div>
+    <div class="viz-body">
+      <div class="haircut">
+        <div class="hc-row">
+          <div class="hc-label">국채급 <span style="color:var(--mute);font-weight:400">· h 2%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:78.5%"></div></div>
+          <div class="hc-val">₩ 7,850만</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">우량 회사채 <span style="color:var(--mute);font-weight:400">· h 5%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:54%"></div></div>
+          <div class="hc-val">₩ 5,400만</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">주식·중등급채 <span style="color:var(--mute);font-weight:400">· h 10%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:28.2%"></div></div>
+          <div class="hc-val">₩ 2,820만</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">저등급 자산 <span style="color:var(--mute);font-weight:400">· h 15%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:14.2%"></div></div>
+          <div class="hc-val">₩ 1,420만</div>
+        </div>
+        <div class="hc-row">
+          <div class="hc-label">위기 시 MBS급 <span style="color:var(--mute);font-weight:400">· h 20%</span></div>
+          <div class="hc-bar"><div class="hc-fill" style="width:6.9%"></div></div>
+          <div class="hc-val">₩ 690만</div>
+        </div>
+      </div>
+    </div>
+    <figcaption>위기 때 haircut이 크게 움직이면(2008년 사모 MBS의 경우 3% → 40% 이상) 사슬이 길수록 취약성이 빠르게 드러난다. 실제로는 수학적 극단까지 가는 일이 드물지만, 평시의 '안전해 보이던' 사슬이 짧은 시간 안에 의미를 잃을 수 있다.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <div class="tag">핵심 직관</div>
+    M 시점에서 Z가 실질적으로 평가하는 것은 원채무자의 신용이라기보다 <strong>"A부터 L까지의 법적·운영 리스크의 총합"</strong>에 가깝다. 원자산이 멀쩡해도 중간 고리 하나가 흔들리면 담보의 의미가 상당 부분 사라질 수 있다는 뜻이다.
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section class="chapter" id="c2">
+  <span class="chapter-num">02 · 구조의 본질</span>
+  <h2 class="chapter-title">사슬의 본질은 시간차 신용이다</h2>
+  <p class="chapter-lede">사슬을 가만히 들여다보면, 공간적으로 퍼진 구조라기보다 시간 축 위에 배열된 구조에 가깝다는 인상을 받는다.</p>
+
+  <ul>
+    <li><strong>A</strong> — "지금 당장"이 필요한 쪽. 할인율(급한 정도)이 매우 높다.</li>
+    <li><strong>중간(B~Y)</strong> — 조금씩 덜 급한 주체들. 할인율이 점차 낮아진다.</li>
+    <li><strong>Z</strong> — 보상이 언제 와도 괜찮은 쪽. 할인율이 거의 0이거나 때로는 마이너스에 가깝다.</li>
+  </ul>
+  <p>시장이 하는 일은 이 <strong>서로 다른 시간 선호를 가진 주체들을 연결해 거래의 이익을 함께 나누게 해주는 일</strong>로 볼 수 있다. A는 미래의 돈을 현재로 당겨오고, Z는 현재의 여유를 미래의 청구권으로 바꾼다. 각자의 선호를 기준으로 보면 양쪽 모두에게 이득인 거래다.</p>
+
+  <h3>금리를 다시 본다면</h3>
+  <p>이런 관점에서 금리는 "돈의 가격"이라기보다 <strong>"시간의 가격"</strong>에 더 가까워진다.</p>
+  <ul>
+    <li>고금리 사회 — 사람들이 "지금"을 상대적으로 더 원하는 사회 (개도국이나 성장기)</li>
+    <li>저금리 사회 — "지금"이 덜 급한 사회 (노령화가 진행된 선진국)</li>
+    <li>마이너스 금리 — 현재를 가진 사람이 미래를 맡기는 대가를 내는 상태</li>
+  </ul>
+  <p>이 렌즈로 보면 통화정책은 사회 전체의 시간 선호를 부드럽게 조정하려는 시도로 이해할 수 있다.</p>
+
+  <h3>Z로 갈수록 시간 단위가 길어진다</h3>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 2.1 — Time Horizon Tower</div>
+      <div class="viz-title">A의 하루, Z의 한 세기</div>
+    </div>
+    <div class="viz-body">
+      <div class="tower">
+        <div class="tower-row"><span class="tower-label">A · 단기 자금조달</span><span class="tower-horizon">하루 — 1년</span></div>
+        <div class="tower-row"><span class="tower-label">중간 금융기관</span><span class="tower-horizon">수년</span></div>
+        <div class="tower-row"><span class="tower-label">연기금 · 보험사</span><span class="tower-horizon">20 — 40년</span></div>
+        <div class="tower-row"><span class="tower-label">국채 보유자</span><span class="tower-horizon">30년 +</span></div>
+        <div class="tower-row"><span class="tower-label">세대간 약속 · 연금 · 돌봄 · 교육</span><span class="tower-horizon">50 — 80년</span></div>
+        <div class="tower-row"><span class="tower-label">사회적 신뢰 · 제도 담보</span><span class="tower-horizon">100년 이상</span></div>
+        <div class="tower-row"><span class="tower-label">궁극의 Z · 문명 지속성</span><span class="tower-horizon">영구</span></div>
+      </div>
+    </div>
+    <figcaption>A의 "오늘 오후까지 1억"이, 먼 층위에서는 Z의 "100년 뒤에도 사회가 비슷하게 존재한다면"과 연결되어 있다. 사슬은 이렇게 아주 다른 시간 스케일을 이어주는 변환장치처럼 작동한다.</figcaption>
+  </figure>
+</section>
+
+<!-- SECTION 3 -->
+<section class="chapter" id="c3">
+  <span class="chapter-num">03 · 보이지 않는 층</span>
+  <h2 class="chapter-title">무형 담보 — 명시적 금융 아래 흐르는 것들</h2>
+  <p class="chapter-lede">사슬의 각 고리는 명시적인 금융담보만으로 이어지는 것이 아니다. 그 아래에 훨씬 큰 부피의 무형 담보가 조용히 자리 잡고 있다.</p>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 3.1 — Intangible Collateral Stack</div>
+      <div class="viz-title">돈이 돌기 위해 먼저 버티고 있는 일곱 층위</div>
+    </div>
+    <div class="viz-body">
+      <div class="layers">
+        <div class="layer"><div class="layer-num">01</div><div><div class="layer-name">평판 담보</div><div class="layer-desc">식당이 선결제 없이 음식을 내주는 건 "손님이 먹고 튈 리 없다"는 사회적 신뢰가 담보다.</div></div></div>
+        <div class="layer"><div class="layer-num">02</div><div><div class="layer-name">관계 담보</div><div class="layer-desc">친구에게 5만 원 빌려주며 차용증 안 쓰는 이유는 관계의 지속성이 담보이기 때문이다.</div></div></div>
+        <div class="layer"><div class="layer-num">03</div><div><div class="layer-name">인적자본 담보</div><div class="layer-desc">대기업 신입사원의 마이너스 통장은 "미래 30년 근로소득"을 담보로 한다.</div></div></div>
+        <div class="layer"><div class="layer-num">04</div><div><div class="layer-name">소셜 캐피털 담보</div><div class="layer-desc">그라민은행의 마이크로크레딧은 마을 공동체의 상호 연대책임이 담보였다.</div></div></div>
+        <div class="layer"><div class="layer-num">05</div><div><div class="layer-name">제도 담보</div><div class="layer-desc">편의점에서 카드를 긁을 때 점원이 잔고를 확인하지 않는 이유는 VISA·카드사·은행·금감원이 배후에 있기 때문이다.</div></div></div>
+        <div class="layer"><div class="layer-num">06</div><div><div class="layer-name">신체 · 자유 담보</div><div class="layer-desc">계약서가 작동하는 건 궁극적으로 국가의 폭력독점이 배후에 있기 때문이다.</div></div></div>
+        <div class="layer"><div class="layer-num">07</div><div><div class="layer-name">주권 담보</div><div class="layer-desc">원화가 가치를 가지는 건 한국은행, 궁극적으로는 대한민국 과세권이 담보다.</div></div></div>
+      </div>
+    </div>
+    <figcaption>아래로 갈수록 덩어리가 크고 다시 세우기 어려운 쪽이다. 2008년 위기도 MBS 가격 하락 자체보다는 "AAA 라벨이면 믿어도 된다"는 무형 담보(신용평가사·실사·법적 문서에 대한 신뢰)가 함께 흔들린 일로 읽을 수 있다.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <div class="tag">정리</div>
+    사회의 부를 <strong>물적 자본 × 인적 자본 × 제도·신뢰 자본</strong>의 곱으로 설명하는 시각이 있다 (후쿠야마, 퍼트넘, 노스). 앞의 두 요소가 비슷하더라도, 세 번째의 차이가 국가 간 번영의 차이를 상당 부분 설명해 준다는 것이다.
+  </div>
+</section>
+
+<!-- SECTION 4 -->
+<section class="chapter" id="c4">
+  <span class="chapter-num">04 · Z 직전의 사람들</span>
+  <h2 class="chapter-title">Z 직전의 사람들</h2>
+  <p class="chapter-lede">사슬 이야기를 따라가다 보면 조금 마음이 무거워지는 지점에 이른다. Z 바로 앞 층에는 자기 인생의 현재를 어느 정도 담보로 맡기고, 미래의 보상을 기다리는 사람들이 있다. 이 담보는 시스템 안에서 상대적으로 매우 저렴하게 조달되는 자본이다.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:32%">집단</th><th>담보로 잡히는 것</th><th style="width:28%">담보 근거</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>저임금 필수노동자</td><td>새벽 배송기사, 요양보호사, 일용직의 노동 현재</td><td>"언젠가 나아질 것" · 세대적 희망</td></tr>
+        <tr><td>수련 과정의 전문직</td><td>전공의, 로펌 어쏘, 박사과정생의 20~30대</td><td>"10년 뒤 보상" 약속</td></tr>
+        <tr><td>창업가 · 예술가 · 연구자</td><td>경력 · 안정 · 생애 시간</td><td>"언젠가 인정받을 것"이라는 복권적 믿음</td></tr>
+        <tr><td>돌봄노동자</td><td>가사 · 육아 · 노부모 봉양. 시장가격 0원</td><td>"도리"라는 규범</td></tr>
+        <tr><td>이민자 · 외국인 노동자</td><td>자기 세대의 사회적 지위</td><td>"자식 세대는 현지인이 된다"</td></tr>
+        <tr><td>군 복무자 (한국)</td><td>청년기의 18~21개월</td><td>"국민의 의무" + 암묵적 인정 약속</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>이들의 공통점은 <strong>담보가치 산정이 지연되거나 사실상 어렵다</strong>는 점이다. 전공의의 저임금이 "투자"였는지 그 이상의 무언가였는지는 10년쯤 지나야 이야기할 수 있다. 육아의 시간이 어떤 가치로 기록되는지도 대개 한참 뒤에야 드러난다.</p>
+  <p>결과적으로 현재 시점에서는 이들의 기여가 시장가격에 온전히 담기기 어렵다. 그래서 이 자본은 시장가격 메커니즘이 아니라 <strong>규범·희망·의무감·정체성</strong> 같은 비시장적 근거로 조달된다.</p>
+
+  <div class="callout">
+    <div class="tag">가장 저렴하고, 가장 회수하기 어려운 자본</div>
+    이들이 Z 바로 앞에 놓인 잘 보이지 않는 층이다. 한국의 저출산도 이 담보에 대한 신뢰가 한 세대 사이에 약해지면서 나타난 신호의 하나로 읽을 수 있다. 구조 자체가 바뀌었다기보다, 담보를 받쳐 주던 신뢰가 옅어진 것에 가깝다.
+  </div>
+</section>
+
+<!-- SECTION 5 -->
+<section class="chapter" id="c5">
+  <span class="chapter-num">05 · 사슬의 끝</span>
+  <h2 class="chapter-title">궁극의 Z는 집합적 믿음이다</h2>
+  <p class="chapter-lede">그렇다면 진짜 최종 Z는 누구일까. 몇 겹의 층이 겹쳐져 있다.</p>
+
+  <h4>가시적 Z — 국가</h4>
+  <p>모든 사슬을 끝까지 추적하면 국가에 수렴한다. 예금보험공사 뒤에는 정부 재정, 중앙은행 뒤에는 과세권, 법원 뒤에는 경찰·군대.</p>
+
+  <h4>국가의 Z — 국민의 순응</h4>
+  <p>과세권은 "세금 내는 게 당연하다"는 국민 다수의 승인 위에 선다. 국가 정당성(legitimacy)이 국가의 기초자본이다.</p>
+
+  <h4>더 깊이 — 세대간 신뢰</h4>
+  <p>국민연금이 작동하는 건 30년 뒤 후배 세대가 낼 보험료로 내가 받는다는 약속을 믿기 때문이다. 원화가 작동하는 건 내일도 편의점이 원화를 받아줄 거라는 암묵적 합의 때문이다.</p>
+
+  <h4>궁극 — 집합적 상상</h4>
+  <p>모든 담보 사슬은 "사회가 내일도 오늘과 비슷하게 존재할 것이다"라는 믿음 위에 떠 있다. 돈·재산권·국가·법 모두 존 설이 말한 "제도적 사실", 유발 하라리가 말한 "상호주관적 실재"다.</p>
+
+  <div class="callout">
+    <div class="tag">잠정적 결론</div>
+    <strong>궁극의 Z는 결국 우리 자신일지도 모른다.</strong> 많은 사람이 이 구조를 믿고 거기에 맞추어 행동하는 동안 Z는 실재한다. 반대로 충분히 많은 사람이 동시에 믿음을 거두면 Z는 희미해진다. 뱅크런이 그 미시적 장면이고, 혁명은 거시적 장면이라 할 수 있다.
+  </div>
+</section>
+
+<!-- SECTION 6 -->
+<section class="chapter" id="c6">
+  <span class="chapter-num">06 · 병리 I</span>
+  <h2 class="chapter-title">도박 — 이 구조의 반대 방향으로 가는 거래</h2>
+  <p class="chapter-lede">여기까지 오면 도박이 왜 다른 거래들과 성격이 크게 다른지 조금 더 또렷하게 이야기할 수 있게 된다.</p>
+
+  <p>앞서 본 거래들(대출, 보험, 주식, 노동)은 대체로 <strong>포지티브섬</strong>에 가깝다. 서로의 시간선호·위험선호·역량이 다르기 때문에, 교환을 통해 양쪽이 조금씩 더 나아질 여지가 있다. 도박은 이 조건들이 거의 성립하지 않는다는 점에서 구조적으로 다르다.</p>
+
+  <ul>
+    <li>거래 상대방과의 시간선호 차이가 거의 없다</li>
+    <li>위험선호 차이로 설명되지 않는다 — 기존의 위험을 나눠 지는 것이 아니라 새로운 위험을 <em>만들어내는</em> 쪽에 가깝다</li>
+    <li>정보·역량의 차이가 의미 있게 작동하지 않는다 (룰렛·슬롯·밈코인에는 기댈 만한 펀더멘털이 없다)</li>
+    <li>하우스 엣지가 구조적으로 존재한다</li>
+  </ul>
+
+  <div class="callout">
+    <div class="tag">수학적 성격</div>
+    기대값 관점에서는 네거티브섬에 가까운 게임이다. 시간·위험·정보 중 어느 축에서도 가치를 새로 만들지 않고, 돈의 위치만 바꾸면서 수수료만큼 총량이 줄어드는 구조다.
+  </div>
+
+  <h3>그럼에도 사람들이 참여하는 이유</h3>
+  <p>수학적으로 기대값이 불리하다는 것을 알면서도 참여하는 데에는 이유가 있다. 도박은 종종 <strong>돈의 교환이라기보다 다른 무언가에 대한 교환</strong>으로 기능한다.</p>
+  <ol>
+    <li><strong>서사의 구매.</strong> 복권 한 장은 "일주일간 내가 당첨자일 수도 있다"는 가능성의 감각을 사는 쪽에 가깝다.</li>
+    <li><strong>의미의 회복.</strong> 자기 인생을 Z 쪽으로 길게 맡겨 둔 사람일수록, "한 번에 국면을 바꾸고 싶다"는 상상이 더 가깝게 느껴질 수 있다.</li>
+    <li><strong>통제감의 감각.</strong> "내가 고른다"는 느낌이 주는 심리적 효용.</li>
+    <li><strong>도파민 회로의 강화.</strong> 변동비율 강화 스케줄(슬롯머신 구조)이 행동을 가장 단단하게 고착시키는 것으로 알려져 있다.</li>
+  </ol>
+
+  <h3>밈코인이라는 특수한 사례</h3>
+  <p>전통적인 도박과 비교해도 몇 가지 결이 다르다. <strong>금융의 외피</strong>("투자"라는 프레임 속에서 도박적 성격을 자각하기 어렵다), <strong>정보 비대칭</strong>(개발자·얼리매집자와 후발 참여자 사이의 구조적 차이), <strong>사회적 전염</strong>("누가 몇 배를 벌었다"는 이야기로 퍼지는 FOMO), <strong>시간 압축</strong>(24시간 거래가 이어진다) 같은 요소가 겹쳐 있다.</p>
+  <p>도박 관련 산업이 크게 번창한다는 것은, 어떤 의미에서는 <strong>사회계약에 대한 피로의 지표</strong>이기도 하다. Z 쪽에 인생을 오래 맡겨 둔 사람들에게 "언젠가"가 점점 멀게 느껴질수록, 빠른 탈출을 상상하게 되는 심리가 커진다. 저소득층의 복권 구매 비율이 소득 대비 상대적으로 높다는 통계도 이런 맥락과 맞닿아 있다.</p>
+</section>
+
+<!-- SECTION 7 -->
+<section class="chapter" id="c7">
+  <span class="chapter-num">07 · 병리 II</span>
+  <h2 class="chapter-title">주운 돈 — 사슬 이탈의 증거</h2>
+  <p class="chapter-lede">길에 떨어진 5만 원권 한 다발은, 잘 돌아가는 신용 사회에서는 어떤 의미에서 구조적 신호로 읽을 수 있다.</p>
+
+  <p>모든 돈은 사슬의 어느 고리에 속해 있다. 돈이 주인과 분리된 채 길 위에 있다면, 어딘가에서 연결이 끊겼다는 이야기다. 떠올릴 수 있는 시나리오들이 대체로 평범한 상황은 아니다.</p>
+  <ol>
+    <li><strong>분실.</strong> 소유자가 어떤 위기(질병, 취기, 예상치 못한 상황) 속에 있었을 가능성.</li>
+    <li><strong>범죄와 관련된 수익.</strong> 현금 봉투라는 형태 자체가 공식 신용시스템 바깥에 있었음을 시사하기도 한다.</li>
+    <li><strong>의도적 유기.</strong> 증거를 남기지 않기 위한 선택일 수 있다.</li>
+    <li><strong>테스트 · 함정.</strong></li>
+  </ol>
+  <p>어느 쪽이든 일반적인 경로로 들어온 돈이라고 보기는 어렵다. 사슬이 한 번 끊어진 자리에서 나온 파편에 가깝다.</p>
+
+  <h3>주운 사람의 선택이 드러내는 것</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:32%">선택</th><th>의미</th></tr></thead>
+      <tbody>
+        <tr><td>경찰 신고</td><td>사슬 복원</td></tr>
+        <tr><td>가져감</td><td>사슬을 다시 한 번 끊어냄 (점유이탈물횡령)</td></tr>
+        <tr><td>놔두고 감</td><td>사슬 바깥에 남겨둠</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>이 선택의 통계적 분포는 그 사회의 신뢰 자본 수준을 가늠하게 해준다. 한국은 이 지표에서 비교적 높은 위치에 있는 편이고, 이는 "코리아 디스카운트"와 함께 이야기되는 여러 지표 뒤에서 한국 사회가 가진, 잘 드러나지 않는 자산 중 하나라고 볼 수 있다.</p>
+
+  <h3>돈의 계보(provenance)</h3>
+  <p>경제인류학(비비아나 젤라이저, 데이비드 그레이버)은 돈이 범주별로 나뉘어 순환한다는 것을 관찰했다. 봉급과 뇌물은 같은 화폐 단위여도 질적으로 다르게 취급된다.</p>
+  <div class="callout">
+    <div class="tag">공통점</div>
+    도박 당첨금, 주운 돈, 급등 차익에는 공통점이 있다. <strong>타인의 시간·노동·기여와의 교환을 거치지 않고 손에 들어왔다</strong>는 것이다. 자기 인생의 사슬에 뿌리를 내리기 어려운 자본인 셈이다. 그래서인지 이런 돈은 생각보다 쉽게 다시 흩어지는 경향이 관찰된다.
+  </div>
+</section>
+
+<!-- SECTION 8 -->
+<section class="chapter" id="c8">
+  <span class="chapter-num">08 · 역설</span>
+  <h2 class="chapter-title">시스템의 연료는 "이해하지 못하는 사람들"이다</h2>
+  <p class="chapter-lede">경제 구조를 세세히 이해하지 않고, 사슬이 있는지도 모른 채 살아가는 주체들이 — 합리적 계산에서는 노이즈처럼 보이는 이들이 — 실제로는 시스템의 중요한 버팀목이 되어 준다.</p>
+
+  <h3>그로스만-스티글리츠 역설 (1980)</h3>
+  <ul>
+    <li>모두가 완전히 합리적·정보 완전이라 가정 →</li>
+    <li>가격이 즉시 모든 정보를 반영 →</li>
+    <li>정보 수집 유인 소멸 →</li>
+    <li>아무도 정보 수집 안 함 →</li>
+    <li>가격이 정보를 반영하지 못함 → <strong>모순</strong></li>
+  </ul>
+  <p><strong>시사점:</strong> 시장이 작동하기 위해서는 "완전히 합리적이지 않거나 정보를 전부 처리하지 않는 주체"(noise trader)가 어느 정도 함께 있어야 한다는 관찰이다.</p>
+
+  <h3>하이에크의 분산된 지식 (1945)</h3>
+  <p>경제 전체를 완전히 이해하는 주체는 존재하기 어렵다. 정보가 너무 많고, 너무 분산되어 있다. 각자는 자기 주변의 국소적 맥락을 알 뿐이다. 가격 시스템이 이 분산된 지식을 어느 정도 집계해 준다. 그런 의미에서 경제는 <strong>아무도 전체를 한꺼번에 이해하지 못하는 상태에서 비로소 돌아가는 구조</strong>에 가깝다.</p>
+
+  <h3>이질성이 집계를 만든다</h3>
+  <p>사슬이 잘 작동하려면 참가자들이 <strong>서로 다른 방향의 오차</strong>를 갖고 있는 편이 낫다. 모두가 같은 방향으로 합리적이기만 하면 오히려 거래할 여지가 줄고, 모두가 같은 방향으로 비합리적이면 버블이나 급락 쪽으로 흘러가기 쉽다.</p>
+
+  <div class="equation">
+    System Vitality <span class="op">∝</span> σ(시간선호) <span class="op">·</span> σ(위험선호) <span class="op">·</span> σ(정보처리) <span class="op">·</span> σ(규범준수)
+  </div>
+
+  <ul>
+    <li>시간선호 분산 → 사슬 성립</li>
+    <li>위험선호 분산 → 보험·투자·혁신 성립</li>
+    <li>정보처리 분산 → 시장 성립</li>
+    <li>규범준수 분산 → 사회계약 성립</li>
+  </ul>
+
+  <h3>위기는 이질성이 붕괴하는 순간</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>위기</th><th>동조화된 오차</th></tr></thead>
+      <tbody>
+        <tr><td>1929 대공황</td><td>낙관→비관의 동시 전환</td></tr>
+        <tr><td>2008 금융위기</td><td>모두가 같은 Gaussian copula 모델 사용</td></tr>
+        <tr><td>2020 팬데믹 초기</td><td>모든 자산이 동시 하락(상관계수 1)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>개인들의 오차가 독립성을 잃는 순간이, 시스템이 흔들리기 쉬운 순간이기도 하다.</p>
+
+  <div class="callout">
+    <div class="tag">정리</div>
+    서로 다른 방향의 불완전함이 공존할 때 집계가 가능해진다. 모두가 교과서적 의미의 합리적 주체로만 움직인다면 소비는 오히려 위축되고(모두가 미래 대비로 절약), 돌봄은 시장 바깥으로 밀려나고, 혁신의 속도도 함께 느려질 수 있다. <strong>합리성은 때로 스스로의 조건을 갉아먹을 수 있고, 비합리성(혹은 규범성)이 합리성을 가능하게 해주는 배경이 되기도 한다.</strong>
+  </div>
+</section>
+
+<!-- SECTION 9 -->
+<section class="chapter" id="c9">
+  <span class="chapter-num">09 · 엣지</span>
+  <h2 class="chapter-title">엣지의 두 경로와 허풍쟁이</h2>
+  <p class="chapter-lede">이 관점에서 보면 개인이 엣지(돈·신용·영향력)를 얻는 길은 크게 두 갈래로 나눠 볼 수 있다.</p>
+
+  <div class="fork">
+    <div class="fork-card pos">
+      <div class="fork-tag">Path 01 · Positive-Sum</div>
+      <div class="fork-head">기여형 엣지</div>
+      <ul>
+        <li>새 기술로 효율을 높임</li>
+        <li>사슬 중간을 더 잘 중개</li>
+        <li>실질 가치를 더함</li>
+        <li>개인 엣지와 시스템 sum 증가가 일치</li>
+      </ul>
+    </div>
+    <div class="fork-card neg">
+      <div class="fork-tag">Path 02 · Zero / Negative-Sum</div>
+      <div class="fork-head">추출형 엣지</div>
+      <ul>
+        <li><strong>정보 비대칭의 의도적 활용</strong></li>
+        <li><strong>사슬의 고리를 몰래 끊어 내는 행위</strong></li>
+        <li><strong>서사로 자원을 유인하는 방식</strong></li>
+        <li><strong>허풍</strong> · 아직 오지 않은 미래를 현재 가치로 과하게 선판매</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>까다로운 지점은, 개인의 결산서만 보면 두 경로가 잘 구분되지 않는다는 것이다. 시장은 두 흐름을 어느 정도 함께 허용한다.</p>
+
+  <h3>허풍의 묘한 위치</h3>
+  <p>허풍은 본질적으로 <strong>미래의 청구권을 현재에 미리 발행하는 행위</strong>다. 실제 결제 여부는 시간이 지나 봐야 드러난다.</p>
+  <ul>
+    <li>일론 머스크의 2010년 "화성에 간다" 발언 — 당시에는 허풍에 가깝게 들렸지만, 2024년의 재사용 로켓 착륙 이후에는 비전의 사례로 자주 인용된다.</li>
+    <li>엘리자베스 홈즈의 "한 방울로 검사" — 기술이 뒷받침되지 못하면서 결과적으로는 사기 사건으로 마무리됐다.</li>
+    <li>18세기 프랑스의 존 로 — 당대에는 가장 큰 실패 사례 중 하나로 기록됐지만, 오늘의 시선으로 보면 중앙은행 시스템을 한두 세기 일찍 시도한 쪽에 가깝기도 하다.</li>
+  </ul>
+  <p><strong>같은 구조가 결과에 따라 사기와 비전 사이에서 갈린다.</strong> 벤처 투자의 포트폴리오 수학이 여기에 가깝다. 10 중 9가 결과적으로 실패로, 1이 비전으로 판명되는 분포인데, 사전 구분은 쉽지 않다.</p>
+
+  <h3>허풍과 사기의 경계 — 스킨 인 더 게임</h3>
+  <p>허풍이 허풍으로 남을 수 있는 조건 중 하나는 <strong>본인도 미래의 불확실성에 함께 노출되어 있다</strong>는 점이다. 자기 자본·시간·평판을 함께 걸고 있다면, 미래가 오지 않을 때 본인이 먼저 그 비용을 치른다. 반대로 본인은 비용을 지지 않고 다른 사람의 자본만 끌어들이는 방식이 되면, 그 경계는 점점 사기 쪽으로 기울어진다. 폰지 구조와 벤처의 경계도 대체로 이 지점 근처에 있다.</p>
+
+  <h3>"다들 안 하니까 나는 해도 된다"는 논리의 어려움</h3>
+  <ul>
+    <li><strong>집계 효과</strong> — 같은 논리를 누구나 적용할 수 있기 때문에 어느 순간 임계를 넘기 쉽다</li>
+    <li><strong>기능적 조건</strong> — 자연발생적 오차일 때에만 완충 기능이 되고, 계산된 진입은 그 기능을 빠르게 무너뜨린다</li>
+    <li><strong>공공재 구조</strong> — 자제의 규범이 쌓여 신뢰 자본을 만든다</li>
+    <li><strong>정보의 부족</strong> — 개인이 임계를 정확히 알 수 없다</li>
+    <li><strong>반복 게임의 단절</strong> — 계산적 배신은 장기적인 관계 사슬에서 자기 자리를 스스로 줄이게 된다</li>
+    <li><strong>도덕 감정의 진화</strong> — 계산된 배신은 단순한 실수보다 더 강한 사회적 반응을 부르는 경향이 있다</li>
+  </ul>
+  <p>"시스템의 논리를 이해한 상태에서 임계 아래의 약탈이 최적"이라고 계산하는 태도는, 어떤 의미에서 <strong>한 층 더 깊은 층위의 배신</strong>으로 받아들여지기도 한다. 우리가 평범한 실수보다 "구조를 알고도 그렇게 한 쪽"에 더 서늘함을 느끼는 이유이기도 하다.</p>
+</section>
+
+<!-- SECTION 10 -->
+<section class="chapter" id="c10">
+  <span class="chapter-num">10 · 핵심 프레임</span>
+  <h2 class="chapter-title">네 층위와 12개의 환전소</h2>
+  <p class="chapter-lede">이제 긴 여정을 하나의 지도로 정리할 수 있다.</p>
+
+  <h3>네 층위 — 경제의 네 통화</h3>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 10.1 — Four Currencies</div>
+      <div class="viz-title">경제를 구성하는 네 개의 통화</div>
+    </div>
+    <div class="viz-body" style="padding:0">
+      <div class="currencies">
+        <div class="curr-card">
+          <div class="curr-glyph">V</div>
+          <div class="curr-name">가치 (Value)</div>
+          <div class="curr-unit">unit · 화폐</div>
+          <div class="curr-hint">지갑 속 돈, 월급, 재산. 가장 명시적이고 가장 잘 측정되는 통화.</div>
+        </div>
+        <div class="curr-card">
+          <div class="curr-glyph">R</div>
+          <div class="curr-name">리스크 (Risk)</div>
+          <div class="curr-unit">unit · 분산 · 확률</div>
+          <div class="curr-hint">안전함 ↔ 아슬아슬함. 누가 불확실성을 흡수하는가의 분배.</div>
+        </div>
+        <div class="curr-card">
+          <div class="curr-glyph">T</div>
+          <div class="curr-name">시간 (Time)</div>
+          <div class="curr-unit">unit · 기간 · 할인율</div>
+          <div class="curr-hint">지금 ↔ 나중. 생애의 시간과 세대의 시간 모두.</div>
+        </div>
+        <div class="curr-card">
+          <div class="curr-glyph">M</div>
+          <div class="curr-name">신뢰 · 의미 (Meaning)</div>
+          <div class="curr-unit">unit · 정량화 어려움</div>
+          <div class="curr-hint">평판, 관계, 규범, 삶의 의미. 체계적으로 저평가되는 통화.</div>
+        </div>
+      </div>
+    </div>
+    <figcaption>세 개는 금융경제학 교과서의 표준이고 (V, R, T), 네 번째 M이 2008년 이후 주류가 통합하려 하는 축이다.</figcaption>
+  </figure>
+
+  <h3>12 교환표</h3>
+
+  <figure class="viz">
+    <div class="viz-head">
+      <div class="viz-label">Figure 10.2 — 12 Exchange Matrix</div>
+      <div class="viz-title">네 통화 사이의 12개 환전소</div>
+    </div>
+    <div class="viz-body" style="padding:18px">
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>FROM → / TO ↓</th>
+              <th>V · 돈</th>
+              <th>T · 시간</th>
+              <th>R · 리스크</th>
+              <th>M · 의미</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>V → 돈</th>
+              <td class="cell-empty"></td>
+              <td class="cell-accent"><span class="cell-strong">대출</span><span class="cell-mute">이자</span></td>
+              <td class="cell-accent"><span class="cell-strong">보험</span><span class="cell-mute">보험료</span></td>
+              <td class="cell-accent"><span class="cell-strong">기부·명품</span><span class="cell-mute">의미·정체성</span></td>
+            </tr>
+            <tr>
+              <th>T → 시간</th>
+              <td class="cell-accent"><span class="cell-strong">월급</span><span class="cell-mute">임금</span></td>
+              <td class="cell-empty"></td>
+              <td class="cell-accent"><span class="cell-strong">장기투자</span><span class="cell-mute">시간분산</span></td>
+              <td class="cell-accent"><span class="cell-strong">우정·육아·수련</span><span class="cell-mute">관계 축적</span></td>
+            </tr>
+            <tr>
+              <th>R → 리스크</th>
+              <td class="cell-accent"><span class="cell-strong">주식·창업</span><span class="cell-mute">리스크 프리미엄</span></td>
+              <td class="cell-accent"><span class="cell-strong">레버리지</span><span class="cell-mute">시간 압축</span></td>
+              <td class="cell-empty"></td>
+              <td class="cell-accent"><span class="cell-strong">모험·이민·예술</span><span class="cell-mute">실존적 의미</span></td>
+            </tr>
+            <tr>
+              <th>M → 신뢰</th>
+              <td class="cell-accent"><span class="cell-strong">브랜드</span><span class="cell-mute">프리미엄</span></td>
+              <td class="cell-accent"><span class="cell-strong">단골·평판</span><span class="cell-mute">프로세스 단축</span></td>
+              <td class="cell-accent"><span class="cell-strong">연대보증·네트워크</span><span class="cell-mute">리스크 흡수</span></td>
+              <td class="cell-empty"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <figcaption>대각선은 제외 (같은 통화끼리의 교환은 정의상 없음). 12개의 셀 각각이 우리가 매일 드나드는 환전소다.</figcaption>
+  </figure>
+
+  <h3>환율의 성격</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th style="width:28%">교환 구간</th><th style="width:20%">공식화 정도</th><th>가격 확인</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>V ↔ T</td><td>매우 높음</td><td>금리 (국채수익률 등)</td></tr>
+        <tr><td>V ↔ R</td><td>매우 높음</td><td>리스크 프리미엄 (크레딧 스프레드)</td></tr>
+        <tr><td>T ↔ R</td><td>높음</td><td>기간 프리미엄 (수익률 곡선)</td></tr>
+        <tr><td>V ↔ M</td><td>중간</td><td>브랜드 프리미엄, 기부</td></tr>
+        <tr><td>T ↔ M</td><td>낮음</td><td>개인 세계관 의존</td></tr>
+        <tr><td>R ↔ M</td><td>낮음</td><td>문화 · 가치관 의존</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>세 개의 교환(V-T, V-R, T-R)은 공식 시장에서 실시간 가격이 확인된다. 금융경제학 교과서가 이 영역을 다룬다. <strong>나머지 아홉 개는 개인과 사회의 암묵적 환율로 결정된다.</strong> 이 영역이 행동경제학·제도경제학·사회자본 이론의 영토다.</p>
+
+  <h3>핵심 통찰 다섯 가지</h3>
+  <ol>
+    <li><strong>층위가 다를수록 큰 가치 이동이 일어난다.</strong> 같은 층위 내 교환(사과↔배)은 작다. 층위가 다른 교환(시간↔돈 = 주택담보대출, 시간↔의미 = 직업 선택)이 인생 최대 거래다.</li>
+    <li><strong>환율 이질성이 무역이익을 만든다.</strong> 리카도 비교우위 논리. 이것이 경제의 근본 동력.</li>
+    <li><strong>신뢰·의미 교환은 체계적으로 저평가된다.</strong> 돌봄노동, 자원봉사, 규범 유지는 GDP에 잡히지 않는다. "인생 담보 제공자들"이 여기 해당한다.</li>
+    <li><strong>위기는 모든 환율이 동시 점프하는 순간이다.</strong> 평시엔 독립적으로 움직이다가 위기 때 동조화된다. 분산투자가 위기에 실패하는 이유.</li>
+    <li><strong>잘 사는 것은 이 환율들의 동적 관리다.</strong> 20대엔 시간을 가치·의미로 교환하기 유리. 40대엔 가치를 시간·신뢰로 전환. 60대엔 가치·시간을 의미로 전환.</li>
+  </ol>
+</section>
+
+<!-- SECTION 12 -->
+<section class="chapter" id="c12">
+  <span class="chapter-num">12 · Epilogue</span>
+  <h2 class="chapter-title">마치며 — 네 통화로 사는 삶</h2>
+  <p class="chapter-lede">처음의 담보 연쇄 질문으로 돌아가 보면, 그 사슬 끝에는 여러 층의 구조가 쌓여 있다.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:30%">층</th><th>무엇이 있는가</th></tr></thead>
+      <tbody>
+        <tr><td>① 법적 구조</td><td>민법상 가능한 담보 이전</td></tr>
+        <tr><td>② 금융적 본질</td><td>시간차 신용의 공간적 전개</td></tr>
+        <tr><td>③ 사회적 기반</td><td>무형 담보의 층위들</td></tr>
+        <tr><td>④ 도덕적 토대</td><td>인생을 싸게 공급하는 사람들</td></tr>
+        <tr><td>⑤ 철학적 바닥</td><td>집합적 믿음으로서의 Z</td></tr>
+        <tr><td>⑥ 병리 현상</td><td>도박 · 밈코인 · 주운 돈</td></tr>
+        <tr><td>⑦ 시스템 조건</td><td>이질성과 불완전함의 공존</td></tr>
+        <tr><td>⑧ 구조 전체</td><td>네 통화 사이의 12개 환전소</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>결국 여러 갈래의 길이 한 지점으로 모인다. <strong>우리가 서로에게 건네는 것은 단지 돈만이 아니다.</strong> 돈이기도 하고, 시간이기도 하고, 위험이기도 하며, 무엇보다 <strong>"서로를 배신하지 않겠다"는 꾸준한 약속</strong>이기도 하다.</p>
+  <p>경제학이 보통 전면에 올리지 않는 부분이 이 네 번째 축이다. 그런데 그 축이 옅어지면 앞의 세 축도 제대로 작동하기 어려워진다. 우리가 매일 주고받는 것들 중 가장 값진 것은, 가격표가 붙어 있지 않은 쪽일 때가 많다.</p>
+  <p>월급을 받고 회사 문을 나설 때, 친구에게 5만 원을 빌려줄 때, 주운 돈을 경찰에 맡길 때, 아픈 동료의 일을 잠시 대신할 때, 그리고 오늘 밤에 잠들며 "내일도 세상이 비슷하게 돌아가겠지" 하고 조용히 가정할 때 — 우리는 이미 12개의 환전소를 매일 드나들고 있는 셈이다.</p>
+
+  <div class="final-oneliner">
+    경제는 네 개의 통화 <em>— 돈 · 시간 · 리스크 · 신뢰 —</em> 사이의<br>
+    12개 환전소다. 우리는 그 환전소의 상주 고객이자,<br>
+    동시에 각자의 환율을 결정하는 주주다.
+  </div>
+
+  <p>그리고 이 모든 환전이 가능한 것은, 궁극의 Z — 집합적 믿음 — 이 오늘도 조용히 버텨주고 있기 때문이다. 그 버팀이 얼마나 조용한지, 그리고 얼마나 고마운 일인지, 가끔 한 번씩 떠올려 볼 만하다.</p>
+</section>
+
+<div class="end-rule">· · ·</div>
+
+<div class="colophon">
+  경제학·사회학·철학·심리학은 겉보기에 다른 영역이지만, 교환과 신뢰의 구조라는 한 지점에서 서로 맞닿아 있다. 네 통화 프레임은 그 접점을 하나의 지도로 정리해 본 시도다.
+</div>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wide">© 2026 · Essays on Exchange · Vol. 01</div>
+</footer>
+
+<script>
+  // Render the collateral chain A → ... → Z dynamically
+  (function renderChain() {
+    const row = document.getElementById('chainRow');
+    if (!row) return;
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    letters.forEach((ltr, i) => {
+      const node = document.createElement('div');
+      node.className = 'chain-node ' + (i === 0 ? 'origin' : (i === letters.length - 1 ? 'end' : 'mid'));
+      node.textContent = ltr;
+      row.appendChild(node);
+      if (i < letters.length - 1) {
+        const arr = document.createElement('div');
+        arr.className = 'chain-arrow';
+        row.appendChild(arr);
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
