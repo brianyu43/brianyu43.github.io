@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11. Essay · 300 Lines / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>ESSAY 11 · 2026.04.20 · L4 · FINAL</p>
+  <h1 class="title kicker">300 줄짜리 Triton FA 가 cuDNN FA-2 의 80–90% 를 따라잡는 방법</h1>
+  <p class="dek">LLaMA-7B shape 기준, L4 (sm_89), <code>torch.compile(fullgraph=True)</code>.
+  세 가지 트릭의 합 — 4-D grid, <code>IS_CAUSAL: tl.constexpr</code>, <code>torch.library.custom_op</code>.</p>
+  <div class="meta">
+    <span>kernel · <strong>~100 줄</strong></span>
+    <span>op wrapper · <strong>76 줄</strong></span>
+    <span>결과 · <strong>FA-2 의 78–90% · 29–33× vs naïve</strong></span>
+  </div>
+
+  <h2>질문</h2>
+  <p>레슨 8 의 Triton FA 는 2-D (<code>N, d</code>) non-causal 이었다. 실제 LLM 은 그 shape 가 아니다. 진짜 shape 는 <code>(B, H, N, d)</code> 4-D, 대부분 causal, 그리고 <code>torch.compile</code> 아래에서 그래프가 안 끊겨야 한다.</p>
+  <p>이 세 가지를 만족시키면서 100 줄 커널이 어디까지 밀리는가.</p>
+
+  <h2>결과 먼저</h2>
+  <table class="tbl">
+    <thead><tr><th>(B, H, N)</th><th class="num">ours</th><th class="num">SDPA (FA-2)</th><th class="num">ours/SDPA</th><th class="num">vs naïve</th></tr></thead>
+    <tbody>
+      <tr><td>(1,32,512) d=128</td><td class="num">0.100 ms · 21.5 TF</td><td class="num">0.100</td><td class="num"><strong>1.00×</strong></td><td class="num">10.97×</td></tr>
+      <tr><td>(1,32,1024)</td><td class="num">0.223 · 38.5 TF</td><td class="num">0.202</td><td class="num">0.90×</td><td class="num">29.6×</td></tr>
+      <tr><td>(1,32,2048)</td><td class="num">0.784 · 43.8 TF</td><td class="num">0.613</td><td class="num">0.78×</td><td class="num">31.4×</td></tr>
+      <tr><td>(1,32,4096)</td><td class="num">2.964 · 46.4 TF</td><td class="num">2.559</td><td class="num">0.86×</td><td class="num">32.7×</td></tr>
+      <tr><td>(8,12,1024) d=64</td><td class="num">0.302 · 42.7 TF</td><td class="num">0.303</td><td class="num"><strong>1.00×</strong></td><td class="num">—</td></tr>
+      <tr><td>(16,12,512) d=64</td><td class="num">0.249 · 25.9 TF</td><td class="num">0.282</td><td class="num"><strong>1.13×</strong></td><td class="num">—</td></tr>
+    </tbody>
+  </table>
+  <p>d=128 LLaMA shape 에서 cuDNN FA-2 의 78–90%. d=64 GPT-2 shape 에선 동률 또는 13% 우세. naïve 대비 29–33×. <strong>kernel body + op wrapper = 300 줄 미만.</strong></p>
+
+  <h2>트릭 1 · 2-D → 4-D 는 stride 4 + grid 3</h2>
+  <p><code>(batch, head)</code> 짝마다 완전 독립적인 attention 문제 — 루프로 돌리지 않고 <strong>grid 축으로</strong> 표현한다.</p>
+<pre><code>grid = (triton.cdiv(N, BLOCK_M), H, B)
+
+# kernel 내부
+pid_m = tl.program_id(0)   # BLOCK_M of queries
+pid_h = tl.program_id(1)   # which head
+pid_b = tl.program_id(2)   # which batch
+
+q_base = Q_ptr + pid_b * stride_qb + pid_h * stride_qh
+k_base = K_ptr + pid_b * stride_kb + pid_h * stride_kh
+# 이 네 줄 아래는 레슨 8 과 동일</code></pre>
+  <p>Triton 런치는 이 grid 전체를 "available 하면 동시 시작". L4 의 58 SM 이 최대한 채워진다. 루프로 풀었으면 SM 이 놀았을 것.</p>
+
+  <h2>트릭 2 · Causal 의 속도는 mask 가 아니라 loop skip</h2>
+  <p>mask 만 씌우면 상삼각 타일도 여전히 HBM 에서 로드 + <code>-inf</code> 로 치환. 진짜 속도는:</p>
+<pre><code>if IS_CAUSAL:
+    end_n = tl.minimum(N, (pid_m + 1) * BLOCK_M)
+else:
+    end_n = N
+for start_n in range(0, end_n, BLOCK_N):
+    ...</code></pre>
+  <p>평균 <code>N/2</code> 로 떨어지며 <strong>K/V load 와 2 번의 tl.dot 이 반으로</strong>.</p>
+  <p><strong>검증.</strong> non-causal (1,32,2048,128) 이 2.643 ms. 같은 shape causal 이 0.784 ms. FLOP 은 절반인데 시간은 3.3× 빠름. 이유는 로딩 파이프라인이 타일 수에 비례해서 amortize 되기 때문. FA-v2 의 causal 최적화가 이 한 줄.</p>
+
+  <h2>트릭 3 · <code>tl.constexpr</code> — 런타임 if 를 컴파일 타임으로 접기</h2>
+  <p>일반 인자로 <code>is_causal</code> 을 넘기면 타이트한 K 루프 안에 브랜치 + warp scheduler 묶임. <code>tl.constexpr</code> 로 찍으면 Triton 이 <strong>True 와 False 두 개의 특수화 커널을 각각 컴파일</strong>. 런타임은 해당하는 것만 dispatch — 브랜치 자체가 존재 안 함.</p>
+  <p>추가 이득: <code>@triton.autotune(key=[..., "IS_CAUSAL"])</code> 로 causal / non-causal 마다 autotune 도 독립적으로. 실측에서 causal 은 <code>BM=64, BN=128</code>, non-causal 은 더 큰 타일이 유리하다는 게 관찰됨.</p>
+
+  <h2>트릭 4 · <code>torch.library.custom_op</code> — op 의 옷을 입히다</h2>
+<pre><code>@custom_op("triton_training::flash_attention_mha",
+           mutates_args=(), device_types="cuda")
+def flash_attention_mha(q, k, v, is_causal: bool = False) -&gt; Tensor:
+    return triton_flash_attention_mha(q, k, v, is_causal=is_causal)
+
+@flash_attention_mha.register_fake
+def _(q, k, v, is_causal):
+    return torch.empty_like(q)</code></pre>
+  <p>이 한 조각이 세 가지를 준다:</p>
+  <ol>
+    <li><strong><code>torch.compile</code> 이 그래프를 안 끊는다.</strong> <code>register_fake</code> 가 shape inference 에 쓰여 Dynamo 가 unknown Python 함수로 보지 않음. <code>fullgraph=True</code> 로 LLaMA-스타일 AttentionBlock 이 통째로 한 그래프.</li>
+    <li><strong>직렬화 노드로 남는다.</strong> ONNX/AOT/TorchScript 에서 <code>triton_training::flash_attention_mha</code> 이 그대로 기록.</li>
+    <li><strong><code>torch.ops.&lt;ns&gt;.&lt;op&gt;</code> 드롭인.</strong> 다운스트림은 Triton 임포트 없이 호출. vLLM 의 패턴 그대로.</li>
+  </ol>
+
+  <h2>bit-exact + graph break 0</h2>
+<pre><code>[1] raw_wrapper vs torch.ops      err = 0.00e+00  (causal True/False)
+[2] eager vs compiled function    err = 0.00e+00  — fullgraph=True 통과
+[3] eager vs compiled block       err = 0.00e+00  — AttentionBlock 전체가 1 그래프
+[4] schema: triton_training::flash_attention_mha(
+        Tensor q, Tensor k, Tensor v, bool is_causal=False) -&gt; Tensor</code></pre>
+
+  <h2>마지막 20% 는 Triton 의 갭이 아니다</h2>
+  <p>FA-2 와의 78–90% 구간. 나머지 10–22% 는 cuDNN FA-2 가 쓰는:</p>
+  <ul>
+    <li><strong>async copy + double/triple buffer</strong> — smem 로드와 이전 타일 <code>mma</code> 를 완전 오버랩</li>
+    <li><strong>persistent kernel</strong> — block 을 계속 살려두고 타일을 재분배</li>
+    <li><strong>warp specialization</strong> — 일부 warp 는 compute, 일부는 load-store 전담</li>
+  </ul>
+  <p>Triton 에 persistent / warp specialization 이 오는 중이지만 아직 튜토리얼 레벨. 이 갭을 닫으려면 <strong>CUTLASS 3.x</strong> — 한 레이어 더 아래로 내려가야 한다. 다음 라운드의 주제.</p>
+
+  <h2>함정 기록 (요약)</h2>
+  <ul>
+    <li><strong>L4 stockout</strong> — us-west4-a → us-east4-c zone rotation.</li>
+    <li><strong><code>Python.h</code> not found</strong> — <code>libpython3.10-dev</code> 설치.</li>
+    <li><strong>git 히스토리 없음</strong> — 레슨 9 중간에 발견. 레슨 0 에서 <code>git init</code> + 첫 커밋이 <code>make vector_add</code> 보다 먼저다.</li>
+    <li><strong>naive OOM</strong> — <code>(B,H,N,N)</code> score 텐서가 6 GB. <code>naive_mem_bytes &lt; 4 GB</code> 가드 + "(skipped)" 로 벤치.</li>
+    <li><strong>"Not enough SMs"</strong> 경고 — L4 58 SM 이 <code>max_autotune_gemm</code> 요구치 미달. 기능 영향 없음.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">포지션</div>
+    <p>cuDNN 의 <strong>80–90%</strong> 속도를 <strong>300 줄</strong>로. 같은 일을 CUDA 로 하면 레슨 6 의 FA v1 (~650 줄) 의 5–10 배 + 새 GPU 마다 수작업 재튜닝. Triton 을 배우는 이유 자체가 이 ROI 에 있다.</p>
+  </div>
+
+  <h2>다음</h2>
+  <p>Backward + autograd (<code>register_autograd</code>) → GQA (MQA/grouped) → persistent kernel + async copy 로 마지막 20% 닫기 → vLLM PagedAttention 포팅. Phase 2 의 재료.</p>
+
+  <div class="artnav">
+    <a href="10-triton-vs-cuda.html"><span class="lbl">Prev · 10</span>essay · triton vs cuda</a>
+    <a class="nxt" href="index.html"><span class="lbl">End</span>back to index</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.20</div><div>Essay 11 / 11 · FINAL</div></footer>
+</body></html>

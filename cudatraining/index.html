@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CUDA Training — 11편 기록</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <p class="eyebrow"><span class="dot"></span>2026 · APR · 18 → 20 · 3 DAYS · T4 → L4</p>
+    <h1>vector_add 한 줄에서<br>cuDNN FA-2 의 80%까지.</h1>
+    <p class="sub">GPU 에 직접 손을 대본 적 없는 엔지니어가 3일 동안 T4, L4 위에서 남긴
+    커널 9개, 벤치 70여 개, 그리고 거기서 건진 시스템 감각. 이 블로그는 그 과정을 처음부터 끝까지 복원한다.</p>
+    <div class="stats">
+      <div><b>9</b>CUDA / Triton 커널</div>
+      <div><b>4.79×</b>Flash Attention speedup</div>
+      <div><b>65×</b>HBM 트래픽 절감</div>
+      <div><b>54 TFLOPS</b>Triton fp16 matmul</div>
+      <div><b>0.86×</b>cuDNN FA-2 대비</div>
+    </div>
+  </div>
+
+  <div class="toc">
+
+    <div class="sec-label">PART I · Memory</div>
+
+    <a class="card" href="01-vector-add.html">
+      <div class="num">01</div>
+      <div>
+        <h3>vector_add — 첫 커널이 가르쳐 준 것</h3>
+        <p>T4 에서 230 GB/s. 그러나 진짜 병목은 커널이 아니라 PCIe 위의 복사였다.</p>
+      </div>
+      <div class="tag">LESSON 01</div>
+    </a>
+
+    <a class="card" href="02-pinned-vs-pageable.html">
+      <div class="num">02</div>
+      <div>
+        <h3>복사 비용의 정체 — pageable vs pinned</h3>
+        <p>D2H 가 12.7 배 느려지는 하나의 이유. 그리고 end-to-end 5.6배 차이.</p>
+      </div>
+      <div class="tag">LESSON 02</div>
+    </a>
+
+    <div class="sec-label">PART II · Parallelism</div>
+
+    <a class="card" href="03-reduction.html">
+      <div class="num">03</div>
+      <div>
+        <h3>Reduction — atomic 이 100배 느린 이유</h3>
+        <p>shared memory, warp shuffle, 그리고 <code>__syncthreads</code> 하나가 만든 29%.</p>
+      </div>
+      <div class="tag">LESSON 03</div>
+    </a>
+
+    <a class="card" href="04-matmul.html">
+      <div class="num">04</div>
+      <div>
+        <h3>Matmul — memory-bound 에서 Tensor Core 까지</h3>
+        <p>0.4 → 7.9 TFLOPS. 20배의 로프라인 여정을 네 층으로.</p>
+      </div>
+      <div class="tag">LESSON 04</div>
+    </a>
+
+    <div class="sec-label">PART III · Fusion & Attention</div>
+
+    <a class="card" href="05-softmax-fusion.html">
+      <div class="num">05</div>
+      <div>
+        <h3>Softmax & Fusion — Flash Attention 의 수학적 절반</h3>
+        <p>커널을 3개에서 1개로 합치면 정확히 2배 빨라진다. online softmax 의 탄생.</p>
+      </div>
+      <div class="tag">LESSON 05</div>
+    </a>
+
+    <a class="card" href="06-flash-attention.html">
+      <div class="num">06</div>
+      <div>
+        <h3>Flash Attention — 다섯 레슨이 80줄에 수렴하다</h3>
+        <p>N=4096 에서 4.79× 빠르고 65× 적은 HBM 트래픽. 그리고 그 경계선.</p>
+      </div>
+      <div class="tag">LESSON 06 · CAPSTONE</div>
+    </a>
+
+    <div class="sec-label">PART IV · Integration</div>
+
+    <a class="card" href="07-pytorch-op.html">
+      <div class="num">07</div>
+      <div>
+        <h3>PyTorch Custom Op — 50줄이 뚫은 한 층</h3>
+        <p><code>torch.ops.mylib.flash_attention</code>. 이 순간부터 vLLM 코드가 읽힌다.</p>
+      </div>
+      <div class="tag">LESSON 07</div>
+    </a>
+
+    <a class="card" href="08-triton-port.html">
+      <div class="num">08</div>
+      <div>
+        <h3>Triton 포팅 — 추상화는 얼마를 먹는가</h3>
+        <p>L4 로 점프. 4개 커널을 Triton 으로. cuBLAS 를 근소하게 이긴 구간 발견.</p>
+      </div>
+      <div class="tag">LESSON 08</div>
+    </a>
+
+    <a class="card" href="09-mha-causal-fa.html">
+      <div class="num">09</div>
+      <div>
+        <h3>MHA + Causal Flash Attention</h3>
+        <p>4-D shape + causal + <code>torch.compile(fullgraph=True)</code>. cuDNN FA-2 의 80-90%.</p>
+      </div>
+      <div class="tag">LESSON 09</div>
+    </a>
+
+    <div class="sec-label">PART V · Essays</div>
+
+    <a class="card" href="10-triton-vs-cuda.html">
+      <div class="num">10</div>
+      <div>
+        <h3>Triton vs CUDA — 추상화의 비용은 어디서 나타나는가</h3>
+        <p>50줄이 5000줄을 대체할 수 있는가. 네 개 커널의 답.</p>
+      </div>
+      <div class="tag">ESSAY</div>
+    </a>
+
+    <a class="card" href="11-300-lines.html">
+      <div class="num">11</div>
+      <div>
+        <h3>300줄짜리 Triton FA 가 cuDNN 의 80-90%를 따라잡는 방법</h3>
+        <p><code>IS_CAUSAL: tl.constexpr</code>, loop-skip, <code>custom_op</code>. 세 가지 트릭의 합.</p>
+      </div>
+      <div class="tag">ESSAY</div>
+    </a>
+
+  </div>
+</div>
+
+<footer class="bot">
+  <div>cudatraining / 2026.04</div>
+  <div>T4 (sm_75) · L4 (sm_89)</div>
+</footer>
+
+</body></html>

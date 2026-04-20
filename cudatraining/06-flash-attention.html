@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>06. Flash Attention / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 06 · 2026.04.18 · T4 · CAPSTONE</p>
+  <h1 class="title kicker">Flash Attention — 다섯 레슨이 80줄에 수렴하다</h1>
+  <p class="dek">Tiled matmul + online softmax + HBM 트래픽 감량. 레슨 1–5 가 쌓아온 것들을
+  하나의 커널에 밀어넣었다. N=4096 에서 4.79× 빠르고 65× 적은 메모리 트래픽.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>d · <strong>64, FP32</strong></span>
+    <span>sweep · <strong>8 runs</strong></span>
+  </div>
+
+  <h2>두 구현</h2>
+  <ul>
+    <li><strong>naive</strong> — 3 개 커널 (QK→softmax→PV). 중간 행렬 S, P (N×N) 를 HBM 에 완전 materialize.</li>
+    <li><strong>flash</strong> — 단일 커널. Q 를 Br=64 행 블록, K/V 를 Bc=32 열 블록. 각 타일에서 Q@K^T, online softmax, P@V 를 <strong>한 번에</strong> 누적. S/P 는 HBM 에 안 쓴다.</li>
+  </ul>
+
+  <h2>결과</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">naive ms</th><th class="num">flash ms</th><th class="num">speedup</th><th class="num">naive HBM</th><th class="num">flash HBM</th><th class="num">HBM ratio</th></tr></thead>
+    <tbody>
+      <tr><td>512</td><td class="num">0.402</td><td class="num">0.593</td><td class="num">0.68×</td><td class="num">4.5 MB</td><td class="num">0.5 MB</td><td class="num">9×</td></tr>
+      <tr><td>1024</td><td class="num">1.088</td><td class="num">0.881</td><td class="num">1.24×</td><td class="num">17.0</td><td class="num">1.0</td><td class="num">17×</td></tr>
+      <tr><td>2048</td><td class="num">3.076</td><td class="num">1.235</td><td class="num"><strong>2.49×</strong></td><td class="num">66.0</td><td class="num">2.0</td><td class="num">33×</td></tr>
+      <tr><td>4096</td><td class="num">11.857</td><td class="num"><strong>2.477</strong></td><td class="num"><strong>4.79×</strong></td><td class="num">260.0</td><td class="num">4.0</td><td class="num"><strong>65×</strong></td></tr>
+    </tbody>
+  </table>
+  <p>GFLOP/s (연산량 기준): naive 169 → 366, flash 115 → <strong>1754</strong> (T4 peak 의 22%). 정확도: 둘 다 max_abs_err &lt; 5e-7.</p>
+
+  <h2>교훈 1 · HBM 절감은 N² → N·d 스케일링</h2>
+  <p>N=4096, d=64:</p>
+  <ul>
+    <li>naive HBM ≈ 4N² + 4N·d = <strong>260 MB</strong></li>
+    <li>flash HBM ≈ 4N·d = <strong>4 MB</strong></li>
+  </ul>
+  <p>비율 65×, N 제곱으로 벌어진다. <strong>이게 FA 의 전부.</strong> 나머지는 이 절감을 시간으로 환산하는 엔지니어링.</p>
+
+  <h2>교훈 2 · Crossover — N=512 에서는 naive 가 더 빠르다</h2>
+  <p>N=512 에서 flash 는 오히려 느리다 (0.68×). 이유:</p>
+  <ul>
+    <li>naive 의 S (1 MB) 가 T4 L2 (4 MB) 에 들어감 → 실제 HBM 로드는 이론치보다 훨씬 적음</li>
+    <li>flash 는 K/V 를 각 Q 블록마다 순회 → recompute 오버헤드</li>
+    <li>Br=64 블록 수가 적어 T4 의 40 SM 을 못 채움 → occupancy 낮음</li>
+  </ul>
+  <blockquote>"FA 가 항상 빠르다" 는 거짓. sequence length 가 길어야 우위가 난다. 실제 LLM prefill (N=4096~32k) 에서 FA 가 결정적인 이유.</blockquote>
+
+  <h2>교훈 3 · HBM 절감 vs 실시간 속도</h2>
+  <p>N=4096 에서 HBM 은 65× 주는데 시간은 4.79× 만 빨라진다. 왜?</p>
+  <ul>
+    <li>naive 가 실제로는 HBM-bound 가 아님 (effective 22 GB/s → T4 의 7%). <strong>L2 가 대부분 흡수</strong>.</li>
+    <li>FLOPs 는 동일 — flash 는 연산이 아니라 데이터 이동만 줄인다</li>
+    <li>flash 가 1.75 TFLOPS 에서 멈춤 → compute-bound 단계로 진입</li>
+  </ul>
+  <p>FA 의 큰 성능은 <strong>H100 같은 고대역 + 고 peak</strong> 에서 빛난다. T4 에서도 절감은 실재하지만 극적이지 않다.</p>
+
+  <h2>교훈 4 · 다섯 레슨이 한 커널에 수렴</h2>
+<pre><code>Lesson 01 vector_add  → coalesced load 패턴 (FA 의 Q/K/V 로드)
+Lesson 02 memory      → HBM↔L2 트래픽 의식 (FA 의 존재 이유)
+Lesson 03 reduction   → warp reduce (row max/sum)
+Lesson 04 matmul      → tiled matmul (S = Q@K^T, O += P@V)
+Lesson 05 softmax     → online (max, sum) update (심장)
+Lesson 06 flash       → 위 다섯의 fusion</code></pre>
+
+  <p>80 줄짜리 커널 하나에 저게 다 들어있다. <strong>FA 논문이 "별로 새롭지 않은 기술의 날카로운 조합" 이라 평가되는 이유.</strong></p>
+
+  <h2>LLM serving 번역</h2>
+  <ul>
+    <li><strong>Prefill</strong>: N 수천~수만. FA 없이는 메모리도 모자람. vLLM / TensorRT-LLM 이 FA-2/FA-3 을 호출하는 지점.</li>
+    <li><strong>Decode</strong>: seq_len = 1 (현재 쿼리). Q 가 아주 작아 FA 타일 구조 자체가 overkill. Paged Attention 등 다른 최적화가 중요.</li>
+  </ul>
+  <p>우리 단일 커널 FA 는 prefill 쪽의 dynamics 를 설명한다. 여기서 "CUDA 레벨 1" 학습이 종료. 다음 레슨부터는 PyTorch 에 붙인다.</p>
+
+  <div class="artnav">
+    <a href="05-softmax-fusion.html"><span class="lbl">Prev · 05</span>softmax &amp; fusion</a>
+    <a class="nxt" href="07-pytorch-op.html"><span class="lbl">Next · 07</span>pytorch custom op</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.18</div><div>Lesson 06 / 11 · Capstone</div></footer>
+</body></html>

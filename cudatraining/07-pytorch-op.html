@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>07. PyTorch Custom Op / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 07 · 2026.04.19 · T4</p>
+  <h1 class="title">PyTorch Custom Op — ~50 줄로 CUDA 를 꽂다</h1>
+  <p class="dek">레슨 6 의 Flash Attention 커널을 <code>torch.ops.mylib.flash_attention</code>
+  으로 등록. 이 순간부터 vLLM 의 <code>csrc/*.cu</code> 가 낯설지 않다.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>layer · <strong>C++ host wrapper</strong></span>
+    <span>baseline · <strong>F.scaled_dot_product_attention</strong></span>
+  </div>
+
+  <h2>핵심 ~5 줄</h2>
+  <p>한 파일 (330 줄, 대부분이 커널 본체) 에서 PyTorch 세계로의 전환은 아래 5 줄이 전부다.</p>
+<pre><code>check_qkv(Q, "Q");                           // shape/device/dtype/contig
+auto O = torch::empty({N, d}, Q.options());  // PyTorch 가 alloc
+auto stream = at::cuda::getCurrentCUDAStream();
+my_kernel&lt;&lt;&lt;grid, block, 0, stream&gt;&gt;&gt;(
+    Q.data_ptr&lt;float&gt;(), ..., O.data_ptr&lt;float&gt;());
+return O;</code></pre>
+  <p>이게 레슨 6 의 <code>main()</code> 수백 줄 (CLI 파싱, malloc, CSV 출력, CPU ref 검증) 을 완전 대체. production 패턴.</p>
+
+  <h2>정확도</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">naive abs err</th><th class="num">flash abs err</th></tr></thead>
+    <tbody>
+      <tr><td>128</td><td class="num">3.3e-7</td><td class="num">2.5e-7</td></tr>
+      <tr><td>512</td><td class="num">5.4e-7</td><td class="num">4.3e-7</td></tr>
+      <tr><td>1024</td><td class="num">4.0e-7</td><td class="num">2.8e-7</td></tr>
+      <tr><td>2048</td><td class="num">3.7e-7</td><td class="num">3.7e-7</td></tr>
+    </tbody>
+  </table>
+  <p>FP32 machine epsilon (~1.2e-7) 의 3–5 배. SDPA 와 우리 커널이 둘 다 FP32 rounding 한계 안.</p>
+
+  <h2>속도 (vs F.scaled_dot_product_attention, T4, d=64)</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">ours naive</th><th class="num">ours flash</th><th class="num">SDPA</th><th class="num">flash / sdpa</th></tr></thead>
+    <tbody>
+      <tr><td>512</td><td class="num">0.475</td><td class="num">0.734</td><td class="num"><strong>0.262</strong></td><td class="num">0.36×</td></tr>
+      <tr><td>1024</td><td class="num">0.799</td><td class="num">1.309</td><td class="num"><strong>0.429</strong></td><td class="num">0.33×</td></tr>
+      <tr><td>2048</td><td class="num">3.086</td><td class="num">1.253</td><td class="num"><strong>0.428</strong></td><td class="num">0.34×</td></tr>
+      <tr><td>4096</td><td class="num">—</td><td class="num">2.498</td><td class="num"><strong>1.374</strong></td><td class="num">0.55×</td></tr>
+    </tbody>
+  </table>
+  <p>SDPA 대비 0.33–0.55×. N 이 커질수록 격차 좁아진다 (N² 에 묶여 둘 다 비슷한 bound). cuDNN 의 튜닝 수준이 선명히 보이는 숫자.</p>
+
+  <h2>교훈 1 · stream-aware 런치는 타협 불가</h2>
+  <p><code>at::cuda::getCurrentCUDAStream()</code> 을 네 번째 런치 인자에 안 주면 default stream 으로 감. PyTorch 는 다른 stream 을 쓰고 있을 수 있음 → <strong>침묵의 race condition</strong>. 크래시 안 나는데 결과가 비결정적. vLLM 의 PagedAttention 런치도 정확히 같은 패턴.</p>
+
+  <h2>교훈 2 · dispatcher 가 CPU 가드를 공짜로 준다</h2>
+<pre><code>TORCH_LIBRARY_IMPL(mylib, CUDA, m) {
+  m.impl("flash_attention", &amp;flash_attention_forward);
+}</code></pre>
+  <p>CUDA backend 에만 등록. CPU 텐서가 오면 dispatcher 가 먼저 차단:</p>
+<pre><code>RuntimeError: Could not run 'mylib::flash_attention' with arguments from the 'CPU' backend</code></pre>
+  <p>autograd, dtype promotion, device dispatch 가 하나의 파이프에 엮이는 <strong>PyTorch op 시스템의 깔끔한 부분</strong>.</p>
+
+  <h2>교훈 3 · 3× 격차는 선이자 현실</h2>
+  <ul>
+    <li>cuDNN 은 register allocation / instruction scheduling 을 NVIDIA 엔지니어가 손으로 튜닝</li>
+    <li>Warp-specialized FP32 경로 (WMMA 는 FP16 전용) 사용</li>
+    <li>smem bank conflict 회피 레이아웃</li>
+    <li>우리 Br=64 / d=64 에선 register pressure 로 스필 가능성</li>
+  </ul>
+  <p>우리 자리는 SOTA 추격이 아니다. <strong>내장에 빠진 연산 (novel op, custom sparsity) 을 채우는 곳.</strong></p>
+
+  <h2>함정 기록</h2>
+  <ul>
+    <li><code>import mylib_ext</code> → <code>PyInit_mylib_ext not defined</code>. 해결: 빈 <code>PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}</code> 추가.</li>
+    <li><code>nvcc</code> not found. <code>CUDA_HOME=/usr/local/cuda</code> 명시.</li>
+    <li>CUDA 12.9 toolkit vs PyTorch cu121 wheel — minor version compat 으로 돌긴 함. 프로덕션은 일치.</li>
+  </ul>
+
+  <h2>레슨 1–7 스택</h2>
+<pre><code>Python 모델 (vLLM, 내 서비스)
+        │
+        │   torch.ops.mylib.flash_attention(q,k,v)    ← 레슨 07 이 뚫은 층
+        ▼
+torch dispatcher
+        │
+        ▼
+C++ host wrapper (tensor → raw ptr, stream)
+        │
+        ▼
+CUDA kernel (flash_attention_v1)                     ← 레슨 06
+        │
+        ▼
+Warp / thread (shuffle, tiled mma)                   ← 레슨 03,04,05
+        │
+        ▼
+Memory hierarchy (HBM↔L2↔smem↔reg)                   ← 레슨 01,02</code></pre>
+
+  <p class="closing">여기까지가 CUDA Phase 1. 다음 레슨부터 Triton.</p>
+
+  <div class="artnav">
+    <a href="06-flash-attention.html"><span class="lbl">Prev · 06</span>flash attention</a>
+    <a class="nxt" href="08-triton-port.html"><span class="lbl">Next · 08</span>triton 포팅</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.19</div><div>Lesson 07 / 11</div></footer>
+</body></html>

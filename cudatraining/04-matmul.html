@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>04. Matmul / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 04 · 2026.04.18 · T4</p>
+  <h1 class="title">Matmul — memory-bound 에서 Tensor Core 까지</h1>
+  <p class="dek">0.4 → 7.9 TFLOPS. 같은 GPU, 같은 matrix. 네 번의 구현을 거치며
+  지붕이 두 번 바뀌었다. Roofline 의 축이 수직으로 점프한 자리.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>peak · <strong>FP32 8.1 · TC 65 TFLOPS</strong></span>
+    <span>sweep · <strong>4 sizes × 4 versions</strong></span>
+  </div>
+
+  <h2>네 버전</h2>
+  <ul>
+    <li><strong>v1 naive</strong> — 1 thread / 1 output. global memory only</li>
+    <li><strong>v2 tiled</strong> — 32×32 shared memory tile (AI = 8 FLOP/byte)</li>
+    <li><strong>v3 register</strong> — block 128×128, thread tile 8×8, BK=8 (AI = 32 FLOP/byte)</li>
+    <li><strong>v4 tensor</strong> — WMMA API, block 64×64, FP16 입력 → FP32 축적</li>
+  </ul>
+
+  <h2>TFLOPS 매트릭스</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">v1 naive</th><th class="num">v2 tiled</th><th class="num">v3 reg</th><th class="num">v4 tensor</th></tr></thead>
+    <tbody>
+      <tr><td>256</td><td class="num">0.22</td><td class="num">0.56</td><td class="num">0.20 ⚠</td><td class="num">1.51</td></tr>
+      <tr><td>512</td><td class="num">0.47</td><td class="num">0.75</td><td class="num">0.95</td><td class="num">3.71</td></tr>
+      <tr><td>1024</td><td class="num">0.40</td><td class="num">0.64</td><td class="num">1.43</td><td class="num">3.59</td></tr>
+      <tr><td>2048</td><td class="num">0.40</td><td class="num">0.83</td><td class="num"><strong>2.05</strong></td><td class="num"><strong>7.93</strong></td></tr>
+    </tbody>
+  </table>
+  <p>v3 @ 2048 = FP32 peak 의 25%. v4 @ 2048 = TC peak 의 12%. 단순 WMMA 만으로 7.93 TFLOPS 가 나왔다는 게 핵심.</p>
+
+  <h2>교훈 1 · Occupancy trap — v3 가 N=256 에서 v2 보다 느림</h2>
+  <p>v3 의 block tile 은 128×128. N=256 이면 블록 수 = 4 개뿐이다. T4 의 40 SM 중 36 SM 이 놀고 있다. 반면 v2 는 tile 32×32 → 64 블록 → 모든 SM 활용.</p>
+  <blockquote>타일이 클수록 AI 증가 = 좋다. 단 <strong>블록 수 ≥ 2 × SM 수</strong> 를 지켜야 한다. 이걸 놓치면 오히려 느려진다.</blockquote>
+  <p>LLM 서빙 함의: 큰 matmul (FFN) 은 문제없지만, small-batch decode 의 attention matmul 은 "작은 tile variant" 가 필요하다.</p>
+
+  <h2>교훈 2 · v3 의 본질</h2>
+  <p>스레드당 8×8 output 을 레지스터에 보유. 그러면:</p>
+  <ul>
+    <li>shared memory 에서 같은 값 읽는 횟수가 v2 대비 <strong>8 배 감소</strong></li>
+    <li>Block 당 thread 수: 1024 → 256 (4 배 감소) → SM 당 거주 블록 수 증가 = occupancy 회복</li>
+    <li>Block tile: 32×32 → 128×128 (16 배) → AI 4 배 증가</li>
+  </ul>
+  <p>이 세 효과가 겹쳐서 N=2048 에서 2.05 TFLOPS. cuBLAS SGEMM 의 3–4 TFLOPS 에 근접한다.</p>
+
+  <h2>교훈 3 · v4 는 새 지붕 — Tensor Core</h2>
+  <p>한 <code>mma_sync</code> 명령 = 16×16×16 매트릭스 곱 = 4096 FMA, 약 8 cycle 완료. 같은 warp-cycle 대비 FP32 FMA 의 <strong>16 배</strong> 처리량이다.</p>
+  <p>우리가 peak 의 12% 만 찍은 이유:</p>
+  <ul>
+    <li>Fragment load 가 swizzled layout 이 아님</li>
+    <li>Double buffering (다음 타일 HBM→shared 로드 + 현재 타일 mma 오버랩) 없음</li>
+    <li>Block tile 64×64 로 작음 (AI 제한)</li>
+  </ul>
+  <p>이 셋을 다 구현한 게 CUTLASS. 수개월 작업.</p>
+
+  <h2>교훈 4 · 정밀도의 값</h2>
+  <table class="tbl">
+    <thead><tr><th>버전</th><th class="num">max_abs_err @ N=1024</th></tr></thead>
+    <tbody>
+      <tr><td>v1, v2, v3 (FP32)</td><td class="num">7.6e-5</td></tr>
+      <tr><td>v4 (FP16 입력)</td><td class="num"><strong>1.4e-2 · 180×</strong></td></tr>
+    </tbody>
+  </table>
+  <p>FP16 입력 → mantissa 10 bit → 약 3 decimal 정밀도. LLM 추론은 허용, 학습은 BF16/FP32 혼합 필요. <strong>AWQ, GPTQ, FP8 quantization 이 존재하는 이유</strong>가 여기 있다. 더 낮은 정밀도 → 더 빠른 TC → 출력이 거의 같으면 이득.</p>
+
+  <h2>Roofline 감각</h2>
+  <pre><code>                    │       Tensor Core peak ━━━━━━━━━━
+perf ▲              │
+(TFLOPS)            │                                  v4 ●
+                    │                                (7.9)
+                    │      ← FP32 peak 8.1 ──────────────
+                    │                         v3 ●
+                    │                       (2.0)
+                    │                 v2 ●
+                    │              (0.8)
+                    │      v1 ●
+                    │    (0.4)
+                    └────────────────────────────────────▶
+                       low AI                       high AI</code></pre>
+
+  <p>v3 까지는 HBM 대역폭 싸움, v4 에서 축이 수직으로 점프 — 다른 지붕. <strong>LLM inference 는 거의 전부 맨 아래 두 줄에서 실행된다.</strong> v1-v4 는 거기까지 올라가는 사다리.</p>
+
+  <div class="artnav">
+    <a href="03-reduction.html"><span class="lbl">Prev · 03</span>reduction</a>
+    <a class="nxt" href="05-softmax-fusion.html"><span class="lbl">Next · 05</span>softmax &amp; fusion</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.18</div><div>Lesson 04 / 11</div></footer>
+</body></html>

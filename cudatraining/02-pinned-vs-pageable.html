@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>02. pageable vs pinned / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 02 · 2026.04.18 · T4</p>
+  <h1 class="title">복사 비용의 정체 — pageable vs pinned</h1>
+  <p class="dek">같은 커널, 같은 GPU. host 쪽 메모리 선택만 바꿨는데 end-to-end 시간이
+  5.6 배 뛰었다. D2H 한쪽은 12.7 배. 이 격차의 출처를 숫자와 페이지 테이블로 분해한다.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4 · sm_75</strong></span>
+    <span>sweep · <strong>16 runs</strong></span>
+    <span>PCIe Gen3 x16 실효 · <strong>~13 GB/s</strong></span>
+  </div>
+
+  <h2>실험</h2>
+  <p><code>src/vector_add.cu</code> 에 <code>--pinned</code> / <code>--pageable</code> 플래그를 달고, host 버퍼 할당을 <code>cudaMallocHost</code> 와 <code>new float[]</code> 로 분기했다. 같은 GPU 경로 — 커널은 똑같고, 호스트 메모리만 다르다.</p>
+
+  <h2>Transfer bandwidth 고원</h2>
+  <table class="tbl">
+    <thead><tr><th></th><th class="num">pinned</th><th class="num">pageable</th><th class="num">ratio</th></tr></thead>
+    <tbody>
+      <tr><td>H2D</td><td class="num">~12.3 GB/s</td><td class="num">~4.6 GB/s</td><td class="num">2.7×</td></tr>
+      <tr><td>D2H</td><td class="num">~13.1 GB/s</td><td class="num">~1.03 GB/s</td><td class="num"><strong>12.7×</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>End-to-end 총 시간</h2>
+  <table class="tbl">
+    <thead><tr><th>n</th><th class="num">pinned</th><th class="num">pageable</th><th class="num">ratio</th></tr></thead>
+    <tbody>
+      <tr><td>2²⁰</td><td class="num">1.12 ms</td><td class="num">6.84 ms</td><td class="num">6.1×</td></tr>
+      <tr><td>2²²</td><td class="num">4.28 ms</td><td class="num">24.09 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁴</td><td class="num">16.87 ms</td><td class="num">95.03 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁶</td><td class="num">67.38 ms</td><td class="num">375.69 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁸</td><td class="num">270.56 ms</td><td class="num">1519.26 ms</td><td class="num">5.6×</td></tr>
+    </tbody>
+  </table>
+
+  <p>커널 시간은 두 모드에서 동일하다. 차이는 <strong>100% host-side 복사</strong> 에서 나온다.</p>
+
+  <h2>왜 D2H 만 12.7 배인가 — 페이지 fault</h2>
+  <p>H2D 는 유저가 init 루프에서 이미 touch 한 페이지를 <em>읽기만</em> 한다. Fault 없음. 그래서 2.7 배.</p>
+  <p>D2H 는 반대다. <code>new float[n]</code> 은 가상 주소만 할당하고 물리 페이지를 커밋하지 않는다. 드라이버가 staging → pageable 로 CPU <code>memcpy</code> 할 때 매 페이지에 <strong>demand-zero fault</strong> 가 발생. 1 GB 버퍼면 약 262k 페이지 fault.</p>
+
+  <blockquote>pageable 이 어쩔 수 없이 강제될 때도, <strong>output buffer 는 미리 touch 해 두라</strong>. <code>memset</code> 한 번이면 D2H 가 수 배 빨라진다.</blockquote>
+
+  <h2>T4 는 pinned 일 때 PCIe Gen3 실효 상한에 닿는다</h2>
+  <p>H2D 12.3, D2H 13.1 GB/s. Gen3 x16 이론 16 GB/s, 실효 ~13 GB/s. 즉 <strong>더 짜낼 여지가 없다</strong>. 다음 레버는 세 가지다.</p>
+  <ul>
+    <li><strong>겹치기</strong> — streams + async copy 로 kernel 과 transfer overlap</li>
+    <li><strong>제거</strong> — persistent device buffer, unified memory, zero-copy</li>
+    <li><strong>감량</strong> — kernel fusion 으로 round-trip 자체를 줄이기</li>
+  </ul>
+  <p>vLLM 이 KV cache 를 GPU 에 붙박이로 두는 이유, operator fusion 이 이득이 큰 이유의 배경이 여기 있다.</p>
+
+  <h2>작은 n 은 다른 세계다</h2>
+  <p><code>n ≤ 2¹⁸</code> 구간에서는 커널이 launch overhead floor (~4–7 µs) 에 눌린다. "bandwidth %" 개념 자체가 의미 없다. <code>n = 2¹⁸</code> 에선 apparent bandwidth 가 이론치의 140% — L2 cache hit 때문의 허위 대역폭. 실제 HBM-bound 로 넘어가는 crossover 는 약 <strong>n ≈ 2²⁰ (4 MB)</strong>.</p>
+
+  <div class="callout">
+    <div class="label">구조적 한 줄</div>
+    <p>Memory-bound 워크로드에서 가장 큰 레버는 kernel 이 아니라 <strong>data path</strong> 다. 커널이 이론 대역폭의 70% 를 찍고 있어도 host 쪽을 pageable 로 두면 end-to-end 는 5 배 느려진다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="01-vector-add.html"><span class="lbl">Prev · 01</span>vector_add</a>
+    <a class="nxt" href="03-reduction.html"><span class="lbl">Next · 03</span>reduction</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.18</div><div>Lesson 02 / 11</div></footer>
+</body></html>

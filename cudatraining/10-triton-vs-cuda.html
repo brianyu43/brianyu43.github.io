@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10. Essay · Triton vs CUDA / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>ESSAY 10 · 2026.04.19 · L4</p>
+  <h1 class="title kicker">50 줄의 Python 이 5000 줄의 CUDA 를 대체할 수 있는가</h1>
+  <p class="dek">추상화의 비용은 어디서 나타나는가. L4 에서 네 개의 커널로 받은 네 구간의 답.</p>
+  <div class="meta">
+    <span>질문 · <strong>추상화의 ROI</strong></span>
+    <span>대상 · <strong>Triton / CUDA / cuBLAS·cuDNN</strong></span>
+    <span>길이 · <strong>essay</strong></span>
+  </div>
+
+  <h2>물음</h2>
+  <p>Triton 은 "CUDA 를 안 쓰고도 CUDA 수준의 성능" 이라 선전한다. 이건 마케팅에 가깝게 들리지만, Tri Dao 는 실제로 Flash Attention-2 를 Triton 으로 썼다. OpenAI 의 Kernel Gym 도 Triton 이다. 그 말은 참인가?</p>
+  <p>이 질문을 숫자로만 풀기로 했다. 레슨 1–6 에서 쓴 네 개의 커널 — reduction, softmax, matmul, flash attention — 을 Triton 으로 재작성. 같은 L4 (sm_89) 에서 CUDA / torch 내장 / Triton 세 버전을 나란히 돌린다. 질문은 한 가지다. <strong>어느 구간에서 추상화가 비싸고, 어느 구간에서 공짜인가.</strong></p>
+
+  <h2>네 구간</h2>
+  <table class="tbl">
+    <thead><tr><th>구간</th><th>Triton vs CUDA</th><th>원인</th></tr></thead>
+    <tbody>
+      <tr><td>작은 N (&lt; 4 MB)</td><td>3–12× 뒤짐</td><td>Python → autotune → JIT → cuLaunch 의 런치 floor ~50–100 µs</td></tr>
+      <tr><td>HBM 바운드 중간</td><td>95%</td><td>거의 없음 — HBM 이 bottleneck 이면 컴파일러가 사람을 크게 못 넘음</td></tr>
+      <tr><td>HBM 바운드 큰</td><td>동률</td><td>없음</td></tr>
+      <tr><td>컴퓨트 바운드 큰 matmul/FA</td><td><strong>이김</strong></td><td>autotune 이 사람 손 튜닝을 근소하게 넘음</td></tr>
+    </tbody>
+  </table>
+
+  <h2>증거 1 · HBM 바운드는 전부 동률</h2>
+  <table class="tbl">
+    <thead><tr><th>task</th><th class="num">CUDA</th><th class="num">torch</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>Reduction 67M</td><td class="num">258 GB/s · 86%</td><td class="num">254 · 85%</td><td class="num">245 · <strong>82%</strong></td></tr>
+      <tr><td>Softmax 4096²</td><td class="num">237 GB/s</td><td class="num">240</td><td class="num">221</td></tr>
+    </tbody>
+  </table>
+  <p>HBM 바닥 (300 GB/s) 의 82–86%. 세 접근의 격차는 노이즈 수준이다. 이 구간에선 "누가 더 빨리 HBM 을 빨아들이는가" 가 전부라 JIT 가 손 CUDA 를 못 따라가는 이유가 없다.</p>
+
+  <h2>증거 2 · 컴퓨트 바운드에선 Triton 이 cuBLAS 를 이긴다</h2>
+  <table class="tbl">
+    <thead><tr><th>matmul 4096³</th><th class="num">CUDA</th><th class="num">cuBLAS</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>FP32 (TF32 TC)</td><td class="num">3.9 TF (우리 v3)</td><td class="num">25.8</td><td class="num"><strong>28.9 (+12%)</strong></td></tr>
+      <tr><td>FP16</td><td class="num">18.5 TF (우리 WMMA)</td><td class="num">51.8</td><td class="num"><strong>54.0 (+4%)</strong></td></tr>
+    </tbody>
+  </table>
+  <p>우리 WMMA 대비 2.9×. 더 중요한 건 <strong>cuBLAS 조차 근소하게 넘음</strong>. 이유는 autotune config 가 사람보다 더 많은 점을 본다는 것. 그리고 TF32/FP16 선택이 <code>tl.dot</code> 의 dtype 으로 자동 결정.</p>
+
+  <h2>증거 3 · Flash Attention (N=8192)</h2>
+  <div class="kv">
+    <dt>Triton fp16 vs 우리 CUDA FA fp32</dt><dd><strong>6.14× 빠름</strong></dd>
+    <dt>Triton fp32 vs SDPA fp32</dt><dd>2.35× 빠름 (torch fp32 가 L4 에서 FA 안 탐)</dd>
+    <dt>Triton fp16 vs SDPA fp16 (cuDNN FA-2)</dt><dd>0.79× (우리가 25% 느림)</dd>
+  </div>
+  <p>100 줄 Triton 이 cuDNN FA-2 의 79%. <strong>Tri Dao 가 FA-2 를 Triton 으로 쓴 이유.</strong> 이 숫자를 보면 Triton 은 더 이상 실험이 아니다.</p>
+
+  <h2>한 줄 = 수십 줄 이 네 번 반복</h2>
+  <ul>
+    <li><code>tl.sum(x, axis=0)</code> = warp shuffle boilerplate 15 줄</li>
+    <li><code>tl.dot(a, b)</code> = WMMA fragment + load_matrix_sync + mma_sync 50 줄 (dtype 으로 TC 자동)</li>
+    <li>Grouped program-id swizzle 9 줄 = CUDA 에선 짜기 자체가 고역</li>
+    <li>Online softmax 50 줄 (레슨 6) → <code>tl.max + tl.maximum + tl.exp + tl.sum</code> 15 줄</li>
+  </ul>
+
+  <h2>비용이 실존하는 구간</h2>
+  <p>레슨 3 의 reduction 에서 n=2²⁰ (4 MB) 일 때 Triton 이 CUDA 의 3–12 배 느렸다. 원인은 하나, <strong>launch floor 50–100 µs</strong>. Python 인터프리터 → autotune 캐시 조회 → JIT (처음 한 번) → cuLaunchKernel. 이 floor 는 커널이 짧을수록 상대 비중이 커진다.</p>
+  <p>Transformer layer 하나가 ≥1 ms 면 100 µs 는 10% 미만 — 인내 가능. 하지만 element-wise 30 개를 각각 Triton 런치하면 망한다. <strong>작은 연산은 PyTorch eager 나 <code>torch.compile</code> 이 낫다.</strong></p>
+
+  <h2>두 개의 footgun</h2>
+
+  <h3>(1) TF32 벤치 거짓말</h3>
+  <p><code>torch.matmul(fp32)</code> 는 기본 TF32 미사용. <code>tl.dot</code> 는 사용. 그대로 비교하면 "Triton 이 torch 를 2× 이김" 처럼 보임. 공정 비교:</p>
+<pre><code>torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True</code></pre>
+  <p>이 두 줄을 세팅한 뒤에야 두 쪽 다 TF32 TC 경로. 세팅 전 Phase 3 결과는 2× 거짓이었음.</p>
+
+  <h3>(2) Autotune stale write</h3>
+  <p><code>@triton.autotune</code> 이 trial 중 partial buffer 를 다른 config 로 오염. reduction 의 부분합이 섞여 rel_err = 1.75 로 터짐. 해결:</p>
+<pre><code>@triton.autotune(configs=..., reset_to_zero=["partial_ptr"])
+@triton.jit
+def kernel(...): ...
+
+best = kernel.best_config
+block = best.kwargs["BLOCK_SIZE"]
+return partial[:cdiv(n, block)].sum()</code></pre>
+
+  <h2>그래서 왜 여전히 CUDA</h2>
+  <ol>
+    <li><strong>Triton 이 막힘</strong> — Blackwell 의 BF8/FP4 mma, persistent kernel, async copy 세부 제어.</li>
+    <li><strong>PTX 독해</strong> — Triton 이 낸 PTX 를 읽어야 perf bug 추적이 된다. <code>TRITON_CACHE_DIR</code> 에 <code>*.ptx</code>, <code>*.cubin</code>.</li>
+    <li><strong>레퍼런스 코드</strong> — vLLM, FA-3, Mamba 커널은 아직 CUDA. 그 코드 읽으려면 CUDA 가 모국어여야.</li>
+    <li><strong>성능 진단 어휘</strong> — "왜 느림?" 의 답은 bank conflict, register spill, occupancy. 이 개념은 Triton 에서도 그대로 통용.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">비유</div>
+    <p><strong>CUDA = 어셈블리, Triton = C.</strong> 대부분은 C 로 짜고, 핫패스만 어셈블리로 남긴다. 그리고 C 컴파일러 버그가 생기면 어셈블리를 읽어야 한다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="09-mha-causal-fa.html"><span class="lbl">Prev · 09</span>mha causal fa</a>
+    <a class="nxt" href="11-300-lines.html"><span class="lbl">Next · 11</span>essay · 300 lines</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.19</div><div>Essay 10 / 11</div></footer>
+</body></html>

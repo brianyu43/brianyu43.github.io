@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>09. MHA Causal FA / cudatraining</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 09 · 2026.04.20 · L4</p>
+  <h1 class="title kicker">MHA + Causal FA — 300 줄로 cuDNN 의 80%</h1>
+  <p class="dek">2-D Triton FA 를 <code>(B, H, N, d)</code> + causal mask 로 확장.
+  <code>torch.library.custom_op</code> 로 등록, <code>torch.compile(fullgraph=True)</code>
+  로 LLaMA 스타일 attention block 이 한 그래프에 들어간다.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 · fp16</strong></span>
+    <span>kernel · <strong>192 줄 (docstring 포함)</strong></span>
+    <span>op wrapper · <strong>76 줄</strong></span>
+  </div>
+
+  <h2>바뀐 다섯 가지</h2>
+  <table class="tbl">
+    <thead><tr><th>변경</th><th>위치</th><th>핵심</th></tr></thead>
+    <tbody>
+      <tr><td>2-D → 4-D stride</td><td>kernel 시그니처</td><td><code>(B,H,N,d)</code> 의 4 stride × 3 tensor 전부 런치에서 전달</td></tr>
+      <tr><td>3-D grid</td><td><code>(cdiv(N, BM), H, B)</code></td><td>한 program 이 <code>(batch, head)</code> Q 블록 하나 담당</td></tr>
+      <tr><td>causal 특수화</td><td><code>IS_CAUSAL: tl.constexpr</code></td><td>causal / non-causal 두 커널 컴파일, 런타임 브랜치 제거</td></tr>
+      <tr><td>loop skip (FA-v2)</td><td><code>end_n = min(N, (pid_m+1)*BM)</code></td><td>상삼각 타일 자체를 iteration 에서 배제</td></tr>
+      <tr><td>Diagonal mask</td><td><code>offs_m[:,None] &gt;= offs_n[None,:]</code></td><td>대각 걸친 타일 한 개에만 실질 적용</td></tr>
+    </tbody>
+  </table>
+
+  <h2>정확도 (fp32 기준 vs max rel_err)</h2>
+  <table class="tbl">
+    <thead><tr><th>단계</th><th class="num">shape 수</th><th class="num">fp32 worst</th><th class="num">fp16 worst</th></tr></thead>
+    <tbody>
+      <tr><td>non-causal</td><td class="num">57</td><td class="num">3.5e-3</td><td class="num">3.4e-4</td></tr>
+      <tr><td>causal (+ N=129/513 edge)</td><td class="num">60</td><td class="num">1.1e-3</td><td class="num">3.2e-4</td></tr>
+    </tbody>
+  </table>
+
+  <h2>속도 — LLaMA-7B causal, d=128, fp16</h2>
+  <table class="tbl">
+    <thead><tr><th>(B, H, N)</th><th class="num">ours</th><th class="num">SDPA (FA-2)</th><th class="num">ours/SDPA</th><th class="num">vs naive</th></tr></thead>
+    <tbody>
+      <tr><td>(1,32,512)</td><td class="num">0.100 ms · 21.5 TF</td><td class="num">0.100</td><td class="num"><strong>1.00×</strong></td><td class="num">10.97×</td></tr>
+      <tr><td>(1,32,1024)</td><td class="num">0.223 · 38.5 TF</td><td class="num">0.202</td><td class="num">0.90×</td><td class="num">29.6×</td></tr>
+      <tr><td>(1,32,2048)</td><td class="num">0.784 · 43.8 TF</td><td class="num">0.613</td><td class="num">0.78×</td><td class="num">31.4×</td></tr>
+      <tr><td>(1,32,4096)</td><td class="num">2.964 · 46.4 TF</td><td class="num">2.559</td><td class="num">0.86×</td><td class="num">32.7×</td></tr>
+      <tr><td>(2,32,2048)</td><td class="num">1.565 · 43.9 TF</td><td class="num">1.372</td><td class="num">0.88×</td><td class="num">31.3×</td></tr>
+    </tbody>
+  </table>
+  <p>GPT-2 (d=64) 짧은 shape 에선 <strong>(16,12,512) 에서 1.13× 우세</strong>, (8,12,1024) 에서 동률.</p>
+
+  <h2>교훈 1 · Causal 의 속도는 mask 가 아니다</h2>
+  <p>mask 만 씌우면 상삼각도 여전히 로드 + <code>-inf</code> 로 변환만. 진짜 속도는 <strong>loop skip</strong>:</p>
+<pre><code>if IS_CAUSAL:
+    end_n = tl.minimum(N, (pid_m + 1) * BLOCK_M)
+else:
+    end_n = N
+for start_n in range(0, end_n, BLOCK_N):
+    ...</code></pre>
+  <p>평균 <code>N/2</code> 로 떨어지며 <strong>K/V 로딩 + <code>tl.dot</code> 두 번이 반으로</strong>. 검증: non-causal (1,32,2048,128) 2.643 ms vs causal 0.784 ms — FLOP 절반인데 시간은 3.3× 빠름 (파이프라인 amortize).</p>
+
+  <h2>교훈 2 · <code>tl.constexpr</code> = 런타임 if 접기</h2>
+  <p>일반 인자로 <code>is_causal</code> 넘기면: 타이트 K 루프 안에 브랜치 + warp scheduler 묶임. <code>tl.constexpr</code> → Triton 이 True/False <strong>두 특수화 커널 컴파일</strong>. 런타임은 하나만 dispatch, 브랜치 자체가 존재 안 함. <code>autotune(key=[...,"IS_CAUSAL"])</code> 로 causal/non-causal autotune 도 독립 — causal 은 BM=64/BN=128, non-causal 은 더 큰 타일이 유리하다는 게 실측됨.</p>
+
+  <h2>교훈 3 · custom_op 가 주는 세 가지</h2>
+<pre><code>@custom_op("triton_training::flash_attention_mha",
+           mutates_args=(), device_types="cuda")
+def flash_attention_mha(q, k, v, is_causal: bool = False) -&gt; Tensor: ...
+
+@flash_attention_mha.register_fake
+def _(q, k, v, is_causal): return torch.empty_like(q)</code></pre>
+  <ol>
+    <li><strong><code>torch.compile</code> 이 그래프를 안 끊는다.</strong> <code>register_fake</code> 가 shape inference 에 쓰여 Dynamo 가 unknown op 로 보지 않음. <code>fullgraph=True</code> 에서 LLaMA AttentionBlock 전체가 한 그래프.</li>
+    <li><strong>직렬화 노드로 남는다.</strong> ONNX/AOT/TorchScript 에서 <code>triton_training::flash_attention_mha</code> 이 그대로 기록.</li>
+    <li><strong><code>torch.ops.&lt;ns&gt;.&lt;op&gt;</code> path 드롭인.</strong> vLLM 같은 다운스트림이 Triton 임포트 없이 호출. 실제 vLLM 이 커스텀 커널 노출하는 패턴.</li>
+  </ol>
+
+  <h2>교훈 4 · 300 줄의 ROI</h2>
+  <ul>
+    <li>kernel 100 줄 + op wrapper 76 줄 + autotune/register_fake ≈ <strong>300 줄</strong></li>
+    <li>d=128 LLaMA-7B causal 에서 cuDNN FA-2 의 78–90%</li>
+    <li>d=64 GPT-2 에선 동률 or 13% 우세</li>
+    <li>naïve 대비 29–33×</li>
+    <li><code>torch.compile(fullgraph=True)</code> 로 attention block 에 드롭인</li>
+  </ul>
+  <p>같은 일을 CUDA 로 하면 레슨 6 의 FA v1 (~500 줄 + 150 줄 host) 대비 5–10 배 분량 + 새 GPU 마다 수작업 재튜닝. <strong>Triton 을 배우는 이유 자체.</strong></p>
+
+  <h2>마지막 20% 갭의 정체</h2>
+  <p>FA-2 의 남은 22% 는 Triton 의 갭이 아니라 cuDNN FA-2 의:</p>
+  <ul>
+    <li>async copy + double/triple buffer (smem load ↔ 이전 타일 mma 오버랩)</li>
+    <li>persistent kernel 스케줄링</li>
+    <li>warp specialization (compute warp vs load-store warp)</li>
+  </ul>
+  <p>Triton 에 persistent / warp-spec 이 오는 중이지만 튜토리얼 수준. 이 갭을 닫으려면 CUTLASS 3.x — 다음 라운드 주제.</p>
+
+  <div class="callout">
+    <div class="label">포지션 요약</div>
+    <p>cuDNN 의 <strong>80%</strong> 속도를 <strong>300 줄</strong>로. 나머지 20% 는 한 단계 더 아래 레이어에서만 얻어진다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="08-triton-port.html"><span class="lbl">Prev · 08</span>triton port</a>
+    <a class="nxt" href="10-triton-vs-cuda.html"><span class="lbl">Next · 10</span>essay · triton vs cuda</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.20</div><div>Lesson 09 / 11</div></footer>
+</body></html>

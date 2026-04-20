@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>01. vector_add — 첫 커널 / cudatraining</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+</div>
+
+<div class="wrap">
+<article class="prose">
+  <p class="eyebrow"><span class="dot"></span>LESSON 01 · 2026.04.18 · T4</p>
+  <h1 class="title">vector_add — 첫 커널이 가르쳐 준 것</h1>
+  <p class="dek">연산이 더 비싼가, 복사가 더 비싼가. T4 위에서 처음으로 돌려본 커널은
+  ‘데이터 이동이 병목’이라는 명제를 17배 차이의 숫자로 돌려줬다.</p>
+  <div class="meta">
+    <span>GPU · <strong>Tesla T4 · sm_75</strong></span>
+    <span>N · <strong>67,108,864</strong></span>
+    <span>결과 · <strong>230.9 GB/s · 72.1%</strong></span>
+  </div>
+
+  <h2>셋업</h2>
+  <p>로컬이 Apple Silicon 이라 CUDA 를 직접 돌릴 수 없다. GCP 크레딧으로 <code>us-east1-d</code> 에 T4 Spot VM 을 띄우고, Deep Learning VM 이미지로 올린 뒤 원격에서 컴파일했다. 첫 커널은 전형적인 <strong>vector add</strong>. 단순하지만, 단순해서 배운다.</p>
+
+<pre><code>__global__ void vector_add_kernel(const float* a, const float* b, float* c, size_t n) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = gridDim.x * blockDim.x;
+  for (size_t i = idx; i &lt; n; i += stride) c[i] = a[i] + b[i];
+}</code></pre>
+
+  <p><code>grid-stride loop</code> 을 쓴 이유는 단순하다: 문제 크기 <code>n</code> 이 grid 보다 크면 한 스레드가 여러 원소를 맡는다. launch config 가 <code>n</code> 에 덜 민감해진다.</p>
+
+  <h2>결과</h2>
+  <p>메인 실행 (<code>block_size = 256</code>):</p>
+  <dl class="kv">
+    <dt>best kernel time</dt><dd>3.488 ms</dd>
+    <dt>effective bandwidth</dt><dd>230.909 GB/s</dd>
+    <dt>theoretical (T4)</dt><dd>320.064 GB/s</dd>
+    <dt>efficiency</dt><dd>72.145%</dd>
+    <dt>H2D copy</dt><dd>44.276 ms</dd>
+    <dt>D2H copy</dt><dd>20.439 ms</dd>
+  </dl>
+
+  <p>Block size 를 흔들어봐도 극적이지 않았다.</p>
+
+  <table class="tbl">
+    <thead><tr><th>block</th><th class="num">GB/s</th><th class="num">eff</th></tr></thead>
+    <tbody>
+      <tr><td>128</td><td class="num">219.228</td><td class="num">68.495 %</td></tr>
+      <tr><td>256</td><td class="num">230.909</td><td class="num">72.145 %</td></tr>
+      <tr><td>512</td><td class="num">236.592</td><td class="num">73.920 %</td></tr>
+    </tbody>
+  </table>
+
+  <h2>진짜 병목</h2>
+  <blockquote>커널은 3.4 ms. 복사는 합쳐서 60 ms+. 진짜 병목은 커널 안이 아니라 PCIe 위다.</blockquote>
+
+  <p>첫 레슨의 교훈은 간단하다. <strong>연산보다 데이터 이동이 더 비싸다.</strong> 이 명제가 뒤의 9개 레슨을 모두 규정한다 — pinned memory (02), reduction 트리 (03), tiling (04), fusion (05), Flash Attention (06). 모두 "어떻게 덜 옮길까" 의 변주다.</p>
+
+  <h3>왜 <code>bytes_moved = n × 4 × 3</code> 인가</h3>
+  <p>한 원소당 float 두 개를 읽고 한 개를 쓴다. 4 바이트 × 3 = 12 바이트/원소. 이걸 시간으로 나눈 게 effective bandwidth. 커널이 "자기가 할 일"을 얼마나 빠르게 하는지만 보는 숫자다. 복사 시간은 여기 포함 안 된다 — 다음 레슨에서 따로 다룬다.</p>
+
+  <h3>왜 vector add 는 memory-bound 인가</h3>
+  <p>연산 강도(arithmetic intensity)가 <strong>1 FLOP 당 12 바이트</strong>. T4 의 roofline 꼭짓점은 약 FP32 peak 8.1 TFLOPS / 320 GB/s ≈ 25 FLOP/byte 부근이다. 우리 강도는 그 왼쪽 한참 아래 — 즉 HBM 대역폭이 지붕이다. 커널을 아무리 튜닝해도 bandwidth 가 상한.</p>
+
+  <div class="callout">
+    <div class="label">다음 레슨</div>
+    <p>H2D 와 D2H 가 왜 이렇게 비싼가. <code>cudaMallocHost</code> 로 받은 pinned memory 와 그냥 <code>new float[]</code> 로 받은 pageable memory 를 나란히 측정한다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="index.html"><span class="lbl">Index</span>전체 목록으로</a>
+    <a class="nxt" href="02-pinned-vs-pageable.html"><span class="lbl">Next · 02</span>pageable vs pinned</a>
+  </div>
+</article>
+</div>
+
+<footer class="bot"><div>cudatraining / 2026.04.18</div><div>Lesson 01 / 11</div></footer>
+</body></html>
