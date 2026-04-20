@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ep.42 — 너희 GPT는 왜 내 GPU를 이렇게 쓰게 됐을까 · The Stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+</head><body>
+
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="podcast-ep-43.html">Ep.43 →</a>
+    <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap-wide" data-screen-label="Podcast ep.42 Sam vs Jensen">
+
+  <!-- HERO ========================================================= -->
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">《The Stack》</span>
+      <span class="epn">EP.42</span>
+      <span>2026 · APR · 19</span>
+      <span>38 MIN</span>
+      <span>IMAGINARY</span>
+    </div>
+    <h1>너희 GPT 는 왜<br>내 GPU 를 <em style="font-style:normal;color:var(--accent)">이렇게</em> 쓰게 됐을까</h1>
+    <p class="dek">7주 만에 <code>vector_add</code> 에서 Flash Attention 까지 걸어온 한 엔지니어의 경로를 <strong>역순으로</strong> 재생해본다 — 그러면 현대 LLM 이 왜 정확히 이 모양으로 진화했는지, 하드웨어와 모델이 어떻게 공진화해왔는지가 드러난다.</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Host</div>
+          <div class="nm">샘 (Sam)</div>
+          <div class="sub">가상 · 모델 쪽에서 묻는 사람</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">J</div>
+        <div>
+          <div class="role">Guest</div>
+          <div class="nm">젠슨 (Jensen)</div>
+          <div class="sub">가상 · 칩 쪽에서 대답하는 사람</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 6 ACTS</span><span>38:12</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">02:14</span><span class="ix">01</span><span class="ti">거리가 제일 비싸다</span><span class="dur">HBM vs FMA — 100배</span></a>
+        <a href="#a2"><span class="ts">08:03</span><span class="ix">02</span><span class="ti">병렬은 공짜가 아니다</span><span class="dur">atomic 133 ms vs tree 1 ms</span></a>
+        <a href="#a3"><span class="ts">13:41</span><span class="ix">03</span><span class="ti">행렬곱이 LLM을 먹여 살린다</span><span class="dur">0.4 → 7.9 TFLOPS</span></a>
+        <a href="#a4"><span class="ts">20:02</span><span class="ix">04</span><span class="ti">Fusion, 어두운 기술</span><span class="dur">HBM trip 4 → 2</span></a>
+        <a href="#a5"><span class="ts">25:38</span><span class="ix">05</span><span class="ti">모든 것이 수렴하는 순간</span><span class="dur">Flash Attention · 65× 절감</span></a>
+        <a href="#a6"><span class="ts">33:07</span><span class="ix">06</span><span class="ti">왜 PyTorch 야</span><span class="dur">torch.ops · 단일 접점</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLD OPEN ==================================================== -->
+  <section class="act" style="padding-top:56px">
+    <div class="act-head">
+      <div class="num">00 · 02:14<b>Cold&nbsp;Open</b></div>
+      <h2>역순으로 가보자 — 그러면 모든 게 설명돼.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">SAM</div><div class="ln">오늘 좀 이상한 컨셉으로. 엔지니어 한 명이 CUDA 배우는 걸 옆에서 지켜봤어. <strong>7주 만에 <code>vector_add</code> 에서 Flash Attention 까지.</strong> 그걸 보다 보니 계속 질문이 맴돌아. <em>왜 GPGPU 는 하필 이 모양으로 진화했을까?</em></div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(웃음) 그럼 역순으로 가보자고. 요즘 사람들이 제일 많이 부르는 커널이 Flash Attention 이잖아. <strong>거기서 거꾸로</strong> 가보면 대충 모든 게 설명돼.</div></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 1  거리가 제일 비싸다                                         -->
+  <!-- ============================================================== -->
+  <section class="act" id="a1">
+    <div class="act-head">
+      <div class="num">01 · 08:03<b>거리가 제일 비싸다</b></div>
+      <h2>계산은 공짜에 가깝고, 데이터 이동이 100배 비싸다.</h2>
+    </div>
+    <p class="act-lede">GPU 안에서 숫자 하나 더하는 건 1 나노초. 그걸 HBM 에서 가져오는 건 100 나노초. 이 비율 하나가 GPU 프로그래밍의 모든 결정을 지배한다.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 1 · 계층별 접근 비용</span><span>lower = faster</span></div>
+          <div class="bars">
+            <div class="row"><span class="lbl">FMA (register)</span><span class="bar sml"><span style="width:1%"></span></span><span class="val">~1 ns</span></div>
+            <div class="row"><span class="lbl">L1 / smem</span><span class="bar sml"><span style="width:5%"></span></span><span class="val">~5 ns</span></div>
+            <div class="row"><span class="lbl">L2 cache</span><span class="bar"><span style="width:20%"></span></span><span class="val">~20 ns</span></div>
+            <div class="row"><span class="lbl">HBM</span><span class="bar"><span style="width:100%"></span></span><span class="val">~100 ns</span></div>
+            <div class="row"><span class="lbl">PCIe H↔D</span><span class="bar"><span style="width:100%;background:#6B3818"></span></span><span class="val">~10 µs</span></div>
+            <div class="row"><span class="lbl">InfiniBand</span><span class="bar"><span style="width:100%;background:#3A1F0A"></span></span><span class="val">~2 µs /byte²</span></div>
+          </div>
+        </div>
+        <div class="callout" style="margin-top:24px">
+          <div class="label">레슨 1 · 2 에서 몸으로 확인한 것</div>
+          <p><code>vector_add</code> 커널은 3.5 ms. 그런데 같은 데이터의 <strong>PCIe 복사만 60 ms</strong>. 커널이 17 배 짧다. pinned memory 를 쓰지 않으면 end-to-end 가 <strong>5.6 배 느려진다</strong>.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">음… GPU 안에서 숫자 하나 더하는 데 얼마나 걸려?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">대략 <strong>1 나노초</strong>. 근데 그 숫자를 HBM 에서 가져오는 데는 400–500 사이클, 거의 <strong>100 나노초</strong>. 계산은 공짜에 가깝고, <em>데이터 이동이 100 배 비싸</em>.</div></div>
+
+        <div class="pull">"실리콘 밖으로 나가는 순간 100배.<br>그 사실이 LLM 아키텍처의 절반을 정했어."<span class="by">— Jensen, 09:41</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">그러니까 게임은 <em>계산을 빨리 하는 것</em> 이 아니라 <em>데이터 이동을 피하는 것</em>.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">바로 그거. 그래서 NVLink 만들고, HBM 집적도 올리고, L2 캐시 48 MB 까지 키운 거야. 자꾸 이 "거리" 를 줄이려는 거지. 근데 물리학이 허락 안 해주는 부분이 있어.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">GPU 클러스터 묶을 때 <em>제발 같은 노드에</em> 두려고 애쓰는 이유가 이거였구나.</div></div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="01-vector-add.html">Lesson 01 · vector_add</a> &nbsp; <a href="02-pinned-vs-pageable.html">Lesson 02 · pinned vs pageable</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 2  병렬은 공짜가 아니다                                       -->
+  <!-- ============================================================== -->
+  <section class="act" id="a2">
+    <div class="act-head">
+      <div class="num">02 · 13:41<b>병렬은 공짜가 아니다</b></div>
+      <h2>병렬 하드웨어에 직렬 알고리즘을 넣으면 하드웨어가 직렬로 변한다.</h2>
+    </div>
+    <p class="act-lede">쓰레드가 수만 개니까 원자적 덧셈을 다 같이 하면 빠르겠지? 아니다. 100 배 느려진다. 그래서 GPU 에는 <code>__shfl_down_sync</code> 같은 이상한 명령어가 박혀 있다.</p>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">GPU 는 쓰레드가 수만 개잖아. 그냥 다 동시에 더하면 빠르지 않아?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">그게 레슨 3 의 함정이야. 버전 1: 모든 쓰레드가 같은 주소에 <code>atomicAdd</code>. 결과가 몇 ms 나왔게?</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">… 빠를 것 같은데?</div></div>
+
+        <div class="pull"><strong>133 ms.</strong> 다른 버전은 <strong>1 ms.</strong><br>100 배 차이.<span class="by">— Jensen, 14:58</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">잠깐, 그러니까 GPU 하드웨어의 <em>이상한 feature 들</em> — shared memory, warp shuffle — 이게 다 <strong>"소프트웨어가 이런 패턴을 필요로 하니까 하드웨어에 넣은 것"</strong> 이라고?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">그게 co-design 이야. <code>__shfl_down_sync</code> 는 1.0 에는 없었어. 사람들이 tree reduction 을 너무 많이 쓰니까 6년 뒤에 넣어준 거지. 지금은 표준이고.</div></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 2A · atomicAdd — 한 줄에 선 백만 명</span><span>SERIAL</span></div>
+          <svg viewBox="0 0 440 170" width="100%" height="170">
+            <!-- target atom -->
+            <rect x="350" y="60" width="70" height="40" rx="4" class="box-acc"/>
+            <text x="385" y="85" class="tx" text-anchor="middle" fill="#FBF6E9" style="font-size:11px;font-family:'JetBrains Mono',monospace">sum</text>
+            <!-- queue of threads -->
+            <g>
+              <rect x="10" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="36" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="62" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="88" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="114" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="140" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="166" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="192" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="218" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="244" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="270" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="296" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <text x="330" y="36" class="lbl">… 백만 개</text>
+            </g>
+            <path d="M160 42 C 220 42, 300 60, 350 80" class="acc"/>
+            <path d="M350 80 L 344 75 M350 80 L 344 85" class="acc"/>
+            <text x="160" y="128" class="lbl-hi">하나씩, 순서대로 ATM</text>
+            <text x="160" y="148" class="lbl">hardware serializes writers → 133 ms</text>
+          </svg>
+        </div>
+
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 2B · tree reduction — log N 단계</span><span>PARALLEL</span></div>
+          <svg viewBox="0 0 440 170" width="100%" height="170">
+            <!-- leaves -->
+            <g font-family="JetBrains Mono, monospace" font-size="9">
+              <rect x="20" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="46" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="72" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="98" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="124" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="150" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="176" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="202" y="130" width="22" height="22" class="box-deep" rx="2"/>
+            </g>
+            <!-- level 1 -->
+            <g>
+              <rect x="33" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="85" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="137" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="189" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <path d="M31 130 L 44 114 M57 130 L 44 114" class="ln"/>
+              <path d="M83 130 L 96 114 M109 130 L 96 114" class="ln"/>
+              <path d="M135 130 L 148 114 M161 130 L 148 114" class="ln"/>
+              <path d="M187 130 L 200 114 M213 130 L 200 114" class="ln"/>
+            </g>
+            <!-- level 2 -->
+            <g>
+              <rect x="59" y="54" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="163" y="54" width="22" height="22" class="box-paper" rx="2"/>
+              <path d="M44 92 L 70 76 M96 92 L 70 76" class="ln"/>
+              <path d="M148 92 L 174 76 M200 92 L 174 76" class="ln"/>
+            </g>
+            <!-- level 3 -->
+            <rect x="111" y="16" width="22" height="22" class="box-acc" rx="2"/>
+            <path d="M70 54 L 122 38 M174 54 L 122 38" class="acc"/>
+            <!-- annotations -->
+            <text x="240" y="30" class="lbl-hi">level log N</text>
+            <text x="240" y="48" class="lbl">reg / smem swap</text>
+            <text x="240" y="68" class="lbl">bar.sync between</text>
+            <text x="240" y="98" class="lbl">warp-shuffle level</text>
+            <text x="240" y="116" class="lbl">(no sync, reg swap)</text>
+            <text x="240" y="160" class="lbl-hi">result: 1 ms · 100× faster</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:12px">
+      <div class="label">__syncthreads() 도 공짜가 아니다</div>
+      <p>5 번을 지우면 29% 빨라진다. 작은 커널에서는 sync 한 번이 실행시간의 1/3. 그래서 마지막 warp 는 sync 없이 shuffle 만 돌리는 게 관용구가 됐다.</p>
+    </div>
+    <div class="lesson-ref">↳ <a href="03-reduction.html">Lesson 03 · Reduction 네 가지 버전</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 3  행렬곱이 LLM 을 먹여 살린다                                -->
+  <!-- ============================================================== -->
+  <section class="act" id="a3">
+    <div class="act-head">
+      <div class="num">03 · 20:02<b>행렬곱이 LLM을 먹여 살린다</b></div>
+      <h2>네 번의 점프 — 그리고 마지막 점프는 하드웨어가 등장한다.</h2>
+    </div>
+    <p class="act-lede">레슨 4 가 제일 길었던 이유. tiling 과 register blocking 이 연산 강도를 올리는 소프트웨어의 기술이라면, 그 다음 8 TFLOPS 천장을 뚫은 건 <strong>Tensor Core 라는 새 유닛</strong> 이었다.</p>
+
+    <div class="viz" style="padding:36px 32px">
+      <div class="viz-cap"><span>FIG 3 · matmul v1 → v4 — T4, 4096³</span><span>TFLOPS</span></div>
+      <svg viewBox="0 0 1000 300" width="100%" height="300" style="max-width:100%">
+        <!-- axis -->
+        <line x1="80" y1="260" x2="980" y2="260" class="ln"/>
+        <line x1="80" y1="20" x2="80" y2="260" class="ln"/>
+        <!-- y ticks -->
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="var(--muted)">
+          <text x="72" y="264" text-anchor="end">0</text>
+          <line x1="80" y1="232" x2="980" y2="232" class="lnd"/>
+          <text x="72" y="236" text-anchor="end">2</text>
+          <line x1="80" y1="176" x2="980" y2="176" class="lnd"/>
+          <text x="72" y="180" text-anchor="end">4</text>
+          <line x1="80" y1="120" x2="980" y2="120" class="lnd"/>
+          <text x="72" y="124" text-anchor="end">6</text>
+          <line x1="80" y1="64" x2="980" y2="64" class="lnd"/>
+          <text x="72" y="68" text-anchor="end">8 TFLOPS</text>
+        </g>
+        <!-- FMA ceiling -->
+        <line x1="80" y1="40" x2="980" y2="40" stroke="var(--accent)" stroke-dasharray="4,3" stroke-width="1"/>
+        <text x="980" y="32" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--accent)">FP32 FMA peak · 8.1 TFLOPS</text>
+        <!-- TC ceiling -->
+        <line x1="580" y1="10" x2="980" y2="10" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="980" y="7" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--accent)" font-weight="600">Tensor Core · 65 TFLOPS →</text>
+
+        <!-- bars: 0.4 / 0.8 / 2.0 / 7.9 TFLOPS scaled s.t. 8 = 220px -->
+        <g>
+          <rect x="140" y="249" width="130" height="11" fill="var(--paper-deep)"/>
+          <text x="205" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v1 · naive</text>
+          <text x="205" y="242" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">0.4</text>
+          <text x="205" y="294" text-anchor="middle" class="lbl">global-only loads</text>
+        </g>
+        <g>
+          <rect x="300" y="238" width="130" height="22" fill="var(--paper-deep)"/>
+          <text x="365" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v2 · smem tiling</text>
+          <text x="365" y="231" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">0.8</text>
+          <text x="365" y="294" text-anchor="middle" class="lbl">re-use tile in smem</text>
+        </g>
+        <g>
+          <rect x="460" y="204" width="130" height="56" fill="var(--accent-2)" opacity="0.85"/>
+          <text x="525" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v3 · register blk</text>
+          <text x="525" y="197" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">2.0</text>
+          <text x="525" y="294" text-anchor="middle" class="lbl">4×4 per-thread</text>
+        </g>
+        <g>
+          <rect x="620" y="38" width="130" height="222" fill="var(--accent)"/>
+          <text x="685" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v4 · Tensor Core</text>
+          <text x="685" y="31" text-anchor="middle" fill="var(--accent)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700">7.9</text>
+          <text x="685" y="294" text-anchor="middle" class="lbl">mma · new hardware</text>
+        </g>
+        <g>
+          <rect x="800" y="20" width="130" height="240" fill="none" stroke="var(--accent)" stroke-dasharray="3,3"/>
+          <text x="865" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600" fill="var(--muted)">(Triton fp16)</text>
+          <text x="865" y="13" text-anchor="middle" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700">54</text>
+          <text x="865" y="294" text-anchor="middle" class="lbl">ref · Lesson 08</text>
+        </g>
+
+        <!-- jump annotations -->
+        <path d="M270 248 Q 285 235 300 245" class="acc"/>
+        <text x="285" y="224" text-anchor="middle" class="lbl-hi">2×</text>
+        <path d="M430 237 Q 445 215 460 210" class="acc"/>
+        <text x="445" y="200" text-anchor="middle" class="lbl-hi">2.5×</text>
+        <path d="M590 205 Q 605 125 620 50" class="acc"/>
+        <text x="605" y="128" text-anchor="middle" class="lbl-hi">4×</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:8px">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">v4 에서 축이 점프했네.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">나머지 세 개는 "HBM 덜 읽게 만드는 법" — <strong>연산 강도(AI)</strong>를 올리는 거야. byte 당 몇 flop 뽑냐. 근데 아무리 해도 FP32 peak 8 TFLOPS 에서 막혀. 그래서 Volta 때 하드웨어에 4×4 matmul 블록을 박아넣은 거지.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">2023년에 GPT-4 훈련하면서 FP16, BF16, FP8 얘기 들었던 게 다 Tensor Core 에 맞추려고 그랬던 거구나.</div></div>
+      </div>
+
+      <div>
+        <div class="pull"><strong>100%</strong> 그거야. Tensor Core 는 정밀도를 낮춘 입력에만 동작해. <span style="color:var(--muted)">FP4 로 계속 내려가는 건 모델 때문이 아니라 내 칩 때문이기도 해.</span><span class="by">— Jensen, 22:48</span></div>
+
+        <div class="callout">
+          <div class="label">occupancy trap</div>
+          <p>"타일을 크게 하면 AI 가 올라가서 빠르겠지" 는 반만 맞다. <strong>블록 수가 SM 수보다 충분히 많아야</strong> 의미가 있다. 그래서 decode 커널과 prefill 커널은 다르게 생겼다.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="04-matmul.html">Lesson 04 · Matmul 네 가지 버전</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 4  Fusion                                                  -->
+  <!-- ============================================================== -->
+  <section class="act" id="a4">
+    <div class="act-head">
+      <div class="num">04 · 25:38<b>Fusion, 어두운 기술</b></div>
+      <h2>세 커널을 하나로 합치면 HBM trip 이 절반이 된다 — 그게 2× speedup.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4A · BEFORE · 3 kernel, 4 HBM trips</span><span>unfused</span></div>
+          <div class="hbm">
+            <div class="kstep"><span class="k">k1</span><span>max(x) → m</span><span class="io">R → W</span></div>
+            <div class="kstep"><span class="k">k2</span><span>exp(x − m) → num, sum</span><span class="io">R → W</span></div>
+            <div class="kstep"><span class="k">k3</span><span>num / sum → y</span><span class="io">R → W</span></div>
+            <div class="tally"><span>total</span><span>4 trips · 1.0×</span></div>
+          </div>
+        </div>
+
+        <div class="viz" style="margin-top:16px">
+          <div class="viz-cap"><span>FIG 4B · AFTER · 1 kernel, 2 HBM trips</span><span>fused online</span></div>
+          <div class="hbm">
+            <div class="kstep fused"><span class="k">k1</span><span>pass 1: running (m, s) in registers</span><span class="io">R</span></div>
+            <div class="kstep fused"><span class="k">k1</span><span>pass 2: y = exp(x−m)/s</span><span class="io">R → W</span></div>
+            <div class="tally"><span>total</span><span style="color:var(--accent)">2 trips · <strong>~2×</strong></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Softmax 는 수학적으로 세 단계지. 그냥 편하게 커널 세 번 부르면 되잖아.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">그러면 HBM trip 4 번. 세 단계를 한 커널에 합치면 HBM trip 2 번. <strong>2× 빨라져.</strong> 측정치 — 2.02×, 1.86×, 1.92×. 거의 이론치 그대로. 이게 <em>operator fusion</em> 이야.</div></div>
+
+        <div class="pull">왜 다 합쳐서 하나의 거대 커널로 안 만들지?<br><span style="color:var(--muted);font-size:18px;font-weight:500">— shared memory 가 유한, 코드 조합 폭발, 정밀도 이슈.<br>"항상 좋은 것" 이 아니라 "핫패스에만 골라서 하는 기술."</span><span class="by">— Jensen, 27:10</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">그리고 <strong>online softmax</strong> — 레슨 5 의 v3 — 이 뭔가 중요한 느낌이던데.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">그게 Flash Attention 의 수학적 절반이야. 전체 행을 못 담을 때 (max, sum) 을 <em>정확하게</em> 병합하는 공식. 1985 년에 NVIDIA 직원 논문에 있었고, 2022년에 Tri Dao 가 attention 에 적용했지.</div></div>
+
+        <div class="viz dark">
+          <div class="viz-cap" style="color:#A99B7A"><span>ONLINE MERGE · 수식</span><span>exact, O(N) memory</span></div>
+<pre class="mini" style="background:none;padding:0;margin:0;border:none"><span class="c"># merging two partial softmax statistics</span>
+new_max = max(m1, m2)
+new_sum = s1 * exp(m1 − new_max)
+        + s2 * exp(m2 − new_max)</pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="05-softmax-fusion.html">Lesson 05 · Softmax &amp; Online</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 5  Flash Attention · climactic act                         -->
+  <!-- ============================================================== -->
+  <section class="act" id="a5" style="background:linear-gradient(180deg,transparent 0,var(--bg-soft) 60%,transparent 100%);padding-left:24px;padding-right:24px;margin:0 -24px;border-radius:16px">
+    <div class="act-head">
+      <div class="num">05 · 28:16<b>모든 것이 수렴하는 순간</b></div>
+      <h2>Flash Attention 은 근본적으로 새로운 기술이 없다 — 다만 조합이 너무 날카로웠을 뿐.</h2>
+    </div>
+    <p class="act-lede">N×N 중간 행렬을 <em>아예 물리적으로 만들지 않는다</em>. 앞서 본 5 가지 기술 — coalesced load, HBM 감각, warp reduce, tiled matmul, online softmax — 이 한 커널 안에 모두 들어간다.</p>
+
+    <!-- big visual: naive vs flash -->
+    <div class="viz" style="padding:32px">
+      <div class="viz-cap"><span>FIG 5 · N=4096 에서의 HBM 트래픽</span><span>65× 감소</span></div>
+      <svg viewBox="0 0 1000 340" width="100%" height="340">
+        <!-- LEFT: naive -->
+        <text x="180" y="26" text-anchor="middle" class="tx-l">naive attention</text>
+        <text x="180" y="44" text-anchor="middle" class="lbl">S, P 를 전부 HBM 에 써버림</text>
+
+        <!-- Q -->
+        <rect x="40" y="70" width="50" height="160" class="box-deep"/>
+        <text x="65" y="250" text-anchor="middle" class="lbl">Q · 4096×d</text>
+
+        <!-- QK^T = S -->
+        <rect x="110" y="70" width="160" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="110" y="70" width="160" height="160" class="box-paper" fill="none"/>
+        <text x="190" y="155" text-anchor="middle" class="tx" font-weight="600">S = QKᵀ</text>
+        <text x="190" y="173" text-anchor="middle" class="lbl">N × N = 64 MB</text>
+        <text x="190" y="250" text-anchor="middle" class="lbl">materialized</text>
+
+        <!-- softmax -->
+        <path d="M270 150 L 300 150" class="acc"/>
+        <path d="M300 150 L 294 145 M300 150 L 294 155" class="acc"/>
+        <text x="285" y="140" text-anchor="middle" class="lbl-hi">softmax</text>
+
+        <rect x="310" y="70" width="30" height="160" class="box-deep"/>
+        <text x="325" y="250" text-anchor="middle" class="lbl">V</text>
+
+        <rect x="350" y="70" width="30" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="350" y="70" width="30" height="160" class="box-paper" fill="none"/>
+        <text x="365" y="250" text-anchor="middle" class="lbl">O</text>
+
+        <!-- HBM trip counter -->
+        <rect x="40" y="275" width="340" height="44" class="box-paper"/>
+        <text x="210" y="294" text-anchor="middle" class="tx" font-weight="600">HBM traffic</text>
+        <text x="210" y="313" text-anchor="middle" class="lbl-hi" style="font-size:16px;fill:var(--accent)">260 MB · baseline 1.0×</text>
+
+        <!-- divider -->
+        <line x1="500" y1="60" x2="500" y2="320" class="lnd"/>
+
+        <!-- RIGHT: flash -->
+        <text x="770" y="26" text-anchor="middle" class="tx-l">flash attention</text>
+        <text x="770" y="44" text-anchor="middle" class="lbl">S, P 를 HBM 에 한 번도 쓰지 않음</text>
+
+        <!-- Q blocks -->
+        <rect x="540" y="70" width="40" height="40" class="box-deep"/>
+        <rect x="540" y="112" width="40" height="40" class="box-paper"/>
+        <rect x="540" y="154" width="40" height="40" class="box-paper"/>
+        <rect x="540" y="196" width="40" height="40" class="box-paper"/>
+        <text x="560" y="250" text-anchor="middle" class="lbl">Q blocks</text>
+        <text x="560" y="264" text-anchor="middle" class="lbl">Br=64</text>
+
+        <!-- K/V blocks (inner loop) -->
+        <g>
+          <rect x="600" y="70" width="40" height="40" class="box-deep"/>
+          <rect x="642" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="684" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="726" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="768" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="810" y="70" width="40" height="40" class="box-paper"/>
+        </g>
+        <text x="727" y="128" text-anchor="middle" class="lbl">K/V blocks · Bc=32</text>
+
+        <!-- tile compute box (register-only) -->
+        <rect x="610" y="150" width="250" height="80" fill="var(--code-bg)" stroke="var(--accent)"/>
+        <text x="735" y="174" text-anchor="middle" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600">tile Sᵢⱼ = QᵢKⱼᵀ · only in registers</text>
+        <text x="735" y="192" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">online (mᵢ, sᵢ) running ← Act 4</text>
+        <text x="735" y="210" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">Oᵢ ← αᵢ · Oᵢ + P · V</text>
+        <text x="735" y="224" text-anchor="middle" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="10">discard tile. never touches HBM.</text>
+
+        <!-- Output -->
+        <rect x="870" y="70" width="30" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="870" y="70" width="30" height="160" class="box-paper" fill="none"/>
+        <text x="885" y="250" text-anchor="middle" class="lbl">O</text>
+
+        <rect x="540" y="275" width="360" height="44" class="box-paper" stroke="var(--accent)"/>
+        <text x="720" y="294" text-anchor="middle" class="tx" font-weight="600">HBM traffic</text>
+        <text x="720" y="313" text-anchor="middle" class="lbl-hi" style="font-size:16px;fill:var(--accent)">4 MB · <strong>65× 감소</strong> · time 4.79×</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:20px">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">65 배 감소면 65 배 빨라져야 할 것 같은데?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(웃음) 실제로는 4.79 배. 왜? <strong>naive 도 실은 HBM-bound 가 아니었거든.</strong> L2 캐시가 S 행렬의 상당 부분을 캐싱해버려. FA 의 진가는 <em>L2 가 못 담는 크기</em> 에서 나와 — N=8k, 16k, 32k. 거기서 naive 는 아예 돌지도 못해.</div></div>
+
+        <div class="pull">GPT-4o 의 128k context 가 돌아가는 이유가 <strong>FA-2 + FA-3 때문</strong>이야. 없으면 불가능해.<span class="by">— Jensen, 31:44</span></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5B · FA 한 커널에 들어간 5 가지 레슨</span><span>synthesis</span></div>
+          <div class="hbm">
+            <div class="kstep"><span class="k">L1</span><span>Q / K / V coalesced load</span><span class="io">→ reg</span></div>
+            <div class="kstep"><span class="k">L2</span><span>HBM ↔ L2 감각 · 타일 크기</span><span class="io">Br, Bc</span></div>
+            <div class="kstep"><span class="k">L3</span><span>warp-reduce for row max / sum</span><span class="io">__shfl_xor</span></div>
+            <div class="kstep"><span class="k">L4</span><span>tiled matmul in registers</span><span class="io">Q@Kᵀ, P@V</span></div>
+            <div class="kstep"><span class="k">L5</span><span>online (m, s) merge</span><span class="io">Act 4 공식</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="06-flash-attention.html">Lesson 06 · Flash Attention (capstone)</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 6  왜 PyTorch 야                                             -->
+  <!-- ============================================================== -->
+  <section class="act" id="a6">
+    <div class="act-head">
+      <div class="num">06 · 33:07<b>왜 PyTorch 야</b></div>
+      <h2>현대 LLM 서빙 스택의 단일 접점 — <code>torch.ops.*</code>.</h2>
+    </div>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">2018 년까진 CUDA 커널 짜면 대개 standalone 바이너리였잖아. 이제 아무도 그렇게 안 해.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">생태계 때문이야. GPT-5 학습하는 PyTorch 안에 체크포인팅, 데이터 로딩, FSDP, autograd, 옵티마이저, 모델 zoo… 다 있어. 이걸 다시 만드는 건 미친 짓이야. 그래서 새 커널을 쓰려면 <strong>PyTorch 에 꽂을 수 있어야</strong> 해.</div></div>
+
+        <div class="pull">vLLM, FlashAttention-3, Mamba — 전부 <code>torch.ops.*</code> 에 등록된 CUDA 커널.<br>이게 프로덕션 LLM 서빙의 <strong>단일 접점</strong> 이 된 거야.<span class="by">— Jensen, 35:20</span></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 6 · 커널 하나가 생태계에 꽂히는 순간</span><span>torch.compile fullgraph</span></div>
+          <svg viewBox="0 0 460 260" width="100%" height="260">
+            <!-- our kernel -->
+            <rect x="30" y="105" width="110" height="50" fill="var(--code-bg)" stroke="var(--accent)" rx="6"/>
+            <text x="85" y="128" text-anchor="middle" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600">Triton FA</text>
+            <text x="85" y="144" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">268 lines</text>
+
+            <!-- wrapper -->
+            <rect x="170" y="95" width="120" height="70" class="box-paper" stroke="var(--accent)" rx="6"/>
+            <text x="230" y="118" text-anchor="middle" class="tx" font-weight="600" font-size="12">@custom_op</text>
+            <text x="230" y="134" text-anchor="middle" class="lbl">torch.ops.*</text>
+            <text x="230" y="150" text-anchor="middle" class="lbl">+ register_fake</text>
+
+            <path d="M140 130 L 170 130" class="acc"/>
+            <path d="M170 130 L 164 125 M170 130 L 164 135" class="acc"/>
+            <text x="155" y="122" class="lbl-hi" text-anchor="middle">wrap</text>
+
+            <!-- radiating integrations -->
+            <g font-family="JetBrains Mono, monospace" font-size="10" fill="var(--ink)">
+              <rect x="320" y="20" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="39" text-anchor="middle">torch.compile · fullgraph</text>
+              <rect x="320" y="60" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="79" text-anchor="middle">autograd integration</text>
+              <rect x="320" y="100" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="119" text-anchor="middle">CUDA graph capture</text>
+              <rect x="320" y="140" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="159" text-anchor="middle">ONNX / TorchScript</text>
+              <rect x="320" y="180" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="199" text-anchor="middle">stream-aware dispatch</text>
+              <rect x="320" y="220" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="239" text-anchor="middle">device dispatch</text>
+            </g>
+            <path d="M290 115 L 320 35" class="lnd"/>
+            <path d="M290 120 L 320 75" class="lnd"/>
+            <path d="M290 130 L 320 115" class="lnd"/>
+            <path d="M290 140 L 320 155" class="lnd"/>
+            <path d="M290 150 L 320 195" class="lnd"/>
+            <path d="M290 160 L 320 235" class="lnd"/>
+          </svg>
+        </div>
+
+        <div class="callout" style="margin-top:16px">
+          <div class="label">측정치 · 레슨 9</div>
+          <p>AttentionBlock 을 <code>torch.compile(..., fullgraph=True)</code> 에 통째로 넣었다. 그래프 브레이크 <strong>0 건</strong>. eager vs compiled err = <strong>0.00e+00</strong> — 비트 단위 동일.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="07-pytorch-op.html">Lesson 07 · PyTorch custom op</a> &nbsp; <a href="09-mha-causal-fa.html">Lesson 09 · MHA causal</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- OUTRO  timeline                                                -->
+  <!-- ============================================================== -->
+  <section class="outro">
+    <h2>그래서 왜 이런 모양이 됐나</h2>
+    <p style="font-size:17px;color:var(--ink-soft);max-width:700px">그 친구가 7주 만에 걸어간 경로를 <em>거꾸로</em> 보면, 실은 Flash Attention 이 <strong>필연</strong> 이었다는 게 보인다.</p>
+
+    <div class="viz" style="margin-top:30px;padding:30px 28px">
+      <div class="viz-cap"><span>FIG 7 · 6 단계 필연 체인</span><span>forward → reverse</span></div>
+      <svg viewBox="0 0 1000 180" width="100%" height="180">
+        <g font-family="Pretendard, sans-serif" font-size="12">
+          <!-- 6 boxes connected by arrows -->
+          <rect x="10" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="75" y="85" text-anchor="middle" class="tx" font-weight="600">메모리는 멀다</text>
+          <text x="75" y="103" text-anchor="middle" class="lbl">100× gap</text>
+
+          <path d="M145 90 L 170 90" class="acc"/><path d="M170 90 L 164 85 M170 90 L 164 95" class="acc"/>
+
+          <rect x="175" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="240" y="85" text-anchor="middle" class="tx" font-weight="600">trip 을 줄여야 한다</text>
+          <text x="240" y="103" text-anchor="middle" class="lbl">fusion</text>
+
+          <path d="M310 90 L 335 90" class="acc"/><path d="M335 90 L 329 85 M335 90 L 329 95" class="acc"/>
+
+          <rect x="340" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="405" y="85" text-anchor="middle" class="tx" font-weight="600">softmax 는 전역</text>
+          <text x="405" y="103" text-anchor="middle" class="lbl">row max</text>
+
+          <path d="M475 90 L 500 90" class="acc"/><path d="M500 90 L 494 85 M500 90 L 494 95" class="acc"/>
+
+          <rect x="505" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="570" y="85" text-anchor="middle" class="tx" font-weight="600">N² 은 못 담는다</text>
+          <text x="570" y="103" text-anchor="middle" class="lbl">online update</text>
+
+          <path d="M640 90 L 665 90" class="acc"/><path d="M665 90 L 659 85 M665 90 L 659 95" class="acc"/>
+
+          <rect x="670" y="60" width="130" height="60" fill="var(--accent)" rx="6"/>
+          <text x="735" y="85" text-anchor="middle" fill="#FBF6E9" font-weight="600">Flash Attention</text>
+          <text x="735" y="103" text-anchor="middle" fill="#FBF6E9" font-family="JetBrains Mono, monospace" font-size="10">tile + online</text>
+
+          <path d="M805 90 L 830 90" class="acc"/><path d="M830 90 L 824 85 M830 90 L 824 95" class="acc"/>
+
+          <rect x="835" y="60" width="155" height="60" class="box-paper" rx="6" stroke="var(--accent)"/>
+          <text x="912" y="85" text-anchor="middle" class="tx" font-weight="600">128k context</text>
+          <text x="912" y="103" text-anchor="middle" class="lbl">GPT-4o · Claude · Gemini</text>
+
+          <text x="500" y="30" text-anchor="middle" class="lbl-hi" style="font-size:12px">이 체인의 마지막 링크가 빠지면 ChatGPT 는 지금 모양으로 존재하지 못 한다.</text>
+          <text x="500" y="160" text-anchor="middle" class="lbl">10 년간 GPU 는 attention 하나를 더 빨리 돌리도록 점진적으로 특화됐다.</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="dlg sam" style="margin-top:30px"><div class="who">SAM</div><div class="ln">근데 한 가지만. 너 5 년 뒤에 매트릭스곱 말고 뭘 최적화할 것 같아?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(잠시 침묵) … <em>그건 다음 편에 얘기하자고.</em></div></div>
+
+    <p class="lesson-ref" style="text-align:center;margin-top:40px;border:none">모든 수치는 cudatraining 레슨 1–9 핸드오프 문서, T4 sm_75 / L4 sm_89 실측.</p>
+  </section>
+
+  <!-- article nav -->
+  <div class="artnav">
+    <a href="index.html">
+      <span class="lbl">← Back</span>
+      Index · 11편 기록
+    </a>
+    <a href="podcast-ep-43.html" class="nxt">
+      <span class="lbl">Ep.43 →</span>
+      Triton 이 숨기는 것, 노출하는 것
+    </a>
+  </div>
+
+</div>
+
+<footer class="bot">
+  <span>The Stack · ep.42 · 38 min</span>
+  <span>가상 팟캐스트 · 기술 내용은 실제 레슨에서</span>
+</footer>
+
+</body></html>

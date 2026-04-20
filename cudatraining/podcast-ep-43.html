@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ep.43 — Triton 이 숨기는 것, 노출하는 것 · The Stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+</head><body>
+
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="podcast-ep-42.html">← Ep.42</a>
+    <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap-wide" data-screen-label="Podcast ep.43 Triton walkthrough">
+
+  <!-- HERO ========================================================= -->
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">《The Stack》</span>
+      <span class="epn">EP.43</span>
+      <span>2026 · APR · 20</span>
+      <span>42 MIN</span>
+      <span>IMAGINARY</span>
+    </div>
+    <h1>Triton 이 <em style="font-style:normal;color:var(--accent)">숨기는 것</em>,<br>노출하는 것</h1>
+    <p class="dek">파일 일곱 개를 탁자에 펼쳐놓고 한 줄씩 읽어본다. 같은 커널들이 CUDA 에서 Triton 으로 옮겨갈 때 코드가 어떻게 접히는지 — 어떤 디테일이 컴파일러 밑으로 숨고, 어떤 것이 여전히 네 손에 남는지.</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Host</div>
+          <div class="nm">샘 (Sam)</div>
+          <div class="sub">"그래서 왜 이게 편한 거지?"</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">J</div>
+        <div>
+          <div class="role">Guest</div>
+          <div class="nm">젠슨 (Jensen)</div>
+          <div class="sub">속으론 반기지 않았던, 어쩔 수 없이 받아들인 물건</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 7 ACTS · 7 FILES</span><span>42:08</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">01:20</span><span class="ix">01</span><span class="ti">가장 작은 Triton 프로그램</span><span class="dur">smoke_vector_add.py</span></a>
+        <a href="#a2"><span class="ts">06:48</span><span class="ix">02</span><span class="ti">tl.sum 한 줄이 warp shuffle 전체를 대체</span><span class="dur">reduction.py</span></a>
+        <a href="#a3"><span class="ts">13:02</span><span class="ix">03</span><span class="ti">한 프로그램 = 한 행</span><span class="dur">softmax.py</span></a>
+        <a href="#a4"><span class="ts">18:41</span><span class="ix">04</span><span class="ti">Triton 이 CUDA 를 이기는 한 가지</span><span class="dur">matmul.py</span></a>
+        <a href="#a5"><span class="ts">26:10</span><span class="ix">05</span><span class="ti">Flash Attention 이 40 줄</span><span class="dur">flash_attention.py</span></a>
+        <a href="#a6"><span class="ts">31:35</span><span class="ix">06</span><span class="ti">constexpr 한 줄의 마법</span><span class="dur">flash_attention_mha.py</span></a>
+        <a href="#a7"><span class="ts">37:20</span><span class="ix">07</span><span class="ti">torch.ops.* 로 올라가기</span><span class="dur">flash_attention_mha_op.py</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLD OPEN ==================================================== -->
+  <section class="act" style="padding-top:56px">
+    <div class="act-head">
+      <div class="num">00 · 00:28<b>Cold Open</b></div>
+      <h2>파일 일곱 개. 한 줄씩.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">SAM</div><div class="ln">지난 편에서 내가 "5 년 뒤에 매트릭스곱 말고 뭘 최적화할 거냐"고 물었는데 네가 다음 편으로 미뤘지.</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(웃음) 오늘도 안 말해줄 거야. 대신 더 재밌는 거. 그 친구가 이번엔 같은 커널들을 <strong>Triton</strong> 으로 다시 짰어. 파일 일곱 개 열어놓고 한 줄씩 읽어보자고.</div></div>
+
+    <div class="viz" style="margin-top:28px">
+      <div class="viz-cap"><span>FIG 0 · 오늘의 자료 · triton_kernels/</span><span>7 files</span></div>
+      <svg viewBox="0 0 960 90" width="100%" height="90">
+        <g font-family="JetBrains Mono, monospace" font-size="10">
+          <rect x="10"  y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="72"  y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">01</text>
+          <text x="72"  y="56" text-anchor="middle" fill="var(--ink)">smoke_vector_add</text>
+          <rect x="145" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="207" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">02</text>
+          <text x="207" y="56" text-anchor="middle" fill="var(--ink)">reduction</text>
+          <rect x="280" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="342" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">03</text>
+          <text x="342" y="56" text-anchor="middle" fill="var(--ink)">softmax</text>
+          <rect x="415" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="477" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">04</text>
+          <text x="477" y="56" text-anchor="middle" fill="var(--ink)">matmul</text>
+          <rect x="550" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="612" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">05</text>
+          <text x="612" y="56" text-anchor="middle" fill="var(--ink)">flash_attention</text>
+          <rect x="685" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="747" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">06</text>
+          <text x="747" y="56" text-anchor="middle" fill="var(--ink)">flash_attention_mha</text>
+          <rect x="820" y="18" width="130" height="54" class="box-paper" rx="4" stroke="var(--accent)"/>
+          <text x="885" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">07</text>
+          <text x="885" y="56" text-anchor="middle" fill="var(--ink)">…_mha_op</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 1 smallest program                                         -->
+  <!-- ============================================================== -->
+  <section class="act" id="a1">
+    <div class="act-head">
+      <div class="num">01 · 01:20<b>가장 작은 Triton 프로그램</b></div>
+      <h2>한 <code>program</code> = 한 쓰레드가 아니라, 한 <strong>블록</strong>.</h2>
+    </div>
+    <p class="act-lede">CUDA 의 <code>threadIdx.x</code> 는 사라지지 않았다. 컴파일러 아래로 숨었을 뿐. Triton 은 block-level SPMD — 블록 안의 쓰레드 병렬성은 <code>num_warps</code> 만 보고 알아서 결정한다.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>smoke_vector_add.py · Triton</span><span>block-level SPMD</span></div>
+<pre class="mini" style="margin:0"><span class="c">@triton.jit</span>
+<span class="k">def</span> vector_add_kernel(x_ptr, y_ptr, out_ptr, n,
+                      BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(axis=<span class="s">0</span>)
+    offsets = pid * BLOCK_SIZE + tl.arange(<span class="s">0</span>, BLOCK_SIZE)
+    mask = offsets &lt; n
+    x = tl.load(x_ptr + offsets, mask=mask)
+    y = tl.load(y_ptr + offsets, mask=mask)
+    tl.store(out_ptr + offsets, x + y, mask=mask)</pre>
+        </div>
+        <div class="viz" style="margin-top:16px;background:#2A241C;border-color:#3a3428">
+          <div class="viz-cap" style="color:#A99B7A"><span>같은 주소 계산 · CUDA</span><span>thread-level</span></div>
+<pre class="mini" style="margin:0;background:none;border:none">int idx = blockIdx.x * blockDim.x + threadIdx.x;
+if (idx &lt; n) out[idx] = x[idx] + y[idx];</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">CUDA 에서 <code>threadIdx.x</code> 갖고 뭘 하던 건 Triton 에선 어디 갔어?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">사라졌어. 정확히는 <strong>컴파일러가 숨겼어</strong>. <code>tl.arange(0, 1024)</code> 는 "이 블록이 처리할 1024개 인덱스 전체" 를 한 번에 가리키는 벡터. 각 lane 을 어느 쓰레드가 처리할진 Triton 이 결정해.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">SIMD 같네.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">정확히 그거야. <strong>"block-level SPMD."</strong> 각 쓰레드가 아니라 각 블록이 프로그램. 그 안의 쓰레드 병렬성은 컴파일러 몫.</div></div>
+
+        <div class="pull">두 패턴이 <strong>같은 PTX</strong> 로 내려가.<br>다만 Triton 코드는 "인덱스 공간" 수준에서 사고하게 해줘.<span class="by">— Jensen, 04:12</span></div>
+      </div>
+    </div>
+
+    <div class="viz" style="margin-top:16px">
+      <div class="viz-cap"><span>FIG 1 · 추상화의 높이</span><span>where does threadIdx.x live?</span></div>
+      <svg viewBox="0 0 960 110" width="100%" height="110">
+        <g font-family="Pretendard, sans-serif" font-size="12">
+          <rect x="10"  y="28" width="200" height="54" class="box-paper" rx="6"/>
+          <text x="110" y="50" text-anchor="middle" class="tx" font-weight="600">PyTorch / JAX</text>
+          <text x="110" y="68" text-anchor="middle" class="lbl">텐서 연산 · "Python"</text>
+
+          <rect x="235" y="28" width="200" height="54" fill="var(--accent)" rx="6"/>
+          <text x="335" y="50" text-anchor="middle" fill="#FBF6E9" font-weight="600">Triton</text>
+          <text x="335" y="68" text-anchor="middle" fill="#FBF6E9" font-family="JetBrains Mono, monospace" font-size="10">블록 수준 · "C"</text>
+
+          <rect x="460" y="28" width="200" height="54" class="box-paper" rx="6"/>
+          <text x="560" y="50" text-anchor="middle" class="tx" font-weight="600">CUDA</text>
+          <text x="560" y="68" text-anchor="middle" class="lbl">쓰레드 수준 · "어셈블리"</text>
+
+          <rect x="685" y="28" width="265" height="54" class="box-paper" rx="6" stroke-dasharray="3,3"/>
+          <text x="817" y="50" text-anchor="middle" class="tx" font-weight="600">PTX / SASS</text>
+          <text x="817" y="68" text-anchor="middle" class="lbl">"기계어"</text>
+
+          <path d="M435 55 L 460 55" class="acc"/>
+          <path d="M660 55 L 685 55" class="acc"/>
+          <text x="480" y="100" class="lbl-hi" text-anchor="middle">Triton 은 C 의 자리 — 대부분은 여기서 쓰고, 핫패스만 어셈블리로</text>
+        </g>
+      </svg>
+    </div>
+    <div class="lesson-ref">↳ <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 2 tl.sum                                                   -->
+  <!-- ============================================================== -->
+  <section class="act" id="a2">
+    <div class="act-head">
+      <div class="num">02 · 06:48<b>tl.sum 한 줄이 warp shuffle 전체를 대체</b></div>
+      <h2>근데 대가가 세 가지 있다.</h2>
+    </div>
+
+    <div class="viz">
+      <div class="viz-cap"><span>FIG 2 · 같은 reduction — CUDA vs Triton</span><span>~15 lines → 2 lines</span></div>
+      <svg viewBox="0 0 980 240" width="100%" height="240">
+        <!-- CUDA side -->
+        <rect x="10" y="10" width="460" height="220" fill="#2A241C" stroke="#3a3428" rx="8"/>
+        <text x="30" y="34" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="11">// CUDA — warp shuffle reduction</text>
+        <text x="30" y="58" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">for (int o = 16; o &gt; 0; o &gt;&gt;= 1)</text>
+        <text x="30" y="76" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  local += __shfl_down_sync(0xFFFFFFFFu, local, o);</text>
+        <text x="30" y="100" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">if (lane == 0) sdata[wid] = local;</text>
+        <text x="30" y="118" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">__syncthreads();</text>
+        <text x="30" y="142" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">if (wid == 0) {</text>
+        <text x="30" y="160" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  val = (tid &lt; nwarps) ? sdata[tid] : 0.f;</text>
+        <text x="30" y="178" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  for (int o = 16; o &gt; 0; o &gt;&gt;= 1)</text>
+        <text x="30" y="196" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">    val += __shfl_down_sync(0xFFFFFFFFu, val, o);</text>
+        <text x="30" y="214" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  if (tid == 0) atomicAdd(out, val);</text>
+        <text x="30" y="232" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">}</text>
+        <text x="450" y="32" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="end">~15 lines</text>
+
+        <!-- arrow -->
+        <path d="M480 120 L 510 120" class="acc"/>
+        <path d="M510 120 L 504 115 M510 120 L 504 125" class="acc"/>
+
+        <!-- Triton side -->
+        <rect x="520" y="10" width="450" height="220" fill="#2A241C" stroke="var(--accent)" rx="8"/>
+        <text x="540" y="34" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="11"># Triton</text>
+        <text x="540" y="78" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="14">partial = tl.sum(x, axis=0)</text>
+        <text x="540" y="100" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="14">tl.store(partial_ptr + pid, partial)</text>
+        <text x="540" y="160" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">컴파일러가 내려보낸 SASS 에</text>
+        <text x="540" y="176" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">동일한 shfl.sync.bfly 가 들어감</text>
+        <text x="540" y="192" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">→ TRITON_PRINT_PTX=1 로 검증</text>
+        <text x="950" y="32" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="end">2 lines · 같은 PTX</text>
+      </svg>
+    </div>
+
+    <div class="dlg sam" style="margin-top:28px"><div class="who">SAM</div><div class="ln">그럼 진짜 공짜네?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(웃음) 아니야. <strong>세 가지 대가.</strong></div></div>
+
+    <div class="act-body split" style="margin-top:24px">
+      <div>
+        <div class="callout">
+          <div class="label">① launch overhead</div>
+          <p>67M 원소 reduce — CUDA v4 = <strong>1.039 ms</strong>, Triton = <strong>1.097 ms</strong> (5% 느림). Python → autotune 캐시 → JIT 캐시 → argument binding → <code>cuLaunchKernel</code> 까지 ~50–100 µs. 작은 커널에선 이 overhead 가 연산 시간보다 커질 수 있어. → element-wise 30 개를 각각 Triton 커널로 짜면 망한다.</p>
+        </div>
+        <div class="callout">
+          <div class="label">② autotune 의 footgun</div>
+          <p>autotune 은 <em>각 config 를 순차 실행</em>해 같은 output 버퍼에 쓴다. 이전 시도가 남긴 <strong>stale partial sum</strong> 이 결과에 섞임. 해법 — <code>reset_to_zero=["partial_ptr"]</code>. 문서에 희미하게 있고, 안 읽으면 몇 시간 디버깅.</p>
+        </div>
+        <div class="callout">
+          <div class="label">③ autotune 과 2-pass reduce 의 관용구</div>
+          <p><code>BLOCK_SIZE</code> 가 바뀌면 <code>num_programs</code> 도 바뀐다. 최소 블록 기준으로 최대 크기 partial 버퍼를 잡고, 실제 선택된 config 의 prefix 만 슬라이싱한다.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="pull">"Triton 은 고수준이지만 <em>얇아.</em>"<br><span style="color:var(--muted);font-size:18px;font-weight:500">추상화가 얕아서 내부 동작이 자꾸 새어나와. 이 누출을 잘 다루는 감각이 Triton 엔지니어의 가치.</span><span class="by">— Jensen, 12:04</span></div>
+
+        <div class="viz dark">
+          <div class="viz-cap" style="color:#A99B7A"><span>reduction.py · footgun 처방</span><span>reset_to_zero</span></div>
+<pre class="mini" style="margin:0;background:none;border:none">@triton.autotune(
+    configs=AUTOTUNE_CONFIGS,
+    key=["n_elements"],
+    <span class="k">reset_to_zero=["partial_ptr"],</span>  <span class="c"># ← 이거 중요</span>
+)</pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="03-reduction.html">Lesson 03 · Reduction</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 3 한 프로그램 = 한 행                                           -->
+  <!-- ============================================================== -->
+  <section class="act" id="a3">
+    <div class="act-head">
+      <div class="num">03 · 13:02<b>한 프로그램 = 한 행</b></div>
+      <h2>마스크 로직이 <strong>데이터 값</strong> 에 자연스럽게 녹아든다.</h2>
+    </div>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">그럼 N=1000 인 행은 어떻게 처리해?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln"><code>BLOCK_SIZE=1024</code> 로 잡고, 마스크로 뒤쪽 24 개를 걸러. 여기 <code>other=-float("inf")</code> 가 핵심이야. OOB lane 이 -inf 면 <code>tl.max</code> 에 영향 없고, <code>exp(-inf)=0</code> 이라 sum 에도 기여 안 해. 마스크 로직이 데이터 값에 녹아드는 거.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">autotune 키가 <code>BLOCK_SIZE</code> 네. N 을 직접 키로 안 잡은 게 영리한 거네.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">그래. <code>BLOCK_SIZE = _next_pow2(N)</code> 이라 N=513~1024 가 모두 1024 로 bucket 돼. <strong>캐시 효율적인 autotune 키 설계</strong> — Triton 배울 때 제일 늦게 배우는 기술이야.</div></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 3 · N=1000 행에서 OOB lane 다루기</span><span>mask = data value</span></div>
+          <svg viewBox="0 0 460 200" width="100%" height="200">
+            <!-- lane grid -->
+            <g font-family="JetBrains Mono, monospace" font-size="9">
+              <text x="10" y="24" fill="var(--muted)">offs</text>
+              <text x="10" y="80" fill="var(--muted)">x</text>
+              <text x="10" y="142" fill="var(--muted)">max/sum</text>
+            </g>
+            <!-- lanes 0..999 (valid) -->
+            <rect x="50" y="14" width="300" height="18" class="box-deep" rx="2"/>
+            <text x="200" y="27" text-anchor="middle" class="lbl">1000 valid · 0..999</text>
+            <!-- OOB 1000..1023 -->
+            <rect x="352" y="14" width="96" height="18" fill="var(--paper-deep)" stroke="var(--accent)" stroke-dasharray="3,2" rx="2"/>
+            <text x="400" y="27" text-anchor="middle" class="lbl-hi">24 OOB</text>
+
+            <!-- x values -->
+            <rect x="50" y="70" width="300" height="18" fill="var(--accent)" opacity="0.3" rx="2"/>
+            <text x="200" y="83" text-anchor="middle" class="lbl">real data</text>
+            <rect x="352" y="70" width="96" height="18" fill="var(--code-bg)" rx="2"/>
+            <text x="400" y="83" text-anchor="middle" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="10">-inf</text>
+
+            <!-- arrows to max/sum -->
+            <path d="M200 90 L 200 128" class="ln"/>
+            <path d="M400 90 L 200 128" class="lnd"/>
+
+            <!-- max/sum result -->
+            <rect x="130" y="130" width="160" height="30" class="box-paper" rx="4" stroke="var(--accent)"/>
+            <text x="210" y="150" text-anchor="middle" class="tx" font-size="12" font-weight="600">max(x) · sum(exp(x-m))</text>
+
+            <!-- annotations -->
+            <text x="60" y="182" class="lbl-hi">OOB 의 -inf 는 max 에도, exp 합에도 영향 없음 → 분기 없이 청결</text>
+          </svg>
+        </div>
+
+        <div class="viz dark" style="margin-top:14px">
+          <div class="viz-cap"><span>softmax.py · 핵심 세 줄</span></div>
+<pre class="mini" style="margin:0">offs = tl.arange(0, BLOCK_SIZE)       <span class="c"># 0..1023</span>
+mask = offs &lt; n_cols                  <span class="c"># 앞 1000 만 True</span>
+x = tl.load(in_row + offs, mask=mask,
+            other=-float(<span class="s">"inf"</span>))       <span class="c"># OOB → -inf</span></pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="05-softmax-fusion.html">Lesson 05 · Softmax</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 4 Triton 이 CUDA 를 이기는 한 가지                            -->
+  <!-- ============================================================== -->
+  <section class="act" id="a4">
+    <div class="act-head">
+      <div class="num">04 · 18:41<b>Triton 이 CUDA 를 이기는 한 가지</b></div>
+      <h2>Grouped Program ID swizzling — CUDA 에서도 짤 수 있지만, <em>안 짠다</em>.</h2>
+    </div>
+    <p class="act-lede">출력 C 의 타일을 도는 순서를 바꾸는 것만으로 L2 재사용률이 크게 달라진다. row-major 로 돌면 B 의 열들이 캐시에서 쓸려나간다. 그룹 단위로 돌면 같은 B 열이 여러 번 재사용된다.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4A · row-major · B 열이 매번 교체</span><span>naive</span></div>
+          <div class="tile-grid" style="grid-template-columns:repeat(8,28px)">
+            <div class="hi">0</div><div class="mid">1</div><div class="mid">2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div>
+            <div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div><div>14</div><div>15</div>
+            <div>16</div><div>17</div><div>18</div><div>19</div><div>20</div><div>21</div><div>22</div><div>23</div>
+            <div>24</div><div>25</div><div>26</div><div>27</div><div>28</div><div>29</div><div>30</div><div>31</div>
+          </div>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">타일 0→1→2→… A 의 같은 행, B 의 <em>다른 열</em>. B 가 L2 에 안 들어가면 쓸어버림.</p>
+        </div>
+      </div>
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4B · grouped · GROUP_SIZE_M=4</span><span>swizzled</span></div>
+          <div class="tile-grid" style="grid-template-columns:repeat(4,28px) 6px repeat(4,28px)">
+            <div class="hi">0</div><div class="mid">4</div><div>8</div><div>12</div><div style="background:transparent"></div><div>16</div><div>20</div><div>24</div><div>28</div>
+            <div class="hi">1</div><div class="mid">5</div><div>9</div><div>13</div><div style="background:transparent"></div><div>17</div><div>21</div><div>25</div><div>29</div>
+            <div class="hi">2</div><div class="mid">6</div><div>10</div><div>14</div><div style="background:transparent"></div><div>18</div><div>22</div><div>26</div><div>30</div>
+            <div class="hi">3</div><div class="mid">7</div><div>11</div><div>15</div><div style="background:transparent"></div><div>19</div><div>23</div><div>27</div><div>31</div>
+          </div>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">타일 0→1→2→3 이 <em>B 의 같은 열</em> 을 4 번 재사용. L2 효율 ↑.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="dlg sam" style="margin-top:24px"><div class="who">SAM</div><div class="ln">이거 CUDA 에서도 짤 수 있잖아. 왜 CUDA 엔 없다고 해?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln"><strong>짤 수 있지, 근데 안 짜.</strong> 세 가지 이유 — ① CUDA 엔 <code>blockIdx.x</code> 가 그냥 하드웨어 순서대로. 수식을 커널 맨 앞에 손으로 풀어써야 함. ② 그 수식이 읽기가 정말 나빠. ③ <code>GROUP_SIZE_M</code> 이 바뀌면 재컴파일. Triton 에선 autotune 파라미터고 표준 관용구야.</div></div>
+
+    <div class="viz" style="margin-top:20px">
+      <div class="viz-cap"><span>FIG 4C · 측정치 — 4096³ matmul</span><span>L4 sm_89</span></div>
+      <table class="tbl" style="margin:0">
+        <thead><tr><th>variant</th><th class="num">TFLOPS</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td>우리 CUDA v3 (FMA only)</td><td class="num">3.9</td><td>register blocking</td></tr>
+          <tr><td>torch.matmul (cuBLAS + TF32)</td><td class="num">25.8</td><td>NVIDIA 수년 튜닝</td></tr>
+          <tr><td>Triton fp32</td><td class="num"><strong>28.9</strong></td><td>cuBLAS + <strong>12%</strong></td></tr>
+          <tr><td>우리 CUDA v4 (WMMA fp16)</td><td class="num">18.5</td><td>직접 짠 mma</td></tr>
+          <tr><td>cuBLAS fp16</td><td class="num">51.8</td><td>—</td></tr>
+          <tr><td>Triton fp16</td><td class="num"><strong>54.0</strong></td><td>cuBLAS + <strong>4%</strong> · 40 줄</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pull">20 년 묵은 cuBLAS 가 <strong>40 줄짜리 Python</strong> 에 진다.<br><span style="color:var(--muted);font-size:16px;font-weight:500">autotune 이 사람보다 config 공간을 잘 탐색해. 측정이 이론을 이기는 전형적인 경우.</span><span class="by">— Jensen, 23:58</span></div>
+    <div class="lesson-ref">↳ <a href="04-matmul.html">Lesson 04 · Matmul</a> &nbsp; <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 5 Flash Attention 40 lines                                 -->
+  <!-- ============================================================== -->
+  <section class="act" id="a5" style="background:linear-gradient(180deg,transparent 0,var(--bg-soft) 60%,transparent 100%);padding-left:24px;padding-right:24px;margin:0 -24px;border-radius:16px">
+    <div class="act-head">
+      <div class="num">05 · 26:10<b>Flash Attention 이 40 줄</b></div>
+      <h2>절반. 그리고 <strong>6.1×</strong> 빨라.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5A · line count</span><span>커널 본체만</span></div>
+          <svg viewBox="0 0 420 160" width="100%" height="160">
+            <text x="10" y="28" class="lbl">CUDA FA v1</text>
+            <rect x="10" y="36" width="400" height="22" fill="var(--paper-deep)"/>
+            <text x="400" y="52" text-anchor="end" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600">80 lines</text>
+
+            <text x="10" y="90" class="lbl">Triton FA</text>
+            <rect x="10" y="98" width="200" height="22" fill="var(--accent)"/>
+            <text x="220" y="114" fill="var(--accent)" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600">40 lines · 50%</text>
+
+            <text x="10" y="148" class="lbl-hi">같은 일 — 절반의 코드, 6.1× 빠름</text>
+          </svg>
+        </div>
+
+        <div class="viz dark" style="margin-top:14px">
+          <div class="viz-cap"><span>acc update · 한 줄로 표현된 online + P@V</span></div>
+<pre class="mini" style="margin:0">acc = acc * alpha[:, None] + tl.dot(p.to(v.dtype), v)</pre>
+          <p style="margin:10px 0 0;font-size:12px;color:#A99B7A;font-family:'JetBrains Mono',monospace">CUDA 버전에선 이 로직이 30+ 줄에 걸쳐 있다. 추상화가 맞는 자리에 있으면 복잡도가 죽는다.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5B · 성능 — N=8192, seq · single head</span><span>L4</span></div>
+          <table class="tbl" style="margin:0">
+            <thead><tr><th>impl</th><th class="num">time (ms)</th><th class="num">speedup</th></tr></thead>
+            <tbody>
+              <tr><td>CUDA FA v1 (fp32)</td><td class="num">3.045</td><td class="num">1.00×</td></tr>
+              <tr><td><strong>Triton FA (fp16)</strong></td><td class="num"><strong>0.496</strong></td><td class="num"><strong>6.14×</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="label">6 배 차이는 어디서 왔나</div>
+          <p><strong>①</strong> <code>tl.dot</code> 이 Tensor Core 씀 (CUDA v1 은 fp32 FMA). <strong>②</strong> autotune 이 <code>(BLOCK_M, BLOCK_N, num_warps, num_stages)</code> 6 개 config 탐색 — CUDA 로 sweep 하려면 재컴파일 6 번. <strong>③</strong> <code>tl.trans</code>, 2-D 포인터 브로드캐스트, swizzled smem layout 모두 자동.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="06-flash-attention.html">Lesson 06 · CUDA FA</a> &nbsp; <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 6 MHA + causal                                             -->
+  <!-- ============================================================== -->
+  <section class="act" id="a6">
+    <div class="act-head">
+      <div class="num">06 · 31:35<b>constexpr 한 줄의 마법</b></div>
+      <h2>causal mask 는 "채우는 것" 이 아니라 "루프에서 빼는 것."</h2>
+    </div>
+    <p class="act-lede">마스크로 <code>-inf</code> 채워도 QKᵀ 는 전체를 계산한다. FA-v2 의 실제 이득은 상삼각 전체에 들어가는 K 타일을 <em>이터레이션 자체에서 뺀다</em>는 데 있다.</p>
+
+    <div class="viz">
+      <div class="viz-cap"><span>FIG 6A · causal 루프 · pid_m 별로 상한이 다름</span><span>skipped tiles ↓ 절반</span></div>
+      <svg viewBox="0 0 900 260" width="100%" height="260">
+        <!-- grid of Q rows × K cols tiles, 8×8 -->
+        <g>
+          <!-- rows: pid_m; cols: start_n -->
+          <text x="20" y="30" class="lbl">pid_m ↓</text>
+          <text x="820" y="30" class="lbl">start_n →</text>
+          <!-- draw 8x8 tiles, upper-triangle skipped -->
+          <g font-family="JetBrains Mono, monospace" font-size="10">
+            <!-- generate rows -->
+            <!-- row 0: only col 0 computed, rest skipped -->
+            <!-- helper: each tile 70x22 -->
+          </g>
+        </g>
+        <!-- procedural via inline loop impossible in SVG; write explicitly -->
+        <!-- row 0 -->
+        <g>
+          <rect x="60"  y="50" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="210" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="285" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="65" class="lbl">m=0</text>
+        </g>
+        <g>
+          <rect x="60"  y="75" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="75" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="285" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="90" class="lbl">m=1</text>
+        </g>
+        <g>
+          <rect x="60"  y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="115" class="lbl">m=2</text>
+        </g>
+        <g>
+          <rect x="60"  y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="140" class="lbl">m=3</text>
+        </g>
+        <g>
+          <rect x="60"  y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="435" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="165" class="lbl">m=4</text>
+        </g>
+        <g>
+          <rect x="60"  y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="435" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="510" y="175" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="175" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="190" class="lbl">m=5</text>
+        </g>
+
+        <!-- legend -->
+        <rect x="680" y="50" width="16" height="16" fill="var(--accent)"/>
+        <text x="704" y="62" class="lbl">computed</text>
+        <rect x="680" y="75" width="16" height="16" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+        <text x="704" y="87" class="lbl">skipped · causal</text>
+
+        <text x="680" y="128" class="lbl-hi">end_n = (pid_m+1) * BLOCK_M</text>
+        <text x="680" y="144" class="lbl">→ 평균 N/2 타일만 돌면 됨</text>
+
+        <text x="680" y="180" class="tx" font-weight="600">N=2048:</text>
+        <text x="680" y="198" class="lbl">non-causal · 2.643 ms</text>
+        <text x="680" y="214" class="lbl-hi">causal · 0.784 ms (3.3×)</text>
+
+        <text x="60" y="232" class="lbl-hi">대각선 타일 하나만 per-element mask 필요 — 나머지 전부는 iter 에서 제외</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:20px">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>constexpr · 커널 두 개로 JIT</span><span>no runtime branch</span></div>
+<pre class="mini" style="margin:0"><span class="k">def</span> flash_attention_mha_fwd_kernel(..., 
+    IS_CAUSAL: <span class="k">tl.constexpr</span>,     <span class="c"># ← 핵심</span>
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr):
+    <span class="k">if</span> IS_CAUSAL:
+        end_n = tl.minimum(N, (pid_m+1) * BLOCK_M)
+    <span class="k">else</span>:
+        end_n = N</pre>
+          <p style="margin:12px 0 0;font-size:12px;color:#A99B7A;font-family:'JetBrains Mono',monospace">→ IS_CAUSAL=True 용 커널과 =False 용 커널 <strong>별도로 컴파일</strong>. 런타임에 if 자체가 없음. C++ template specialization 과 동치.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 6B · 우리 Triton vs SDPA (cuDNN FA-2)</span><span>LLaMA-7B shape</span></div>
+          <table class="tbl" style="margin:0">
+            <thead><tr><th>(B, H, N, d)</th><th class="num">ours</th><th class="num">SDPA</th><th class="num">ratio</th></tr></thead>
+            <tbody>
+              <tr><td>(1, 32, 2048, 128)</td><td class="num">0.784</td><td class="num">0.613</td><td class="num">0.78×</td></tr>
+              <tr><td>(1, 32, 4096, 128)</td><td class="num">2.964</td><td class="num">2.559</td><td class="num">0.86×</td></tr>
+              <tr><td>(16, 12, 512, 64)</td><td class="num"><strong>0.249</strong></td><td class="num">0.282</td><td class="num"><strong>1.13×</strong></td></tr>
+            </tbody>
+          </table>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">268 줄 파일 하나로 cuDNN 의 78–90%. 못 따라잡는 이유 — async copy, persistent kernel, warp specialization 이 아직 experimental.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="09-mha-causal-fa.html">Lesson 09 · MHA causal FA</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- ACT 7  torch.ops                                               -->
+  <!-- ============================================================== -->
+  <section class="act" id="a7">
+    <div class="act-head">
+      <div class="num">07 · 37:20<b>torch.ops.* 로 올라가기</b></div>
+      <h2>70 줄. 이게 Triton 커널을 <em>부품</em> 으로 만드는 마지막 접착제.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>flash_attention_mha_op.py · 70 lines</span></div>
+<pre class="mini" style="margin:0"><span class="c">@custom_op(</span>
+    <span class="s">"triton_training::flash_attention_mha"</span>,
+    mutates_args=(),
+    device_types=<span class="s">"cuda"</span>,
+)
+<span class="k">def</span> flash_attention_mha_op(q, k, v, is_causal=False):
+    <span class="k">return</span> triton_flash_attention_mha(q, k, v, is_causal=is_causal)
+
+<span class="k">@flash_attention_mha_op.register_fake</span>
+<span class="k">def</span> _fake(q, k, v, is_causal=False):
+    <span class="k">return</span> torch.empty_like(q)   <span class="c"># ← Dynamo 용 shape 선언</span></pre>
+        </div>
+
+        <div class="callout">
+          <div class="label">왜 register_fake 가 핵심인가</div>
+          <p><code>torch.compile</code> 이 모델을 트레이싱할 때 FakeTensor (shape, dtype, device 만) 를 쓴다. 진짜 데이터가 없으니 우리 Triton 커널은 못 돌린다. 대신 <em>"이 op 의 출력 shape 은 이것이다"</em> 를 선언 → Dynamo 가 그래프를 안 끊는다. 없으면 <code>fullgraph=True</code> fail.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 7 · 이 70 줄이 여는 것</span><span>vLLM pattern</span></div>
+          <svg viewBox="0 0 460 250" width="100%" height="250">
+            <rect x="20" y="20" width="420" height="50" class="box-paper" rx="6"/>
+            <text x="230" y="42" text-anchor="middle" class="tx" font-weight="600">AttentionBlock · torch.compile(fullgraph=True)</text>
+            <text x="230" y="58" text-anchor="middle" class="lbl">그래프 브레이크 0 건 · err = 0.00e+00</text>
+
+            <path d="M230 70 L 230 90" class="acc"/>
+            <path d="M230 90 L 225 84 M230 90 L 235 84" class="acc"/>
+
+            <rect x="20" y="95" width="420" height="40" fill="var(--accent)" rx="6"/>
+            <text x="230" y="120" text-anchor="middle" fill="#FBF6E9" font-weight="600" font-family="JetBrains Mono, monospace">torch.ops.triton_training.flash_attention_mha</text>
+
+            <path d="M230 135 L 230 155" class="acc"/>
+            <path d="M230 155 L 225 149 M230 155 L 235 149" class="acc"/>
+
+            <rect x="20" y="160" width="200" height="70" class="box-paper" rx="6"/>
+            <text x="120" y="182" text-anchor="middle" class="tx" font-weight="600">our Triton FA</text>
+            <text x="120" y="200" text-anchor="middle" class="lbl">268 lines · L4</text>
+            <text x="120" y="218" text-anchor="middle" class="lbl">Python + Triton</text>
+
+            <rect x="240" y="160" width="200" height="70" class="box-paper" rx="6"/>
+            <text x="340" y="182" text-anchor="middle" class="tx" font-weight="600">vLLM PagedAttention</text>
+            <text x="340" y="200" text-anchor="middle" class="lbl">수백 lines · H100</text>
+            <text x="340" y="218" text-anchor="middle" class="lbl">C++ + CUDA</text>
+
+            <text x="230" y="248" text-anchor="middle" class="lbl-hi">같은 패턴. 다른 구현. 같은 접점.</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="dlg sam" style="margin-top:20px"><div class="who">SAM</div><div class="ln">그러니까 Brian 이 지금 만든 게 거의 vLLM 스타일 프로덕션 op.</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">거의 그래. 빠진 건 backward (autograd) 랑 GQA 지원. 둘 다 설계가 명확해서 다음 레슨에서 추가 가능. 그리고 그 두 개 붙이면 <strong>vLLM PagedAttention 포팅</strong> 이 다음 목표.</div></div>
+    <div class="lesson-ref">↳ <a href="07-pytorch-op.html">Lesson 07 · custom_op</a> &nbsp; <a href="09-mha-causal-fa.html">Lesson 09 · MHA</a></div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- OUTRO · hides vs exposes                                       -->
+  <!-- ============================================================== -->
+  <section class="outro">
+    <h2>Triton 이 숨기는 것 · 노출하는 것</h2>
+    <p style="font-size:17px;color:var(--ink-soft);max-width:700px">"고수준 DSL" 이 아니라 <strong>"추상화 높이가 딱 그 자리에 있는 언어"</strong>. 아래 다섯 개는 컴파일러 밑으로 숨고, 위 다섯 개는 여전히 네 손에 남는다.</p>
+
+    <div class="act-body split" style="margin-top:28px">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>숨기는 것 · HIDES</span><span>컴파일러 아래</span></div>
+          <ol style="margin:0;padding-left:22px;color:var(--ink-soft);font-size:14px;line-height:1.9">
+            <li>쓰레드 수준 병렬성 — <code>threadIdx.x</code> 사라짐</li>
+            <li>warp shuffle, smem tree reduction — <code>tl.sum</code></li>
+            <li>Tensor Core 인스트럭션 선택 — <code>tl.dot</code> 이 dtype 보고 자동</li>
+            <li>smem layout swizzle — bank conflict 자동 회피</li>
+            <li>launch config 튜닝 — autotune 에 위임</li>
+          </ol>
+        </div>
+      </div>
+      <div>
+        <div class="viz" style="border-color:var(--accent)">
+          <div class="viz-cap"><span style="color:var(--accent)">노출하는 것 · EXPOSES</span><span>여전히 네 손</span></div>
+          <ol style="margin:0;padding-left:22px;color:var(--ink-soft);font-size:14px;line-height:1.9">
+            <li>블록 크기, grid 구조 — <code>program_id</code>, <code>grid=lambda meta</code></li>
+            <li>메모리 계층 의식 — <code>tl.load(mask=...)</code> 의 HBM 패턴</li>
+            <li>컴파일 타임 vs 런타임 경계 — <code>tl.constexpr</code></li>
+            <li>autotune 키 설계 — 너무 넓으면 튜닝 폭발, 좁으면 놓침</li>
+            <li>수치적 동작 — online softmax, fp16 vs fp32 accumulator</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="pull" style="margin-top:36px">CUDA 가 어셈블리, Triton 이 C, PyTorch 가 Python.<br>대부분은 C 로 짜고, 핫패스만 어셈블리로 내려간다.<span class="by">— Sam &amp; Jensen, 41:02</span></div>
+
+    <div class="callout">
+      <div class="label">CUDA 를 계속 배워야 하는 이유 · 네 가지</div>
+      <ol style="margin:8px 0 0;padding-left:22px;color:var(--ink);font-size:14px;line-height:1.75">
+        <li>Triton 이 막히는 순간 — 새 mma (Blackwell FP4), persistent kernel, async copy 정밀 제어 — 아직 CUTLASS/CUDA.</li>
+        <li>Triton 이 생성한 PTX 를 읽을 줄 알아야 디버그 — <code>TRITON_CACHE_DIR</code> 밑 <code>*.ptx</code>.</li>
+        <li>vLLM, FlashAttention-3, Mamba 커널이 아직 CUDA 기반. 이 코드 읽으려면 CUDA 가 모국어.</li>
+        <li>"왜 이 Triton 이 느린가" 추적 — bank conflict, register spill, occupancy. 답은 CUDA 개념에.</li>
+      </ol>
+    </div>
+
+    <p class="lesson-ref" style="text-align:center;margin-top:36px;border:none">코드 참조 · <code>triton_kernels/</code> 전체 7 파일 · L4 sm_89, CUDA 13.0, PyTorch 2.11, Triton 3.6.</p>
+  </section>
+
+  <!-- article nav -->
+  <div class="artnav">
+    <a href="podcast-ep-42.html">
+      <span class="lbl">← Ep.42</span>
+      너희 GPT는 왜 내 GPU를 이렇게 쓰게 됐을까
+    </a>
+    <a href="index.html" class="nxt">
+      <span class="lbl">Back →</span>
+      Index · 11편 기록
+    </a>
+  </div>
+
+</div>
+
+<footer class="bot">
+  <span>The Stack · ep.43 · 42 min</span>
+  <span>가상 팟캐스트 · 기술 내용은 실제 레슨에서</span>
+</footer>
+
+</body></html>

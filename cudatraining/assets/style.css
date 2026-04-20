@@ -1,24 +1,24 @@
-/* CUDA Training Blog — beige design system */
+/* CUDA Training Blog — beige design system (muted) */
 :root{
-  --bg:#F4EEDE;          /* base beige */
-  --bg-soft:#EFE7D2;
-  --paper:#FBF6E9;       /* card */
-  --paper-deep:#E9DFC5;
+  --bg:#EFEBE1;          /* base beige — desaturated */
+  --bg-soft:#E7E2D6;
+  --paper:#F5F1E6;       /* card */
+  --paper-deep:#D9D3C4;
   --ink:#221E18;
   --ink-soft:#4B4236;
-  --muted:#8A7F6A;
-  --line:#D9CDAE;
-  --line-soft:#E5DCC2;
-  --accent:#9A5A2B;      /* rust */
-  --accent-2:#C57B45;
+  --muted:#8A8172;
+  --line:#CAC3B3;
+  --line-soft:#D8D2C3;
+  --accent:#9A5A2B;      /* rust (unchanged — intentional) */
+  --accent-2:#B77250;
   --good:#5F7B3A;
   --warn:#A85A2A;
   --code-bg:#2A241C;
-  --code-fg:#F2EADA;
-  --code-dim:#A99B7A;
+  --code-fg:#ECE7DA;
+  --code-dim:#A79E8B;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-feature-settings:'ss01','ss02';-webkit-font-smoothing:antialiased;line-height:1.6}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Pretendard','Apple SD Gothic Neo','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-feature-settings:'ss01','ss02';-webkit-font-smoothing:antialiased;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
 a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(154,90,43,.25)}
 a:hover{border-bottom-color:var(--accent)}
 .mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-feature-settings:'ss01'}
@@ -107,7 +107,127 @@ pre code{background:none;padding:0;color:inherit;font-size:inherit}
 /* page chrome */
 footer.bot{max-width:760px;margin:0 auto;padding:40px 28px 80px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid var(--line-soft)}
 
+/* ============ PODCAST EPISODE PAGES ============ */
+.pod-hero{padding:56px 0 44px;border-bottom:1px solid var(--line)}
+.pod-kick{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:14px;margin-bottom:24px}
+.pod-kick .stack{color:var(--accent);font-weight:600}
+.pod-kick .epn{padding:3px 8px;border:1px solid var(--line);border-radius:3px;color:var(--ink)}
+.pod-hero h1{font-size:56px;line-height:1.05;margin:0 0 22px;letter-spacing:-.02em;font-weight:700;text-wrap:balance;max-width:880px}
+.pod-hero .dek{font-size:18px;max-width:700px;margin:0 0 36px}
+
+/* hosts strip */
+.hosts{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:640px;margin:32px 0 0}
+.host{display:flex;gap:14px;align-items:center;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+.host .av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;flex-shrink:0;color:var(--paper)}
+.host.sam .av{background:#2E4A3F}
+.host.jensen .av{background:#5A3A1F}
+.host .role{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:1px}
+.host .nm{font-weight:600;font-size:14px;color:var(--ink)}
+.host .sub{font-size:11px;color:var(--muted);margin-top:1px}
+
+/* chapters strip */
+.chapters{margin:32px 0 0;padding:22px 0 0;border-top:1px solid var(--line-soft)}
+.chapters-head{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;display:flex;justify-content:space-between}
+.chapter-list{display:grid;gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:12px}
+.chapter-list a{display:grid;grid-template-columns:58px 22px 1fr max-content;gap:14px;padding:11px 16px;background:var(--paper);color:var(--ink);border:none;align-items:baseline}
+.chapter-list a:hover{background:var(--bg-soft)}
+.chapter-list .ts{color:var(--muted)}
+.chapter-list .ix{color:var(--accent)}
+.chapter-list .ti{color:var(--ink);font-family:'Pretendard',sans-serif;font-size:14px;font-weight:600}
+.chapter-list .dur{color:var(--muted)}
+
+/* act block */
+.act{padding:88px 0 40px;border-top:1px solid var(--line-soft);scroll-margin-top:40px}
+.act:first-of-type{border-top:none}
+.act-head{margin-bottom:22px}
+.act-head .num{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.act-head .num .n{color:var(--accent);font-weight:600;font-size:13px}
+.act-head .num b{font-family:'Pretendard',sans-serif;font-weight:600;color:var(--ink);font-size:13px;letter-spacing:.04em;text-transform:none}
+.act-head h2{font-size:38px;line-height:1.1;margin:0;letter-spacing:-.02em;font-weight:700;text-wrap:balance;max-width:900px}
+.act-head h2::before{content:none}
+.act-lede{font-size:17px;color:var(--ink-soft);margin:0 0 28px;max-width:640px}
+
+/* dialogue */
+.dlg{display:grid;grid-template-columns:60px 1fr;gap:16px;margin:14px 0;align-items:baseline}
+.dlg .who{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:4px}
+.dlg.sam .who{color:#2E4A3F}
+.dlg.jensen .who{color:#9A5A2B}
+.dlg .ln{font-size:15.5px;line-height:1.55;color:var(--ink-soft)}
+.dlg .ln strong{color:var(--ink)}
+.dlg .ln em{font-style:normal;background:linear-gradient(transparent 62%,rgba(154,90,43,.2) 62%)}
+
+.pull{font-size:26px;line-height:1.3;margin:28px 0;padding:20px 0;color:var(--ink);letter-spacing:-.01em;font-weight:600;text-wrap:balance;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pull .by{display:block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-top:10px;font-weight:400}
+
+/* visual frame */
+.viz{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:28px;margin:24px 0;position:relative}
+.viz.dark{background:var(--code-bg);border-color:#3a3428;color:var(--code-fg)}
+.viz.dark .viz-cap{color:#A99B7A}
+.viz-cap{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;display:flex;justify-content:space-between}
+.viz-title{font-size:15px;font-weight:600;color:var(--ink);margin:0 0 14px}
+.viz.dark .viz-title{color:var(--code-fg)}
+
+/* two-column act layout */
+.act-body{display:grid;grid-template-columns:1fr;gap:40px}
+.act-body.split{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}
+.act-body.split.rev{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+
+/* metric bars (Act 1 cost of distance) */
+.bars{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.bars .row{display:grid;grid-template-columns:130px 1fr 90px;gap:12px;align-items:center}
+.bars .lbl{color:var(--ink-soft)}
+.bars .bar{height:20px;background:var(--bg-soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.bars .bar.sml span{background:var(--good)}
+.bars .val{color:var(--ink);text-align:right;font-weight:600}
+
+/* tile grid for matmul ordering */
+.tile-grid{display:inline-grid;gap:2px;padding:8px;background:var(--bg-soft);border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10px}
+.tile-grid div{width:28px;height:28px;display:grid;place-items:center;background:var(--paper-deep);color:var(--ink-soft);border-radius:2px}
+.tile-grid div.hi{background:var(--accent);color:var(--paper)}
+.tile-grid div.mid{background:var(--accent-2);color:var(--paper)}
+
+/* HBM trip diagram */
+.hbm{display:grid;grid-template-columns:1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.hbm .kstep{display:grid;grid-template-columns:70px 1fr 90px;gap:10px;padding:10px 14px;border:1px solid var(--line);background:var(--bg-soft);border-radius:6px;align-items:center}
+.hbm .kstep.fused{background:var(--paper);border-color:var(--accent);border-width:1px}
+.hbm .kstep .k{color:var(--accent);font-weight:600}
+.hbm .kstep .io{color:var(--muted)}
+.hbm .tally{padding:10px 14px;background:transparent;font-weight:600;color:var(--ink);display:flex;justify-content:space-between;font-size:13px}
+
+/* act footer */
+.lesson-ref{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.1em;margin-top:20px;padding-top:16px;border-top:1px dashed var(--line-soft)}
+.lesson-ref a{color:var(--accent);border:none}
+.lesson-ref a:hover{border-bottom:1px solid var(--accent)}
+
+/* outro */
+.outro{padding:80px 0 40px;border-top:1px solid var(--line)}
+.outro h2{font-size:32px;margin:0 0 20px;font-weight:700;letter-spacing:-.015em}
+.outro h2::before{content:none}
+
+/* mini code block inside viz */
+pre.mini{margin:10px 0 0;padding:14px 18px;font-size:12px;border-radius:8px}
+
+/* SVG defaults */
+svg .ln{stroke:var(--line);stroke-width:1;fill:none}
+svg .lnd{stroke:var(--line);stroke-width:1;fill:none;stroke-dasharray:3,3}
+svg .acc{stroke:var(--accent);stroke-width:1.5;fill:none}
+svg .lbl{font-family:'JetBrains Mono',monospace;font-size:10px;fill:var(--ink-soft)}
+svg .lbl-hi{font-family:'JetBrains Mono',monospace;font-size:10px;fill:var(--accent);font-weight:600}
+svg .box-paper{fill:var(--paper);stroke:var(--line)}
+svg .box-deep{fill:var(--paper-deep);stroke:var(--line)}
+svg .box-acc{fill:var(--accent);stroke:var(--accent)}
+svg .tx{fill:var(--ink);font-family:'Pretendard',sans-serif;font-size:12px}
+svg .tx-l{fill:var(--ink);font-family:'Pretendard',sans-serif;font-size:14px;font-weight:600}
+
 @media (max-width:640px){
+  .hosts{grid-template-columns:1fr}
+  .act-body.split,.act-body.split.rev{grid-template-columns:1fr}
+  .pod-hero h1{font-size:36px}
+  .act-head h2{font-size:26px}
+  .act-head .num b{font-size:14px}
+  .pull{font-size:20px}
+
   .wrap{padding:40px 20px 100px}
   h1.title{font-size:32px}
   h1.title.kicker{font-size:36px}
