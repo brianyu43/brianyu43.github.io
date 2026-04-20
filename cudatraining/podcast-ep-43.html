@@ -24,7 +24,7 @@
   </nav>
 </div>
 
-<div class="wrap-wide" data-screen-label="Podcast ep.43 Triton walkthrough">
+<div class="wrap-wide" data-screen-label="Podcast ep.43 Triton walkthrough" data-lang="ko">
 
   <!-- HERO ========================================================= -->
   <section class="pod-hero">
@@ -714,9 +714,663 @@ x = tl.load(in_row + offs, mask=mask,
 
 </div>
 
+<!-- ============ ENGLISH ============ -->
+<div class="wrap-wide" data-lang="en" hidden>
+
+  <!-- HERO -->
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">《The Stack》</span>
+      <span class="epn">EP.43</span>
+      <span>2026 · APR · 20</span>
+      <span>42 MIN</span>
+      <span>IMAGINARY</span>
+    </div>
+    <h1>What Triton <em style="font-style:normal;color:var(--accent)">hides</em>,<br>and what it exposes</h1>
+    <p class="dek">Spread seven files on the table and read them line by line. When the same kernels move from CUDA to Triton — how does the code fold? What details disappear under the compiler, and what stays in your hands?</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Host</div>
+          <div class="nm">Sam</div>
+          <div class="sub">"OK, so why is this the comfortable one?"</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">J</div>
+        <div>
+          <div class="role">Guest</div>
+          <div class="nm">Jensen</div>
+          <div class="sub">Wasn't thrilled about it internally, but has come to accept it</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 7 ACTS · 7 FILES</span><span>42:08</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">01:20</span><span class="ix">01</span><span class="ti">Smallest Triton program</span><span class="dur">smoke_vector_add.py</span></a>
+        <a href="#a2"><span class="ts">06:48</span><span class="ix">02</span><span class="ti">One tl.sum replaces an entire warp shuffle</span><span class="dur">reduction.py</span></a>
+        <a href="#a3"><span class="ts">13:02</span><span class="ix">03</span><span class="ti">One program = one row</span><span class="dur">softmax.py</span></a>
+        <a href="#a4"><span class="ts">18:41</span><span class="ix">04</span><span class="ti">One thing where Triton beats CUDA</span><span class="dur">matmul.py</span></a>
+        <a href="#a5"><span class="ts">26:10</span><span class="ix">05</span><span class="ti">Flash Attention in 40 lines</span><span class="dur">flash_attention.py</span></a>
+        <a href="#a6"><span class="ts">31:35</span><span class="ix">06</span><span class="ti">The magic of one constexpr</span><span class="dur">flash_attention_mha.py</span></a>
+        <a href="#a7"><span class="ts">37:20</span><span class="ix">07</span><span class="ti">Climbing up to torch.ops.*</span><span class="dur">flash_attention_mha_op.py</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLD OPEN -->
+  <section class="act" style="padding-top:56px">
+    <div class="act-head">
+      <div class="num">00 · 00:28<b>Cold Open</b></div>
+      <h2>Seven files. One line at a time.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">SAM</div><div class="ln">Last episode I asked "five years from now what else will you be optimizing besides matmul," and you punted to the next one.</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(laughs) Still not telling. Something more fun instead. This time our friend rewrote the same kernels in <strong>Triton</strong>. Seven files — let's open them and read line by line.</div></div>
+
+    <div class="viz" style="margin-top:28px">
+      <div class="viz-cap"><span>FIG 0 · today's material · triton_kernels/</span><span>7 files</span></div>
+      <svg viewBox="0 0 960 90" width="100%" height="90">
+        <g font-family="JetBrains Mono, monospace" font-size="10">
+          <rect x="10"  y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="72"  y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">01</text>
+          <text x="72"  y="56" text-anchor="middle" fill="var(--ink)">smoke_vector_add</text>
+          <rect x="145" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="207" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">02</text>
+          <text x="207" y="56" text-anchor="middle" fill="var(--ink)">reduction</text>
+          <rect x="280" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="342" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">03</text>
+          <text x="342" y="56" text-anchor="middle" fill="var(--ink)">softmax</text>
+          <rect x="415" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="477" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">04</text>
+          <text x="477" y="56" text-anchor="middle" fill="var(--ink)">matmul</text>
+          <rect x="550" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="612" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">05</text>
+          <text x="612" y="56" text-anchor="middle" fill="var(--ink)">flash_attention</text>
+          <rect x="685" y="18" width="125" height="54" class="box-paper" rx="4"/>
+          <text x="747" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">06</text>
+          <text x="747" y="56" text-anchor="middle" fill="var(--ink)">flash_attention_mha</text>
+          <rect x="820" y="18" width="130" height="54" class="box-paper" rx="4" stroke="var(--accent)"/>
+          <text x="885" y="38" text-anchor="middle" fill="var(--accent)" font-weight="600">07</text>
+          <text x="885" y="56" text-anchor="middle" fill="var(--ink)">…_mha_op</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ACT 1 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">01 · 01:20<b>Smallest Triton program</b></div>
+      <h2>One <code>program</code> = one <strong>block</strong>, not one thread.</h2>
+    </div>
+    <p class="act-lede">CUDA's <code>threadIdx.x</code> didn't vanish — it just slipped under the compiler. Triton is block-level SPMD: the thread parallelism inside a block is decided by the compiler from <code>num_warps</code>.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>smoke_vector_add.py · Triton</span><span>block-level SPMD</span></div>
+<pre class="mini" style="margin:0"><span class="c">@triton.jit</span>
+<span class="k">def</span> vector_add_kernel(x_ptr, y_ptr, out_ptr, n,
+                      BLOCK_SIZE: tl.constexpr):
+    pid = tl.program_id(axis=<span class="s">0</span>)
+    offsets = pid * BLOCK_SIZE + tl.arange(<span class="s">0</span>, BLOCK_SIZE)
+    mask = offsets &lt; n
+    x = tl.load(x_ptr + offsets, mask=mask)
+    y = tl.load(y_ptr + offsets, mask=mask)
+    tl.store(out_ptr + offsets, x + y, mask=mask)</pre>
+        </div>
+        <div class="viz" style="margin-top:16px;background:#2A241C;border-color:#3a3428">
+          <div class="viz-cap" style="color:#A99B7A"><span>Same address math · CUDA</span><span>thread-level</span></div>
+<pre class="mini" style="margin:0;background:none;border:none">int idx = blockIdx.x * blockDim.x + threadIdx.x;
+if (idx &lt; n) out[idx] = x[idx] + y[idx];</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Whatever I was doing with <code>threadIdx.x</code> in CUDA — where did it go in Triton?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Gone. More precisely, <strong>the compiler hid it</strong>. <code>tl.arange(0, 1024)</code> is a vector pointing to "all 1024 indices this block handles." Which thread handles which lane — Triton decides.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Sounds like SIMD.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Exactly that. <strong>"Block-level SPMD."</strong> The program is per block, not per thread. Thread parallelism inside is the compiler's problem.</div></div>
+
+        <div class="pull">Both patterns lower to <strong>the same PTX</strong>.<br>But Triton lets you think at the "index space" level.<span class="by">— Jensen, 04:12</span></div>
+      </div>
+    </div>
+
+    <div class="viz" style="margin-top:16px">
+      <div class="viz-cap"><span>FIG 1 · abstraction height</span><span>where does threadIdx.x live?</span></div>
+      <svg viewBox="0 0 960 110" width="100%" height="110">
+        <g font-family="Pretendard, sans-serif" font-size="12">
+          <rect x="10"  y="28" width="200" height="54" class="box-paper" rx="6"/>
+          <text x="110" y="50" text-anchor="middle" class="tx" font-weight="600">PyTorch / JAX</text>
+          <text x="110" y="68" text-anchor="middle" class="lbl">tensor ops · "Python"</text>
+
+          <rect x="235" y="28" width="200" height="54" fill="var(--accent)" rx="6"/>
+          <text x="335" y="50" text-anchor="middle" fill="#FBF6E9" font-weight="600">Triton</text>
+          <text x="335" y="68" text-anchor="middle" fill="#FBF6E9" font-family="JetBrains Mono, monospace" font-size="10">block level · "C"</text>
+
+          <rect x="460" y="28" width="200" height="54" class="box-paper" rx="6"/>
+          <text x="560" y="50" text-anchor="middle" class="tx" font-weight="600">CUDA</text>
+          <text x="560" y="68" text-anchor="middle" class="lbl">thread level · "assembly"</text>
+
+          <rect x="685" y="28" width="265" height="54" class="box-paper" rx="6" stroke-dasharray="3,3"/>
+          <text x="817" y="50" text-anchor="middle" class="tx" font-weight="600">PTX / SASS</text>
+          <text x="817" y="68" text-anchor="middle" class="lbl">"machine code"</text>
+
+          <path d="M435 55 L 460 55" class="acc"/>
+          <path d="M660 55 L 685 55" class="acc"/>
+          <text x="480" y="100" class="lbl-hi" text-anchor="middle">Triton sits where C sits — write most in it, drop to assembly only for hot paths</text>
+        </g>
+      </svg>
+    </div>
+    <div class="lesson-ref">↳ <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ACT 2 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">02 · 06:48<b>One tl.sum replaces an entire warp shuffle</b></div>
+      <h2>But it charges you three things.</h2>
+    </div>
+
+    <div class="viz">
+      <div class="viz-cap"><span>FIG 2 · same reduction — CUDA vs Triton</span><span>~15 lines → 2 lines</span></div>
+      <svg viewBox="0 0 980 240" width="100%" height="240">
+        <rect x="10" y="10" width="460" height="220" fill="#2A241C" stroke="#3a3428" rx="8"/>
+        <text x="30" y="34" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="11">// CUDA — warp shuffle reduction</text>
+        <text x="30" y="58" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">for (int o = 16; o &gt; 0; o &gt;&gt;= 1)</text>
+        <text x="30" y="76" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  local += __shfl_down_sync(0xFFFFFFFFu, local, o);</text>
+        <text x="30" y="100" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">if (lane == 0) sdata[wid] = local;</text>
+        <text x="30" y="118" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">__syncthreads();</text>
+        <text x="30" y="142" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">if (wid == 0) {</text>
+        <text x="30" y="160" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  val = (tid &lt; nwarps) ? sdata[tid] : 0.f;</text>
+        <text x="30" y="178" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  for (int o = 16; o &gt; 0; o &gt;&gt;= 1)</text>
+        <text x="30" y="196" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">    val += __shfl_down_sync(0xFFFFFFFFu, val, o);</text>
+        <text x="30" y="214" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">  if (tid == 0) atomicAdd(out, val);</text>
+        <text x="30" y="232" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11">}</text>
+        <text x="450" y="32" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="end">~15 lines</text>
+
+        <path d="M480 120 L 510 120" class="acc"/>
+        <path d="M510 120 L 504 115 M510 120 L 504 125" class="acc"/>
+
+        <rect x="520" y="10" width="450" height="220" fill="#2A241C" stroke="var(--accent)" rx="8"/>
+        <text x="540" y="34" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="11"># Triton</text>
+        <text x="540" y="78" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="14">partial = tl.sum(x, axis=0)</text>
+        <text x="540" y="100" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="14">tl.store(partial_ptr + pid, partial)</text>
+        <text x="540" y="160" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">the SASS the compiler emits</text>
+        <text x="540" y="176" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">has the same shfl.sync.bfly</text>
+        <text x="540" y="192" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">→ verified with TRITON_PRINT_PTX=1</text>
+        <text x="950" y="32" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="end">2 lines · same PTX</text>
+      </svg>
+    </div>
+
+    <div class="dlg sam" style="margin-top:28px"><div class="who">SAM</div><div class="ln">So it really is free?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(laughs) Not quite. <strong>Three costs.</strong></div></div>
+
+    <div class="act-body split" style="margin-top:24px">
+      <div>
+        <div class="callout">
+          <div class="label">① launch overhead</div>
+          <p>Reducing 67M elements — CUDA v4 = <strong>1.039 ms</strong>, Triton = <strong>1.097 ms</strong> (5% slower). Python → autotune cache → JIT cache → argument binding → <code>cuLaunchKernel</code> eats ~50–100 µs. For tiny kernels that overhead can exceed the compute time. → Launch 30 element-wise ops as separate Triton kernels and you're done.</p>
+        </div>
+        <div class="callout">
+          <div class="label">② autotune footgun</div>
+          <p>Autotune runs configs sequentially against the same output buffer. Leftover <strong>stale partial sums</strong> from previous attempts mix into the result. Fix — <code>reset_to_zero=["partial_ptr"]</code>. It's faintly mentioned in the docs; miss it and you debug for hours.</p>
+        </div>
+        <div class="callout">
+          <div class="label">③ autotune + 2-pass reduce idiom</div>
+          <p>Change <code>BLOCK_SIZE</code> and <code>num_programs</code> changes too. Size the partial buffer for the maximum case, then slice it to the prefix that matches the chosen config.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="pull">"Triton is high-level but <em>thin.</em>"<br><span style="color:var(--muted);font-size:18px;font-weight:500">Its abstraction is shallow, so the internals keep leaking out. Handling the leaks well is the value of a Triton engineer.</span><span class="by">— Jensen, 12:04</span></div>
+
+        <div class="viz dark">
+          <div class="viz-cap" style="color:#A99B7A"><span>reduction.py · footgun remedy</span><span>reset_to_zero</span></div>
+<pre class="mini" style="margin:0;background:none;border:none">@triton.autotune(
+    configs=AUTOTUNE_CONFIGS,
+    key=["n_elements"],
+    <span class="k">reset_to_zero=["partial_ptr"],</span>  <span class="c"># ← matters</span>
+)</pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="03-reduction.html">Lesson 03 · Reduction</a></div>
+  </section>
+
+  <!-- ACT 3 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">03 · 13:02<b>One program = one row</b></div>
+      <h2>Mask logic dissolves naturally <strong>into the data values</strong>.</h2>
+    </div>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">So how do you handle rows with N=1000?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln"><code>BLOCK_SIZE=1024</code>, mask out the last 24. The trick is <code>other=-float("inf")</code>. If OOB lanes hold -inf, <code>tl.max</code> is unaffected and <code>exp(-inf)=0</code> so sum doesn't get contributions either. Mask logic melts into the data values.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">The autotune key is <code>BLOCK_SIZE</code>. Clever not to use N directly.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Right. With <code>BLOCK_SIZE = _next_pow2(N)</code>, N=513–1024 all bucket into 1024. <strong>Cache-friendly autotune key design</strong> — the last skill you pick up when learning Triton.</div></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 3 · handling OOB lanes at N=1000</span><span>mask = data value</span></div>
+          <svg viewBox="0 0 460 200" width="100%" height="200">
+            <g font-family="JetBrains Mono, monospace" font-size="9">
+              <text x="10" y="24" fill="var(--muted)">offs</text>
+              <text x="10" y="80" fill="var(--muted)">x</text>
+              <text x="10" y="142" fill="var(--muted)">max/sum</text>
+            </g>
+            <rect x="50" y="14" width="300" height="18" class="box-deep" rx="2"/>
+            <text x="200" y="27" text-anchor="middle" class="lbl">1000 valid · 0..999</text>
+            <rect x="352" y="14" width="96" height="18" fill="var(--paper-deep)" stroke="var(--accent)" stroke-dasharray="3,2" rx="2"/>
+            <text x="400" y="27" text-anchor="middle" class="lbl-hi">24 OOB</text>
+
+            <rect x="50" y="70" width="300" height="18" fill="var(--accent)" opacity="0.3" rx="2"/>
+            <text x="200" y="83" text-anchor="middle" class="lbl">real data</text>
+            <rect x="352" y="70" width="96" height="18" fill="var(--code-bg)" rx="2"/>
+            <text x="400" y="83" text-anchor="middle" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="10">-inf</text>
+
+            <path d="M200 90 L 200 128" class="ln"/>
+            <path d="M400 90 L 200 128" class="lnd"/>
+
+            <rect x="130" y="130" width="160" height="30" class="box-paper" rx="4" stroke="var(--accent)"/>
+            <text x="210" y="150" text-anchor="middle" class="tx" font-size="12" font-weight="600">max(x) · sum(exp(x-m))</text>
+
+            <text x="60" y="182" class="lbl-hi">The OOB -inf doesn't affect the max or the exp-sum → branch-free and clean</text>
+          </svg>
+        </div>
+
+        <div class="viz dark" style="margin-top:14px">
+          <div class="viz-cap"><span>softmax.py · the three core lines</span></div>
+<pre class="mini" style="margin:0">offs = tl.arange(0, BLOCK_SIZE)       <span class="c"># 0..1023</span>
+mask = offs &lt; n_cols                  <span class="c"># only first 1000 True</span>
+x = tl.load(in_row + offs, mask=mask,
+            other=-float(<span class="s">"inf"</span>))       <span class="c"># OOB → -inf</span></pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="05-softmax-fusion.html">Lesson 05 · Softmax</a></div>
+  </section>
+
+  <!-- ACT 4 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">04 · 18:41<b>One thing where Triton beats CUDA</b></div>
+      <h2>Grouped program-id swizzling — possible in CUDA, but <em>nobody writes it</em>.</h2>
+    </div>
+    <p class="act-lede">Change only the order in which output C tiles are visited, and L2 reuse changes dramatically. Row-major eviction sweeps B's columns. Group-wise traversal lets the same B columns be reused.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4A · row-major · B columns evicted every row</span><span>naive</span></div>
+          <div class="tile-grid" style="grid-template-columns:repeat(8,28px)">
+            <div class="hi">0</div><div class="mid">1</div><div class="mid">2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div>
+            <div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div><div>14</div><div>15</div>
+            <div>16</div><div>17</div><div>18</div><div>19</div><div>20</div><div>21</div><div>22</div><div>23</div>
+            <div>24</div><div>25</div><div>26</div><div>27</div><div>28</div><div>29</div><div>30</div><div>31</div>
+          </div>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">Tile 0→1→2→… same row of A, <em>different column</em> of B. If B doesn't fit in L2, it gets swept out.</p>
+        </div>
+      </div>
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4B · grouped · GROUP_SIZE_M=4</span><span>swizzled</span></div>
+          <div class="tile-grid" style="grid-template-columns:repeat(4,28px) 6px repeat(4,28px)">
+            <div class="hi">0</div><div class="mid">4</div><div>8</div><div>12</div><div style="background:transparent"></div><div>16</div><div>20</div><div>24</div><div>28</div>
+            <div class="hi">1</div><div class="mid">5</div><div>9</div><div>13</div><div style="background:transparent"></div><div>17</div><div>21</div><div>25</div><div>29</div>
+            <div class="hi">2</div><div class="mid">6</div><div>10</div><div>14</div><div style="background:transparent"></div><div>18</div><div>22</div><div>26</div><div>30</div>
+            <div class="hi">3</div><div class="mid">7</div><div>11</div><div>15</div><div style="background:transparent"></div><div>19</div><div>23</div><div>27</div><div>31</div>
+          </div>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">Tiles 0→1→2→3 reuse <em>the same B column</em> four times. L2 efficiency ↑.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="dlg sam" style="margin-top:24px"><div class="who">SAM</div><div class="ln">You can write this in CUDA too. Why say CUDA doesn't have it?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln"><strong>You can, but nobody does.</strong> Three reasons — ① In CUDA, <code>blockIdx.x</code> is just linear hardware order. You have to write the math by hand at the top of the kernel. ② That math is painful to read. ③ Change <code>GROUP_SIZE_M</code> and you recompile. In Triton it's an autotune parameter and a standard idiom.</div></div>
+
+    <div class="viz" style="margin-top:20px">
+      <div class="viz-cap"><span>FIG 4C · measured — 4096³ matmul</span><span>L4 sm_89</span></div>
+      <table class="tbl" style="margin:0">
+        <thead><tr><th>variant</th><th class="num">TFLOPS</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td>our CUDA v3 (FMA only)</td><td class="num">3.9</td><td>register blocking</td></tr>
+          <tr><td>torch.matmul (cuBLAS + TF32)</td><td class="num">25.8</td><td>years of NVIDIA tuning</td></tr>
+          <tr><td>Triton fp32</td><td class="num"><strong>28.9</strong></td><td>cuBLAS + <strong>12%</strong></td></tr>
+          <tr><td>our CUDA v4 (WMMA fp16)</td><td class="num">18.5</td><td>hand-written mma</td></tr>
+          <tr><td>cuBLAS fp16</td><td class="num">51.8</td><td>—</td></tr>
+          <tr><td>Triton fp16</td><td class="num"><strong>54.0</strong></td><td>cuBLAS + <strong>4%</strong> · 40 lines</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pull">Twenty years of cuBLAS loses to <strong>40 lines of Python</strong>.<br><span style="color:var(--muted);font-size:16px;font-weight:500">Autotune explores the config space better than a human. A textbook case of measurement beating theory.</span><span class="by">— Jensen, 23:58</span></div>
+    <div class="lesson-ref">↳ <a href="04-matmul.html">Lesson 04 · Matmul</a> &nbsp; <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ACT 5 -->
+  <section class="act" style="background:linear-gradient(180deg,transparent 0,var(--bg-soft) 60%,transparent 100%);padding-left:24px;padding-right:24px;margin:0 -24px;border-radius:16px">
+    <div class="act-head">
+      <div class="num">05 · 26:10<b>Flash Attention in 40 lines</b></div>
+      <h2>Half the code. And <strong>6.1×</strong> faster.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5A · line count</span><span>kernel body only</span></div>
+          <svg viewBox="0 0 420 160" width="100%" height="160">
+            <text x="10" y="28" class="lbl">CUDA FA v1</text>
+            <rect x="10" y="36" width="400" height="22" fill="var(--paper-deep)"/>
+            <text x="400" y="52" text-anchor="end" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600">80 lines</text>
+
+            <text x="10" y="90" class="lbl">Triton FA</text>
+            <rect x="10" y="98" width="200" height="22" fill="var(--accent)"/>
+            <text x="220" y="114" fill="var(--accent)" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600">40 lines · 50%</text>
+
+            <text x="10" y="148" class="lbl-hi">Same job — half the code, 6.1× faster</text>
+          </svg>
+        </div>
+
+        <div class="viz dark" style="margin-top:14px">
+          <div class="viz-cap"><span>acc update · online + P@V in one line</span></div>
+<pre class="mini" style="margin:0">acc = acc * alpha[:, None] + tl.dot(p.to(v.dtype), v)</pre>
+          <p style="margin:10px 0 0;font-size:12px;color:#A99B7A;font-family:'JetBrains Mono',monospace">In CUDA this logic stretches over 30+ lines. Complexity collapses when the abstraction is at the right height.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5B · perf — N=8192, seq · single head</span><span>L4</span></div>
+          <table class="tbl" style="margin:0">
+            <thead><tr><th>impl</th><th class="num">time (ms)</th><th class="num">speedup</th></tr></thead>
+            <tbody>
+              <tr><td>CUDA FA v1 (fp32)</td><td class="num">3.045</td><td class="num">1.00×</td></tr>
+              <tr><td><strong>Triton FA (fp16)</strong></td><td class="num"><strong>0.496</strong></td><td class="num"><strong>6.14×</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="label">Where does the 6× come from</div>
+          <p><strong>①</strong> <code>tl.dot</code> uses Tensor Cores (our CUDA v1 is fp32 FMA). <strong>②</strong> Autotune sweeps 6 configs of <code>(BLOCK_M, BLOCK_N, num_warps, num_stages)</code> — sweeping that by hand in CUDA means 6 recompiles. <strong>③</strong> <code>tl.trans</code>, 2-D pointer broadcasts, swizzled smem layouts — all automatic.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="06-flash-attention.html">Lesson 06 · CUDA FA</a> &nbsp; <a href="08-triton-port.html">Lesson 08 · Triton port</a></div>
+  </section>
+
+  <!-- ACT 6 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">06 · 31:35<b>The magic of one constexpr</b></div>
+      <h2>Causal mask isn't about "filling" — it's about "removing from the loop."</h2>
+    </div>
+    <p class="act-lede">Filling with <code>-inf</code> still computes the full QKᵀ. FA-v2's real win comes from <em>pulling the upper-triangle K tiles out of the iteration itself</em>.</p>
+
+    <div class="viz">
+      <div class="viz-cap"><span>FIG 6A · causal loop · different end_n per pid_m</span><span>half the tiles skipped</span></div>
+      <svg viewBox="0 0 900 260" width="100%" height="260">
+        <g>
+          <text x="20" y="30" class="lbl">pid_m ↓</text>
+          <text x="820" y="30" class="lbl">start_n →</text>
+          <g font-family="JetBrains Mono, monospace" font-size="10"></g>
+        </g>
+        <g>
+          <rect x="60"  y="50" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="210" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="285" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="50" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="65" class="lbl">m=0</text>
+        </g>
+        <g>
+          <rect x="60"  y="75" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="75" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="285" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="75" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="90" class="lbl">m=1</text>
+        </g>
+        <g>
+          <rect x="60"  y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="100" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="360" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="100" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="115" class="lbl">m=2</text>
+        </g>
+        <g>
+          <rect x="60"  y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="125" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="435" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="125" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="140" class="lbl">m=3</text>
+        </g>
+        <g>
+          <rect x="60"  y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="150" width="70" height="22" fill="var(--accent)"/>
+          <rect x="435" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="510" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="150" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="165" class="lbl">m=4</text>
+        </g>
+        <g>
+          <rect x="60"  y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="135" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="210" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="285" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="360" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="435" y="175" width="70" height="22" fill="var(--accent)"/>
+          <rect x="510" y="175" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <rect x="585" y="175" width="70" height="22" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+          <text x="20" y="190" class="lbl">m=5</text>
+        </g>
+
+        <rect x="680" y="50" width="16" height="16" fill="var(--accent)"/>
+        <text x="704" y="62" class="lbl">computed</text>
+        <rect x="680" y="75" width="16" height="16" fill="var(--paper-deep)" stroke-dasharray="2,2" stroke="var(--muted)"/>
+        <text x="704" y="87" class="lbl">skipped · causal</text>
+
+        <text x="680" y="128" class="lbl-hi">end_n = (pid_m+1) * BLOCK_M</text>
+        <text x="680" y="144" class="lbl">→ iterate ~N/2 tiles on average</text>
+
+        <text x="680" y="180" class="tx" font-weight="600">N=2048:</text>
+        <text x="680" y="198" class="lbl">non-causal · 2.643 ms</text>
+        <text x="680" y="214" class="lbl-hi">causal · 0.784 ms (3.3×)</text>
+
+        <text x="60" y="232" class="lbl-hi">Only the diagonal tile needs per-element masking — everything else is pulled from the iteration</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:20px">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>constexpr · two kernels JIT-compiled</span><span>no runtime branch</span></div>
+<pre class="mini" style="margin:0"><span class="k">def</span> flash_attention_mha_fwd_kernel(...,
+    IS_CAUSAL: <span class="k">tl.constexpr</span>,     <span class="c"># ← key</span>
+    BLOCK_M: tl.constexpr,
+    BLOCK_N: tl.constexpr):
+    <span class="k">if</span> IS_CAUSAL:
+        end_n = tl.minimum(N, (pid_m+1) * BLOCK_M)
+    <span class="k">else</span>:
+        end_n = N</pre>
+          <p style="margin:12px 0 0;font-size:12px;color:#A99B7A;font-family:'JetBrains Mono',monospace">→ Compile <strong>separate kernels</strong> for IS_CAUSAL=True and =False. The if doesn't exist at runtime. Equivalent to C++ template specialization.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 6B · our Triton vs SDPA (cuDNN FA-2)</span><span>LLaMA-7B shape</span></div>
+          <table class="tbl" style="margin:0">
+            <thead><tr><th>(B, H, N, d)</th><th class="num">ours</th><th class="num">SDPA</th><th class="num">ratio</th></tr></thead>
+            <tbody>
+              <tr><td>(1, 32, 2048, 128)</td><td class="num">0.784</td><td class="num">0.613</td><td class="num">0.78×</td></tr>
+              <tr><td>(1, 32, 4096, 128)</td><td class="num">2.964</td><td class="num">2.559</td><td class="num">0.86×</td></tr>
+              <tr><td>(16, 12, 512, 64)</td><td class="num"><strong>0.249</strong></td><td class="num">0.282</td><td class="num"><strong>1.13×</strong></td></tr>
+            </tbody>
+          </table>
+          <p style="margin:14px 0 0;font-size:13px;color:var(--ink-soft)">One 268-line file at 78–90% of cuDNN. What's missing — async copy, persistent kernel, warp specialization — all still experimental in Triton.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="09-mha-causal-fa.html">Lesson 09 · MHA causal FA</a></div>
+  </section>
+
+  <!-- ACT 7 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">07 · 37:20<b>Climbing up to torch.ops.*</b></div>
+      <h2>70 lines. The last glue that turns a Triton kernel into a <em>component</em>.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz dark">
+          <div class="viz-cap"><span>flash_attention_mha_op.py · 70 lines</span></div>
+<pre class="mini" style="margin:0"><span class="c">@custom_op(</span>
+    <span class="s">"triton_training::flash_attention_mha"</span>,
+    mutates_args=(),
+    device_types=<span class="s">"cuda"</span>,
+)
+<span class="k">def</span> flash_attention_mha_op(q, k, v, is_causal=False):
+    <span class="k">return</span> triton_flash_attention_mha(q, k, v, is_causal=is_causal)
+
+<span class="k">@flash_attention_mha_op.register_fake</span>
+<span class="k">def</span> _fake(q, k, v, is_causal=False):
+    <span class="k">return</span> torch.empty_like(q)   <span class="c"># ← shape decl for Dynamo</span></pre>
+        </div>
+
+        <div class="callout">
+          <div class="label">Why register_fake matters</div>
+          <p>When <code>torch.compile</code> traces a model, it uses FakeTensors (shape, dtype, device — no data). Our Triton kernel can't run on those. Instead, we declare <em>"this op's output shape is this"</em> → Dynamo doesn't break the graph. Without it, <code>fullgraph=True</code> fails.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 7 · what these 70 lines unlock</span><span>vLLM pattern</span></div>
+          <svg viewBox="0 0 460 250" width="100%" height="250">
+            <rect x="20" y="20" width="420" height="50" class="box-paper" rx="6"/>
+            <text x="230" y="42" text-anchor="middle" class="tx" font-weight="600">AttentionBlock · torch.compile(fullgraph=True)</text>
+            <text x="230" y="58" text-anchor="middle" class="lbl">0 graph breaks · err = 0.00e+00</text>
+
+            <path d="M230 70 L 230 90" class="acc"/>
+            <path d="M230 90 L 225 84 M230 90 L 235 84" class="acc"/>
+
+            <rect x="20" y="95" width="420" height="40" fill="var(--accent)" rx="6"/>
+            <text x="230" y="120" text-anchor="middle" fill="#FBF6E9" font-weight="600" font-family="JetBrains Mono, monospace">torch.ops.triton_training.flash_attention_mha</text>
+
+            <path d="M230 135 L 230 155" class="acc"/>
+            <path d="M230 155 L 225 149 M230 155 L 235 149" class="acc"/>
+
+            <rect x="20" y="160" width="200" height="70" class="box-paper" rx="6"/>
+            <text x="120" y="182" text-anchor="middle" class="tx" font-weight="600">our Triton FA</text>
+            <text x="120" y="200" text-anchor="middle" class="lbl">268 lines · L4</text>
+            <text x="120" y="218" text-anchor="middle" class="lbl">Python + Triton</text>
+
+            <rect x="240" y="160" width="200" height="70" class="box-paper" rx="6"/>
+            <text x="340" y="182" text-anchor="middle" class="tx" font-weight="600">vLLM PagedAttention</text>
+            <text x="340" y="200" text-anchor="middle" class="lbl">hundreds of lines · H100</text>
+            <text x="340" y="218" text-anchor="middle" class="lbl">C++ + CUDA</text>
+
+            <text x="230" y="248" text-anchor="middle" class="lbl-hi">Same pattern. Different implementation. Same entry point.</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="dlg sam" style="margin-top:20px"><div class="who">SAM</div><div class="ln">So what Brian built is essentially a vLLM-style production op.</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Nearly. What's missing is backward (autograd) and GQA support. Both have clear designs — next-lesson material. Bolt those two on and the next goal is <strong>porting vLLM's PagedAttention</strong>.</div></div>
+    <div class="lesson-ref">↳ <a href="07-pytorch-op.html">Lesson 07 · custom_op</a> &nbsp; <a href="09-mha-causal-fa.html">Lesson 09 · MHA</a></div>
+  </section>
+
+  <!-- OUTRO -->
+  <section class="outro">
+    <h2>What Triton hides · what it exposes</h2>
+    <p style="font-size:17px;color:var(--ink-soft);max-width:700px">Not a "high-level DSL." A language that <strong>sits at exactly the right abstraction height</strong>. The five below go under the compiler; the five above stay in your hands.</p>
+
+    <div class="act-body split" style="margin-top:28px">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>HIDES</span><span>under the compiler</span></div>
+          <ol style="margin:0;padding-left:22px;color:var(--ink-soft);font-size:14px;line-height:1.9">
+            <li>Thread-level parallelism — <code>threadIdx.x</code> is gone</li>
+            <li>Warp shuffle, smem tree reduction — <code>tl.sum</code></li>
+            <li>Tensor Core instruction selection — <code>tl.dot</code> picks by dtype</li>
+            <li>Smem layout swizzling — bank conflicts dodged automatically</li>
+            <li>Launch config tuning — delegated to autotune</li>
+          </ol>
+        </div>
+      </div>
+      <div>
+        <div class="viz" style="border-color:var(--accent)">
+          <div class="viz-cap"><span style="color:var(--accent)">EXPOSES</span><span>still in your hands</span></div>
+          <ol style="margin:0;padding-left:22px;color:var(--ink-soft);font-size:14px;line-height:1.9">
+            <li>Block size, grid structure — <code>program_id</code>, <code>grid=lambda meta</code></li>
+            <li>Memory-hierarchy awareness — HBM patterns of <code>tl.load(mask=...)</code></li>
+            <li>Compile-time vs runtime boundary — <code>tl.constexpr</code></li>
+            <li>Autotune key design — too broad explodes; too narrow misses</li>
+            <li>Numerical behavior — online softmax, fp16 vs fp32 accumulator</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="pull" style="margin-top:36px">CUDA is assembly, Triton is C, PyTorch is Python.<br>Write most of it in C; drop to assembly only for hot paths.<span class="by">— Sam &amp; Jensen, 41:02</span></div>
+
+    <div class="callout">
+      <div class="label">Four reasons you still need CUDA</div>
+      <ol style="margin:8px 0 0;padding-left:22px;color:var(--ink);font-size:14px;line-height:1.75">
+        <li>When Triton hits a wall — new mma (Blackwell FP4), persistent kernels, async copy fine control — still CUTLASS/CUDA.</li>
+        <li>To debug, you need to read the PTX Triton emits — <code>*.ptx</code> under <code>TRITON_CACHE_DIR</code>.</li>
+        <li>vLLM, FlashAttention-3, Mamba kernels are still CUDA-based. Reading them needs CUDA as first language.</li>
+        <li>Chasing "why is this Triton slow" lands on bank conflict, register spill, occupancy. Answers live in CUDA concepts.</li>
+      </ol>
+    </div>
+
+    <p class="lesson-ref" style="text-align:center;margin-top:36px;border:none">Code ref · <code>triton_kernels/</code> all 7 files · L4 sm_89, CUDA 13.0, PyTorch 2.11, Triton 3.6.</p>
+  </section>
+
+  <div class="artnav">
+    <a href="podcast-ep-42.html">
+      <span class="lbl">← Ep.42</span>
+      Why did your GPT end up using my GPU this way
+    </a>
+    <a href="index.html" class="nxt">
+      <span class="lbl">Back →</span>
+      Index · 11-post log
+    </a>
+  </div>
+
+</div>
+
 <footer class="bot">
   <span>The Stack · ep.43 · 42 min</span>
-  <span>가상 팟캐스트 · 기술 내용은 실제 레슨에서</span>
+  <span><span data-lang="ko">가상 팟캐스트 · 기술 내용은 실제 레슨에서</span><span data-lang="en" hidden>Imaginary podcast · technical content drawn from the actual lessons</span></span>
 </footer>
 
 </body></html>

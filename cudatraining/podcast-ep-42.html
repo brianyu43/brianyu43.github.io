@@ -24,7 +24,7 @@
   </nav>
 </div>
 
-<div class="wrap-wide" data-screen-label="Podcast ep.42 Sam vs Jensen">
+<div class="wrap-wide" data-screen-label="Podcast ep.42 Sam vs Jensen" data-lang="ko">
 
   <!-- HERO ========================================================= -->
   <section class="pod-hero">
@@ -632,9 +632,574 @@ new_sum = s1 * exp(m1 − new_max)
 
 </div>
 
+<!-- ============ ENGLISH ============ -->
+<div class="wrap-wide" data-lang="en" hidden>
+
+  <!-- HERO -->
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">《The Stack》</span>
+      <span class="epn">EP.42</span>
+      <span>2026 · APR · 19</span>
+      <span>38 MIN</span>
+      <span>IMAGINARY</span>
+    </div>
+    <h1>Why did your GPT<br>end up using my GPU <em style="font-style:normal;color:var(--accent)">this way</em></h1>
+    <p class="dek">Replay <strong>in reverse</strong> the 7-week path of an engineer who walked from <code>vector_add</code> to Flash Attention — and you start to see why the modern LLM evolved into exactly this shape, and how hardware and model co-evolved.</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Host</div>
+          <div class="nm">Sam</div>
+          <div class="sub">imaginary · asking from the model side</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">J</div>
+        <div>
+          <div class="role">Guest</div>
+          <div class="nm">Jensen</div>
+          <div class="sub">imaginary · answering from the chip side</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 6 ACTS</span><span>38:12</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">02:14</span><span class="ix">01</span><span class="ti">Distance is the costliest thing</span><span class="dur">HBM vs FMA — 100×</span></a>
+        <a href="#a2"><span class="ts">08:03</span><span class="ix">02</span><span class="ti">Parallelism isn't free</span><span class="dur">atomic 133 ms vs tree 1 ms</span></a>
+        <a href="#a3"><span class="ts">13:41</span><span class="ix">03</span><span class="ti">Matmul feeds the LLM</span><span class="dur">0.4 → 7.9 TFLOPS</span></a>
+        <a href="#a4"><span class="ts">20:02</span><span class="ix">04</span><span class="ti">Fusion, the dark art</span><span class="dur">HBM trips 4 → 2</span></a>
+        <a href="#a5"><span class="ts">25:38</span><span class="ix">05</span><span class="ti">The moment everything converges</span><span class="dur">Flash Attention · 65× less</span></a>
+        <a href="#a6"><span class="ts">33:07</span><span class="ix">06</span><span class="ti">Why PyTorch</span><span class="dur">torch.ops · single entry point</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLD OPEN -->
+  <section class="act" style="padding-top:56px">
+    <div class="act-head">
+      <div class="num">00 · 02:14<b>Cold&nbsp;Open</b></div>
+      <h2>Let's go in reverse — then everything explains itself.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">SAM</div><div class="ln">Slightly unusual concept today. I watched an engineer learn CUDA from the sidelines. <strong>Seven weeks, from <code>vector_add</code> to Flash Attention.</strong> And one question kept circling. <em>Why did GPGPU evolve into exactly this shape?</em></div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(laughs) Then let's walk it backward. The kernel people call most these days is Flash Attention, right? Go <strong>backward from there</strong> and almost everything explains itself.</div></div>
+  </section>
+
+  <!-- ACT 1 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">01 · 08:03<b>Distance is the costliest thing</b></div>
+      <h2>Compute is nearly free, and moving data is 100× more expensive.</h2>
+    </div>
+    <p class="act-lede">Inside a GPU, adding one number is 1 ns. Fetching it from HBM is 100 ns. This single ratio governs every decision in GPU programming.</p>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 1 · access cost by tier</span><span>lower = faster</span></div>
+          <div class="bars">
+            <div class="row"><span class="lbl">FMA (register)</span><span class="bar sml"><span style="width:1%"></span></span><span class="val">~1 ns</span></div>
+            <div class="row"><span class="lbl">L1 / smem</span><span class="bar sml"><span style="width:5%"></span></span><span class="val">~5 ns</span></div>
+            <div class="row"><span class="lbl">L2 cache</span><span class="bar"><span style="width:20%"></span></span><span class="val">~20 ns</span></div>
+            <div class="row"><span class="lbl">HBM</span><span class="bar"><span style="width:100%"></span></span><span class="val">~100 ns</span></div>
+            <div class="row"><span class="lbl">PCIe H↔D</span><span class="bar"><span style="width:100%;background:#6B3818"></span></span><span class="val">~10 µs</span></div>
+            <div class="row"><span class="lbl">InfiniBand</span><span class="bar"><span style="width:100%;background:#3A1F0A"></span></span><span class="val">~2 µs /byte²</span></div>
+          </div>
+        </div>
+        <div class="callout" style="margin-top:24px">
+          <div class="label">What lessons 1 &amp; 2 confirmed in practice</div>
+          <p>The <code>vector_add</code> kernel: 3.5 ms. The PCIe copy of the same data alone: <strong>60 ms</strong>. The kernel is 17× shorter. Without pinned memory, end-to-end runs <strong>5.6× slower</strong>.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">So… how long does adding one number inside the GPU take?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">About <strong>1 nanosecond</strong>. Fetching it from HBM: 400–500 cycles, nearly <strong>100 nanoseconds</strong>. Compute is nearly free, and <em>data movement is 100× more expensive</em>.</div></div>
+
+        <div class="pull">"The moment you leave the silicon, 100×.<br>That one fact set half the shape of LLM architecture."<span class="by">— Jensen, 09:41</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">So the game isn't <em>compute faster</em>, it's <em>avoid moving data</em>.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Exactly. That's why we built NVLink, pushed HBM density, and grew L2 cache to 48 MB. We keep shrinking the "distance." Physics only lets us go so far.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">So that's why people scream to <em>keep GPUs in the same node</em> when they build clusters.</div></div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="01-vector-add.html">Lesson 01 · vector_add</a> &nbsp; <a href="02-pinned-vs-pageable.html">Lesson 02 · pinned vs pageable</a></div>
+  </section>
+
+  <!-- ACT 2 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">02 · 13:41<b>Parallelism isn't free</b></div>
+      <h2>Feed a serial algorithm to parallel hardware and the hardware turns serial.</h2>
+    </div>
+    <p class="act-lede">If you have tens of thousands of threads, doing atomic adds together should be fast, right? No. 100× slower. That's why GPUs ship weird instructions like <code>__shfl_down_sync</code>.</p>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">The GPU has tens of thousands of threads. Wouldn't adding everything in parallel be fast?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">That's the trap in Lesson 3. Version 1: every thread does <code>atomicAdd</code> on the same address. Guess how many ms?</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">… fast, I'd think?</div></div>
+
+        <div class="pull"><strong>133 ms.</strong> Other versions: <strong>1 ms.</strong><br>100× difference.<span class="by">— Jensen, 14:58</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Wait — so the GPU hardware's <em>weird features</em> — shared memory, warp shuffle — are all <strong>"the hardware went in because software needed these patterns"</strong>?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">That's co-design. <code>__shfl_down_sync</code> didn't exist in 1.0. People used tree reductions so much we added it six years later. Now it's standard.</div></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 2A · atomicAdd — a million in a single line</span><span>SERIAL</span></div>
+          <svg viewBox="0 0 440 170" width="100%" height="170">
+            <rect x="350" y="60" width="70" height="40" rx="4" class="box-acc"/>
+            <text x="385" y="85" class="tx" text-anchor="middle" fill="#FBF6E9" style="font-size:11px;font-family:'JetBrains Mono',monospace">sum</text>
+            <g>
+              <rect x="10" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="36" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="62" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="88" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="114" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="140" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="166" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="192" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="218" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="244" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="270" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <rect x="296" y="20" width="22" height="22" class="box-deep" rx="3"/>
+              <text x="330" y="36" class="lbl">… a million</text>
+            </g>
+            <path d="M160 42 C 220 42, 300 60, 350 80" class="acc"/>
+            <path d="M350 80 L 344 75 M350 80 L 344 85" class="acc"/>
+            <text x="160" y="128" class="lbl-hi">one at a time, in order</text>
+            <text x="160" y="148" class="lbl">hardware serializes writers → 133 ms</text>
+          </svg>
+        </div>
+
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 2B · tree reduction — log N levels</span><span>PARALLEL</span></div>
+          <svg viewBox="0 0 440 170" width="100%" height="170">
+            <g font-family="JetBrains Mono, monospace" font-size="9">
+              <rect x="20" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="46" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="72" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="98" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="124" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="150" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="176" y="130" width="22" height="22" class="box-deep" rx="2"/>
+              <rect x="202" y="130" width="22" height="22" class="box-deep" rx="2"/>
+            </g>
+            <g>
+              <rect x="33" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="85" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="137" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="189" y="92" width="22" height="22" class="box-paper" rx="2"/>
+              <path d="M31 130 L 44 114 M57 130 L 44 114" class="ln"/>
+              <path d="M83 130 L 96 114 M109 130 L 96 114" class="ln"/>
+              <path d="M135 130 L 148 114 M161 130 L 148 114" class="ln"/>
+              <path d="M187 130 L 200 114 M213 130 L 200 114" class="ln"/>
+            </g>
+            <g>
+              <rect x="59" y="54" width="22" height="22" class="box-paper" rx="2"/>
+              <rect x="163" y="54" width="22" height="22" class="box-paper" rx="2"/>
+              <path d="M44 92 L 70 76 M96 92 L 70 76" class="ln"/>
+              <path d="M148 92 L 174 76 M200 92 L 174 76" class="ln"/>
+            </g>
+            <rect x="111" y="16" width="22" height="22" class="box-acc" rx="2"/>
+            <path d="M70 54 L 122 38 M174 54 L 122 38" class="acc"/>
+            <text x="240" y="30" class="lbl-hi">level log N</text>
+            <text x="240" y="48" class="lbl">reg / smem swap</text>
+            <text x="240" y="68" class="lbl">bar.sync between</text>
+            <text x="240" y="98" class="lbl">warp-shuffle level</text>
+            <text x="240" y="116" class="lbl">(no sync, reg swap)</text>
+            <text x="240" y="160" class="lbl-hi">result: 1 ms · 100× faster</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:12px">
+      <div class="label">__syncthreads() is not free either</div>
+      <p>Remove five of them and you get 29% back. In small kernels, a single sync is a third of runtime. That's why "last warp only shuffles, no sync" became an idiom.</p>
+    </div>
+    <div class="lesson-ref">↳ <a href="03-reduction.html">Lesson 03 · Four versions of Reduction</a></div>
+  </section>
+
+  <!-- ACT 3 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">03 · 20:02<b>Matmul feeds the LLM</b></div>
+      <h2>Four jumps — and the last one is a new piece of hardware.</h2>
+    </div>
+    <p class="act-lede">Why Lesson 4 was the longest. Tiling and register blocking are software techniques that raise arithmetic intensity; the final breakthrough past the 8-TFLOPS ceiling came from a <strong>new unit called the Tensor Core</strong>.</p>
+
+    <div class="viz" style="padding:36px 32px">
+      <div class="viz-cap"><span>FIG 3 · matmul v1 → v4 — T4, 4096³</span><span>TFLOPS</span></div>
+      <svg viewBox="0 0 1000 300" width="100%" height="300" style="max-width:100%">
+        <line x1="80" y1="260" x2="980" y2="260" class="ln"/>
+        <line x1="80" y1="20" x2="80" y2="260" class="ln"/>
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="var(--muted)">
+          <text x="72" y="264" text-anchor="end">0</text>
+          <line x1="80" y1="232" x2="980" y2="232" class="lnd"/>
+          <text x="72" y="236" text-anchor="end">2</text>
+          <line x1="80" y1="176" x2="980" y2="176" class="lnd"/>
+          <text x="72" y="180" text-anchor="end">4</text>
+          <line x1="80" y1="120" x2="980" y2="120" class="lnd"/>
+          <text x="72" y="124" text-anchor="end">6</text>
+          <line x1="80" y1="64" x2="980" y2="64" class="lnd"/>
+          <text x="72" y="68" text-anchor="end">8 TFLOPS</text>
+        </g>
+        <line x1="80" y1="40" x2="980" y2="40" stroke="var(--accent)" stroke-dasharray="4,3" stroke-width="1"/>
+        <text x="980" y="32" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--accent)">FP32 FMA peak · 8.1 TFLOPS</text>
+        <line x1="580" y1="10" x2="980" y2="10" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="980" y="7" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="var(--accent)" font-weight="600">Tensor Core · 65 TFLOPS →</text>
+
+        <g>
+          <rect x="140" y="249" width="130" height="11" fill="var(--paper-deep)"/>
+          <text x="205" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v1 · naive</text>
+          <text x="205" y="242" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">0.4</text>
+          <text x="205" y="294" text-anchor="middle" class="lbl">global-only loads</text>
+        </g>
+        <g>
+          <rect x="300" y="238" width="130" height="22" fill="var(--paper-deep)"/>
+          <text x="365" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v2 · smem tiling</text>
+          <text x="365" y="231" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">0.8</text>
+          <text x="365" y="294" text-anchor="middle" class="lbl">re-use tile in smem</text>
+        </g>
+        <g>
+          <rect x="460" y="204" width="130" height="56" fill="var(--accent-2)" opacity="0.85"/>
+          <text x="525" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v3 · register blk</text>
+          <text x="525" y="197" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="600">2.0</text>
+          <text x="525" y="294" text-anchor="middle" class="lbl">4×4 per-thread</text>
+        </g>
+        <g>
+          <rect x="620" y="38" width="130" height="222" fill="var(--accent)"/>
+          <text x="685" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600">v4 · Tensor Core</text>
+          <text x="685" y="31" text-anchor="middle" fill="var(--accent)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700">7.9</text>
+          <text x="685" y="294" text-anchor="middle" class="lbl">mma · new hardware</text>
+        </g>
+        <g>
+          <rect x="800" y="20" width="130" height="240" fill="none" stroke="var(--accent)" stroke-dasharray="3,3"/>
+          <text x="865" y="278" text-anchor="middle" class="tx" font-size="13" font-weight="600" fill="var(--muted)">(Triton fp16)</text>
+          <text x="865" y="13" text-anchor="middle" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="13" font-weight="700">54</text>
+          <text x="865" y="294" text-anchor="middle" class="lbl">ref · Lesson 08</text>
+        </g>
+
+        <path d="M270 248 Q 285 235 300 245" class="acc"/>
+        <text x="285" y="224" text-anchor="middle" class="lbl-hi">2×</text>
+        <path d="M430 237 Q 445 215 460 210" class="acc"/>
+        <text x="445" y="200" text-anchor="middle" class="lbl-hi">2.5×</text>
+        <path d="M590 205 Q 605 125 620 50" class="acc"/>
+        <text x="605" y="128" text-anchor="middle" class="lbl-hi">4×</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:8px">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">The axis just jumped at v4.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">The first three are "read less HBM" — lifting <strong>arithmetic intensity (AI)</strong>, flops per byte. No matter what you do, FP32 peak 8 TFLOPS is the ceiling. So Volta baked a 4×4 matmul block into the hardware.</div></div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">The FP16 / BF16 / FP8 stuff I kept hearing while training GPT-4 in 2023 — all of it was to feed Tensor Cores.</div></div>
+      </div>
+
+      <div>
+        <div class="pull"><strong>100%</strong> — Tensor Cores only work on reduced-precision inputs. <span style="color:var(--muted)">The descent to FP4 is about the chip as much as it is about the model.</span><span class="by">— Jensen, 22:48</span></div>
+
+        <div class="callout">
+          <div class="label">occupancy trap</div>
+          <p>"Bigger tiles raise AI, so they're faster" is only half true. You also need <strong>enough blocks to feed all the SMs</strong>. That's why decode kernels and prefill kernels look different.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="04-matmul.html">Lesson 04 · Four versions of Matmul</a></div>
+  </section>
+
+  <!-- ACT 4 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">04 · 25:38<b>Fusion, the dark art</b></div>
+      <h2>Fuse three kernels into one and HBM trips are halved — that's 2× speedup.</h2>
+    </div>
+
+    <div class="act-body split">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 4A · BEFORE · 3 kernels, 4 HBM trips</span><span>unfused</span></div>
+          <div class="hbm">
+            <div class="kstep"><span class="k">k1</span><span>max(x) → m</span><span class="io">R → W</span></div>
+            <div class="kstep"><span class="k">k2</span><span>exp(x − m) → num, sum</span><span class="io">R → W</span></div>
+            <div class="kstep"><span class="k">k3</span><span>num / sum → y</span><span class="io">R → W</span></div>
+            <div class="tally"><span>total</span><span>4 trips · 1.0×</span></div>
+          </div>
+        </div>
+
+        <div class="viz" style="margin-top:16px">
+          <div class="viz-cap"><span>FIG 4B · AFTER · 1 kernel, 2 HBM trips</span><span>fused online</span></div>
+          <div class="hbm">
+            <div class="kstep fused"><span class="k">k1</span><span>pass 1: running (m, s) in registers</span><span class="io">R</span></div>
+            <div class="kstep fused"><span class="k">k1</span><span>pass 2: y = exp(x−m)/s</span><span class="io">R → W</span></div>
+            <div class="tally"><span>total</span><span style="color:var(--accent)">2 trips · <strong>~2×</strong></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Softmax is mathematically three steps. Fine to just call three kernels, right?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Then HBM trips 4. Merge the three into one kernel: HBM trips 2. <strong>2× faster.</strong> Measured: 2.02×, 1.86×, 1.92×. Almost exactly theoretical. That's <em>operator fusion</em>.</div></div>
+
+        <div class="pull">Why not fuse everything into one giant kernel?<br><span style="color:var(--muted);font-size:18px;font-weight:500">— shared memory is finite, code combinatorics explode, precision issues.<br>"Not always good" — "picked only for hot paths."</span><span class="by">— Jensen, 27:10</span></div>
+
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">And <strong>online softmax</strong> — Lesson 5's v3 — felt like it mattered more than it looked.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">That's the mathematical half of Flash Attention. The formula that <em>exactly</em> merges (max, sum) when you can't fit the whole row. It was in an NVIDIA employee's 1985 paper; Tri Dao applied it to attention in 2022.</div></div>
+
+        <div class="viz dark">
+          <div class="viz-cap" style="color:#A99B7A"><span>ONLINE MERGE · formula</span><span>exact, O(N) memory</span></div>
+<pre class="mini" style="background:none;padding:0;margin:0;border:none"><span class="c"># merging two partial softmax statistics</span>
+new_max = max(m1, m2)
+new_sum = s1 * exp(m1 − new_max)
+        + s2 * exp(m2 − new_max)</pre>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="05-softmax-fusion.html">Lesson 05 · Softmax &amp; Online</a></div>
+  </section>
+
+  <!-- ACT 5 -->
+  <section class="act" style="background:linear-gradient(180deg,transparent 0,var(--bg-soft) 60%,transparent 100%);padding-left:24px;padding-right:24px;margin:0 -24px;border-radius:16px">
+    <div class="act-head">
+      <div class="num">05 · 28:16<b>The moment everything converges</b></div>
+      <h2>Flash Attention uses no fundamentally new technique — the combination was just sharp.</h2>
+    </div>
+    <p class="act-lede">It <em>never physically creates</em> the N×N intermediate. All five earlier techniques — coalesced loads, HBM intuition, warp reduce, tiled matmul, online softmax — fit inside one kernel.</p>
+
+    <div class="viz" style="padding:32px">
+      <div class="viz-cap"><span>FIG 5 · HBM traffic at N=4096</span><span>65× less</span></div>
+      <svg viewBox="0 0 1000 340" width="100%" height="340">
+        <text x="180" y="26" text-anchor="middle" class="tx-l">naive attention</text>
+        <text x="180" y="44" text-anchor="middle" class="lbl">S, P fully written to HBM</text>
+
+        <rect x="40" y="70" width="50" height="160" class="box-deep"/>
+        <text x="65" y="250" text-anchor="middle" class="lbl">Q · 4096×d</text>
+
+        <rect x="110" y="70" width="160" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="110" y="70" width="160" height="160" class="box-paper" fill="none"/>
+        <text x="190" y="155" text-anchor="middle" class="tx" font-weight="600">S = QKᵀ</text>
+        <text x="190" y="173" text-anchor="middle" class="lbl">N × N = 64 MB</text>
+        <text x="190" y="250" text-anchor="middle" class="lbl">materialized</text>
+
+        <path d="M270 150 L 300 150" class="acc"/>
+        <path d="M300 150 L 294 145 M300 150 L 294 155" class="acc"/>
+        <text x="285" y="140" text-anchor="middle" class="lbl-hi">softmax</text>
+
+        <rect x="310" y="70" width="30" height="160" class="box-deep"/>
+        <text x="325" y="250" text-anchor="middle" class="lbl">V</text>
+
+        <rect x="350" y="70" width="30" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="350" y="70" width="30" height="160" class="box-paper" fill="none"/>
+        <text x="365" y="250" text-anchor="middle" class="lbl">O</text>
+
+        <rect x="40" y="275" width="340" height="44" class="box-paper"/>
+        <text x="210" y="294" text-anchor="middle" class="tx" font-weight="600">HBM traffic</text>
+        <text x="210" y="313" text-anchor="middle" class="lbl-hi" style="font-size:16px;fill:var(--accent)">260 MB · baseline 1.0×</text>
+
+        <line x1="500" y1="60" x2="500" y2="320" class="lnd"/>
+
+        <text x="770" y="26" text-anchor="middle" class="tx-l">flash attention</text>
+        <text x="770" y="44" text-anchor="middle" class="lbl">S, P never written to HBM</text>
+
+        <rect x="540" y="70" width="40" height="40" class="box-deep"/>
+        <rect x="540" y="112" width="40" height="40" class="box-paper"/>
+        <rect x="540" y="154" width="40" height="40" class="box-paper"/>
+        <rect x="540" y="196" width="40" height="40" class="box-paper"/>
+        <text x="560" y="250" text-anchor="middle" class="lbl">Q blocks</text>
+        <text x="560" y="264" text-anchor="middle" class="lbl">Br=64</text>
+
+        <g>
+          <rect x="600" y="70" width="40" height="40" class="box-deep"/>
+          <rect x="642" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="684" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="726" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="768" y="70" width="40" height="40" class="box-paper"/>
+          <rect x="810" y="70" width="40" height="40" class="box-paper"/>
+        </g>
+        <text x="727" y="128" text-anchor="middle" class="lbl">K/V blocks · Bc=32</text>
+
+        <rect x="610" y="150" width="250" height="80" fill="var(--code-bg)" stroke="var(--accent)"/>
+        <text x="735" y="174" text-anchor="middle" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600">tile Sᵢⱼ = QᵢKⱼᵀ · only in registers</text>
+        <text x="735" y="192" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">online (mᵢ, sᵢ) running ← Act 4</text>
+        <text x="735" y="210" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">Oᵢ ← αᵢ · Oᵢ + P · V</text>
+        <text x="735" y="224" text-anchor="middle" fill="#E7B369" font-family="JetBrains Mono, monospace" font-size="10">discard tile. never touches HBM.</text>
+
+        <rect x="870" y="70" width="30" height="160" fill="var(--accent)" opacity="0.35"/>
+        <rect x="870" y="70" width="30" height="160" class="box-paper" fill="none"/>
+        <text x="885" y="250" text-anchor="middle" class="lbl">O</text>
+
+        <rect x="540" y="275" width="360" height="44" class="box-paper" stroke="var(--accent)"/>
+        <text x="720" y="294" text-anchor="middle" class="tx" font-weight="600">HBM traffic</text>
+        <text x="720" y="313" text-anchor="middle" class="lbl-hi" style="font-size:16px;fill:var(--accent)">4 MB · <strong>65× less</strong> · time 4.79×</text>
+      </svg>
+    </div>
+
+    <div class="act-body split" style="margin-top:20px">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">65× less should mean 65× faster, shouldn't it?</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(laughs) In practice it's 4.79×. Why? <strong>naive wasn't really HBM-bound.</strong> L2 cached most of S. FA's real win shows up <em>beyond the size L2 can hold</em> — N=8k, 16k, 32k. At those sizes naive won't even run.</div></div>
+
+        <div class="pull">The reason GPT-4o's 128k context works is <strong>FA-2 + FA-3</strong>. Without them, it's impossible.<span class="by">— Jensen, 31:44</span></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 5B · five lessons inside one FA kernel</span><span>synthesis</span></div>
+          <div class="hbm">
+            <div class="kstep"><span class="k">L1</span><span>Q / K / V coalesced load</span><span class="io">→ reg</span></div>
+            <div class="kstep"><span class="k">L2</span><span>HBM ↔ L2 intuition · tile sizes</span><span class="io">Br, Bc</span></div>
+            <div class="kstep"><span class="k">L3</span><span>warp-reduce for row max / sum</span><span class="io">__shfl_xor</span></div>
+            <div class="kstep"><span class="k">L4</span><span>tiled matmul in registers</span><span class="io">Q@Kᵀ, P@V</span></div>
+            <div class="kstep"><span class="k">L5</span><span>online (m, s) merge</span><span class="io">Act 4 formula</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="06-flash-attention.html">Lesson 06 · Flash Attention (capstone)</a></div>
+  </section>
+
+  <!-- ACT 6 -->
+  <section class="act">
+    <div class="act-head">
+      <div class="num">06 · 33:07<b>Why PyTorch</b></div>
+      <h2>The single entry point of the modern LLM-serving stack — <code>torch.ops.*</code>.</h2>
+    </div>
+
+    <div class="act-body split rev">
+      <div>
+        <div class="dlg sam"><div class="who">SAM</div><div class="ln">Until 2018 a CUDA kernel was mostly a standalone binary. Nobody does that now.</div></div>
+        <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">Because of the ecosystem. GPT-5 training runs under PyTorch — checkpointing, data loading, FSDP, autograd, optimizers, model zoo, everything. Rebuilding that is insane. So to ship a new kernel you <strong>have to plug into PyTorch</strong>.</div></div>
+
+        <div class="pull">vLLM, FlashAttention-3, Mamba — all CUDA kernels registered under <code>torch.ops.*</code>.<br>This became the <strong>single entry point</strong> of production LLM serving.<span class="by">— Jensen, 35:20</span></div>
+      </div>
+
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>FIG 6 · a kernel plugging into the ecosystem</span><span>torch.compile fullgraph</span></div>
+          <svg viewBox="0 0 460 260" width="100%" height="260">
+            <rect x="30" y="105" width="110" height="50" fill="var(--code-bg)" stroke="var(--accent)" rx="6"/>
+            <text x="85" y="128" text-anchor="middle" fill="#F2EADA" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600">Triton FA</text>
+            <text x="85" y="144" text-anchor="middle" fill="#A99B7A" font-family="JetBrains Mono, monospace" font-size="10">268 lines</text>
+
+            <rect x="170" y="95" width="120" height="70" class="box-paper" stroke="var(--accent)" rx="6"/>
+            <text x="230" y="118" text-anchor="middle" class="tx" font-weight="600" font-size="12">@custom_op</text>
+            <text x="230" y="134" text-anchor="middle" class="lbl">torch.ops.*</text>
+            <text x="230" y="150" text-anchor="middle" class="lbl">+ register_fake</text>
+
+            <path d="M140 130 L 170 130" class="acc"/>
+            <path d="M170 130 L 164 125 M170 130 L 164 135" class="acc"/>
+            <text x="155" y="122" class="lbl-hi" text-anchor="middle">wrap</text>
+
+            <g font-family="JetBrains Mono, monospace" font-size="10" fill="var(--ink)">
+              <rect x="320" y="20" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="39" text-anchor="middle">torch.compile · fullgraph</text>
+              <rect x="320" y="60" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="79" text-anchor="middle">autograd integration</text>
+              <rect x="320" y="100" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="119" text-anchor="middle">CUDA graph capture</text>
+              <rect x="320" y="140" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="159" text-anchor="middle">ONNX / TorchScript</text>
+              <rect x="320" y="180" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="199" text-anchor="middle">stream-aware dispatch</text>
+              <rect x="320" y="220" width="130" height="30" class="box-paper" rx="4"/>
+              <text x="385" y="239" text-anchor="middle">device dispatch</text>
+            </g>
+            <path d="M290 115 L 320 35" class="lnd"/>
+            <path d="M290 120 L 320 75" class="lnd"/>
+            <path d="M290 130 L 320 115" class="lnd"/>
+            <path d="M290 140 L 320 155" class="lnd"/>
+            <path d="M290 150 L 320 195" class="lnd"/>
+            <path d="M290 160 L 320 235" class="lnd"/>
+          </svg>
+        </div>
+
+        <div class="callout" style="margin-top:16px">
+          <div class="label">Measurement · Lesson 9</div>
+          <p>Placed the whole AttentionBlock inside <code>torch.compile(..., fullgraph=True)</code>. Graph breaks: <strong>0</strong>. eager vs compiled err = <strong>0.00e+00</strong> — bit-for-bit identical.</p>
+        </div>
+      </div>
+    </div>
+    <div class="lesson-ref">↳ <a href="07-pytorch-op.html">Lesson 07 · PyTorch custom op</a> &nbsp; <a href="09-mha-causal-fa.html">Lesson 09 · MHA causal</a></div>
+  </section>
+
+  <!-- OUTRO -->
+  <section class="outro">
+    <h2>So why did it end up looking like this</h2>
+    <p style="font-size:17px;color:var(--ink-soft);max-width:700px">Running the engineer's 7-week path <em>backward</em>, you can see that Flash Attention was <strong>inevitable</strong>.</p>
+
+    <div class="viz" style="margin-top:30px;padding:30px 28px">
+      <div class="viz-cap"><span>FIG 7 · 6-step inevitability chain</span><span>forward → reverse</span></div>
+      <svg viewBox="0 0 1000 180" width="100%" height="180">
+        <g font-family="Pretendard, sans-serif" font-size="12">
+          <rect x="10" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="75" y="85" text-anchor="middle" class="tx" font-weight="600">memory is far</text>
+          <text x="75" y="103" text-anchor="middle" class="lbl">100× gap</text>
+
+          <path d="M145 90 L 170 90" class="acc"/><path d="M170 90 L 164 85 M170 90 L 164 95" class="acc"/>
+
+          <rect x="175" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="240" y="85" text-anchor="middle" class="tx" font-weight="600">cut the trips</text>
+          <text x="240" y="103" text-anchor="middle" class="lbl">fusion</text>
+
+          <path d="M310 90 L 335 90" class="acc"/><path d="M335 90 L 329 85 M335 90 L 329 95" class="acc"/>
+
+          <rect x="340" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="405" y="85" text-anchor="middle" class="tx" font-weight="600">softmax is global</text>
+          <text x="405" y="103" text-anchor="middle" class="lbl">row max</text>
+
+          <path d="M475 90 L 500 90" class="acc"/><path d="M500 90 L 494 85 M500 90 L 494 95" class="acc"/>
+
+          <rect x="505" y="60" width="130" height="60" class="box-paper" rx="6"/>
+          <text x="570" y="85" text-anchor="middle" class="tx" font-weight="600">N² won't fit</text>
+          <text x="570" y="103" text-anchor="middle" class="lbl">online update</text>
+
+          <path d="M640 90 L 665 90" class="acc"/><path d="M665 90 L 659 85 M665 90 L 659 95" class="acc"/>
+
+          <rect x="670" y="60" width="130" height="60" fill="var(--accent)" rx="6"/>
+          <text x="735" y="85" text-anchor="middle" fill="#FBF6E9" font-weight="600">Flash Attention</text>
+          <text x="735" y="103" text-anchor="middle" fill="#FBF6E9" font-family="JetBrains Mono, monospace" font-size="10">tile + online</text>
+
+          <path d="M805 90 L 830 90" class="acc"/><path d="M830 90 L 824 85 M830 90 L 824 95" class="acc"/>
+
+          <rect x="835" y="60" width="155" height="60" class="box-paper" rx="6" stroke="var(--accent)"/>
+          <text x="912" y="85" text-anchor="middle" class="tx" font-weight="600">128k context</text>
+          <text x="912" y="103" text-anchor="middle" class="lbl">GPT-4o · Claude · Gemini</text>
+
+          <text x="500" y="30" text-anchor="middle" class="lbl-hi" style="font-size:12px">Remove the last link in this chain and ChatGPT can't exist in its current shape.</text>
+          <text x="500" y="160" text-anchor="middle" class="lbl">For ten years, GPUs have been progressively specialized to run one operation — attention — a little faster.</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="dlg sam" style="margin-top:30px"><div class="who">SAM</div><div class="ln">One last thing. Five years from now, what do you think you'll be optimizing besides matmul?</div></div>
+    <div class="dlg jensen"><div class="who">JENSEN</div><div class="ln">(a brief silence) … <em>let's save that for the next episode.</em></div></div>
+
+    <p class="lesson-ref" style="text-align:center;margin-top:40px;border:none">All numbers come from cudatraining lesson 1–9 handoff docs, measured on T4 sm_75 / L4 sm_89.</p>
+  </section>
+
+  <div class="artnav">
+    <a href="index.html">
+      <span class="lbl">← Back</span>
+      Index · 11-post log
+    </a>
+    <a href="podcast-ep-43.html" class="nxt">
+      <span class="lbl">Ep.43 →</span>
+      What Triton hides, and what it exposes
+    </a>
+  </div>
+
+</div>
+
 <footer class="bot">
   <span>The Stack · ep.42 · 38 min</span>
-  <span>가상 팟캐스트 · 기술 내용은 실제 레슨에서</span>
+  <span><span data-lang="ko">가상 팟캐스트 · 기술 내용은 실제 레슨에서</span><span data-lang="en" hidden>Imaginary podcast · technical content drawn from the actual lessons</span></span>
 </footer>
 
 </body></html>
