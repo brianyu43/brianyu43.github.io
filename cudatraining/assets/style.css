@@ -237,3 +237,11 @@ svg .tx-l{fill:var(--ink);font-family:'Pretendard',sans-serif;font-size:14px;fon
   .topbar{padding:18px 20px}
   .topbar nav{gap:14px}
 }
+
+/* ============ LANG SWITCHER ============ */
+.lang-switch{display:inline-flex;border:1px solid var(--line);background:var(--bg-soft);overflow:hidden;border-radius:3px;margin-left:4px}
+.lang-switch button{background:transparent;color:var(--muted);border:none;padding:3px 9px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;font-weight:700;cursor:pointer;transition:all .15s ease}
+.lang-switch button:hover:not(.active){color:var(--ink);background:var(--paper-deep)}
+.lang-switch button.active{background:var(--ink);color:var(--paper)}
+.lang-switch button + button{border-left:1px solid var(--line)}
+[data-lang][hidden]{display:none !important}

@@ -8,17 +8,22 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
   <nav>
     <a href="index.html">Index</a>
     <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div>
   </nav>
 </div>
 
-<div class="wrap">
+<div class="wrap" data-lang="ko">
   <div class="hero">
     <p class="eyebrow"><span class="dot"></span>2026 · APR · 18 → 20 · 3 DAYS · T4 → L4</p>
     <h1>vector_add 한 줄에서<br>cuDNN FA-2 의 80%까지.</h1>
@@ -158,6 +163,154 @@
       <div>
         <h3>Triton 이 숨기는 것, 노출하는 것</h3>
         <p>파일 일곱 개를 펼쳐놓고 한 줄씩. CUDA 가 Triton 으로 접힐 때 무엇이 사라지고 무엇이 남나.</p>
+      </div>
+      <div class="tag">EP.43 · 42 MIN</div>
+    </a>
+
+  </div>
+</div>
+
+<!-- ============ ENGLISH ============ -->
+<div class="wrap" data-lang="en" hidden>
+  <div class="hero">
+    <p class="eyebrow"><span class="dot"></span>2026 · APR · 18 → 20 · 3 DAYS · T4 → L4</p>
+    <h1>From a single line of vector_add<br>to 80% of cuDNN FA-2.</h1>
+    <div class="stats">
+      <div><b>9</b>CUDA / Triton kernels</div>
+      <div><b>4.79×</b>Flash Attention speedup</div>
+      <div><b>65×</b>HBM traffic reduction</div>
+      <div><b>54 TFLOPS</b>Triton fp16 matmul</div>
+      <div><b>0.86×</b>vs cuDNN FA-2</div>
+    </div>
+  </div>
+
+  <div class="toc">
+
+    <div class="sec-label">PART I · Memory</div>
+
+    <a class="card" href="01-vector-add.html">
+      <div class="num">01</div>
+      <div>
+        <h3>vector_add — what the first kernel taught</h3>
+        <p>230 GB/s on T4. But the real bottleneck wasn't the kernel — it was the copy across PCIe.</p>
+      </div>
+      <div class="tag">LESSON 01</div>
+    </a>
+
+    <a class="card" href="02-pinned-vs-pageable.html">
+      <div class="num">02</div>
+      <div>
+        <h3>The true cost of copies — pageable vs pinned</h3>
+        <p>One reason D2H is 12.7× slower. And the 5.6× end-to-end gap.</p>
+      </div>
+      <div class="tag">LESSON 02</div>
+    </a>
+
+    <div class="sec-label">PART II · Parallelism</div>
+
+    <a class="card" href="03-reduction.html">
+      <div class="num">03</div>
+      <div>
+        <h3>Reduction — why atomic is 100× slower</h3>
+        <p>Shared memory, warp shuffle, and the 29% a single <code>__syncthreads</code> bought.</p>
+      </div>
+      <div class="tag">LESSON 03</div>
+    </a>
+
+    <a class="card" href="04-matmul.html">
+      <div class="num">04</div>
+      <div>
+        <h3>Matmul — from memory-bound to Tensor Cores</h3>
+        <p>0.4 → 7.9 TFLOPS. A 20× roofline journey, in four layers.</p>
+      </div>
+      <div class="tag">LESSON 04</div>
+    </a>
+
+    <div class="sec-label">PART III · Fusion & Attention</div>
+
+    <a class="card" href="05-softmax-fusion.html">
+      <div class="num">05</div>
+      <div>
+        <h3>Softmax & Fusion — the mathematical half of Flash Attention</h3>
+        <p>Fuse three kernels into one and get exactly 2× speedup. The birth of online softmax.</p>
+      </div>
+      <div class="tag">LESSON 05</div>
+    </a>
+
+    <a class="card" href="06-flash-attention.html">
+      <div class="num">06</div>
+      <div>
+        <h3>Flash Attention — five lessons converging into 80 lines</h3>
+        <p>4.79× faster at N=4096, 65× less HBM traffic. And the line we hit.</p>
+      </div>
+      <div class="tag">LESSON 06 · CAPSTONE</div>
+    </a>
+
+    <div class="sec-label">PART IV · Integration</div>
+
+    <a class="card" href="07-pytorch-op.html">
+      <div class="num">07</div>
+      <div>
+        <h3>PyTorch Custom Op — one layer broken through in 50 lines</h3>
+        <p><code>torch.ops.mylib.flash_attention</code>. From this moment on, vLLM source becomes readable.</p>
+      </div>
+      <div class="tag">LESSON 07</div>
+    </a>
+
+    <a class="card" href="08-triton-port.html">
+      <div class="num">08</div>
+      <div>
+        <h3>Triton port — what does abstraction cost?</h3>
+        <p>Jump to L4. Four kernels into Triton. Found a zone where we narrowly beat cuBLAS.</p>
+      </div>
+      <div class="tag">LESSON 08</div>
+    </a>
+
+    <a class="card" href="09-mha-causal-fa.html">
+      <div class="num">09</div>
+      <div>
+        <h3>MHA + Causal Flash Attention</h3>
+        <p>4-D shape + causal + <code>torch.compile(fullgraph=True)</code>. 80–90% of cuDNN FA-2.</p>
+      </div>
+      <div class="tag">LESSON 09</div>
+    </a>
+
+    <div class="sec-label">PART V · Essays</div>
+
+    <a class="card" href="10-triton-vs-cuda.html">
+      <div class="num">10</div>
+      <div>
+        <h3>Triton vs CUDA — where does the cost of abstraction show up?</h3>
+        <p>Can 50 lines replace 5000? The answer from four kernels.</p>
+      </div>
+      <div class="tag">ESSAY</div>
+    </a>
+
+    <a class="card" href="11-300-lines.html">
+      <div class="num">11</div>
+      <div>
+        <h3>How a 300-line Triton FA closes in on 80–90% of cuDNN</h3>
+        <p><code>IS_CAUSAL: tl.constexpr</code>, loop-skip, <code>custom_op</code>. Three tricks combined.</p>
+      </div>
+      <div class="tag">ESSAY</div>
+    </a>
+
+    <div class="sec-label">BONUS · 《The Stack》 Podcast</div>
+
+    <a class="card" href="podcast-ep-42.html">
+      <div class="num">42</div>
+      <div>
+        <h3>Why did your GPT end up using my GPU this way?</h3>
+        <p>Sam × Jensen (fictional). Replay the 7-week path in reverse and Flash Attention looks inevitable.</p>
+      </div>
+      <div class="tag">EP.42 · 38 MIN</div>
+    </a>
+
+    <a class="card" href="podcast-ep-43.html">
+      <div class="num">43</div>
+      <div>
+        <h3>What Triton hides, and what it exposes</h3>
+        <p>Seven files side by side, line by line. When CUDA folds into Triton, what vanishes and what remains.</p>
       </div>
       <div class="tag">EP.43 · 42 MIN</div>
     </a>
