@@ -18,7 +18,7 @@
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>ESSAY 10 · 2026.04.19 · L4</p>
   <h1 class="title kicker">50 줄의 Python 이 5000 줄의 CUDA 를 대체할 수 있는가</h1>
   <p class="dek">추상화의 비용은 어디서 나타나는가. L4 에서 네 개의 커널로 받은 네 구간의 답.</p>
@@ -112,6 +112,108 @@ return partial[:cdiv(n, block)].sum()</code></pre>
   <div class="callout">
     <div class="label">비유</div>
     <p><strong>CUDA = 어셈블리, Triton = C.</strong> 대부분은 C 로 짜고, 핫패스만 어셈블리로 남긴다. 그리고 C 컴파일러 버그가 생기면 어셈블리를 읽어야 한다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="09-mha-causal-fa.html"><span class="lbl">Prev · 09</span>mha causal fa</a>
+    <a class="nxt" href="11-300-lines.html"><span class="lbl">Next · 11</span>essay · 300 lines</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>ESSAY 10 · 2026.04.19 · L4</p>
+  <h1 class="title kicker">Can 50 lines of Python replace 5000 lines of CUDA?</h1>
+  <p class="dek">Where does the cost of abstraction show up? Four kernels on L4, four regimes with the answer.</p>
+  <div class="meta">
+    <span>question · <strong>the ROI of abstraction</strong></span>
+    <span>subjects · <strong>Triton / CUDA / cuBLAS·cuDNN</strong></span>
+    <span>length · <strong>essay</strong></span>
+  </div>
+
+  <h2>The question</h2>
+  <p>Triton's pitch is "CUDA-level performance without CUDA." Sounds like marketing — but Tri Dao actually wrote Flash Attention-2 in Triton. OpenAI's Kernel Gym is Triton. Is the claim true?</p>
+  <p>I decided to answer only with numbers. The four kernels from Lessons 1–6 — reduction, softmax, matmul, flash attention — rewritten in Triton. Run CUDA / torch built-in / Triton side by side on the same L4 (sm_89). One question: <strong>in which regime is abstraction expensive, and in which is it free?</strong></p>
+
+  <h2>Four regimes</h2>
+  <table class="tbl">
+    <thead><tr><th>regime</th><th>Triton vs CUDA</th><th>cause</th></tr></thead>
+    <tbody>
+      <tr><td>Small N (&lt; 4 MB)</td><td>3–12× slower</td><td>Python → autotune → JIT → cuLaunch; launch floor ~50–100 µs</td></tr>
+      <tr><td>HBM-bound medium</td><td>95%</td><td>nearly none — if HBM is the bottleneck, a compiler can't overshoot a human by much</td></tr>
+      <tr><td>HBM-bound large</td><td>tie</td><td>none</td></tr>
+      <tr><td>Compute-bound large matmul / FA</td><td><strong>wins</strong></td><td>autotune narrowly edges out human tuning</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Evidence 1 · HBM-bound is a tie</h2>
+  <table class="tbl">
+    <thead><tr><th>task</th><th class="num">CUDA</th><th class="num">torch</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>Reduction 67M</td><td class="num">258 GB/s · 86%</td><td class="num">254 · 85%</td><td class="num">245 · <strong>82%</strong></td></tr>
+      <tr><td>Softmax 4096²</td><td class="num">237 GB/s</td><td class="num">240</td><td class="num">221</td></tr>
+    </tbody>
+  </table>
+  <p>82–86% of HBM floor (300 GB/s). The spread among the three approaches is noise. In this regime, everything is "who can drink HBM fastest," and there's no reason a JIT would fall behind hand-written CUDA.</p>
+
+  <h2>Evidence 2 · Triton edges out cuBLAS in compute-bound</h2>
+  <table class="tbl">
+    <thead><tr><th>matmul 4096³</th><th class="num">CUDA</th><th class="num">cuBLAS</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>FP32 (TF32 TC)</td><td class="num">3.9 TF (our v3)</td><td class="num">25.8</td><td class="num"><strong>28.9 (+12%)</strong></td></tr>
+      <tr><td>FP16</td><td class="num">18.5 TF (our WMMA)</td><td class="num">51.8</td><td class="num"><strong>54.0 (+4%)</strong></td></tr>
+    </tbody>
+  </table>
+  <p>2.9× over our WMMA. More importantly, <strong>narrowly over cuBLAS</strong>. The reason: autotune configs explore more points than a human. And TF32/FP16 selection happens automatically through <code>tl.dot</code>'s dtype.</p>
+
+  <h2>Evidence 3 · Flash Attention (N=8192)</h2>
+  <div class="kv">
+    <dt>Triton fp16 vs our CUDA FA fp32</dt><dd><strong>6.14× faster</strong></dd>
+    <dt>Triton fp32 vs SDPA fp32</dt><dd>2.35× faster (torch fp32 doesn't take the FA path on L4)</dd>
+    <dt>Triton fp16 vs SDPA fp16 (cuDNN FA-2)</dt><dd>0.79× (we're 25% slower)</dd>
+  </div>
+  <p>100 lines of Triton at 79% of cuDNN FA-2. <strong>This is why Tri Dao wrote FA-2 in Triton.</strong> Look at the number and Triton stops being an experiment.</p>
+
+  <h2>One line = dozens of lines, repeated four times</h2>
+  <ul>
+    <li><code>tl.sum(x, axis=0)</code> = 15 lines of warp shuffle boilerplate</li>
+    <li><code>tl.dot(a, b)</code> = 50 lines of WMMA fragment + load_matrix_sync + mma_sync (with automatic TC selection by dtype)</li>
+    <li>Grouped program-id swizzle in 9 lines — writing the same thing in CUDA is painful</li>
+    <li>Online softmax 50 lines (Lesson 6) → <code>tl.max + tl.maximum + tl.exp + tl.sum</code>, 15 lines</li>
+  </ul>
+
+  <h2>Where the cost is real</h2>
+  <p>At n=2²⁰ (4 MB) in the reduction of Lesson 3, Triton was 3–12× slower than CUDA. One cause: <strong>launch floor 50–100 µs</strong>. Python interpreter → autotune cache lookup → JIT (once) → cuLaunchKernel. The floor's relative weight grows as the kernel shrinks.</p>
+  <p>If a Transformer layer is ≥1 ms, 100 µs is &lt;10% — fine. But launch 30 element-wise ops individually in Triton and you're done. <strong>For small ops, PyTorch eager or <code>torch.compile</code> is better.</strong></p>
+
+  <h2>Two footguns</h2>
+
+  <h3>(1) TF32 benchmark lie</h3>
+  <p><code>torch.matmul(fp32)</code> doesn't use TF32 by default. <code>tl.dot</code> does. Compare them head-to-head and you see "Triton beats torch 2×." A fair comparison:</p>
+<pre><code>torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True</code></pre>
+  <p>With those two lines, both sides take the TF32 TC path. Before I set them, Phase 3's 2× lead was a lie.</p>
+
+  <h3>(2) Autotune stale writes</h3>
+  <p><code>@triton.autotune</code> can leave a partial buffer polluted by other configs mid-trial. Reduction partials got mixed, rel_err blew up to 1.75. Fix:</p>
+<pre><code>@triton.autotune(configs=..., reset_to_zero=["partial_ptr"])
+@triton.jit
+def kernel(...): ...
+
+best = kernel.best_config
+block = best.kwargs["BLOCK_SIZE"]
+return partial[:cdiv(n, block)].sum()</code></pre>
+
+  <h2>So why still CUDA</h2>
+  <ol>
+    <li><strong>Triton hits walls</strong> — Blackwell's BF8/FP4 mma, persistent kernel, async-copy fine-grained control.</li>
+    <li><strong>Reading PTX</strong> — chasing perf bugs means reading the PTX Triton emits. <code>*.ptx</code>, <code>*.cubin</code> in <code>TRITON_CACHE_DIR</code>.</li>
+    <li><strong>Reference code</strong> — vLLM, FA-3, Mamba kernels are still CUDA. Reading them requires CUDA as your first language.</li>
+    <li><strong>Perf diagnosis vocabulary</strong> — "why is it slow?" answers are bank conflict, register spill, occupancy. Those concepts carry into Triton unchanged.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">Analogy</div>
+    <p><strong>CUDA = assembly, Triton = C.</strong> Most code in C, hot paths in assembly. And when the C compiler has a bug, you have to read the assembly.</p>
   </div>
 
   <div class="artnav">

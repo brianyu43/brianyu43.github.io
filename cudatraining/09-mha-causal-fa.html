@@ -18,7 +18,7 @@
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 09 · 2026.04.20 · L4</p>
   <h1 class="title kicker">MHA + Causal FA — 300 줄로 cuDNN 의 80%</h1>
   <p class="dek">2-D Triton FA 를 <code>(B, H, N, d)</code> + causal mask 로 확장.
@@ -112,6 +112,106 @@ def _(q, k, v, is_causal): return torch.empty_like(q)</code></pre>
   <div class="callout">
     <div class="label">포지션 요약</div>
     <p>cuDNN 의 <strong>80%</strong> 속도를 <strong>300 줄</strong>로. 나머지 20% 는 한 단계 더 아래 레이어에서만 얻어진다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="08-triton-port.html"><span class="lbl">Prev · 08</span>triton port</a>
+    <a class="nxt" href="10-triton-vs-cuda.html"><span class="lbl">Next · 10</span>essay · triton vs cuda</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 09 · 2026.04.20 · L4</p>
+  <h1 class="title kicker">MHA + Causal FA — 80% of cuDNN in 300 lines</h1>
+  <p class="dek">Extend the 2-D Triton FA to <code>(B, H, N, d)</code> + a causal mask. Register with <code>torch.library.custom_op</code>, and with <code>torch.compile(fullgraph=True)</code> an entire LLaMA-style attention block lands in a single graph.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 · fp16</strong></span>
+    <span>kernel · <strong>192 lines (incl. docstring)</strong></span>
+    <span>op wrapper · <strong>76 lines</strong></span>
+  </div>
+
+  <h2>Five things that changed</h2>
+  <table class="tbl">
+    <thead><tr><th>change</th><th>location</th><th>core idea</th></tr></thead>
+    <tbody>
+      <tr><td>2-D → 4-D stride</td><td>kernel signature</td><td>Pass all 4 strides × 3 tensors for <code>(B,H,N,d)</code> at launch</td></tr>
+      <tr><td>3-D grid</td><td><code>(cdiv(N, BM), H, B)</code></td><td>One program handles a single <code>(batch, head)</code> Q block</td></tr>
+      <tr><td>causal specialization</td><td><code>IS_CAUSAL: tl.constexpr</code></td><td>Compile two kernels (causal / non-causal); remove the runtime branch</td></tr>
+      <tr><td>loop skip (FA-v2)</td><td><code>end_n = min(N, (pid_m+1)*BM)</code></td><td>Drop upper-triangle tiles from iteration entirely</td></tr>
+      <tr><td>Diagonal mask</td><td><code>offs_m[:,None] &gt;= offs_n[None,:]</code></td><td>Only the tile that straddles the diagonal actually applies it</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Accuracy (max rel_err vs fp32 reference)</h2>
+  <table class="tbl">
+    <thead><tr><th>stage</th><th class="num"># shapes</th><th class="num">fp32 worst</th><th class="num">fp16 worst</th></tr></thead>
+    <tbody>
+      <tr><td>non-causal</td><td class="num">57</td><td class="num">3.5e-3</td><td class="num">3.4e-4</td></tr>
+      <tr><td>causal (+ N=129/513 edge)</td><td class="num">60</td><td class="num">1.1e-3</td><td class="num">3.2e-4</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Speed — LLaMA-7B causal, d=128, fp16</h2>
+  <table class="tbl">
+    <thead><tr><th>(B, H, N)</th><th class="num">ours</th><th class="num">SDPA (FA-2)</th><th class="num">ours/SDPA</th><th class="num">vs naive</th></tr></thead>
+    <tbody>
+      <tr><td>(1,32,512)</td><td class="num">0.100 ms · 21.5 TF</td><td class="num">0.100</td><td class="num"><strong>1.00×</strong></td><td class="num">10.97×</td></tr>
+      <tr><td>(1,32,1024)</td><td class="num">0.223 · 38.5 TF</td><td class="num">0.202</td><td class="num">0.90×</td><td class="num">29.6×</td></tr>
+      <tr><td>(1,32,2048)</td><td class="num">0.784 · 43.8 TF</td><td class="num">0.613</td><td class="num">0.78×</td><td class="num">31.4×</td></tr>
+      <tr><td>(1,32,4096)</td><td class="num">2.964 · 46.4 TF</td><td class="num">2.559</td><td class="num">0.86×</td><td class="num">32.7×</td></tr>
+      <tr><td>(2,32,2048)</td><td class="num">1.565 · 43.9 TF</td><td class="num">1.372</td><td class="num">0.88×</td><td class="num">31.3×</td></tr>
+    </tbody>
+  </table>
+  <p>On GPT-2 (d=64) short shapes: <strong>1.13× ahead at (16,12,512)</strong>, tied at (8,12,1024).</p>
+
+  <h2>Lesson 1 · Causal speed isn't from the mask</h2>
+  <p>Just masking still loads the upper triangle and flips it to <code>-inf</code>. The real speed comes from <strong>loop skip</strong>:</p>
+<pre><code>if IS_CAUSAL:
+    end_n = tl.minimum(N, (pid_m + 1) * BLOCK_M)
+else:
+    end_n = N
+for start_n in range(0, end_n, BLOCK_N):
+    ...</code></pre>
+  <p>On average it drops to <code>N/2</code>, so <strong>both the K/V loads and the two <code>tl.dot</code>s are halved</strong>. Verified: non-causal (1,32,2048,128) 2.643 ms vs causal 0.784 ms — half the FLOPs, but 3.3× faster (pipeline amortization).</p>
+
+  <h2>Lesson 2 · <code>tl.constexpr</code> = fold away the runtime if</h2>
+  <p>Pass <code>is_causal</code> as a plain arg and you get a branch inside the tight K loop plus warp-scheduler tangles. With <code>tl.constexpr</code>, Triton <strong>compiles two specialized kernels</strong> (True/False). At runtime, only one is dispatched — the branch doesn't even exist. Using <code>autotune(key=[...,"IS_CAUSAL"])</code> also separates the autotune space: empirically, causal prefers BM=64 / BN=128 while non-causal likes bigger tiles.</p>
+
+  <h2>Lesson 3 · Three gifts from custom_op</h2>
+<pre><code>@custom_op("triton_training::flash_attention_mha",
+           mutates_args=(), device_types="cuda")
+def flash_attention_mha(q, k, v, is_causal: bool = False) -&gt; Tensor: ...
+
+@flash_attention_mha.register_fake
+def _(q, k, v, is_causal): return torch.empty_like(q)</code></pre>
+  <ol>
+    <li><strong><code>torch.compile</code> doesn't break the graph.</strong> <code>register_fake</code> supplies shape inference so Dynamo doesn't see an unknown op. Under <code>fullgraph=True</code>, the entire LLaMA AttentionBlock lives in one graph.</li>
+    <li><strong>Serialization-preserving.</strong> ONNX/AOT/TorchScript record <code>triton_training::flash_attention_mha</code> as-is.</li>
+    <li><strong>Drop-in <code>torch.ops.&lt;ns&gt;.&lt;op&gt;</code> path.</strong> Downstreams like vLLM call without importing Triton. The same pattern vLLM uses to expose custom kernels.</li>
+  </ol>
+
+  <h2>Lesson 4 · The ROI of 300 lines</h2>
+  <ul>
+    <li>kernel 100 lines + op wrapper 76 lines + autotune/register_fake ≈ <strong>300 lines</strong></li>
+    <li>78–90% of cuDNN FA-2 on d=128 LLaMA-7B causal</li>
+    <li>Tied or 13% ahead on GPT-2 (d=64)</li>
+    <li>29–33× over naive</li>
+    <li>Drops into an attention block under <code>torch.compile(fullgraph=True)</code></li>
+  </ul>
+  <p>Doing the same in CUDA: 5–10× the code (Lesson 6's FA v1 was ~500 lines + 150 lines of host), plus manual re-tuning on every new GPU. <strong>This is the whole reason to learn Triton.</strong></p>
+
+  <h2>The remaining 20% gap</h2>
+  <p>The 22% left to FA-2 isn't Triton's gap — it's what cuDNN FA-2 has:</p>
+  <ul>
+    <li>async copy + double/triple buffering (smem load ↔ prior tile mma overlap)</li>
+    <li>persistent kernel scheduling</li>
+    <li>warp specialization (compute warps vs load-store warps)</li>
+  </ul>
+  <p>Triton is getting persistent / warp-spec but it's tutorial-stage. Closing this gap takes CUTLASS 3.x — next round.</p>
+
+  <div class="callout">
+    <div class="label">Position summary</div>
+    <p><strong>80%</strong> of cuDNN in <strong>300 lines</strong>. The remaining 20% only comes from the layer below.</p>
   </div>
 
   <div class="artnav">

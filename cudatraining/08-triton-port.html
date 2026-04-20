@@ -18,7 +18,7 @@
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 08 · 2026.04.19 · L4</p>
   <h1 class="title kicker">Triton vs CUDA — 추상화의 비용은 어디서 나타나는가</h1>
   <p class="dek">레슨 1–6 의 네 커널 (reduction, softmax, matmul, flash attention) 을
@@ -97,6 +97,91 @@ torch.backends.cudnn.allow_tf32 = True</code></pre>
     <li>"왜 느림" 의 답이 bank conflict, register spill, occupancy — CUDA 개념.</li>
   </ol>
   <p><strong>CUDA = 어셈블리, Triton = C.</strong> 대부분은 C 로 짜고, 핫패스만 어셈블리.</p>
+
+  <div class="artnav">
+    <a href="07-pytorch-op.html"><span class="lbl">Prev · 07</span>pytorch op</a>
+    <a class="nxt" href="09-mha-causal-fa.html"><span class="lbl">Next · 09</span>mha causal fa</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 08 · 2026.04.19 · L4</p>
+  <h1 class="title kicker">Triton vs CUDA — where does the cost of abstraction show up?</h1>
+  <p class="dek">Four kernels from lessons 1–6 (reduction, softmax, matmul, flash attention) rewritten in 40–130 lines of Triton. Four regimes measured on L4 (sm_89).</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>stack · <strong>torch 2.6 + triton 3.2</strong></span>
+    <span>ported · <strong>4 kernels</strong></span>
+  </div>
+
+  <h2>Hardware upgrade — why L4</h2>
+  <p>T4 has only one FP16 WMMA flavor and no TF32. To measure Triton <code>tl.dot</code> automatically picking TF32, you need a GPU with TF32 Tensor Cores. L4 (Ada) = TF32 121 · FP16 242 · FP8 485 TFLOPS, L2 48 MB (8× T4's).</p>
+
+  <h2>Memory-bound — three approaches tie within 10%</h2>
+  <table class="tbl">
+    <thead><tr><th>task</th><th class="num">CUDA</th><th class="num">torch</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>Reduction 67M fp32</td><td class="num">258 GB/s</td><td class="num">254 GB/s</td><td class="num">245 GB/s</td></tr>
+      <tr><td>Softmax 4096² fp32</td><td class="num">237 GB/s</td><td class="num">240 GB/s</td><td class="num">221 GB/s</td></tr>
+    </tbody>
+  </table>
+  <p>Triton lands at 93–95% of hand-written CUDA. When HBM is the bottleneck, the abstraction tax evaporates.</p>
+
+  <h2>Compute-bound — Triton narrowly beats cuBLAS</h2>
+  <table class="tbl">
+    <thead><tr><th>task</th><th class="num">CUDA</th><th class="num">torch</th><th class="num">Triton</th></tr></thead>
+    <tbody>
+      <tr><td>matmul 4096³ FP32 (TF32)</td><td class="num">3.9 TF</td><td class="num">25.8</td><td class="num"><strong>28.9</strong></td></tr>
+      <tr><td>matmul 4096³ FP16</td><td class="num">18.5 TF</td><td class="num">51.8</td><td class="num"><strong>54.0</strong></td></tr>
+    </tbody>
+  </table>
+  <p>2.9× over our WMMA. Over cuBLAS: FP32 +12%, FP16 +4%. The spot where autotune narrowly edges human hand-tuning.</p>
+
+  <h2>Flash Attention — Triton fp16 is polyglot</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">CUDA FA fp32</th><th class="num">Triton fp32</th><th class="num">Triton fp16</th><th class="num">SDPA fp16</th></tr></thead>
+    <tbody>
+      <tr><td>1024</td><td class="num">0.324</td><td class="num">0.148</td><td class="num">0.122</td><td class="num">0.076</td></tr>
+      <tr><td>2048</td><td class="num">0.638</td><td class="num">0.196</td><td class="num">0.138</td><td class="num">0.076</td></tr>
+      <tr><td>4096</td><td class="num">1.256</td><td class="num">0.358</td><td class="num">0.207</td><td class="num">0.127</td></tr>
+      <tr><td>8192</td><td class="num">3.045</td><td class="num">1.118</td><td class="num"><strong>0.496</strong></td><td class="num">0.394</td></tr>
+    </tbody>
+  </table>
+  <p>N=8192: Triton fp16 is <strong>6.14×</strong> over our CUDA FP32, and 79% of SDPA (cuDNN FA-2). 100 lines of Triton reaches 80% of cuDNN. <strong>This is why Tri Dao wrote FA-2 in Triton.</strong></p>
+
+  <h2>One line = dozens of lines, repeated four times</h2>
+  <ul>
+    <li><code>tl.sum(x)</code> = 15 lines of warp shuffle boilerplate from Lesson 3</li>
+    <li><code>tl.dot(a,b)</code> = 50 lines of WMMA fragment + mma_sync from Lesson 5 (plus automatic TC selection by dtype)</li>
+    <li>Grouped program-id swizzle — 9 lines here, painful to write in CUDA</li>
+    <li>Online softmax 50 lines (Lesson 6) → <code>tl.max + tl.maximum + tl.exp + tl.sum</code>, 15 lines</li>
+  </ul>
+
+  <h2>Regions where the abstraction cost is real</h2>
+  <table class="tbl">
+    <thead><tr><th>region</th><th>Triton vs CUDA</th><th>cause</th></tr></thead>
+    <tbody>
+      <tr><td>Small N (&lt; 4 MB)</td><td>3–12× slower</td><td>Launch floor 50–100 µs (Python → autotune cache → JIT → cuLaunch)</td></tr>
+      <tr><td>HBM-bound</td><td>95%</td><td>almost none</td></tr>
+      <tr><td>Large matmul / FA</td><td><strong>wins</strong></td><td>autotune picks a better config than a human</td></tr>
+    </tbody>
+  </table>
+  <p>Practical line: if the Transformer layer is ≥1 ms, a 100 µs overhead is &lt;10% — tolerable. If you launch 30 element-wise ops individually in Triton, you're cooked.</p>
+
+  <h2>Two footguns</h2>
+  <p><strong>(1) TF32 benchmark lie.</strong> <code>torch.matmul(fp32)</code> doesn't use TF32 by default. <code>tl.dot</code> does. Compare them head-to-head and "Triton beats torch 2×" — which looks great but is wrong. For a fair fight:</p>
+<pre><code>torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True</code></pre>
+  <p><strong>(2) Autotune stale writes.</strong> <code>@triton.autotune</code> trials can leave tainted writes in the output buffer. Use <code>reset_to_zero=["partial_ptr"]</code> and slice with <code>best_config.kwargs["BLOCK_SIZE"]</code> after the call.</p>
+
+  <h2>Why keep learning CUDA</h2>
+  <ol>
+    <li>Triton hits a wall and you fall back to CUDA (Blackwell mma, persistent kernels, async copy).</li>
+    <li>You need to read the PTX Triton emits to chase perf bugs.</li>
+    <li>vLLM, FA-3, Mamba are still CUDA.</li>
+    <li>The answer to "why is this slow" is bank conflict, register spill, occupancy — all CUDA concepts.</li>
+  </ol>
+  <p><strong>CUDA = assembly, Triton = C.</strong> Write most of it in C; reserve assembly for hot paths.</p>
 
   <div class="artnav">
     <a href="07-pytorch-op.html"><span class="lbl">Prev · 07</span>pytorch op</a>

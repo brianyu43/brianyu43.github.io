@@ -18,7 +18,7 @@
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 07 · 2026.04.19 · T4</p>
   <h1 class="title">PyTorch Custom Op — ~50 줄로 CUDA 를 꽂다</h1>
   <p class="dek">레슨 6 의 Flash Attention 커널을 <code>torch.ops.mylib.flash_attention</code>
@@ -114,6 +114,104 @@ Memory hierarchy (HBM↔L2↔smem↔reg)                   ← 레슨 01,02</cod
   <div class="artnav">
     <a href="06-flash-attention.html"><span class="lbl">Prev · 06</span>flash attention</a>
     <a class="nxt" href="08-triton-port.html"><span class="lbl">Next · 08</span>triton 포팅</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 07 · 2026.04.19 · T4</p>
+  <h1 class="title">PyTorch Custom Op — wiring CUDA in ~50 lines</h1>
+  <p class="dek">Register Lesson 6's Flash Attention kernel as <code>torch.ops.mylib.flash_attention</code>. From this moment on, vLLM's <code>csrc/*.cu</code> stops looking foreign.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>layer · <strong>C++ host wrapper</strong></span>
+    <span>baseline · <strong>F.scaled_dot_product_attention</strong></span>
+  </div>
+
+  <h2>The core ~5 lines</h2>
+  <p>In a single file (330 lines, mostly the kernel body), the pivot into the PyTorch world is these five lines:</p>
+<pre><code>check_qkv(Q, "Q");                           // shape/device/dtype/contig
+auto O = torch::empty({N, d}, Q.options());  // PyTorch allocates
+auto stream = at::cuda::getCurrentCUDAStream();
+my_kernel&lt;&lt;&lt;grid, block, 0, stream&gt;&gt;&gt;(
+    Q.data_ptr&lt;float&gt;(), ..., O.data_ptr&lt;float&gt;());
+return O;</code></pre>
+  <p>That replaces Lesson 6's hundreds of lines of <code>main()</code> (CLI parsing, malloc, CSV output, CPU ref check) entirely. This is the production pattern.</p>
+
+  <h2>Accuracy</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">naive abs err</th><th class="num">flash abs err</th></tr></thead>
+    <tbody>
+      <tr><td>128</td><td class="num">3.3e-7</td><td class="num">2.5e-7</td></tr>
+      <tr><td>512</td><td class="num">5.4e-7</td><td class="num">4.3e-7</td></tr>
+      <tr><td>1024</td><td class="num">4.0e-7</td><td class="num">2.8e-7</td></tr>
+      <tr><td>2048</td><td class="num">3.7e-7</td><td class="num">3.7e-7</td></tr>
+    </tbody>
+  </table>
+  <p>3–5× FP32 machine epsilon (~1.2e-7). SDPA and our kernel both sit inside FP32 rounding limits.</p>
+
+  <h2>Speed (vs F.scaled_dot_product_attention, T4, d=64)</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">ours naive</th><th class="num">ours flash</th><th class="num">SDPA</th><th class="num">flash / sdpa</th></tr></thead>
+    <tbody>
+      <tr><td>512</td><td class="num">0.475</td><td class="num">0.734</td><td class="num"><strong>0.262</strong></td><td class="num">0.36×</td></tr>
+      <tr><td>1024</td><td class="num">0.799</td><td class="num">1.309</td><td class="num"><strong>0.429</strong></td><td class="num">0.33×</td></tr>
+      <tr><td>2048</td><td class="num">3.086</td><td class="num">1.253</td><td class="num"><strong>0.428</strong></td><td class="num">0.34×</td></tr>
+      <tr><td>4096</td><td class="num">—</td><td class="num">2.498</td><td class="num"><strong>1.374</strong></td><td class="num">0.55×</td></tr>
+    </tbody>
+  </table>
+  <p>0.33–0.55× of SDPA. The gap narrows with N (both are bound by N², converging toward a similar regime). The number is where cuDNN's tuning level shows up clearly.</p>
+
+  <h2>Lesson 1 · stream-aware launches are non-negotiable</h2>
+  <p>Skip <code>at::cuda::getCurrentCUDAStream()</code> as the 4th launch argument and you go to the default stream. PyTorch might be using a different stream → <strong>silent race condition</strong>. No crash, non-deterministic output. vLLM's PagedAttention launch follows exactly this pattern.</p>
+
+  <h2>Lesson 2 · the dispatcher gives you the CPU guard for free</h2>
+<pre><code>TORCH_LIBRARY_IMPL(mylib, CUDA, m) {
+  m.impl("flash_attention", &amp;flash_attention_forward);
+}</code></pre>
+  <p>Register only under the CUDA backend. When a CPU tensor arrives, the dispatcher blocks it upfront:</p>
+<pre><code>RuntimeError: Could not run 'mylib::flash_attention' with arguments from the 'CPU' backend</code></pre>
+  <p>Autograd, dtype promotion, device dispatch all wired into one pipe — <strong>a clean part of PyTorch's op system.</strong></p>
+
+  <h2>Lesson 3 · the 3× gap is a line and reality</h2>
+  <ul>
+    <li>cuDNN has register allocation and instruction scheduling hand-tuned by NVIDIA engineers</li>
+    <li>Uses warp-specialized FP32 paths (WMMA is FP16-only)</li>
+    <li>Smem layouts that avoid bank conflicts</li>
+    <li>At our Br=64 / d=64, register pressure may be causing spills</li>
+  </ul>
+  <p>Our place isn't SOTA chasing. <strong>It's filling operators the library is missing (novel ops, custom sparsity).</strong></p>
+
+  <h2>Trap log</h2>
+  <ul>
+    <li><code>import mylib_ext</code> → <code>PyInit_mylib_ext not defined</code>. Fix: add an empty <code>PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}</code>.</li>
+    <li><code>nvcc</code> not found. Set <code>CUDA_HOME=/usr/local/cuda</code>.</li>
+    <li>CUDA 12.9 toolkit vs PyTorch cu121 wheel — runs under minor-version compat. For production, keep them aligned.</li>
+  </ul>
+
+  <h2>Lessons 1–7 stack</h2>
+<pre><code>Python model (vLLM, my service)
+        │
+        │   torch.ops.mylib.flash_attention(q,k,v)    ← layer broken by lesson 07
+        ▼
+torch dispatcher
+        │
+        ▼
+C++ host wrapper (tensor → raw ptr, stream)
+        │
+        ▼
+CUDA kernel (flash_attention_v1)                     ← lesson 06
+        │
+        ▼
+Warp / thread (shuffle, tiled mma)                   ← lessons 03, 04, 05
+        │
+        ▼
+Memory hierarchy (HBM↔L2↔smem↔reg)                   ← lessons 01, 02</code></pre>
+
+  <p class="closing">That's CUDA Phase 1 in the bag. Triton starts next lesson.</p>
+
+  <div class="artnav">
+    <a href="06-flash-attention.html"><span class="lbl">Prev · 06</span>flash attention</a>
+    <a class="nxt" href="08-triton-port.html"><span class="lbl">Next · 08</span>triton port</a>
   </div>
 </article>
 </div>
