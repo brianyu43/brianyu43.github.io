@@ -6,14 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 03 · 2026.04.18 · T4</p>
   <h1 class="title">Reduction — atomic 이 100배 느린 이유</h1>
   <p class="dek">sum(x) 하나를 구하는 5 가지 구현. shared memory, warp shuffle,
@@ -69,6 +74,68 @@
 
   <h2>왜 직접 짜보는가</h2>
   <p>프로덕션에서 답이 thrust/cub 이라면, v1-v4 를 손으로 짜는 이유는 하나다. <strong>"왜 atomic 이 100배 느린가" 를 숫자로 기억하는 엔지니어와 그렇지 않은 엔지니어의 판단력 차이.</strong> Triton, Mojo, 새로운 컴파일러를 평가할 기준점이 필요하다. fusion 결정, bottleneck 추정, roofline 독해 — 전부 이 감각 위에서 움직인다.</p>
+
+  <div class="artnav">
+    <a href="02-pinned-vs-pageable.html"><span class="lbl">Prev · 02</span>pageable vs pinned</a>
+    <a class="nxt" href="04-matmul.html"><span class="lbl">Next · 04</span>matmul</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 03 · 2026.04.18 · T4</p>
+  <h1 class="title">Reduction — why atomic is 100× slower</h1>
+  <p class="dek">Five implementations for sum(x). Shared memory, warp shuffle, and the 29% one <code>__syncthreads</code> made.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>versions · <strong>v1–v4 + thrust</strong></span>
+    <span>sweep · <strong>25 runs</strong></span>
+  </div>
+
+  <h2>Five versions</h2>
+  <ul>
+    <li><strong>v1 atomic</strong> — every thread does <code>atomicAdd</code> on a single global address (baseline, bad example)</li>
+    <li><strong>v2 shared</strong> — per-block shared-memory tree, only the root does an atomic</li>
+    <li><strong>v3 unroll</strong> — v2 + final warp replaced with shuffles, 5 <code>__syncthreads</code> removed</li>
+    <li><strong>v4 shuffle</strong> — warps reduce locally via shuffle, shared memory only between warps</li>
+    <li><strong>thrust</strong> — <code>thrust::reduce</code>, cub-based multi-pass</li>
+  </ul>
+
+  <h2>best_ms by version</h2>
+  <table class="tbl">
+    <thead><tr><th>n</th><th class="num">v1</th><th class="num">v2</th><th class="num">v3</th><th class="num">v4</th><th class="num">thrust</th></tr></thead>
+    <tbody>
+      <tr><td>2²⁰</td><td class="num">2.082</td><td class="num">0.018</td><td class="num">0.013</td><td class="num"><strong>0.012</strong></td><td class="num">0.028</td></tr>
+      <tr><td>2²²</td><td class="num">8.309</td><td class="num">0.070</td><td class="num">0.066</td><td class="num"><strong>0.066</strong></td><td class="num">0.089</td></tr>
+      <tr><td>2²⁴</td><td class="num">33.227</td><td class="num">0.260</td><td class="num">0.258</td><td class="num"><strong>0.258</strong></td><td class="num">0.289</td></tr>
+      <tr><td>2²⁶</td><td class="num">132.903</td><td class="num">1.089</td><td class="num"><strong>1.087</strong></td><td class="num">1.090</td><td class="num">1.118</td></tr>
+      <tr><td>2²⁸</td><td class="num">531.577</td><td class="num">4.860</td><td class="num">4.870</td><td class="num">4.887</td><td class="num"><strong>4.648</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Lesson 1 · v1's "2 GB/s floor"</h2>
+  <p>v1's effective bandwidth is <strong>pinned at ~2.0 GB/s regardless of n</strong>. That's not an HBM ceiling — it's an <strong>atomic throughput ceiling</strong>. When a million threads hit the same address simultaneously, the hardware serializes — effectively one thread.</p>
+  <blockquote>Never use atomic as "the thing that produces one result." Use it once per block (the tree-reduction root), or as a low-frequency counter.</blockquote>
+
+  <h2>Lesson 2 · contribution of each step v2 → v3 → v4</h2>
+  <table class="tbl">
+    <thead><tr><th>step</th><th>Δ time</th><th>speedup</th><th>cost removed</th></tr></thead>
+    <tbody>
+      <tr><td>v1 → v2</td><td>2.082 → 0.018 ms</td><td>113×</td><td>serial atomic → parallel tree</td></tr>
+      <tr><td>v2 → v3</td><td>0.018 → 0.013 ms</td><td>−29%</td><td>5 <code>__syncthreads</code></td></tr>
+      <tr><td>v3 → v4</td><td>0.013 → 0.012 ms</td><td>−6%</td><td>smem → register shuffle</td></tr>
+    </tbody>
+  </table>
+  <p>A single <code>__syncthreads()</code> costs hundreds of cycles. Five of them take up 1/3 of a small kernel's runtime. A number worth remembering.</p>
+
+  <h2>Lesson 3 · at large n, everything converges</h2>
+  <p>From n ≥ 2²⁴, v2/v3/v4/thrust all tie within ±5%. The reason is simple. HBM bandwidth is bottomed out (~77%) — once the bytes-to-read is fixed, "fetch time" dominates everything. No reduction tree layout shrinks that time.</p>
+  <blockquote><strong>Only worry about tail optimization at small n.</strong> At large n, prefer "code simplicity &gt; in-kernel micro-optimization."</blockquote>
+
+  <h2>When does Thrust win?</h2>
+  <p>Thrust is cub-based multi-pass: pass 1 writes per-block partial sums to a temp buffer, pass 2 finalizes. Overhead hurts at small n, HBM scheduling helps at large n — hence the crossover. <strong>Thrust always wins on accuracy</strong> — balanced tree depth cancels FP error more favorably.</p>
+
+  <h2>Why write these by hand?</h2>
+  <p>If the production answer is thrust/cub, the reason to hand-write v1–v4 is one thing: <strong>the gap in judgment between an engineer who remembers "why atomic is 100× slower" in numbers and one who doesn't.</strong> You need a reference point to evaluate Triton, Mojo, or the next compiler. Fusion decisions, bottleneck estimates, roofline reading — all of it runs on this sense.</p>
 
   <div class="artnav">
     <a href="02-pinned-vs-pageable.html"><span class="lbl">Prev · 02</span>pageable vs pinned</a>

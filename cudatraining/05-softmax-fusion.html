@@ -6,14 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 05 · 2026.04.18 · T4</p>
   <h1 class="title">Softmax &amp; Fusion — Flash Attention 의 수학적 절반</h1>
   <p class="dek">커널 3 개를 1 개로 합치면 정확히 2 배 빨라진다. 그리고 그 옆에서
@@ -74,6 +79,74 @@ new_sum = s1 * exp(m1 - new_max) + s2 * exp(m2 - new_max)</code></pre>
     <div class="label">LLM serving 번역</div>
     <p><strong>Decode phase</strong>: seq_len 짧음 → v2 같은 단순 fused softmax 로 충분. 병목은 KV cache HBM 로드.<br>
     <strong>Prefill phase</strong>: seq_len 수천~수만. Attention score 행렬이 거대 → <strong>Flash Attention 필수</strong>. 우리 v3 online 수식이 FA 의 뼈대.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="04-matmul.html"><span class="lbl">Prev · 04</span>matmul</a>
+    <a class="nxt" href="06-flash-attention.html"><span class="lbl">Next · 06</span>flash attention</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 05 · 2026.04.18 · T4</p>
+  <h1 class="title">Softmax &amp; Fusion — the mathematical half of Flash Attention</h1>
+  <p class="dek">Fuse three kernels into one and you get exactly 2× speedup. And online softmax, born next to it, becomes the heart of Flash Attention.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>peak HBM · <strong>320 GB/s</strong></span>
+    <span>sweep · <strong>12 runs</strong></span>
+  </div>
+
+  <h2>Three versions</h2>
+  <ul>
+    <li><strong>v1 naive</strong> — 3 kernels sequential (max → sum → divide). HBM: 4 trips/elem</li>
+    <li><strong>v2 fused</strong> — 1 kernel, row cached in shared memory. HBM: 2 trips/elem</li>
+    <li><strong>v3 online</strong> — 1 kernel + normalize pass. Any N. HBM: 3 trips/elem</li>
+  </ul>
+
+  <h2>Results</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">v1 ms</th><th class="num">v1 GB/s</th><th class="num">v2 ms</th><th class="num">v2 GB/s</th><th class="num">v3 ms</th><th class="num">v3 GB/s</th></tr></thead>
+    <tbody>
+      <tr><td>1024</td><td class="num">0.293</td><td class="num">229</td><td class="num"><strong>0.145</strong></td><td class="num">231</td><td class="num">0.141</td><td class="num">356</td></tr>
+      <tr><td>2048</td><td class="num">0.530</td><td class="num">253</td><td class="num"><strong>0.285</strong></td><td class="num">236</td><td class="num">0.279</td><td class="num">361</td></tr>
+      <tr><td>4096</td><td class="num">1.067</td><td class="num">252</td><td class="num"><strong>0.556</strong></td><td class="num">241</td><td class="num">0.764</td><td class="num">264</td></tr>
+      <tr><td>8192</td><td class="num">2.212</td><td class="num">243</td><td class="num"><strong>1.470</strong></td><td class="num">183 ↓</td><td class="num">1.669</td><td class="num">241</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Lesson 1 · The promise of fusion is observable</h2>
+  <p>Theoretical HBM trips: v1 = 4, v2 = 2 → v2 should be 2× faster. Observed: 2.02× (N=1024), 1.86× (N=2048), 1.92× (N=4096). Very close to theory. <strong>This is why more than half of LLM-inference optimization is fusion.</strong></p>
+
+  <h2>Lesson 2 · Occupancy cliff @ N=8192</h2>
+  <p>v2 smem usage = N × 4 bytes. At N=8192, that's 32 KB. Against T4's 64 KB smem per SM, only <strong>2 blocks</strong> reside → threads/SM drops from 1024 to 512 → <strong>50% occupancy</strong>.</p>
+  <blockquote>It's not a bandwidth shortage — it's a shortage of warps to hide latency. This is the generic trap of shared-memory-heavy kernels.</blockquote>
+
+  <h2>Lesson 3 · L2 absorbs v3's "extra read"</h2>
+  <p>In theory v3 should be 1.5× slower than v2 because of 3 trips. Yet at N=1024, v3 is actually slightly faster. Reason: a row is 4 KB → fits comfortably in L2 (4 MB) → pass 1's input hits L2 in pass 2. Effective 356 GB/s (111% of theoretical) is the evidence. As N grows, L2 gets evicted and the benefit fades, v2 retakes the lead.</p>
+
+  <h2>Lesson 4 · v3's real value — the online update formula</h2>
+  <p>v3 isn't faster than v2 at our sizes. But:</p>
+  <ul>
+    <li>Supports arbitrary N (v2 fails for N &gt; 12288)</li>
+    <li>Its online update formula <strong>is the output-update formula of Flash Attention</strong></li>
+  </ul>
+
+<pre><code>new_max = max(m1, m2)
+new_sum = s1 * exp(m1 - new_max) + s2 * exp(m2 - new_max)</code></pre>
+
+  <p>FA layers tiled matmul fusion on top of this so the intermediate matrix (P = softmax(Q@K^T)) never lands in HBM. <strong>Implementing v3 = understanding the mathematical half of FA.</strong> The other half is attention-specific tiling — next lesson.</p>
+
+  <h2>Regime map</h2>
+<pre><code>small N (smem slack)     v2       fusion clean win (2×)
+mid N (L2 hits)          v2 ≈ v3  L2 absorbs v3's 3rd read
+large N (smem saturated) v3 / FA  v2's occupancy collapses
+very large N (attention) FA       intermediate matrix cannot materialize</code></pre>
+
+  <div class="callout">
+    <div class="label">LLM-serving translation</div>
+    <p><strong>Decode phase</strong>: short seq_len → a simple fused softmax like v2 suffices. The bottleneck is loading KV cache from HBM.<br>
+    <strong>Prefill phase</strong>: seq_len in the thousands to tens of thousands. The attention score matrix is huge → <strong>Flash Attention is mandatory</strong>. Our v3 online formula is the skeleton of FA.</p>
   </div>
 
   <div class="artnav">

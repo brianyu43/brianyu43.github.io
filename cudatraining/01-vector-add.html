@@ -8,14 +8,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 01 · 2026.04.18 · T4</p>
   <h1 class="title">vector_add — 첫 커널이 가르쳐 준 것</h1>
   <p class="dek">연산이 더 비싼가, 복사가 더 비싼가. T4 위에서 처음으로 돌려본 커널은
@@ -77,6 +82,71 @@
 
   <div class="artnav">
     <a href="index.html"><span class="lbl">Index</span>전체 목록으로</a>
+    <a class="nxt" href="02-pinned-vs-pageable.html"><span class="lbl">Next · 02</span>pageable vs pinned</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 01 · 2026.04.18 · T4</p>
+  <h1 class="title">vector_add — what the first kernel taught</h1>
+  <p class="dek">Is compute more expensive, or the copy? The first kernel I ran on T4 returned the proposition "data movement is the bottleneck" as a 17× gap in numbers.</p>
+  <div class="meta">
+    <span>GPU · <strong>Tesla T4 · sm_75</strong></span>
+    <span>N · <strong>67,108,864</strong></span>
+    <span>result · <strong>230.9 GB/s · 72.1%</strong></span>
+  </div>
+
+  <h2>Setup</h2>
+  <p>My local is Apple Silicon so I can't run CUDA directly. I spun up a T4 Spot VM in <code>us-east1-d</code> with GCP credits, booted the Deep Learning VM image, and compiled remotely. The first kernel is a textbook <strong>vector add</strong>. Simple — but simple is where you learn.</p>
+
+<pre><code>__global__ void vector_add_kernel(const float* a, const float* b, float* c, size_t n) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = gridDim.x * blockDim.x;
+  for (size_t i = idx; i &lt; n; i += stride) c[i] = a[i] + b[i];
+}</code></pre>
+
+  <p>The reason for the <code>grid-stride loop</code> is simple: if problem size <code>n</code> exceeds the grid, one thread handles several elements. Launch config becomes less sensitive to <code>n</code>.</p>
+
+  <h2>Results</h2>
+  <p>Main run (<code>block_size = 256</code>):</p>
+  <dl class="kv">
+    <dt>best kernel time</dt><dd>3.488 ms</dd>
+    <dt>effective bandwidth</dt><dd>230.909 GB/s</dd>
+    <dt>theoretical (T4)</dt><dd>320.064 GB/s</dd>
+    <dt>efficiency</dt><dd>72.145%</dd>
+    <dt>H2D copy</dt><dd>44.276 ms</dd>
+    <dt>D2H copy</dt><dd>20.439 ms</dd>
+  </dl>
+
+  <p>Shaking block size didn't move things dramatically.</p>
+
+  <table class="tbl">
+    <thead><tr><th>block</th><th class="num">GB/s</th><th class="num">eff</th></tr></thead>
+    <tbody>
+      <tr><td>128</td><td class="num">219.228</td><td class="num">68.495 %</td></tr>
+      <tr><td>256</td><td class="num">230.909</td><td class="num">72.145 %</td></tr>
+      <tr><td>512</td><td class="num">236.592</td><td class="num">73.920 %</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The real bottleneck</h2>
+  <blockquote>Kernel: 3.4 ms. Copies: 60 ms+ combined. The real bottleneck is not inside the kernel — it's over PCIe.</blockquote>
+
+  <p>The first lesson's takeaway is simple: <strong>data movement is more expensive than compute.</strong> This proposition defines all nine lessons that follow — pinned memory (02), reduction tree (03), tiling (04), fusion (05), Flash Attention (06). All variations on "how do we move less."</p>
+
+  <h3>Why <code>bytes_moved = n × 4 × 3</code></h3>
+  <p>Per element we read two floats and write one. 4 bytes × 3 = 12 bytes per element. Dividing by time gives effective bandwidth. It only measures how fast the kernel does "its own work." Copy time isn't included — the next lesson covers that separately.</p>
+
+  <h3>Why vector add is memory-bound</h3>
+  <p>Arithmetic intensity is <strong>12 bytes per FLOP</strong>. T4's roofline knee sits around FP32 peak 8.1 TFLOPS / 320 GB/s ≈ 25 FLOP/byte. Our intensity is far below that — HBM bandwidth is the ceiling. No amount of kernel tuning beats the bandwidth cap.</p>
+
+  <div class="callout">
+    <div class="label">Next lesson</div>
+    <p>Why are H2D and D2H so expensive? We measure pinned memory (from <code>cudaMallocHost</code>) side by side with pageable memory (from plain <code>new float[]</code>).</p>
+  </div>
+
+  <div class="artnav">
+    <a href="index.html"><span class="lbl">Index</span>Back to list</a>
     <a class="nxt" href="02-pinned-vs-pageable.html"><span class="lbl">Next · 02</span>pageable vs pinned</a>
   </div>
 </article>

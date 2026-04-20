@@ -6,14 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 02 · 2026.04.18 · T4</p>
   <h1 class="title">복사 비용의 정체 — pageable vs pinned</h1>
   <p class="dek">같은 커널, 같은 GPU. host 쪽 메모리 선택만 바꿨는데 end-to-end 시간이
@@ -71,6 +76,71 @@
   <div class="callout">
     <div class="label">구조적 한 줄</div>
     <p>Memory-bound 워크로드에서 가장 큰 레버는 kernel 이 아니라 <strong>data path</strong> 다. 커널이 이론 대역폭의 70% 를 찍고 있어도 host 쪽을 pageable 로 두면 end-to-end 는 5 배 느려진다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="01-vector-add.html"><span class="lbl">Prev · 01</span>vector_add</a>
+    <a class="nxt" href="03-reduction.html"><span class="lbl">Next · 03</span>reduction</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 02 · 2026.04.18 · T4</p>
+  <h1 class="title">The true cost of copies — pageable vs pinned</h1>
+  <p class="dek">Same kernel, same GPU. I only changed the host-side memory choice and end-to-end time jumped 5.6×. D2H alone jumped 12.7×. We break down the source of that gap with numbers and the page table.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4 · sm_75</strong></span>
+    <span>sweep · <strong>16 runs</strong></span>
+    <span>PCIe Gen3 x16 effective · <strong>~13 GB/s</strong></span>
+  </div>
+
+  <h2>Experiment</h2>
+  <p>I added <code>--pinned</code> / <code>--pageable</code> flags to <code>src/vector_add.cu</code> and branched host-buffer allocation between <code>cudaMallocHost</code> and <code>new float[]</code>. Same GPU path — identical kernel, only host memory changes.</p>
+
+  <h2>Transfer bandwidth plateau</h2>
+  <table class="tbl">
+    <thead><tr><th></th><th class="num">pinned</th><th class="num">pageable</th><th class="num">ratio</th></tr></thead>
+    <tbody>
+      <tr><td>H2D</td><td class="num">~12.3 GB/s</td><td class="num">~4.6 GB/s</td><td class="num">2.7×</td></tr>
+      <tr><td>D2H</td><td class="num">~13.1 GB/s</td><td class="num">~1.03 GB/s</td><td class="num"><strong>12.7×</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>End-to-end total time</h2>
+  <table class="tbl">
+    <thead><tr><th>n</th><th class="num">pinned</th><th class="num">pageable</th><th class="num">ratio</th></tr></thead>
+    <tbody>
+      <tr><td>2²⁰</td><td class="num">1.12 ms</td><td class="num">6.84 ms</td><td class="num">6.1×</td></tr>
+      <tr><td>2²²</td><td class="num">4.28 ms</td><td class="num">24.09 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁴</td><td class="num">16.87 ms</td><td class="num">95.03 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁶</td><td class="num">67.38 ms</td><td class="num">375.69 ms</td><td class="num">5.6×</td></tr>
+      <tr><td>2²⁸</td><td class="num">270.56 ms</td><td class="num">1519.26 ms</td><td class="num">5.6×</td></tr>
+    </tbody>
+  </table>
+
+  <p>Kernel time is identical in both modes. The gap is <strong>100% on the host-side copy</strong>.</p>
+
+  <h2>Why only D2H is 12.7× — page faults</h2>
+  <p>H2D <em>reads</em> pages the user already touched during init. No fault. Hence 2.7×.</p>
+  <p>D2H is the opposite. <code>new float[n]</code> only allocates virtual addresses without committing physical pages. When the driver CPU-<code>memcpy</code>s from staging → pageable, every page incurs a <strong>demand-zero fault</strong>. A 1 GB buffer means roughly 262k page faults.</p>
+
+  <blockquote>Even when pageable is unavoidable, <strong>pre-touch your output buffer</strong>. A single <code>memset</code> makes D2H several times faster.</blockquote>
+
+  <h2>T4 with pinned memory hits PCIe Gen3's effective ceiling</h2>
+  <p>H2D 12.3, D2H 13.1 GB/s. Gen3 x16 theoretical 16 GB/s, effective ~13 GB/s. There's <strong>nothing more to squeeze</strong>. The three remaining levers are:</p>
+  <ul>
+    <li><strong>Overlap</strong> — streams + async copy to overlap kernel and transfer</li>
+    <li><strong>Elimination</strong> — persistent device buffer, unified memory, zero-copy</li>
+    <li><strong>Reduction</strong> — kernel fusion shrinks the round trip itself</li>
+  </ul>
+  <p>This is the background for why vLLM pins its KV cache on the GPU and why operator fusion pays off so well.</p>
+
+  <h2>Small n is a different world</h2>
+  <p>For <code>n ≤ 2¹⁸</code>, the kernel gets pinned against the launch-overhead floor (~4–7 µs). The "bandwidth %" concept loses meaning. At <code>n = 2¹⁸</code>, apparent bandwidth is 140% of theoretical — a spurious number coming from L2 cache hits. The crossover into true HBM-bound territory sits around <strong>n ≈ 2²⁰ (4 MB)</strong>.</p>
+
+  <div class="callout">
+    <div class="label">Structural one-liner</div>
+    <p>For memory-bound workloads the biggest lever isn't the kernel, it's the <strong>data path</strong>. Your kernel can sit at 70% of theoretical bandwidth and end-to-end still runs 5× slower if the host side is pageable.</p>
   </div>
 
   <div class="artnav">

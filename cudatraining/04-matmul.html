@@ -6,14 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 04 · 2026.04.18 · T4</p>
   <h1 class="title">Matmul — memory-bound 에서 Tensor Core 까지</h1>
   <p class="dek">0.4 → 7.9 TFLOPS. 같은 GPU, 같은 matrix. 네 번의 구현을 거치며
@@ -94,6 +99,93 @@ perf ▲              │
                        low AI                       high AI</code></pre>
 
   <p>v3 까지는 HBM 대역폭 싸움, v4 에서 축이 수직으로 점프 — 다른 지붕. <strong>LLM inference 는 거의 전부 맨 아래 두 줄에서 실행된다.</strong> v1-v4 는 거기까지 올라가는 사다리.</p>
+
+  <div class="artnav">
+    <a href="03-reduction.html"><span class="lbl">Prev · 03</span>reduction</a>
+    <a class="nxt" href="05-softmax-fusion.html"><span class="lbl">Next · 05</span>softmax &amp; fusion</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 04 · 2026.04.18 · T4</p>
+  <h1 class="title">Matmul — from memory-bound to Tensor Cores</h1>
+  <p class="dek">0.4 → 7.9 TFLOPS. Same GPU, same matrix. Across four implementations the ceiling shifted twice. The spot where the roofline axis jumps vertically.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>peak · <strong>FP32 8.1 · TC 65 TFLOPS</strong></span>
+    <span>sweep · <strong>4 sizes × 4 versions</strong></span>
+  </div>
+
+  <h2>Four versions</h2>
+  <ul>
+    <li><strong>v1 naive</strong> — 1 thread / 1 output. global memory only</li>
+    <li><strong>v2 tiled</strong> — 32×32 shared-memory tile (AI = 8 FLOP/byte)</li>
+    <li><strong>v3 register</strong> — block 128×128, thread tile 8×8, BK=8 (AI = 32 FLOP/byte)</li>
+    <li><strong>v4 tensor</strong> — WMMA API, block 64×64, FP16 inputs → FP32 accumulate</li>
+  </ul>
+
+  <h2>TFLOPS matrix</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">v1 naive</th><th class="num">v2 tiled</th><th class="num">v3 reg</th><th class="num">v4 tensor</th></tr></thead>
+    <tbody>
+      <tr><td>256</td><td class="num">0.22</td><td class="num">0.56</td><td class="num">0.20 ⚠</td><td class="num">1.51</td></tr>
+      <tr><td>512</td><td class="num">0.47</td><td class="num">0.75</td><td class="num">0.95</td><td class="num">3.71</td></tr>
+      <tr><td>1024</td><td class="num">0.40</td><td class="num">0.64</td><td class="num">1.43</td><td class="num">3.59</td></tr>
+      <tr><td>2048</td><td class="num">0.40</td><td class="num">0.83</td><td class="num"><strong>2.05</strong></td><td class="num"><strong>7.93</strong></td></tr>
+    </tbody>
+  </table>
+  <p>v3 @ 2048 = 25% of FP32 peak. v4 @ 2048 = 12% of TC peak. The point: plain WMMA alone lands 7.93 TFLOPS.</p>
+
+  <h2>Lesson 1 · Occupancy trap — v3 is slower than v2 at N=256</h2>
+  <p>v3's block tile is 128×128. At N=256 that's just 4 blocks. 36 of T4's 40 SMs sit idle. v2's 32×32 tiles → 64 blocks → all SMs working.</p>
+  <blockquote>Bigger tiles mean higher AI — good. But you must keep <strong>blocks ≥ 2 × SM count</strong>. Miss that and you go slower instead.</blockquote>
+  <p>LLM-serving implication: big matmuls (FFN) are fine, but the small-batch decode attention matmul needs a "small-tile variant."</p>
+
+  <h2>Lesson 2 · What v3 is really doing</h2>
+  <p>Each thread holds an 8×8 output tile in registers. That gives:</p>
+  <ul>
+    <li><strong>8× fewer reads</strong> of the same shared-memory value compared to v2</li>
+    <li>Threads per block: 1024 → 256 (4× fewer) → more resident blocks per SM = occupancy restored</li>
+    <li>Block tile: 32×32 → 128×128 (16×) → AI up 4×</li>
+  </ul>
+  <p>These three compound to 2.05 TFLOPS at N=2048 — close to cuBLAS SGEMM's 3–4 TFLOPS.</p>
+
+  <h2>Lesson 3 · v4 is a new ceiling — Tensor Cores</h2>
+  <p>One <code>mma_sync</code> instruction = 16×16×16 matrix product = 4096 FMAs, done in ~8 cycles. Per warp-cycle, that's <strong>16×</strong> the throughput of FP32 FMAs.</p>
+  <p>Why we only hit 12% of peak:</p>
+  <ul>
+    <li>Fragment loads are not in swizzled layout</li>
+    <li>No double buffering (next tile HBM→shared overlapped with current tile mma)</li>
+    <li>Block tile 64×64 is small (AI limited)</li>
+  </ul>
+  <p>CUTLASS implements all three. Months of work.</p>
+
+  <h2>Lesson 4 · The cost of precision</h2>
+  <table class="tbl">
+    <thead><tr><th>version</th><th class="num">max_abs_err @ N=1024</th></tr></thead>
+    <tbody>
+      <tr><td>v1, v2, v3 (FP32)</td><td class="num">7.6e-5</td></tr>
+      <tr><td>v4 (FP16 input)</td><td class="num"><strong>1.4e-2 · 180×</strong></td></tr>
+    </tbody>
+  </table>
+  <p>FP16 inputs → 10-bit mantissa → about 3 decimal digits of precision. Fine for LLM inference, training needs BF16/FP32 mix. <strong>This is why AWQ, GPTQ, and FP8 quantization exist</strong>. Lower precision → faster TC → if output is nearly the same, net win.</p>
+
+  <h2>Roofline intuition</h2>
+  <pre><code>                    │       Tensor Core peak ━━━━━━━━━━
+perf ▲              │
+(TFLOPS)            │                                  v4 ●
+                    │                                (7.9)
+                    │      ← FP32 peak 8.1 ──────────────
+                    │                         v3 ●
+                    │                       (2.0)
+                    │                 v2 ●
+                    │              (0.8)
+                    │      v1 ●
+                    │    (0.4)
+                    └────────────────────────────────────▶
+                       low AI                       high AI</code></pre>
+
+  <p>Up through v3 is a bandwidth fight; v4 jumps the axis vertically — a different ceiling. <strong>LLM inference runs almost entirely in the bottom two rows.</strong> v1–v4 is the ladder up to there.</p>
 
   <div class="artnav">
     <a href="03-reduction.html"><span class="lbl">Prev · 03</span>reduction</a>

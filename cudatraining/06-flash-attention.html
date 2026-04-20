@@ -6,14 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
 </head><body>
 <div class="topbar">
-  <div class="brand"><em>cuda</em>training · 학습 기록</div>
-  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a></nav>
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav><a href="index.html">Index</a><a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div></nav>
 </div>
 
 <div class="wrap">
-<article class="prose">
+<article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 06 · 2026.04.18 · T4 · CAPSTONE</p>
   <h1 class="title kicker">Flash Attention — 다섯 레슨이 80줄에 수렴하다</h1>
   <p class="dek">Tiled matmul + online softmax + HBM 트래픽 감량. 레슨 1–5 가 쌓아온 것들을
@@ -84,6 +89,83 @@ Lesson 06 flash       → 위 다섯의 fusion</code></pre>
     <li><strong>Decode</strong>: seq_len = 1 (현재 쿼리). Q 가 아주 작아 FA 타일 구조 자체가 overkill. Paged Attention 등 다른 최적화가 중요.</li>
   </ul>
   <p>우리 단일 커널 FA 는 prefill 쪽의 dynamics 를 설명한다. 여기서 "CUDA 레벨 1" 학습이 종료. 다음 레슨부터는 PyTorch 에 붙인다.</p>
+
+  <div class="artnav">
+    <a href="05-softmax-fusion.html"><span class="lbl">Prev · 05</span>softmax &amp; fusion</a>
+    <a class="nxt" href="07-pytorch-op.html"><span class="lbl">Next · 07</span>pytorch custom op</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 06 · 2026.04.18 · T4 · CAPSTONE</p>
+  <h1 class="title kicker">Flash Attention — five lessons converging into 80 lines</h1>
+  <p class="dek">Tiled matmul + online softmax + HBM-traffic reduction. Everything lessons 1–5 built, compressed into a single kernel. 4.79× faster and 65× less memory traffic at N=4096.</p>
+  <div class="meta">
+    <span>GPU · <strong>T4</strong></span>
+    <span>d · <strong>64, FP32</strong></span>
+    <span>sweep · <strong>8 runs</strong></span>
+  </div>
+
+  <h2>Two implementations</h2>
+  <ul>
+    <li><strong>naive</strong> — 3 kernels (QK → softmax → PV). Fully materializes intermediates S and P (N×N) in HBM.</li>
+    <li><strong>flash</strong> — single kernel. Q in Br=64 row blocks, K/V in Bc=32 column blocks. Each tile accumulates Q@K^T, online softmax, and P@V <strong>in one pass</strong>. S and P never touch HBM.</li>
+  </ul>
+
+  <h2>Results</h2>
+  <table class="tbl">
+    <thead><tr><th>N</th><th class="num">naive ms</th><th class="num">flash ms</th><th class="num">speedup</th><th class="num">naive HBM</th><th class="num">flash HBM</th><th class="num">HBM ratio</th></tr></thead>
+    <tbody>
+      <tr><td>512</td><td class="num">0.402</td><td class="num">0.593</td><td class="num">0.68×</td><td class="num">4.5 MB</td><td class="num">0.5 MB</td><td class="num">9×</td></tr>
+      <tr><td>1024</td><td class="num">1.088</td><td class="num">0.881</td><td class="num">1.24×</td><td class="num">17.0</td><td class="num">1.0</td><td class="num">17×</td></tr>
+      <tr><td>2048</td><td class="num">3.076</td><td class="num">1.235</td><td class="num"><strong>2.49×</strong></td><td class="num">66.0</td><td class="num">2.0</td><td class="num">33×</td></tr>
+      <tr><td>4096</td><td class="num">11.857</td><td class="num"><strong>2.477</strong></td><td class="num"><strong>4.79×</strong></td><td class="num">260.0</td><td class="num">4.0</td><td class="num"><strong>65×</strong></td></tr>
+    </tbody>
+  </table>
+  <p>GFLOP/s (by compute count): naive 169 → 366, flash 115 → <strong>1754</strong> (22% of T4 peak). Accuracy: both max_abs_err &lt; 5e-7.</p>
+
+  <h2>Lesson 1 · HBM reduction scales N² → N·d</h2>
+  <p>At N=4096, d=64:</p>
+  <ul>
+    <li>naive HBM ≈ 4N² + 4N·d = <strong>260 MB</strong></li>
+    <li>flash HBM ≈ 4N·d = <strong>4 MB</strong></li>
+  </ul>
+  <p>Ratio 65×, widening quadratically in N. <strong>This is the whole of FA.</strong> The rest is engineering that converts this reduction into time.</p>
+
+  <h2>Lesson 2 · Crossover — naive is faster at N=512</h2>
+  <p>At N=512, flash is actually slower (0.68×). Reasons:</p>
+  <ul>
+    <li>naive's S (1 MB) fits in T4's L2 (4 MB) → actual HBM loads are far below theoretical</li>
+    <li>flash rotates K/V for each Q block → recompute overhead</li>
+    <li>Br=64 means too few blocks to fill T4's 40 SMs → low occupancy</li>
+  </ul>
+  <blockquote>"FA is always faster" is false. It wins once sequence length is long. That's why FA is decisive for real LLM prefill (N=4096–32k).</blockquote>
+
+  <h2>Lesson 3 · HBM reduction vs wall-clock speed</h2>
+  <p>At N=4096, HBM drops 65× but wall-clock only 4.79×. Why?</p>
+  <ul>
+    <li>naive isn't really HBM-bound (effective 22 GB/s → 7% of T4). <strong>L2 absorbs most of it.</strong></li>
+    <li>FLOPs are identical — flash only cuts data movement, not compute</li>
+    <li>flash plateaus at 1.75 TFLOPS → entering a compute-bound regime</li>
+  </ul>
+  <p>FA's big wins appear on <strong>high-bandwidth + high-peak</strong> silicon like H100. On T4 the savings are real but not dramatic.</p>
+
+  <h2>Lesson 4 · Five lessons converge in one kernel</h2>
+<pre><code>Lesson 01 vector_add  → coalesced load pattern (FA's Q/K/V loads)
+Lesson 02 memory      → HBM↔L2 traffic awareness (the reason FA exists)
+Lesson 03 reduction   → warp reduce (row max/sum)
+Lesson 04 matmul      → tiled matmul (S = Q@K^T, O += P@V)
+Lesson 05 softmax     → online (max, sum) update (heart)
+Lesson 06 flash       → fusion of the five above</code></pre>
+
+  <p>All of that sits inside one 80-line kernel. <strong>That's why the FA paper is often described as "a sharp combination of not-particularly-novel techniques."</strong></p>
+
+  <h2>LLM-serving translation</h2>
+  <ul>
+    <li><strong>Prefill</strong>: N in the thousands to tens of thousands. Without FA the memory itself runs out. This is where vLLM / TensorRT-LLM call FA-2/FA-3.</li>
+    <li><strong>Decode</strong>: seq_len = 1 (the current query). Q is so small that FA's tile structure is overkill. Other optimizations like Paged Attention matter more.</li>
+  </ul>
+  <p>Our single-kernel FA explains the dynamics on the prefill side. This closes "CUDA Level 1." Next lesson onward we attach this to PyTorch.</p>
 
   <div class="artnav">
     <a href="05-softmax-fusion.html"><span class="lbl">Prev · 05</span>softmax &amp; fusion</a>
