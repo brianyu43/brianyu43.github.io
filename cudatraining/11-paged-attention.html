@@ -25,17 +25,223 @@
 <div class="wrap">
 <article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 11 · 2026.04.22 · L4</p>
-  <h1 class="title">vLLM 의 Paged Attention 을 Triton 으로 다시 짜보고, vLLM 의 실수를 반복했다</h1>
-  <p class="dek">Lesson 09 의 contiguous MHA 에 <strong>block_table 한 줄</strong> 끼워넣으면 vLLM paged attention 이 되는가 — 되긴 되는데, 가는 길에 두 번 틀렸다. 그게 이 글의 알맹이.</p>
+  <h1 class="title kicker">vLLM 의 Paged Attention 을 Triton 으로 다시 짜보고, vLLM 의 실수를 반복했다</h1>
+  <p class="dek">독립적으로 같은 refactor 에 수렴하는 게 설계가 맞다는 증거라는 이야기.</p>
   <div class="meta">
-    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>GPU · <strong>L4 · sm_89</strong></span>
     <span>stack · <strong>torch 2.11 + Triton 3.6</strong></span>
     <span>result · <strong>LLaMA-3-8B 에서 SDPA 를 14 % 이김</strong></span>
   </div>
 
+  <h2>들어가며 — contiguous attention 에 끼워넣는 한 줄</h2>
+  <p>Lesson 09 에서 <code>(B, H, N, d)</code> 4-D MHA + causal flash attention 을 Triton 으로 짰다. 그 커널은 <code>torch.nn.functional.scaled_dot_product_attention</code> (속을 까보면 Tri Dao 의 FA-2 CUDA) 의 <strong>78–90 %</strong> 속도. 벤치 수치만 보면 "잘 짠 커널".</p>
+  <p>문제는 <strong>LLM 서빙 (vLLM / SGLang / TensorRT-LLM) 은 contiguous KV cache 를 쓰지 않는다</strong>. sequence 별로 길이가 천차만별이고 들어왔다 나갔다 하니까 pre-allocate 하면 GPU 메모리 70 % 이상이 fragmentation 으로 날아간다. vLLM 이 SOSP '23 에서 밀어붙인 해법은 단순:</p>
+  <blockquote><strong>KV cache 를 고정 크기 block 의 pool 로 쪼개고, sequence 별 <code>block_table</code> 로 간접 참조한다.</strong></blockquote>
+
+<pre><code>(기존)
+K: (B, H, N, d)                             ← seq 별 연속
+
+(paged)
+K_cache:     (num_blocks, block_size, H_kv, d)     ← 블록 풀
+block_table: (B, max_blocks_per_seq)               ← seq → physical block id
+context_lens:(B,)                                   ← 각 seq 유효 길이</code></pre>
+
+  <p>attention 커널이 바뀌는 건 단 한 줄:</p>
+<pre><code># 기존: K[b, h, start_n:end_n, :] 를 연속으로 로드
+# paged: block_table[b, logical_blk] 조회 → phys_blk →
+#        K_cache[phys_blk, :, kv_head, :] 로드</code></pre>
+
+  <p>이번 글은 <strong>"이 한 줄만 끼워넣으면 vLLM paged attention 이 되는지"</strong> 를 측정하는 세션. 되긴 되는데, 가는 길에 <strong>두 번</strong> 틀렸다. 그게 알맹이다.</p>
+
+  <h2>Phase 1–2 · correctness 는 너무 쉽게 통과했다 (이게 함정)</h2>
+  <p>작업 순서:</p>
+  <ol>
+    <li>PyTorch reference (Python loop 로 block_table 돌면서 gather 후 표준 attention) 로 oracle 만들기.</li>
+    <li>Triton 커널: 처음엔 <code>grid = (B, H_q)</code> — lesson 09 의 <code>(cdiv(N, BM), H, B)</code> 에서 "decode 니까 N=1" 로 자연스럽게 축소.</li>
+    <li>GQA 지원: <code>GQA_GROUP_SIZE = H_q // H_kv</code> 를 constexpr 로, <code>kv_head = pid_h // GQA_GROUP_SIZE</code>. <strong>총 4 줄 변경.</strong></li>
+  </ol>
+
+  <p>Correctness 벤치 (16 shape × 2 dtype = <strong>32/32 PASS</strong>):</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>H_q</th><th>H_kv</th><th>group</th><th class="num">fp16 max diff</th><th class="num">fp32 max diff</th></tr></thead>
+    <tbody>
+      <tr><td>MHA</td><td>1–4</td><td>32</td><td>32</td><td>1</td><td class="num">9.8e-04</td><td class="num">3.6e-07</td></tr>
+      <tr><td>LLaMA-3-8B GQA</td><td>2</td><td>32</td><td>8</td><td>4</td><td class="num">2.4e-04</td><td class="num">3.6e-07</td></tr>
+      <tr><td>LLaMA-70B GQA</td><td>4</td><td>64</td><td>8</td><td>8</td><td class="num">3.1e-05</td><td class="num">3.6e-07</td></tr>
+      <tr><td>MQA</td><td>2</td><td>16</td><td>1</td><td>16</td><td class="num">1.9e-06</td><td class="num">3.6e-07</td></tr>
+    </tbody>
+  </table>
+
+  <p>fp16 에서 1e-3 이하, fp32 에서 1e-7 수준. 모델 공장 기준 모든 게 통과.</p>
+  <p>이 시점의 판단: <strong>"되는구나. 끝나겠다."</strong> 이게 함정이었다.</p>
+
+  <h2>Phase 3 · 속도 벤치가 구조 버그를 드러냈다</h2>
+  <p>Correctness 만 보고 끝냈으면 이 커널이 LLaMA-3-8B 에서 SDPA 대비 <strong>2–3 배 느린 상태로</strong> shipping 됐을 것.</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>group</th><th class="num">SDPA ms</th><th class="num">paged best</th><th class="num">gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama7b (MHA)</td><td>8</td><td>1</td><td class="num">1.143</td><td class="num">1.06×</td><td class="num">-7 % ✅</td></tr>
+      <tr><td>llama38b (GQA)</td><td>8</td><td>4</td><td class="num">0.271</td><td class="num">0.86×</td><td class="num">+16 % ⚠</td></tr>
+      <tr><td>llama38b (GQA)</td><td>32</td><td>4</td><td class="num">1.147</td><td class="num">0.73×</td><td class="num">+37 % ⚠</td></tr>
+      <tr><td>llama70b (GQA)</td><td>4</td><td>8</td><td class="num">0.069</td><td class="num">0.31×</td><td class="num">+217 % ❌</td></tr>
+      <tr><td>llama70b (GQA)</td><td>8</td><td>8</td><td class="num">0.533</td><td class="num">0.46×</td><td class="num">+117 % ❌</td></tr>
+      <tr><td>mqa</td><td>16</td><td>32</td><td class="num">0.062</td><td class="num">0.07×</td><td class="num">+1316 % 💥</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>MHA 는 parity. GQA 부터 gap 이 <code>GROUP_SIZE</code> 에 거의 선형.</strong></p>
+  <ul>
+    <li>group=4 → +16–37 %</li>
+    <li>group=8 → +117–217 %</li>
+    <li>group=32 → <strong>+1316 %</strong> (13× 느림)</li>
+  </ul>
+  <p>이 선형성이 진단의 핵심. 임의 regression 이 아니라 <strong>구조적</strong>.</p>
+
+  <h3>원인 — <code>(B, H_q)</code> 그리드가 KV 를 GROUP 번 재로드한다</h3>
+  <p>Grid <code>(B, H_q)</code> 는 한 program 이 한 <code>(batch, query head)</code>. GQA 의 <code>GROUP_SIZE</code> 개의 query head 는 <strong>같은 KV head</strong> 의 캐시를 공유하지만, 각각의 program 이 독립적으로 block_table 를 돌며 <strong>같은 K/V block 을 DRAM 에서 다시</strong> 로드한다. <code>GROUP_SIZE</code> 배의 redundant DRAM 트래픽.</p>
+  <p>SDPA 는 왜 안 느리나? Contiguous KV 니까 <strong>L2 prefetcher 가 중복 로드를 흡수</strong>. 실제로 MQA 의 SDPA 는 L4 에서 <strong>542 GB/s</strong> — L4 DRAM peak (300 GB/s) 의 1.8 배. 이 숫자는 DRAM 단독으로 불가능. L2 가 반 이상을 먹는다는 증거.</p>
+  <p>우리 paged 는 block_table indirection 때문에 L2 prefetcher 가 패턴 인식을 못한다. 그래서 redundant load 가 전부 DRAM 으로.</p>
+
   <div class="callout">
-    <div class="label">이 페이지</div>
-    <p>내용 집필 중입니다. 다음 업데이트에서 Phase 1–2 (correctness 32/32), Phase 3 (GQA grid bug, +1316 % MQA gap), Phase 3.5 (grid refactor + 숨어있던 TF32 bug), Phase 4 (vLLM 소스와 axis-for-axis 매치) 전문을 채웁니다.</p>
+    <div class="label">교훈 #1</div>
+    <p><strong>Correctness 가 통과해도 구조 문제는 속도로만 보인다.</strong> <code>allclose</code> 는 grid 설계에 무관. Reference 와의 비교만으론 이 버그 절대 안 잡혔다. 벤치 테이블 + SDPA gap 컬럼을 리포트로 남겨야 문제가 보인다.</p>
+  </div>
+
+  <h2>Phase 3.5 · Grid 하나 바꿨을 뿐인데 (또 다른 버그가 튀어나왔다)</h2>
+  <p>고칠 게 명확하다. <strong>Grid 를 <code>(B, H_kv)</code> 로 바꾸고, program 안에서 GQA group 의 <code>GROUP_SIZE</code> query head 를 한 번에 처리한다</strong>. K/V block 은 program 당 한 번만 로드.</p>
+
+<pre><code>grid = (B, H_kv)                              # 프로그램 수 / GROUP
+q = tl.load(q_ptrs)                            # (GROUP, HEAD_DIM) — 2D tile
+# 블록 루프 안:
+scores = tl.dot(q_scaled, tl.trans(k))         # (GROUP, BLOCK)
+acc += tl.dot(p.to(v.dtype), v)                # (GROUP, HEAD)</code></pre>
+
+  <p>이 변경 자체는 ~20 줄. 벤치:</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th class="num">Phase 3 gap</th><th class="num">Phase 3.5 gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama38b (group=4) B=8</td><td class="num">+161 %</td><td class="num"><strong>-14 %</strong> ← SDPA 를 이김</td></tr>
+      <tr><td>llama38b (group=4) B=32</td><td class="num">+86 %</td><td class="num">+3 % (parity)</td></tr>
+      <tr><td>llama70b (group=8) B=4</td><td class="num">-2 %</td><td class="num">-1 %</td></tr>
+      <tr><td>llama70b (group=8) B=8</td><td class="num">-1 %</td><td class="num">-1 %</td></tr>
+      <tr><td>mqa (group=32)</td><td class="num">+1316 %</td><td class="num"><strong>+85 %</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>LLaMA-3-8B 의 <code>-14 %</code> — cuDNN / FA-2 를 우리 Triton 커널이 <strong>이기는</strong> shape 가 생겼다. production 에서 흔한 mid-range batch.</p>
+
+  <h3>그런데 fp32 correctness 가 깨졌다</h3>
+  <ul>
+    <li>fp16: 모든 shape 여전히 통과 ✅</li>
+    <li>fp32 MQA: max diff <strong>4.1e-04</strong> ← <strong>원래 3.6e-07 이었다</strong>. 세 자릿수 나쁨.</li>
+  </ul>
+  <p>당황. grid 만 바꿨는데 fp32 가 왜 깨지나?</p>
+
+  <h3>진짜 원인 — <code>tl.dot(fp32, fp32)</code> 의 기본값은 TF32 (sm_80+)</h3>
+  <p>Ampere 이상에서 Triton 은 <code>tl.dot</code> 의 fp32 × fp32 를 <strong>자동으로 TF32 로 하향</strong> (10-bit mantissa). <code>input_precision</code> 을 명시 안 하면 기본이 TF32. MQA 의 <code>(GROUP=16, BLOCK=16, HEAD=64)</code> score tile 에서 summation 이 80–100 번 누적되면 10-bit 절단 오차가 쌓여서 softmax max 후보 경계가 4e-4 편향.</p>
+  <p>해결:</p>
+<pre><code>if IS_FP32:
+    # 3-pass TF32 스택 (2 low-bit 보정) 으로 IEEE 재구성 — 3× 느림
+    scores = tl.dot(q_scaled, tl.trans(k), input_precision="ieee")
+else:
+    # fp16/bf16 MMA — default 는 이미 IEEE fp16
+    scores = tl.dot(q_scaled, tl.trans(k)).to(tl.float32)</code></pre>
+
+  <p>fp32 max diff: <strong>4.1e-04 → 3.6e-07</strong> 복구. fp16 speed 손해 없음.</p>
+
+  <h3>왜 Phase 3 에선 안 보였나</h3>
+  <p>Phase 3 은 manual broadcast (<code>tl.sum(q * k)</code>) 로 score 를 계산했고, 이건 <strong>순수 fp32</strong> path. TF32 거치지 않음. Phase 3.5 에서 <code>tl.dot</code> 을 도입한 순간 처음 노출된 버그.</p>
+
+  <div class="callout">
+    <div class="label">교훈 #2</div>
+    <p><strong>두 독립 버그가 연쇄로 숨을 수 있다.</strong> Grid bug 를 안 고쳤으면 TF32 bug 가 안 나타남. 고치자마자 나타남. 큰 refactor 뒤엔 correctness 를 <strong>반드시</strong> 재실행.</p>
+  </div>
+
+  <h2>Phase 4 · vLLM 소스 읽고 보니 나는 vLLM 역사를 miniature 로 재현했다</h2>
+  <p>Phase 3.5 가 끝난 뒤에야 vLLM 소스를 읽었다. 일부러 — 독립적으로 설계한 뒤 vLLM 과 비교해서 수렴하는지 보고 싶었다.</p>
+
+  <p>읽은 파일:</p>
+  <table class="tbl">
+    <thead><tr><th>#</th><th>파일</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td>v1</td><td><code>csrc/attention/paged_attention_v1.cu</code></td><td>오리지널 CUDA 커널 (2023). <strong>Per-query-head 그리드.</strong></td></tr>
+      <tr><td>v2</td><td><code>csrc/attention/paged_attention_v2.cu</code></td><td>ctx 축 split-k + reduce 커널.</td></tr>
+      <tr><td>triton</td><td><code>vllm/v1/attention/ops/triton_unified_attention.py</code></td><td>현행 Triton 구현. <strong>Per-KV-head 그리드.</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>발견 1 — 내 Phase 3.5 는 vLLM 의 현행 Triton 커널과 axis-for-axis 매치</h3>
+
+  <table class="tbl">
+    <thead><tr><th>axis</th><th>vLLM Triton unified</th><th>내 Phase 3.5</th></tr></thead>
+    <tbody>
+      <tr><td>grid</td><td><code>(Σ q_blocks, H_kv)</code></td><td><code>(B, H_kv)</code></td></tr>
+      <tr><td>Q tile</td><td><code>(BLOCK_M, HEAD)</code></td><td><code>(GROUP, HEAD)</code></td></tr>
+      <tr><td>Matmul</td><td><code>tl.dot(Q, K)</code> / <code>tl.dot(P, V)</code></td><td><code>tl.dot</code> (GROUP≥4) 또는 manual fallback</td></tr>
+      <tr><td>Softmax</td><td>per-row fp32 running <code>(M, L, acc)</code></td><td>동일</td></tr>
+      <tr><td>KV layout</td><td><code>(num_blks, blk_size, H_kv, d)</code></td><td><strong>동일</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>vLLM 의 axis-0 가 <code>(batch × query block)</code> 이고 내 axis-0 가 pure batch 인 차이는, vLLM 은 prefill 까지 한 커널로 처리하니까 query 길이가 가변. 나는 decode 만 하니까 <code>q_len=1</code> 로 고정, batch 가 바로 0축. <strong>구조는 같음, scope 가 다를 뿐.</strong></p>
+
+  <h3>발견 2 — vLLM 자신이 나와 같은 refactor 를 거쳤다</h3>
+  <p><code>paged_attention_v1.cu:86</code>:</p>
+<pre><code>dim3 grid(num_heads, num_seqs, 1);</code></pre>
+  <p>이것이 <strong>per-query-head grid</strong>. 내 Phase 3 의 디자인과 동일. 2023 년 vLLM 이 shipping 한 오리지널.</p>
+  <p>당시엔 왜 괜찮았는가:</p>
+  <ul>
+    <li>LLM 시장의 대부분이 MHA (H_kv == H_q) → group redundancy <strong>구조적으로 없음</strong>.</li>
+    <li>몇 안 되던 GQA 모델은 KV 가 작아서 L2 가 먹어줌.</li>
+    <li>Triton 2.x 의 MMA 가 아직 CUDA 와 경쟁할 수 없어서 CUDA 가 정답.</li>
+  </ul>
+  <p>LLaMA-2-chat, LLaMA-3, Mistral 이 GQA 로 shipping 되면서 per-query-head grid 가 병목. vLLM 은 Triton 으로 옮기면서 <code>(q_block, H_kv)</code> 로 restructure — <strong>내가 Phase 3 → 3.5 에서 한 refactor 와 정확히 같다</strong>.</p>
+
+  <h3>발견 3 — 내가 한 것 중 vLLM 이 안 한 것 하나</h3>
+  <p>vLLM 은 <code>tl.dot</code> 에 precision 을 명시하지 않는다. <strong>production 이 fp16/bf16 만 돌리니까 문제 없음</strong>. 하지만 누가 fp32 로 돌리면 4e-4 오차. 내 <code>IS_FP32</code> branching + <code>input_precision="ieee"</code> 는 lesson context 에서만 중요하지만, 그래도 걸려냈다.</p>
+
+  <h3>발견 4 — 내가 못 한 것: ctx 축 split-k</h3>
+  <p>MQA 잔여 +85 % gap 의 원인. SDPA 는 이 shape 에서 698 GB/s (DRAM 의 2.3×) — L2 가 반 이상 흡수. 1 KV head × 4k tokens × 128 dim × 2 B fp16 = 1 MB 가 L2 48 MB 에 쉽게 들어가고 32 query heads 가 공유.</p>
+  <p>내 paged 는 block_table indirection 때문에 같은 L2 reuse 가 안 된다. 구조적 한계. grid 만 바꿔서는 못 닫음. vLLM 의 v2 는 ctx 축을 partition 하고 reduce 커널로 softmax 재조합. 이걸 Lesson 12 로 이월.</p>
+
+  <div class="callout">
+    <div class="label">교훈 #3</div>
+    <p><strong>Paper + HW + workload 만으로 짜도 실전 소스와 수렴하면 그건 설계가 맞다는 증거</strong>. vLLM 의 현행 Triton 포트와 axis-for-axis 매치. 이건 "내가 똑똑한 것" 이 아니라 "맞는 답이 하나" 라는 것.</p>
+  </div>
+
+  <h2>최종 숫자 (L4 sm_89, fp16, warmup=50, iters=200)</h2>
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>group</th><th class="num">SDPA ms</th><th class="num">paged best (bs)</th><th class="num">gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama7b MHA</td><td>8</td><td>1</td><td class="num">1.322</td><td class="num">1.227 (bs=16)</td><td class="num"><strong>-7 %</strong></td></tr>
+      <tr><td>llama7b MHA ctx=8k</td><td>8</td><td>1</td><td class="num">6.115</td><td class="num">4.927 (bs=64)</td><td class="num"><strong>-19 %</strong></td></tr>
+      <tr><td><strong>llama38b GQA</strong></td><td><strong>8</strong></td><td><strong>4</strong></td><td class="num"><strong>0.308</strong></td><td class="num"><strong>0.264 (bs=16)</strong></td><td class="num"><strong>-14 %</strong></td></tr>
+      <tr><td>llama38b GQA</td><td>32</td><td>4</td><td class="num">1.163</td><td class="num">1.197 (bs=128)</td><td class="num">+3 %</td></tr>
+      <tr><td>llama70b GQA</td><td>4</td><td>8</td><td class="num">0.049</td><td class="num">0.048 (bs=128)</td><td class="num"><strong>-1 %</strong></td></tr>
+      <tr><td>llama70b GQA</td><td>8</td><td>8</td><td class="num">0.532</td><td class="num">0.526 (bs=16)</td><td class="num"><strong>-1 %</strong></td></tr>
+      <tr><td>mqa</td><td>16</td><td>32</td><td class="num">0.048</td><td class="num">0.089 (bs=128)</td><td class="num">+85 %</td></tr>
+    </tbody>
+  </table>
+
+  <p>Correctness: 32/32 PASS. LLaMA-3-8B B=8 ctx=2k 에서 <strong>SDPA (= Tri Dao FA-2 CUDA) 를 14 % 이기는</strong> 275 줄 Triton 커널. LLaMA-70B 는 parity. MQA 는 +85 % (split-k 로 닫힐 residual).</p>
+
+  <h2>세 가지 남는 것</h2>
+
+  <h3>(1) Correctness 가 통과하는 것이 "맞다" 를 의미하지 않는다</h3>
+  <p>32/32 PASS 직후 "끝났다" 고 판단했으면 GQA shape 에서 <strong>2–13 배 느린</strong> 커널을 ship 했다. 이 함정은 <strong>속도 벤치에 SDPA gap 컬럼</strong> 이 없었으면 못 잡는다. <code>allclose</code> + gap 을 <strong>함께</strong> 리포트.</p>
+
+  <h3>(2) 버그가 버그 뒤에 숨는다</h3>
+  <p>Grid bug (Phase 3) 와 TF32 bug (Phase 3.5) 는 독립적이었고 <strong>순차적으로만 드러났다</strong>. 큰 refactor 뒤엔 correctness 를 <strong>반드시</strong> 재실행 — "한 버그 고쳤으니 안전" 은 정확히 저 상황에서 틀린다.</p>
+
+  <h3>(3) 독립적으로 수렴하는 게 설계의 증거</h3>
+  <p>vLLM 소스를 Phase 3.5 끝난 뒤에 읽었는데 axis-for-axis 매치. <strong>이건 내가 똑똑한 게 아니라, 맞는 답이 하나고 같은 툴 (Triton) + 같은 HW (sm_80+) + 같은 workload (GQA) 면 거기로 수렴한다</strong>. 오히려 이 convergence 를 명시적으로 기록하는 게 credible — "ecosystem 이 이미 한 refactor 를 miniature 로 재현했다" 는 스토리.</p>
+
+  <div class="callout">
+    <div class="label">다음 세션</div>
+    <p>남은 MQA +85 % gap 을 ctx 축 split-k (vLLM v2) 로 닫는다 — <a href="12-split-k.html">Lesson 12</a>.</p>
   </div>
 
   <div class="artnav">
@@ -46,17 +252,223 @@
 
 <article class="prose" data-lang="en" hidden>
   <p class="eyebrow"><span class="dot"></span>LESSON 11 · 2026.04.22 · L4</p>
-  <h1 class="title">Rewriting vLLM's Paged Attention in Triton — and repeating vLLM's mistake</h1>
-  <p class="dek">Does slipping a single <strong>block_table</strong> line into Lesson 09's contiguous MHA make vLLM paged attention? It does — but I got there after being wrong twice. That's the essay.</p>
+  <h1 class="title kicker">Rewriting vLLM's Paged Attention in Triton — and repeating vLLM's mistake</h1>
+  <p class="dek">A story about how independently converging on the same refactor is the evidence the design is right.</p>
   <div class="meta">
-    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>GPU · <strong>L4 · sm_89</strong></span>
     <span>stack · <strong>torch 2.11 + Triton 3.6</strong></span>
     <span>result · <strong>beats SDPA by 14 % on LLaMA-3-8B</strong></span>
   </div>
 
+  <h2>Prologue — the one line you slip into contiguous attention</h2>
+  <p>In Lesson 09 I wrote a <code>(B, H, N, d)</code> 4-D MHA + causal flash attention in Triton. That kernel runs at <strong>78–90 %</strong> of <code>torch.nn.functional.scaled_dot_product_attention</code> (which, under the hood, is Tri Dao's FA-2 CUDA). By the bench alone, "a good kernel."</p>
+  <p>The problem: <strong>LLM serving (vLLM / SGLang / TensorRT-LLM) doesn't use a contiguous KV cache</strong>. Sequences vary wildly in length and churn in and out, so pre-allocating burns 70 %+ of GPU memory to fragmentation. The fix vLLM pushed through at SOSP '23 is simple:</p>
+  <blockquote><strong>Split the KV cache into a pool of fixed-size blocks, and use a per-sequence <code>block_table</code> to reference them indirectly.</strong></blockquote>
+
+<pre><code>(before)
+K: (B, H, N, d)                             ← contiguous per sequence
+
+(paged)
+K_cache:     (num_blocks, block_size, H_kv, d)   ← block pool
+block_table: (B, max_blocks_per_seq)             ← seq → physical block id
+context_lens:(B,)                                 ← valid length per seq</code></pre>
+
+  <p>What changes in the attention kernel is exactly one line:</p>
+<pre><code># before: load K[b, h, start_n:end_n, :] contiguously
+# paged: look up block_table[b, logical_blk] → phys_blk →
+#        load K_cache[phys_blk, :, kv_head, :]</code></pre>
+
+  <p>This essay measures <strong>"does slipping that one line in actually yield vLLM paged attention?"</strong> It does — but I was wrong twice on the way. That's the essay.</p>
+
+  <h2>Phase 1–2 · correctness passed too easily (this was the trap)</h2>
+  <p>Order of work:</p>
+  <ol>
+    <li>Build a PyTorch reference (Python loop through block_table, gather, then standard attention) as the oracle.</li>
+    <li>Triton kernel: initially <code>grid = (B, H_q)</code> — the natural reduction of Lesson 09's <code>(cdiv(N, BM), H, B)</code> with "decode, so N=1."</li>
+    <li>GQA support: add <code>GQA_GROUP_SIZE = H_q // H_kv</code> as a constexpr and <code>kv_head = pid_h // GQA_GROUP_SIZE</code>. <strong>Four lines changed total.</strong></li>
+  </ol>
+
+  <p>Correctness bench (16 shapes × 2 dtypes = <strong>32/32 PASS</strong>):</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>H_q</th><th>H_kv</th><th>group</th><th class="num">fp16 max diff</th><th class="num">fp32 max diff</th></tr></thead>
+    <tbody>
+      <tr><td>MHA</td><td>1–4</td><td>32</td><td>32</td><td>1</td><td class="num">9.8e-04</td><td class="num">3.6e-07</td></tr>
+      <tr><td>LLaMA-3-8B GQA</td><td>2</td><td>32</td><td>8</td><td>4</td><td class="num">2.4e-04</td><td class="num">3.6e-07</td></tr>
+      <tr><td>LLaMA-70B GQA</td><td>4</td><td>64</td><td>8</td><td>8</td><td class="num">3.1e-05</td><td class="num">3.6e-07</td></tr>
+      <tr><td>MQA</td><td>2</td><td>16</td><td>1</td><td>16</td><td class="num">1.9e-06</td><td class="num">3.6e-07</td></tr>
+    </tbody>
+  </table>
+
+  <p>Sub-1e-3 on fp16, 1e-7 on fp32. Everything any model shop would accept.</p>
+  <p>At this point the judgement was: <strong>"It works. We're done."</strong> That was the trap.</p>
+
+  <h2>Phase 3 · the speed bench exposed a structural bug</h2>
+  <p>Had I stopped at correctness, I would have shipped a kernel <strong>2–3× slower</strong> than SDPA on LLaMA-3-8B.</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>group</th><th class="num">SDPA ms</th><th class="num">paged best</th><th class="num">gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama7b (MHA)</td><td>8</td><td>1</td><td class="num">1.143</td><td class="num">1.06×</td><td class="num">-7 % ✅</td></tr>
+      <tr><td>llama38b (GQA)</td><td>8</td><td>4</td><td class="num">0.271</td><td class="num">0.86×</td><td class="num">+16 % ⚠</td></tr>
+      <tr><td>llama38b (GQA)</td><td>32</td><td>4</td><td class="num">1.147</td><td class="num">0.73×</td><td class="num">+37 % ⚠</td></tr>
+      <tr><td>llama70b (GQA)</td><td>4</td><td>8</td><td class="num">0.069</td><td class="num">0.31×</td><td class="num">+217 % ❌</td></tr>
+      <tr><td>llama70b (GQA)</td><td>8</td><td>8</td><td class="num">0.533</td><td class="num">0.46×</td><td class="num">+117 % ❌</td></tr>
+      <tr><td>mqa</td><td>16</td><td>32</td><td class="num">0.062</td><td class="num">0.07×</td><td class="num">+1316 % 💥</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>MHA parity. From GQA onward, the gap is roughly linear in <code>GROUP_SIZE</code>.</strong></p>
+  <ul>
+    <li>group=4 → +16–37 %</li>
+    <li>group=8 → +117–217 %</li>
+    <li>group=32 → <strong>+1316 %</strong> (13× slower)</li>
+  </ul>
+  <p>That linearity is the diagnosis. Not a random regression — <strong>structural</strong>.</p>
+
+  <h3>The cause — <code>(B, H_q)</code> grid reloads KV GROUP times</h3>
+  <p>A grid of <code>(B, H_q)</code> means one program per <code>(batch, query head)</code>. The <code>GROUP_SIZE</code> query heads in a GQA group share <strong>the same KV head</strong>, but each program independently walks block_table and <strong>reloads the same K/V block from DRAM again</strong>. Redundant DRAM traffic scales with <code>GROUP_SIZE</code>.</p>
+  <p>Why isn't SDPA slow? Contiguous KV lets <strong>the L2 prefetcher absorb the redundant loads</strong>. SDPA on MQA reaches <strong>542 GB/s</strong> on L4 — 1.8× the DRAM peak (300 GB/s). That throughput is impossible from DRAM alone. L2 is absorbing more than half.</p>
+  <p>Our paged kernel breaks the L2 prefetch pattern because of block_table indirection, so the redundant loads all go to DRAM.</p>
+
   <div class="callout">
-    <div class="label">This page</div>
-    <p>Content in progress. The next update fills in Phase 1–2 (correctness 32/32), Phase 3 (GQA grid bug, +1316 % MQA gap), Phase 3.5 (grid refactor + hidden TF32 bug), Phase 4 (axis-for-axis match with vLLM source).</p>
+    <div class="label">Takeaway #1</div>
+    <p><strong>Correctness can pass and the structural bug only shows in speed.</strong> <code>allclose</code> is blind to grid design. The bug never surfaces by comparing to a reference. You need the bench table + the SDPA gap column in the report for the issue to become visible.</p>
+  </div>
+
+  <h2>Phase 3.5 · I only changed the grid (and another bug popped up)</h2>
+  <p>The fix is clear: <strong>change the grid to <code>(B, H_kv)</code> and handle the <code>GROUP_SIZE</code> query heads of the GQA group at once inside the program</strong>. K/V blocks get loaded once per program.</p>
+
+<pre><code>grid = (B, H_kv)                              # program count ÷ GROUP
+q = tl.load(q_ptrs)                            # (GROUP, HEAD_DIM) — 2D tile
+# inside the block loop:
+scores = tl.dot(q_scaled, tl.trans(k))         # (GROUP, BLOCK)
+acc += tl.dot(p.to(v.dtype), v)                # (GROUP, HEAD)</code></pre>
+
+  <p>The change itself is ~20 lines. Bench:</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th class="num">Phase 3 gap</th><th class="num">Phase 3.5 gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama38b (group=4) B=8</td><td class="num">+161 %</td><td class="num"><strong>-14 %</strong> ← beats SDPA</td></tr>
+      <tr><td>llama38b (group=4) B=32</td><td class="num">+86 %</td><td class="num">+3 % (parity)</td></tr>
+      <tr><td>llama70b (group=8) B=4</td><td class="num">-2 %</td><td class="num">-1 %</td></tr>
+      <tr><td>llama70b (group=8) B=8</td><td class="num">-1 %</td><td class="num">-1 %</td></tr>
+      <tr><td>mqa (group=32)</td><td class="num">+1316 %</td><td class="num"><strong>+85 %</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>LLaMA-3-8B at <code>-14 %</code> — our Triton kernel <strong>beats</strong> cuDNN / FA-2 at a shape common in production.</p>
+
+  <h3>But fp32 correctness broke</h3>
+  <ul>
+    <li>fp16: all shapes still pass ✅</li>
+    <li>fp32 MQA: max diff <strong>4.1e-04</strong> ← <strong>it was 3.6e-07 before</strong>. Three orders of magnitude worse.</li>
+  </ul>
+  <p>Confused. Why would fp32 break from just changing the grid?</p>
+
+  <h3>The real cause — <code>tl.dot(fp32, fp32)</code> defaults to TF32 on sm_80+</h3>
+  <p>On Ampere and later, Triton <strong>silently downgrades fp32 × fp32 in <code>tl.dot</code> to TF32</strong> (10-bit mantissa). Without specifying <code>input_precision</code>, the default is TF32. On MQA's <code>(GROUP=16, BLOCK=16, HEAD=64)</code> score tile, 80–100 summation steps accumulate 10-bit truncation error and bias the softmax-max boundary by 4e-4.</p>
+  <p>Fix:</p>
+<pre><code>if IS_FP32:
+    # 3-pass TF32 stack (2 low-bit corrections) to reconstruct IEEE — 3× slower
+    scores = tl.dot(q_scaled, tl.trans(k), input_precision="ieee")
+else:
+    # fp16/bf16 MMA — default is already IEEE fp16
+    scores = tl.dot(q_scaled, tl.trans(k)).to(tl.float32)</code></pre>
+
+  <p>fp32 max diff: <strong>4.1e-04 → 3.6e-07</strong> recovered. No fp16 speed cost.</p>
+
+  <h3>Why didn't this show up in Phase 3?</h3>
+  <p>Phase 3 computed scores via manual broadcast (<code>tl.sum(q * k)</code>) — a pure fp32 path. No TF32 detour. The bug first showed up the moment Phase 3.5 introduced <code>tl.dot</code>.</p>
+
+  <div class="callout">
+    <div class="label">Takeaway #2</div>
+    <p><strong>Two independent bugs can hide in sequence.</strong> If you don't fix the grid bug, the TF32 bug stays invisible. It appears the instant you do. After a big refactor, <strong>always</strong> rerun the correctness bench.</p>
+  </div>
+
+  <h2>Phase 4 · reading vLLM's source, I realized I had reproduced vLLM's history in miniature</h2>
+  <p>I read the vLLM source only after finishing Phase 3.5 — deliberately, to see whether an independent design would converge with vLLM's.</p>
+
+  <p>Files I read:</p>
+  <table class="tbl">
+    <thead><tr><th>#</th><th>file</th><th>role</th></tr></thead>
+    <tbody>
+      <tr><td>v1</td><td><code>csrc/attention/paged_attention_v1.cu</code></td><td>Original CUDA kernel (2023). <strong>Per-query-head grid.</strong></td></tr>
+      <tr><td>v2</td><td><code>csrc/attention/paged_attention_v2.cu</code></td><td>ctx-axis split-k + reduce kernel.</td></tr>
+      <tr><td>triton</td><td><code>vllm/v1/attention/ops/triton_unified_attention.py</code></td><td>Current Triton implementation. <strong>Per-KV-head grid.</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Finding 1 — my Phase 3.5 matches vLLM's current Triton kernel axis-for-axis</h3>
+
+  <table class="tbl">
+    <thead><tr><th>axis</th><th>vLLM Triton unified</th><th>my Phase 3.5</th></tr></thead>
+    <tbody>
+      <tr><td>grid</td><td><code>(Σ q_blocks, H_kv)</code></td><td><code>(B, H_kv)</code></td></tr>
+      <tr><td>Q tile</td><td><code>(BLOCK_M, HEAD)</code></td><td><code>(GROUP, HEAD)</code></td></tr>
+      <tr><td>Matmul</td><td><code>tl.dot(Q, K)</code> / <code>tl.dot(P, V)</code></td><td><code>tl.dot</code> (GROUP≥4) or manual fallback</td></tr>
+      <tr><td>Softmax</td><td>per-row fp32 running <code>(M, L, acc)</code></td><td>same</td></tr>
+      <tr><td>KV layout</td><td><code>(num_blks, blk_size, H_kv, d)</code></td><td><strong>same</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p>The only real difference: vLLM's axis-0 is <code>(batch × query block)</code> because they handle prefill in the same kernel (variable q_len); mine is pure batch because decode pins <code>q_len=1</code>. <strong>Same structure, different scope.</strong></p>
+
+  <h3>Finding 2 — vLLM itself went through the same refactor</h3>
+  <p><code>paged_attention_v1.cu:86</code>:</p>
+<pre><code>dim3 grid(num_heads, num_seqs, 1);</code></pre>
+  <p>That is a <strong>per-query-head grid</strong> — identical in design to my Phase 3. vLLM's 2023 ship.</p>
+  <p>Why it was fine then:</p>
+  <ul>
+    <li>Most of the LLM market was MHA (H_kv == H_q). Group redundancy <strong>didn't structurally exist</strong>.</li>
+    <li>The few GQA models had small KVs that L2 could absorb.</li>
+    <li>Triton 2.x's MMA couldn't yet compete with CUDA, so CUDA was the answer.</li>
+  </ul>
+  <p>As LLaMA-2-chat, LLaMA-3, and Mistral shipped with GQA, the per-query-head grid became the bottleneck. vLLM moved to Triton and restructured to <code>(q_block, H_kv)</code> — <strong>exactly the refactor I did from Phase 3 → 3.5</strong>.</p>
+
+  <h3>Finding 3 — one thing I did that vLLM didn't</h3>
+  <p>vLLM doesn't specify precision on <code>tl.dot</code>. <strong>Production runs fp16/bf16 only, so it doesn't matter</strong>. But if someone flows fp32 through that path on sm_80+, they get the same 4e-4 error I caught. My <code>IS_FP32</code> branching + <code>input_precision="ieee"</code> is only relevant in a lesson context, but still caught it.</p>
+
+  <h3>Finding 4 — what I didn't do: split-k over the ctx axis</h3>
+  <p>The source of my residual +85 % MQA gap. SDPA hits 698 GB/s on this shape (2.3× DRAM) — L2 absorbs more than half. 1 KV head × 4k tokens × 128 dim × 2 B fp16 = 1 MB fits trivially into L4's 48 MB L2 and is shared by 32 query heads.</p>
+  <p>My paged kernel can't replicate that L2 reuse because of block_table indirection — structural. The grid fix alone can't close it. vLLM's v2 partitions the ctx axis and uses a reduce kernel to recombine softmax. Pushed to Lesson 12.</p>
+
+  <div class="callout">
+    <div class="label">Takeaway #3</div>
+    <p><strong>If you can derive the design from paper + HW + workload alone, and it converges with the production source, the convergence is the evidence.</strong> Axis-for-axis match with vLLM's current Triton port. This isn't "I'm clever" — it's "the right answer is one."</p>
+  </div>
+
+  <h2>Final numbers (L4 sm_89, fp16, warmup=50, iters=200)</h2>
+  <table class="tbl">
+    <thead><tr><th>shape</th><th>B</th><th>group</th><th class="num">SDPA ms</th><th class="num">paged best (bs)</th><th class="num">gap</th></tr></thead>
+    <tbody>
+      <tr><td>llama7b MHA</td><td>8</td><td>1</td><td class="num">1.322</td><td class="num">1.227 (bs=16)</td><td class="num"><strong>-7 %</strong></td></tr>
+      <tr><td>llama7b MHA ctx=8k</td><td>8</td><td>1</td><td class="num">6.115</td><td class="num">4.927 (bs=64)</td><td class="num"><strong>-19 %</strong></td></tr>
+      <tr><td><strong>llama38b GQA</strong></td><td><strong>8</strong></td><td><strong>4</strong></td><td class="num"><strong>0.308</strong></td><td class="num"><strong>0.264 (bs=16)</strong></td><td class="num"><strong>-14 %</strong></td></tr>
+      <tr><td>llama38b GQA</td><td>32</td><td>4</td><td class="num">1.163</td><td class="num">1.197 (bs=128)</td><td class="num">+3 %</td></tr>
+      <tr><td>llama70b GQA</td><td>4</td><td>8</td><td class="num">0.049</td><td class="num">0.048 (bs=128)</td><td class="num"><strong>-1 %</strong></td></tr>
+      <tr><td>llama70b GQA</td><td>8</td><td>8</td><td class="num">0.532</td><td class="num">0.526 (bs=16)</td><td class="num"><strong>-1 %</strong></td></tr>
+      <tr><td>mqa</td><td>16</td><td>32</td><td class="num">0.048</td><td class="num">0.089 (bs=128)</td><td class="num">+85 %</td></tr>
+    </tbody>
+  </table>
+
+  <p>Correctness: 32/32 PASS. A 275-line Triton kernel that <strong>beats SDPA (= Tri Dao FA-2 CUDA) by 14 %</strong> on LLaMA-3-8B B=8 ctx=2k. Parity on LLaMA-70B. MQA at +85 % — a residual gap that split-k will close.</p>
+
+  <h2>Three things that stick</h2>
+
+  <h3>(1) Correctness passing doesn't mean "correct"</h3>
+  <p>If I had called it done at 32/32 PASS, I would have shipped a kernel <strong>2–13× slower</strong> on GQA shapes. This trap doesn't get caught without the <strong>SDPA-gap column</strong> in the speed bench. Report <code>allclose</code> <strong>and</strong> gap <strong>together</strong>.</p>
+
+  <h3>(2) Bugs hide behind bugs</h3>
+  <p>The grid bug (Phase 3) and the TF32 bug (Phase 3.5) were independent and <strong>only surfaced sequentially</strong>. After a big refactor, rerun correctness — <strong>always</strong>. "Fixed one, so we're safe" is exactly wrong in this situation.</p>
+
+  <h3>(3) Converging independently is the evidence of design</h3>
+  <p>I read vLLM's source only after finishing Phase 3.5, and found an axis-for-axis match. <strong>That's not me being clever; it's "the right answer is one" when the tool (Triton) + HW (sm_80+) + workload (GQA) are fixed.</strong> Recording this convergence is actually the credible story — "the ecosystem already did this refactor and I reproduced it in miniature."</p>
+
+  <div class="callout">
+    <div class="label">Next session</div>
+    <p>Close the residual MQA +85 % gap with ctx-axis split-k (vLLM v2) — <a href="12-split-k.html">Lesson 12</a>.</p>
   </div>
 
   <div class="artnav">

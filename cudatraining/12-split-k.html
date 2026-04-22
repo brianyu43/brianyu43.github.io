@@ -26,16 +26,140 @@
 <article class="prose" data-lang="ko">
   <p class="eyebrow"><span class="dot"></span>LESSON 12 · 2026.04.22 · L4 · FINAL</p>
   <h1 class="title kicker">vLLM 의 Paged Attention V2 를 Triton 으로 — MQA 의 SM 점유율 구멍을 split-k 로 닫기</h1>
-  <p class="dek">"파라미터 스윕으로 안 닫히면 아키텍처를 의심해라" 의 한 번 더 되감기. ctx 축 partition + reduce 커널로 MQA 를 <strong>1.68× 가속</strong>. 남은 gap 은 L2 residency.</p>
+  <p class="dek">"파라미터 스윕으로 안 닫히면 아키텍처를 의심해라" 의 한 번 더 되감기.</p>
   <div class="meta">
-    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>GPU · <strong>L4 · sm_89</strong></span>
     <span>target · <strong>MQA +645 % → +344 %</strong></span>
     <span>paged self-speedup · <strong>1.68×</strong></span>
   </div>
 
+  <p>지난 편 (<a href="11-paged-attention.html">Paged Attention</a>) 에서 가장 불편했던 결과는 한 줄로 이랬다:</p>
+  <blockquote>MQA (B=16, H=32, H_kv=1, ctx=4k) 에서 우리 paged 커널이 SDPA 대비 <strong>+85 %</strong> 느리다 — 이건 구조적 결함이다.</blockquote>
+  <p>Lesson 12 를 이 한 줄 때문에 열었다.</p>
+  <p>(주의: 위의 "+85 %" 는 Phase 4 가 끝난 시점에 찍은 값이고, 이번 세션 시작할 때 같은 shape 을 <strong>block_size=16 에 고정</strong> 해서 다시 찍으니 <strong>+646 %</strong>. block_size 가 다르면 gap 이 이만큼 달라진다. 어느 쪽 숫자든 결론은 같다: MQA 는 structurally 느리다.)</p>
+
+  <h2>1. 결함의 정체를 한 줄로</h2>
+  <p>MQA 에서 single-pass grid 는 <code>(B, H_kv) = (16, 1) = 16 programs</code>. L4 에는 SM 이 <strong>58 개</strong>. 16 / 58 ≈ 28 % 점유율. 나머지 42 SM 은 놀고 있다.</p>
+  <p>이 놀고 있는 SM 을 어떻게 깨울 것이냐가 이 세션의 전부다. Block size 를 8~128 로 스윕해도 bump 가 거의 없다. Parameter tuning 으로 닫힐 구멍이 아니다. <strong>아키텍처</strong> 를 바꿔야 한다. vLLM 의 v1 → v2 전환이 정확히 이 문제에 대한 그들의 답.</p>
+
+  <h2>2. vLLM v2 의 설계 — ctx 축을 쪼개서 2 개 커널로</h2>
+  <p><code>paged_attention_v2.cu</code> 의 핵심:</p>
+  <ol>
+    <li><strong>Forward kernel</strong>: <code>grid = (num_heads, num_seqs, max_num_partitions)</code>. 기존 v1 의 2-D grid 에 <strong>ctx 축의 partition 번호</strong> 를 3 차원으로 추가. <code>PARTITION_SIZE = 512</code>.</li>
+    <li><strong>Reduce kernel</strong>: <code>grid = (num_heads, num_seqs)</code>. Forward kernel 이 각 partition 마다 기록한 (max, lse, partial_out) 을 online softmax 로 재결합.</li>
+  </ol>
+  <p>이걸 Triton 으로 옮기면:</p>
+  <ul>
+    <li><code>paged_attention_split_kernel</code> — grid <code>(B, H_kv, SEGMENTS)</code>. 각 프로그램은 자기 segment 의 <code>PARTITION_SIZE=512</code> 토큰만 처리. <strong>정규화되지 않은</strong> <code>(m_i, l_i, acc)</code> 을 scratch 에 기록.</li>
+    <li><code>paged_attention_reduce_kernel</code> — grid <code>(B, H_q)</code>. SEGMENTS 축을 다 읽어서 <code>alpha = exp(m_s - m_global)</code> 로 재결합. 최종 normalized output 저장.</li>
+  </ul>
+  <p>Lesson 11 의 single-pass 커널을 <strong>그대로 두고 옆에 추가</strong>. 이유:</p>
+  <ul>
+    <li>Dense shape (B·H_kv ≥ SM 의 절반) 에서는 single-pass 가 더 빠름. Reduce kernel 의 launch overhead 를 낼 이유 없음.</li>
+    <li>Auto-dispatch 로 "현재 shape 에 맞는 것을 고르자" 가 원칙.</li>
+  </ul>
+
+  <h2>3. Online softmax 의 "segment 간 재결합" 은 이미 알던 식</h2>
+  <p>Split-k 재결합 수식은 사실 새로운 게 아니다. Lesson 09 에서 <strong>같은 공식</strong> 을 이미 썼다 — 거기서는 "block 간 재결합" 이었고, 여기서는 "segment 간 재결합" 이라는 것만 다를 뿐.</p>
+
+<pre><code>m_global = max(m_s over s)
+alpha_s  = exp(m_s - m_global)
+l_global = sum(alpha_s * l_s)
+acc_global = sum(alpha_s * acc_s)      # 각 segment 의 acc 를 rescale 해서 합산
+out = acc_global / l_global</code></pre>
+
+  <p>Lesson 09 의 block-내부 online softmax 를 정확히 한 레벨 outward 로 올린 셈. 이 공식을 안다는 것의 이점은 reduce 커널이 <strong>10 줄짜리</strong> 로 끝나는 것.</p>
+
+  <h2>4. "Invalid segment" 는 수학적으로 "empty segment" 와 같다</h2>
+  <p>Split kernel 의 grid 는 <code>(B, H_kv, SEGMENTS)</code> 인데 SEGMENTS 는 <strong>최장 sequence</strong> 기준. Sequence 가 짧아서 일부 segment 가 빈 경우?</p>
+  <p>빈 segment 는:</p>
+  <ul>
+    <li>Inner loop 가 0 번 돌기 때문에 <code>m_i</code>, <code>l_i</code>, <code>acc</code> 가 초기값 그대로 (<code>-inf, 0, 0</code>).</li>
+    <li>이 값을 그대로 scratch 에 쓴다.</li>
+    <li>Reduce 에서 <code>alpha = exp(-inf - m_global) = 0</code>, 따라서 <code>alpha * l = 0</code>, <code>alpha * acc = 0</code> — 자동 무시.</li>
+  </ul>
+  <p>별도의 "empty mask" 로직이 필요 없다. <strong>sentinel 값이 무시 동작과 수학적으로 동등</strong> 한 자리는 코드를 깔끔하게 만든다. Lesson 12 에서 가장 기분 좋은 순간.</p>
+
+  <h2>5. 함정 — <code>tl.arange</code> 는 power of 2 만 허용한다</h2>
+  <p>Reduce kernel 은 <code>tl.arange(0, SEGMENTS)</code> 로 SEGMENTS 축을 로드해야 하는데, Triton 의 제약:</p>
+<pre><code>CompilationError: arange's range must be a power of 2</code></pre>
+  <p>Test case: <code>ctx=513, partition_size=32</code> → <code>SEGMENTS = ceil(513/32) = 17</code>. Pow2 아님.</p>
+  <p><em>순진한 해결</em>: scratch 를 next_pow2 로 padding. 메모리 낭비 + forward grid 도 같이 키워야 함.</p>
+  <p><em>진짜 해결</em>: <strong>kernel constexpr 만 pow2 로 분리, scratch 는 actual 크기 그대로</strong>.</p>
+
+<pre><code># kernel 쪽
+offs_s = tl.arange(0, SEGMENTS_P2)     # pow2, 17 → 32
+mask_s = offs_s &lt; SEGMENTS              # actual
+m_s = tl.load(ptr + offs_s * stride, mask=mask_s, other=-float("inf"))</code></pre>
+
+  <p>패딩 lane 은 <code>-inf</code> 로 로드 → 위에서 말한 대로 재결합에서 자동 0. <strong>같은 sentinel trick 이 두 번 먹힘</strong> (empty segment + pow2 padding).</p>
+  <p>이 수정으로 <strong>32/32 PASS</strong>. single-pass 도 여전히 32/32 PASS (회귀 없음).</p>
+
+  <h2>6. 첫 휴리스틱은 틀렸다</h2>
+  <p>auto-dispatch 의 첫 안:</p>
+<pre><code>use_split_k = (B*H_kv &lt; 0.75 * SM_COUNT) and (segments &gt;= 2)</code></pre>
+  <p>벤치 결과를 보니 이게 너무 관대하다:</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th class="num">SP ms</th><th class="num">SK ms</th><th>auto 선택</th><th>auto 결과</th></tr></thead>
+    <tbody>
+      <tr><td>llama70b-B4-ctx2k</td><td class="num">0.165</td><td class="num">0.196</td><td>SK</td><td>나쁨 (+19 %)</td></tr>
+      <tr><td>llama7b-B1-ctx1k</td><td class="num">0.142</td><td class="num">0.196</td><td>SK</td><td>나쁨 (+38 %)</td></tr>
+      <tr><td>mqa-B16-ctx4k</td><td class="num">0.331</td><td class="num">0.196</td><td>SK</td><td>좋음 (-41 %)</td></tr>
+    </tbody>
+  </table>
+
+  <p>LLaMA-70B (B=4, H_kv=8) 에서는 <code>B*H_kv = 32</code> 로 heuristic 에 걸렸는데, 실제로는 GROUP=8 이라서 single-pass 의 inner body 가 이미 KV 로드를 8-query-head 로 amortize 하고 있음. SK 의 추가 parallelism 은 이득이 없고 reduce kernel launch overhead 만 추가됨.</p>
+  <p><em>두 번째 안</em>:</p>
+<pre><code>use_split_k = (B*H_kv &lt; 0.5 * SM_COUNT) and (segments &gt;= 4)</code></pre>
+  <ul>
+    <li><code>B*H_kv &lt; 29</code>: LLaMA-70B B=4 (32) 는 탈락, MQA B=16 (16) 만 살아남음.</li>
+    <li><code>segments &gt;= 4</code>: ctx=1k 는 탈락 (2 segments), ctx=4k 는 통과 (8 segments).</li>
+  </ul>
+  <p><strong>결과</strong>: 10 shape 중 9 에서 auto 가 정답. 남은 1 개 (llama7b-B1-ctx4k) 는 SK 가 17 % 더 빠른데 auto 가 SP 로 고름 — <strong>놓친 이득보다 regression 안 내는 게 더 중요</strong> 하다는 원칙.</p>
+
+  <h2>7. 최종 숫자</h2>
+  <p>MQA B=16 H_kv=1 ctx=4k bs=16 fp16, L4:</p>
+
+  <table class="tbl">
+    <thead><tr><th>측정</th><th class="num">before (Lesson 11 끝)</th><th class="num">after (Lesson 12 끝)</th></tr></thead>
+    <tbody>
+      <tr><td>SDPA ms</td><td class="num">0.044</td><td class="num">0.044</td></tr>
+      <tr><td><strong>paged ms</strong></td><td class="num"><strong>0.331</strong> (single-pass)</td><td class="num"><strong>0.197</strong> (split-k)</td></tr>
+      <tr><td>gap vs SDPA</td><td class="num">+645 %</td><td class="num"><strong>+344 %</strong></td></tr>
+      <tr><td>paged 자체 speedup</td><td class="num">1.00×</td><td class="num"><strong>1.68×</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Paged kernel 만 놓고 보면 1.68× 더 빠름</strong>. 구조적 수정이 먹힘. SDPA 에 대한 gap 은 여전히 크다. 왜? 이건 split-k 로 닫을 수 없는 영역이기 때문.</p>
+
+  <h2>8. 왜 SDPA 를 못 따라잡는가 — L2 locality 이야기</h2>
+  <p>SDPA 0.044 ms, bytes_moved = <code>2·B·H·d + 2·B·H_kv·ctx·d = 2·16·32·128 + 2·16·1·4096·128 = 16.4 MB</code>. Effective BW = <code>16.4e6 / 44e-6 = <strong>761 GB/s</strong></code>.</p>
+  <p>L4 의 DRAM peak = <strong>300 GB/s</strong>. 761 은 물리적으로 불가능.</p>
+  <p>답: <strong>L2 hit</strong>. K/V 총량이 16 MB 인데 L4 의 L2 는 <strong>48 MB</strong> — 완전히 캐시에 들어감. SDPA 는 이 반복 접근을 L2 에서 처리해서 DRAM bound 가 아니라 L2 bound 처럼 보임.</p>
+  <p>우리 paged 는:</p>
+  <ul>
+    <li><code>block_table</code> lookup 이 L2 를 추가로 씀.</li>
+    <li>Block 단위 gather 가 L2 의 spatial locality 를 방해.</li>
+    <li>측정된 BW: 165 GB/s (DRAM 에 가까움).</li>
+  </ul>
+  <p>즉 SDPA 는 L2 에서 먹고 paged 는 DRAM 에서 먹는다. Split-k 는 <strong>SM 점유율</strong> 문제를 고쳤지 <strong>L2 residency</strong> 문제를 고치지 않는다. MQA 의 남은 gap 은 L2-aware prefetch / pinned block 배치 같은 더 깊은 최적화의 영역 — 다음 세션 거리.</p>
+
+  <h2>9. 일반화 — "파라미터 스윕이 반응하지 않으면 아키텍처를 의심해라"</h2>
+  <p>Lesson 10 에서 배운 "느린 데는 이유가 있다, 그 이유를 metric 으로 확정해라" 를 한 겹 더 깊이 내려간 셈.</p>
+  <p>Lesson 11 Phase 4 의 관찰: <strong>block_size 8, 16, 32, 64, 128 어느 것을 써도 MQA 는 bs=32 기준 0.203 ms 가 최저</strong> — 즉 parameter 공간을 넘나들어도 구멍이 안 닫힘. 이 시점이 "파라미터 스윕으로 풀 문제가 아니다" 라는 결정적 신호.</p>
+  <p>vLLM 도 v1 → v2 전환 시 같은 벽에 부딪혔을 것. 그래서 그들의 답이 partition size tuning 이 아니라 <strong>grid 축 자체를 추가</strong> 하는 것. 우리의 답도 같아야 했다.</p>
+
+  <h2>10. 다음 세션 후보</h2>
+  <ol>
+    <li><strong>L2-aware paged</strong>: MQA 의 L2 residency 를 어떻게 흉내 낼까. Pinned block layout? Per-SM L1 staging?</li>
+    <li><strong>Unified kernel</strong>: vLLM 의 <code>kernel_unified_attention_2d</code> 처럼 prefill + decode 를 한 커널로. 분기 하나로 서빙 코드가 단순해짐.</li>
+    <li><strong>OSS contribution</strong>: 위 두 개는 실제로 vLLM 에 쓸 만한 PR 거리.</li>
+  </ol>
+
   <div class="callout">
-    <div class="label">이 페이지</div>
-    <p>내용 집필 중입니다. 다음 업데이트에서 v2 아키텍처 (split + reduce 2-kernel), <code>tl.arange</code> pow-of-2 함정, auto-dispatch 휴리스틱 튜닝, L2 residency 한계 전문을 채웁니다.</p>
+    <div class="label">세 줄 요약</div>
+    <p>(a) Parameter sweep 이 metric 을 안 움직이는 순간이 "아키텍처를 의심하라" 는 신호. (b) vLLM v2 의 split-k + reduce 2-kernel 을 Triton 으로 재현 → MQA paged 가 <strong>1.68×</strong>. (c) 남은 gap 은 L2 residency — split-k 로는 못 닫음, 다음 세션 거리.</p>
   </div>
 
   <div class="artnav">
@@ -47,16 +171,140 @@
 <article class="prose" data-lang="en" hidden>
   <p class="eyebrow"><span class="dot"></span>LESSON 12 · 2026.04.22 · L4 · FINAL</p>
   <h1 class="title kicker">vLLM's Paged Attention V2 in Triton — closing the MQA SM-occupancy hole with split-k</h1>
-  <p class="dek">"When a parameter sweep doesn't move the metric, suspect the architecture," rewound one more time. ctx-axis partition + reduce kernel makes MQA <strong>1.68× faster</strong>. The remaining gap is L2 residency.</p>
+  <p class="dek">"When a parameter sweep doesn't move the metric, suspect the architecture," rewound one more time.</p>
   <div class="meta">
-    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>GPU · <strong>L4 · sm_89</strong></span>
     <span>target · <strong>MQA +645 % → +344 %</strong></span>
     <span>paged self-speedup · <strong>1.68×</strong></span>
   </div>
 
+  <p>The most uncomfortable result from the previous chapter (<a href="11-paged-attention.html">Paged Attention</a>) was a single line:</p>
+  <blockquote>At MQA (B=16, H=32, H_kv=1, ctx=4k) our paged kernel is <strong>+85 %</strong> slower than SDPA — a structural flaw.</blockquote>
+  <p>Lesson 12 opened for that one line.</p>
+  <p>(Note: "+85 %" was logged at the end of Phase 4. At the start of this session, re-running the same shape with <strong>block_size pinned at 16</strong> gave <strong>+646 %</strong>. Block size changes the gap by that much. Either way the conclusion is the same: MQA is structurally slow.)</p>
+
+  <h2>1. The flaw in one line</h2>
+  <p>In MQA, the single-pass grid is <code>(B, H_kv) = (16, 1) = 16 programs</code>. L4 has <strong>58 SMs</strong>. 16 / 58 ≈ 28 % occupancy. The other 42 SMs sit idle.</p>
+  <p>How do you wake those idle SMs? That's the entire session. Sweeping block size 8–128 barely moves the number. This isn't a parameter-tuning problem — it's <strong>architecture</strong>. vLLM's v1 → v2 transition is exactly their answer to this.</p>
+
+  <h2>2. vLLM v2 — slice the ctx axis into two kernels</h2>
+  <p>The crux of <code>paged_attention_v2.cu</code>:</p>
+  <ol>
+    <li><strong>Forward kernel</strong>: <code>grid = (num_heads, num_seqs, max_num_partitions)</code>. A third axis for the <strong>ctx-partition index</strong>. <code>PARTITION_SIZE = 512</code>.</li>
+    <li><strong>Reduce kernel</strong>: <code>grid = (num_heads, num_seqs)</code>. Fold the (max, lse, partial_out) per partition using online softmax.</li>
+  </ol>
+  <p>Ported to Triton, two new kernels:</p>
+  <ul>
+    <li><code>paged_attention_split_kernel</code> — grid <code>(B, H_kv, SEGMENTS)</code>. Each program processes only its segment's <code>PARTITION_SIZE=512</code> tokens. Writes <strong>unnormalized</strong> <code>(m_i, l_i, acc)</code> to scratch.</li>
+    <li><code>paged_attention_reduce_kernel</code> — grid <code>(B, H_q)</code>. Reads the SEGMENTS axis and recombines with <code>alpha = exp(m_s - m_global)</code>. Writes the final normalized output.</li>
+  </ul>
+  <p>Lesson 11's single-pass kernel stays put, <strong>alongside</strong> the new ones. Reasons:</p>
+  <ul>
+    <li>For dense shapes (B·H_kv ≥ half the SMs) single-pass is faster. No reason to pay the reduce kernel's launch overhead.</li>
+    <li>Auto-dispatch picks per shape. Principle.</li>
+  </ul>
+
+  <h2>3. "Segment-level recombine" is a formula you already know</h2>
+  <p>The split-k recombine isn't actually new. Lesson 09 used <strong>the same formula</strong> — there as "block-level recombine," here as "segment-level recombine."</p>
+
+<pre><code>m_global = max(m_s over s)
+alpha_s  = exp(m_s - m_global)
+l_global = sum(alpha_s * l_s)
+acc_global = sum(alpha_s * acc_s)      # rescale each segment's acc, then add
+out = acc_global / l_global</code></pre>
+
+  <p>Literally the Lesson-09 online softmax lifted one level outward. Knowing that formula means the reduce kernel is <strong>10 lines</strong>.</p>
+
+  <h2>4. "Invalid segment" is mathematically the same as "empty segment"</h2>
+  <p>The split kernel's grid is <code>(B, H_kv, SEGMENTS)</code>, and SEGMENTS is sized to the <strong>longest sequence</strong>. What about sequences short enough that some segment is empty?</p>
+  <p>An empty segment:</p>
+  <ul>
+    <li>Inner loop runs 0 times → <code>m_i</code>, <code>l_i</code>, <code>acc</code> stay at their init (<code>-inf, 0, 0</code>).</li>
+    <li>Those values are written to scratch as-is.</li>
+    <li>In reduce: <code>alpha = exp(-inf - m_global) = 0</code>, so <code>alpha * l = 0</code>, <code>alpha * acc = 0</code> — auto-ignored.</li>
+  </ul>
+  <p>No separate "empty mask" logic needed. <strong>When the sentinel value is mathematically equivalent to "ignore,"</strong> the code collapses. That was Lesson 12's nicest moment.</p>
+
+  <h2>5. The trap — <code>tl.arange</code> requires power-of-2 ranges</h2>
+  <p>The reduce kernel loads the SEGMENTS axis with <code>tl.arange(0, SEGMENTS)</code>, and Triton complains:</p>
+<pre><code>CompilationError: arange's range must be a power of 2</code></pre>
+  <p>Test case: <code>ctx=513, partition_size=32</code> → <code>SEGMENTS = ceil(513/32) = 17</code>. Not pow2.</p>
+  <p><em>Naive fix</em>: pad scratch to next_pow2. Wastes memory + the forward grid grows too.</p>
+  <p><em>Proper fix</em>: <strong>only the kernel constexpr uses pow2; scratch stays at the actual size</strong>.</p>
+
+<pre><code># kernel side
+offs_s = tl.arange(0, SEGMENTS_P2)     # pow2, 17 → 32
+mask_s = offs_s &lt; SEGMENTS              # actual
+m_s = tl.load(ptr + offs_s * stride, mask=mask_s, other=-float("inf"))</code></pre>
+
+  <p>Pad lanes load as <code>-inf</code> → the recombine naturally contributes 0. <strong>Same sentinel trick, used twice</strong> (empty segment + pow2 padding).</p>
+  <p>After this patch: <strong>32/32 PASS</strong>. Single-pass still 32/32 (no regression).</p>
+
+  <h2>6. The first heuristic was wrong</h2>
+  <p>First shot at auto-dispatch:</p>
+<pre><code>use_split_k = (B*H_kv &lt; 0.75 * SM_COUNT) and (segments &gt;= 2)</code></pre>
+  <p>Bench reveals it's too permissive:</p>
+
+  <table class="tbl">
+    <thead><tr><th>shape</th><th class="num">SP ms</th><th class="num">SK ms</th><th>auto pick</th><th>auto result</th></tr></thead>
+    <tbody>
+      <tr><td>llama70b-B4-ctx2k</td><td class="num">0.165</td><td class="num">0.196</td><td>SK</td><td>bad (+19 %)</td></tr>
+      <tr><td>llama7b-B1-ctx1k</td><td class="num">0.142</td><td class="num">0.196</td><td>SK</td><td>bad (+38 %)</td></tr>
+      <tr><td>mqa-B16-ctx4k</td><td class="num">0.331</td><td class="num">0.196</td><td>SK</td><td>good (-41 %)</td></tr>
+    </tbody>
+  </table>
+
+  <p>LLaMA-70B (B=4, H_kv=8) tripped the heuristic with <code>B*H_kv = 32</code>, but because GROUP=8, the single-pass kernel's inner body already amortizes KV loads across 8 query heads. Split-k's extra parallelism wins nothing — only adds the reduce kernel's launch overhead.</p>
+  <p><em>Second attempt</em>:</p>
+<pre><code>use_split_k = (B*H_kv &lt; 0.5 * SM_COUNT) and (segments &gt;= 4)</code></pre>
+  <ul>
+    <li><code>B*H_kv &lt; 29</code>: LLaMA-70B B=4 (32) drops out, only MQA B=16 (16) survives.</li>
+    <li><code>segments &gt;= 4</code>: ctx=1k fails (2 segments), ctx=4k passes (8 segments).</li>
+  </ul>
+  <p><strong>Result</strong>: 9 of 10 shapes, auto picks the right path. The one miss (llama7b-B1-ctx4k) leaves SK 17 % ahead that auto doesn't take — <strong>"don't regress" beats "catch every win"</strong> is the principle.</p>
+
+  <h2>7. Final numbers</h2>
+  <p>MQA B=16 H_kv=1 ctx=4k bs=16 fp16, L4:</p>
+
+  <table class="tbl">
+    <thead><tr><th>measurement</th><th class="num">before (end of Lesson 11)</th><th class="num">after (end of Lesson 12)</th></tr></thead>
+    <tbody>
+      <tr><td>SDPA ms</td><td class="num">0.044</td><td class="num">0.044</td></tr>
+      <tr><td><strong>paged ms</strong></td><td class="num"><strong>0.331</strong> (single-pass)</td><td class="num"><strong>0.197</strong> (split-k)</td></tr>
+      <tr><td>gap vs SDPA</td><td class="num">+645 %</td><td class="num"><strong>+344 %</strong></td></tr>
+      <tr><td>paged self-speedup</td><td class="num">1.00×</td><td class="num"><strong>1.68×</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The paged kernel itself is 1.68× faster</strong>. The structural fix works. The gap to SDPA is still large — because this part can't be closed with split-k.</p>
+
+  <h2>8. Why we can't catch SDPA — L2 locality</h2>
+  <p>SDPA 0.044 ms. bytes_moved = <code>2·B·H·d + 2·B·H_kv·ctx·d = 2·16·32·128 + 2·16·1·4096·128 = 16.4 MB</code>. Effective BW = <code>16.4e6 / 44e-6 = <strong>761 GB/s</strong></code>.</p>
+  <p>L4's DRAM peak = <strong>300 GB/s</strong>. 761 is physically impossible from DRAM alone.</p>
+  <p>Answer: <strong>L2 hit</strong>. K/V total is 16 MB; L4's L2 is <strong>48 MB</strong> — fully cache-resident. SDPA reads the repeated accesses out of L2, so it looks L2-bound rather than DRAM-bound.</p>
+  <p>Our paged kernel:</p>
+  <ul>
+    <li><code>block_table</code> lookups consume extra L2.</li>
+    <li>Block-level gather disrupts L2 spatial locality.</li>
+    <li>Measured BW: 165 GB/s (close to DRAM).</li>
+  </ul>
+  <p>SDPA eats from L2, paged eats from DRAM. Split-k fixes the <strong>SM-occupancy</strong> problem, not the <strong>L2 residency</strong> problem. The remaining MQA gap is L2-aware prefetch / pinned block layout territory — next session.</p>
+
+  <h2>9. Generalizing — "when a sweep doesn't move the metric, suspect the architecture"</h2>
+  <p>One level deeper than Lesson 10's "if something's slow, there's a reason — nail the reason with a metric."</p>
+  <p>Lesson 11 Phase 4's observation: <strong>block_size 8, 16, 32, 64, 128 — any of them, MQA bottoms at 0.203 ms at bs=32</strong>. Parameter space doesn't close the hole. That was the decisive signal: "this isn't a parameter problem."</p>
+  <p>vLLM probably hit the same wall at v1 → v2. That's why their answer wasn't "tune partition_size," it was <strong>"add a new grid axis."</strong> Ours has to match.</p>
+
+  <h2>10. Next-session candidates</h2>
+  <ol>
+    <li><strong>L2-aware paged</strong>: how do we mimic MQA's L2 residency? Pinned block layout? Per-SM L1 staging?</li>
+    <li><strong>Unified kernel</strong>: like vLLM's <code>kernel_unified_attention_2d</code>, prefill + decode in one kernel. Collapses serving-code branches.</li>
+    <li><strong>OSS contribution</strong>: both above could actually be vLLM-worthy PRs.</li>
+  </ol>
+
   <div class="callout">
-    <div class="label">This page</div>
-    <p>Content in progress. The next update fills in the v2 architecture (split + reduce 2-kernel), the <code>tl.arange</code> pow-of-2 trap, auto-dispatch heuristic tuning, and the L2 residency ceiling.</p>
+    <div class="label">Three-line summary</div>
+    <p>(a) When a parameter sweep doesn't move the metric, suspect architecture. (b) Reproduced vLLM v2's split-k + reduce 2-kernel in Triton → paged MQA <strong>1.68×</strong> faster. (c) Remaining gap is L2 residency — split-k can't close it. Next session.</p>
   </div>
 
   <div class="artnav">
