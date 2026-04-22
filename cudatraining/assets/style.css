@@ -238,6 +238,13 @@ svg .tx-l{fill:var(--ink);font-family:'Pretendard',sans-serif;font-size:14px;fon
   .topbar nav{gap:14px}
 }
 
+/* ============ ESSAY CARD VARIANT ============ */
+.sec-essay{color:var(--muted);font-style:italic;border-top:1px dashed var(--line);padding-top:22px}
+.card.essay .num{font-family:var(--serif);font-style:italic;font-size:26px;color:var(--muted);font-weight:400}
+.card.essay h3{font-weight:600;color:var(--ink-soft)}
+.card.essay{border-style:dashed;opacity:.92}
+.card.essay:hover{opacity:1;border-style:solid;border-color:var(--accent-2)}
+
 /* ============ LANG SWITCHER ============ */
 .lang-switch{display:inline-flex;border:1px solid var(--line);background:var(--bg-soft);overflow:hidden;border-radius:3px;margin-left:4px}
 .lang-switch button{background:transparent;color:var(--muted);border:none;padding:3px 9px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;font-weight:700;cursor:pointer;transition:all .15s ease}

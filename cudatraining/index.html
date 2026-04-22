@@ -127,10 +127,39 @@
       <div class="tag">LESSON 09</div>
     </a>
 
-    <div class="sec-label">PART V · Essays</div>
+    <div class="sec-label">PART V · Profiling &amp; Production</div>
 
-    <a class="card" href="10-triton-vs-cuda.html">
+    <a class="card" href="10-profiling.html">
       <div class="num">10</div>
+      <div>
+        <h3>nsys · ncu 로 커널 9 개를 뜯어보다</h3>
+        <p>"빠름/느림" 너머, <code>lg_throttle</code>·<code>wait</code>·<code>math_pipe_throttle</code> 로 읽는 레슨 1–9.</p>
+      </div>
+      <div class="tag">LESSON 10</div>
+    </a>
+
+    <a class="card" href="11-paged-attention.html">
+      <div class="num">11</div>
+      <div>
+        <h3>Paged Attention — vLLM 을 Triton 으로 다시 짜기</h3>
+        <p>contiguous → paged. GQA grid refactor 로 cuDNN FA-2 를 14 % 이김. vLLM 소스와 axis-for-axis 매치.</p>
+      </div>
+      <div class="tag">LESSON 11</div>
+    </a>
+
+    <a class="card" href="12-split-k.html">
+      <div class="num">12</div>
+      <div>
+        <h3>Split-K — MQA 의 SM 점유율 구멍 닫기</h3>
+        <p>ctx 축 partition + reduce kernel. 1.68× 가속. 남은 gap 은 L2 residency.</p>
+      </div>
+      <div class="tag">LESSON 12</div>
+    </a>
+
+    <div class="sec-label sec-essay">PART VI · Essays</div>
+
+    <a class="card essay" href="10-triton-vs-cuda.html">
+      <div class="num">§</div>
       <div>
         <h3>Triton vs CUDA — 추상화의 비용은 어디서 나타나는가</h3>
         <p>50줄이 5000줄을 대체할 수 있는가. 네 개 커널의 답.</p>
@@ -138,8 +167,8 @@
       <div class="tag">ESSAY</div>
     </a>
 
-    <a class="card" href="11-300-lines.html">
-      <div class="num">11</div>
+    <a class="card essay" href="11-300-lines.html">
+      <div class="num">§</div>
       <div>
         <h3>300줄짜리 Triton FA 가 cuDNN 의 80-90%를 따라잡는 방법</h3>
         <p><code>IS_CAUSAL: tl.constexpr</code>, loop-skip, <code>custom_op</code>. 세 가지 트릭의 합.</p>
@@ -275,10 +304,39 @@
       <div class="tag">LESSON 09</div>
     </a>
 
-    <div class="sec-label">PART V · Essays</div>
+    <div class="sec-label">PART V · Profiling &amp; Production</div>
 
-    <a class="card" href="10-triton-vs-cuda.html">
+    <a class="card" href="10-profiling.html">
       <div class="num">10</div>
+      <div>
+        <h3>Nine kernels under the knife — nsys · ncu</h3>
+        <p>Beyond "fast/slow," reading lessons 1–9 through <code>lg_throttle</code>, <code>wait</code>, <code>math_pipe_throttle</code>.</p>
+      </div>
+      <div class="tag">LESSON 10</div>
+    </a>
+
+    <a class="card" href="11-paged-attention.html">
+      <div class="num">11</div>
+      <div>
+        <h3>Paged Attention — rewriting vLLM in Triton</h3>
+        <p>contiguous → paged. A GQA grid refactor beats cuDNN FA-2 by 14 %. Axis-for-axis match with vLLM source.</p>
+      </div>
+      <div class="tag">LESSON 11</div>
+    </a>
+
+    <a class="card" href="12-split-k.html">
+      <div class="num">12</div>
+      <div>
+        <h3>Split-K — closing the MQA SM-occupancy hole</h3>
+        <p>ctx-axis partition + reduce kernel. 1.68× speedup. Remaining gap is L2 residency.</p>
+      </div>
+      <div class="tag">LESSON 12</div>
+    </a>
+
+    <div class="sec-label sec-essay">PART VI · Essays</div>
+
+    <a class="card essay" href="10-triton-vs-cuda.html">
+      <div class="num">§</div>
       <div>
         <h3>Triton vs CUDA — where does the cost of abstraction show up?</h3>
         <p>Can 50 lines replace 5000? The answer from four kernels.</p>
@@ -286,8 +344,8 @@
       <div class="tag">ESSAY</div>
     </a>
 
-    <a class="card" href="11-300-lines.html">
-      <div class="num">11</div>
+    <a class="card essay" href="11-300-lines.html">
+      <div class="num">§</div>
       <div>
         <h3>How a 300-line Triton FA closes in on 80–90% of cuDNN</h3>
         <p><code>IS_CAUSAL: tl.constexpr</code>, loop-skip, <code>custom_op</code>. Three tricks combined.</p>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11. Paged Attention — vLLM 을 Triton 으로 / cudatraining</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<article class="prose" data-lang="ko">
+  <p class="eyebrow"><span class="dot"></span>LESSON 11 · 2026.04.22 · L4</p>
+  <h1 class="title">vLLM 의 Paged Attention 을 Triton 으로 다시 짜보고, vLLM 의 실수를 반복했다</h1>
+  <p class="dek">Lesson 09 의 contiguous MHA 에 <strong>block_table 한 줄</strong> 끼워넣으면 vLLM paged attention 이 되는가 — 되긴 되는데, 가는 길에 두 번 틀렸다. 그게 이 글의 알맹이.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>stack · <strong>torch 2.11 + Triton 3.6</strong></span>
+    <span>result · <strong>LLaMA-3-8B 에서 SDPA 를 14 % 이김</strong></span>
+  </div>
+
+  <div class="callout">
+    <div class="label">이 페이지</div>
+    <p>내용 집필 중입니다. 다음 업데이트에서 Phase 1–2 (correctness 32/32), Phase 3 (GQA grid bug, +1316 % MQA gap), Phase 3.5 (grid refactor + 숨어있던 TF32 bug), Phase 4 (vLLM 소스와 axis-for-axis 매치) 전문을 채웁니다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="10-profiling.html"><span class="lbl">Prev · 10</span>profiling</a>
+    <a class="nxt" href="12-split-k.html"><span class="lbl">Next · 12</span>split-k</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 11 · 2026.04.22 · L4</p>
+  <h1 class="title">Rewriting vLLM's Paged Attention in Triton — and repeating vLLM's mistake</h1>
+  <p class="dek">Does slipping a single <strong>block_table</strong> line into Lesson 09's contiguous MHA make vLLM paged attention? It does — but I got there after being wrong twice. That's the essay.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>stack · <strong>torch 2.11 + Triton 3.6</strong></span>
+    <span>result · <strong>beats SDPA by 14 % on LLaMA-3-8B</strong></span>
+  </div>
+
+  <div class="callout">
+    <div class="label">This page</div>
+    <p>Content in progress. The next update fills in Phase 1–2 (correctness 32/32), Phase 3 (GQA grid bug, +1316 % MQA gap), Phase 3.5 (grid refactor + hidden TF32 bug), Phase 4 (axis-for-axis match with vLLM source).</p>
+  </div>
+
+  <div class="artnav">
+    <a href="10-profiling.html"><span class="lbl">Prev · 10</span>profiling</a>
+    <a class="nxt" href="12-split-k.html"><span class="lbl">Next · 12</span>split-k</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.22</div><div>Lesson 11 / 12</div></footer>
+</body></html>

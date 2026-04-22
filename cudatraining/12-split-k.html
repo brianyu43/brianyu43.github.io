@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12. Split-K — MQA gap 닫기 / cudatraining</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script defer src="assets/lang.js"></script>
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>cuda</em>training · <span data-lang="ko">학습 기록</span><span data-lang="en" hidden>lab notes</span></div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="https://github.com/brianyu43/triton-training" target="_blank">Repo</a>
+    <div class="lang-switch" role="group" aria-label="Language">
+      <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
+      <button type="button" data-switch="en" aria-pressed="false">EN</button>
+    </div>
+  </nav>
+</div>
+
+<div class="wrap">
+<article class="prose" data-lang="ko">
+  <p class="eyebrow"><span class="dot"></span>LESSON 12 · 2026.04.22 · L4 · FINAL</p>
+  <h1 class="title kicker">vLLM 의 Paged Attention V2 를 Triton 으로 — MQA 의 SM 점유율 구멍을 split-k 로 닫기</h1>
+  <p class="dek">"파라미터 스윕으로 안 닫히면 아키텍처를 의심해라" 의 한 번 더 되감기. ctx 축 partition + reduce 커널로 MQA 를 <strong>1.68× 가속</strong>. 남은 gap 은 L2 residency.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>target · <strong>MQA +645 % → +344 %</strong></span>
+    <span>paged self-speedup · <strong>1.68×</strong></span>
+  </div>
+
+  <div class="callout">
+    <div class="label">이 페이지</div>
+    <p>내용 집필 중입니다. 다음 업데이트에서 v2 아키텍처 (split + reduce 2-kernel), <code>tl.arange</code> pow-of-2 함정, auto-dispatch 휴리스틱 튜닝, L2 residency 한계 전문을 채웁니다.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="11-paged-attention.html"><span class="lbl">Prev · 11</span>paged attention</a>
+    <a class="nxt" href="index.html"><span class="lbl">End</span>back to index</a>
+  </div>
+</article>
+
+<article class="prose" data-lang="en" hidden>
+  <p class="eyebrow"><span class="dot"></span>LESSON 12 · 2026.04.22 · L4 · FINAL</p>
+  <h1 class="title kicker">vLLM's Paged Attention V2 in Triton — closing the MQA SM-occupancy hole with split-k</h1>
+  <p class="dek">"When a parameter sweep doesn't move the metric, suspect the architecture," rewound one more time. ctx-axis partition + reduce kernel makes MQA <strong>1.68× faster</strong>. The remaining gap is L2 residency.</p>
+  <div class="meta">
+    <span>GPU · <strong>L4 (sm_89)</strong></span>
+    <span>target · <strong>MQA +645 % → +344 %</strong></span>
+    <span>paged self-speedup · <strong>1.68×</strong></span>
+  </div>
+
+  <div class="callout">
+    <div class="label">This page</div>
+    <p>Content in progress. The next update fills in the v2 architecture (split + reduce 2-kernel), the <code>tl.arange</code> pow-of-2 trap, auto-dispatch heuristic tuning, and the L2 residency ceiling.</p>
+  </div>
+
+  <div class="artnav">
+    <a href="11-paged-attention.html"><span class="lbl">Prev · 11</span>paged attention</a>
+    <a class="nxt" href="index.html"><span class="lbl">End</span>back to index</a>
+  </div>
+</article>
+</div>
+<footer class="bot"><div>cudatraining / 2026.04.22</div><div>Lesson 12 / 12</div></footer>
+</body></html>
