@@ -96,3 +96,84 @@ h1, h2, h3, h4, h5, h6 {
   color: #3E3232;
   font-weight: 600;
 }
+
+.study-portal-callout {
+  margin: 0 0 2.6rem;
+  padding: 1.35rem 1.45rem;
+  border: 1px solid #E8E0D8;
+  border-radius: 8px;
+  background: #FDF8F1;
+  box-shadow: 0 10px 24px rgba(62, 50, 50, 0.05);
+}
+
+.study-portal-eyebrow {
+  margin: 0 0 0.2rem;
+  color: #9B8E82;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.study-portal-callout h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.55rem;
+  line-height: 1.25;
+}
+
+.study-portal-callout p {
+  max-width: 42rem;
+  margin: 0 0 1rem;
+  color: #5C4E42;
+}
+
+.study-portal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+.study-portal-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #8B6F4E;
+  border-radius: 6px;
+  background: #8B6F4E;
+  color: #FAF9F6;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.study-portal-button:visited {
+  color: #FAF9F6;
+}
+
+.study-portal-button:hover {
+  border-color: #6D5740;
+  background: #6D5740;
+  color: #FAF9F6;
+  text-decoration: none;
+}
+
+.study-portal-meta {
+  color: #8B7A6A;
+  font-size: 0.94rem;
+}
+
+@media screen and (max-width: 600px) {
+  .study-portal-callout {
+    padding: 1.1rem;
+  }
+
+  .study-portal-callout h2 {
+    font-size: 1.35rem;
+  }
+
+  .study-portal-button {
+    width: 100%;
+  }
+}

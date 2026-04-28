@@ -1,0 +1,42 @@
+---
+layout: default
+---
+
+<div class="home">
+  <section class="study-portal-callout" aria-labelledby="study-portal-title">
+    <p class="study-portal-eyebrow">Study Library</p>
+    <h2 id="study-portal-title">컴자료 학습 포털</h2>
+    <p>
+      컴퓨터 과학 교재와 미적분, 최적화, 수치선형대수 노트를 한곳에 묶어두었습니다.
+      폰에서도 바로 열어볼 수 있게 정적 페이지로 정리해두었어요.
+    </p>
+    <div class="study-portal-actions">
+      <a class="study-portal-button" href="{{ '/study/' | relative_url }}">컴자료 학습 포털 열기</a>
+      <span class="study-portal-meta">검색, 분야 필터, 챕터별 진입 지원</span>
+    </div>
+  </section>
+
+  {{ content }}
+
+  {%- if site.posts.size > 0 -%}
+    <h2 class="post-list-heading">{{ page.list_title | default: "Posts" }}</h2>
+    <ul class="post-list">
+      {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+      {%- for post in site.posts -%}
+      <li>
+        <span class="post-meta">{{ post.date | date: date_format }}</span>
+        <h3>
+          <a class="post-link" href="{{ post.url | relative_url }}">
+            {{ post.title | escape }}
+          </a>
+        </h3>
+        {%- if site.show_excerpts -%}
+          {{ post.excerpt }}
+        {%- endif -%}
+      </li>
+      {%- endfor -%}
+    </ul>
+
+    <p class="rss-subscribe">subscribe <a href="{{ '/feed.xml' | relative_url }}">via RSS</a></p>
+  {%- endif -%}
+</div>

@@ -4,7 +4,3 @@
 
 layout: home
 ---
-
-## Study Portal
-
-[컴자료 학습 포털 열기](/study/)
