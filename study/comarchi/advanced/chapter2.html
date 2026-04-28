@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2장. 메모리 계층 설계 · 컴퓨터구조 심화</title>
+<meta name="description" content="Computer Architecture: A Quantitative Approach 흐름을 바탕으로 메모리 계층, AMAT, 캐시 미스, 캐시 최적화, 프리패치, 블로킹, 가상 메모리와 TLB를 한국어로 풀어쓴 심화 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">QA</span>
+      컴퓨터구조 심화
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">구조 입문</a>
+      <a href="index.html">심화 홈</a>
+      <a href="chapter1.html">1장</a>
+      <a href="chapter2.html" class="active">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 2</div>
+    <h1>메모리 계층 설계</h1>
+    <p class="ch-subtitle">큰 메모리를 빠른 척하게 만드는 정교한 무대 장치</p>
+  </section>
+
+  <p>
+    프로세서는 빠르고 메모리는 느립니다. 이 문장은 너무 자주 등장해서 별 감흥이 없지만,
+    현대 컴퓨터의 많은 복잡도가 바로 여기서 태어납니다. CPU는 매 사이클 다음 일을 하고 싶은데,
+    DRAM은 수십에서 수백 사이클 뒤에 대답합니다. 둘을 그대로 붙여 놓으면 빠른 코어가 메모리 앞에서 줄을 섭니다.
+    메모리 계층은 그 줄을 짧아 보이게 만드는 기술입니다.
+  </p>
+
+  <div class="toc">
+    <div class="toc-title">이 장에서 다루는 것</div>
+    <ol>
+      <li><a href="#s1">지역성과 메모리 계층</a></li>
+      <li><a href="#s2">AMAT: 평균 메모리 접근 시간</a></li>
+      <li><a href="#s3">캐시 미스의 네 가지 얼굴</a></li>
+      <li><a href="#s4">캐시 설계의 기본 선택지</a></li>
+      <li><a href="#s5">캐시 최적화 감각</a></li>
+      <li><a href="#s6">프리패치와 블로킹</a></li>
+      <li><a href="#s7">가상 메모리와 TLB</a></li>
+      <li><a href="#s8">메모리 성능을 읽는 법</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">2.1 지역성과 메모리 계층</h2>
+  <p>
+    캐시가 성립하는 이유는 프로그램이 완전히 무작위로 메모리를 쓰지 않기 때문입니다.
+    방금 쓴 데이터를 곧 다시 쓰는 경향을 <strong>시간적 지역성</strong>, 어떤 주소를 쓰면 그 근처 주소도 곧 쓰는 경향을
+    <strong>공간적 지역성</strong>이라고 합니다. 캐시는 이 두 습관에 기대어 작고 빠른 저장소를 큰 메모리 앞에 세웁니다.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      메모리 계층은 거짓말을 잘하는 구조입니다. 실제로는 모든 데이터가 빠른 SRAM에 있지 않지만,
+      프로그램이 지역성을 잘 보여주면 대부분의 접근이 가까운 층에서 끝납니다.
+      좋은 거짓말은 들키지 않습니다. 캐시 미스가 잦아지는 순간, 관객은 무대 뒤의 느린 DRAM을 보게 됩니다.
+    </p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>계층</th>
+        <th>대략적 성격</th>
+        <th>설계 감각</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>레지스터</td>
+        <td>가장 빠르고 가장 작음</td>
+        <td>컴파일러가 치열하게 배치합니다.</td>
+      </tr>
+      <tr>
+        <td>L1 캐시</td>
+        <td>작고 빠르며 코어 가까이에 있음</td>
+        <td>히트 시간이 매우 중요합니다.</td>
+      </tr>
+      <tr>
+        <td>L2/L3 캐시</td>
+        <td>더 크고 조금 느림</td>
+        <td>미스 페널티를 줄이는 완충지대입니다.</td>
+      </tr>
+      <tr>
+        <td>DRAM</td>
+        <td>크지만 느림</td>
+        <td>대역폭과 지연 시간이 모두 문제입니다.</td>
+      </tr>
+      <tr>
+        <td>SSD/저장장치</td>
+        <td>영구 저장, 훨씬 느림</td>
+        <td>운영체제와 파일 시스템의 무대입니다.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="s2">2.2 AMAT: 평균 메모리 접근 시간</h2>
+  <p>
+    캐시 이야기를 숫자로 묶는 가장 기본 식은 AMAT입니다. 평균적으로 메모리 접근 하나가 얼마나 걸리는지 보는 식입니다.
+  </p>
+
+<pre><code>AMAT = Hit time + Miss rate × Miss penalty</code></pre>
+
+  <p>
+    <strong>Hit time</strong>은 캐시에서 찾았을 때 걸리는 시간입니다. <strong>Miss rate</strong>는 못 찾을 확률,
+    <strong>Miss penalty</strong>는 못 찾았을 때 아래 계층에서 가져오느라 추가로 내는 비용입니다.
+    세 항 중 하나만 나빠도 전체가 무너집니다. 빠른 L1을 만들려고 작게 했더니 미스율이 오를 수 있고,
+    미스율을 낮추려고 크게 했더니 히트 시간이 길어질 수 있습니다.
+  </p>
+
+  <h3>다단계 캐시의 AMAT</h3>
+  <p>
+    L1 뒤에 L2가 있으면 식은 조금 길어집니다. 하지만 감각은 같습니다. 앞 계층에서 실패한 접근만 다음 계층으로 내려갑니다.
+  </p>
+
+<pre><code>AMAT = L1 hit time
+     + L1 miss rate × (L2 hit time + L2 miss rate × L2 miss penalty)</code></pre>
+
+  <div class="callout check">
+    <div class="callout-title">혼자 점검</div>
+    <p>
+      L1 hit time이 1사이클, L1 miss rate가 5%, L2 hit time이 10사이클,
+      L2 miss rate가 20%, L2 miss penalty가 100사이클이면 AMAT는
+      <code>1 + 0.05 × (10 + 0.2 × 100) = 2.5</code>사이클입니다.
+      L1은 거의 다 맞히는데도, 아래쪽 비용이 꽤 선명하게 올라옵니다.
+    </p>
+  </div>
+
+  <h2 id="s3">2.3 캐시 미스의 네 가지 얼굴</h2>
+  <p>
+    캐시 미스는 그냥 “없음”이 아닙니다. 왜 없었는지에 따라 처방이 달라집니다.
+    감기와 근육통을 둘 다 “몸이 별로”라고 부르면 약을 고르기 어렵듯, 미스도 분류해야 합니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>미스 종류</th>
+        <th>왜 생기나</th>
+        <th>대응 감각</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Compulsory</td>
+        <td>처음 보는 블록이라 아직 캐시에 없음</td>
+        <td>프리패치, 적절한 블록 크기</td>
+      </tr>
+      <tr>
+        <td>Capacity</td>
+        <td>작업 집합이 캐시 용량보다 큼</td>
+        <td>캐시 확대, 블로킹, 데이터 재사용 증가</td>
+      </tr>
+      <tr>
+        <td>Conflict</td>
+        <td>서로 다른 블록이 같은 캐시 자리만 원함</td>
+        <td>연관도 증가, 데이터 배치 조정, victim cache</td>
+      </tr>
+      <tr>
+        <td>Coherence</td>
+        <td>다른 코어의 쓰기 때문에 내 복사본이 무효화됨</td>
+        <td>공유 쓰기 줄이기, 패딩, 동기화 구조 개선</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 감각</div>
+    <p>
+      캐시 미스는 한 단어지만 사연은 여럿입니다. 사연을 안 듣고 캐시만 키우면, 가끔은 비싼 침묵만 커집니다.
+    </p>
+  </div>
+
+  <h2 id="s4">2.4 캐시 설계의 기본 선택지</h2>
+  <p>
+    캐시는 주소를 블록 단위로 저장합니다. 주소가 들어오면 태그를 비교해 이 블록이 원하는 데이터인지 확인하고,
+    맞으면 hit, 아니면 miss입니다. 여기서 중요한 선택지는 블록 크기, 캐시 크기, 연관도, 교체 정책, 쓰기 정책입니다.
+  </p>
+
+  <h3>블록 크기</h3>
+  <p>
+    블록을 크게 하면 공간적 지역성을 더 잘 이용할 수 있습니다. 배열을 순서대로 읽는다면 한 번 가져온 블록 안에 다음 원소들이 같이 들어옵니다.
+    하지만 너무 크면 쓸모없는 바이트까지 끌고 와서 대역폭을 낭비하고, 캐시에 들어갈 블록 수가 줄어 capacity 미스가 늘 수 있습니다.
+  </p>
+
+  <h3>연관도</h3>
+  <p>
+    직접 사상 캐시는 주소마다 들어갈 자리가 하나뿐이라 빠르고 단순합니다. 대신 두 블록이 같은 자리를 번갈아 원하면 계속 밀어냅니다.
+    완전 연관 캐시는 아무 곳에나 둘 수 있어 conflict 미스가 적지만 비교가 비싸고 느립니다.
+    집합 연관 캐시는 둘 사이의 현실적인 타협입니다.
+  </p>
+
+  <h3>쓰기 정책</h3>
+  <p>
+    write-through는 캐시에 쓸 때 아래 계층에도 바로 씁니다. 단순하지만 쓰기 트래픽이 늘어납니다.
+    write-back은 캐시에서만 바꾸고 나중에 밀려날 때 아래 계층에 씁니다. 트래픽은 줄지만 dirty 상태를 관리해야 합니다.
+    write allocate 여부도 중요합니다. 쓰기 미스 때 블록을 캐시에 가져올지, 그냥 아래 계층에만 쓸지 결정합니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>선택</th>
+        <th>좋아지는 것</th>
+        <th>나빠질 수 있는 것</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>캐시 크게</td>
+        <td>capacity 미스 감소</td>
+        <td>hit time, 면적, 전력</td>
+      </tr>
+      <tr>
+        <td>블록 크게</td>
+        <td>공간적 지역성 활용</td>
+        <td>대역폭 낭비, 오염, 미스 페널티</td>
+      </tr>
+      <tr>
+        <td>연관도 증가</td>
+        <td>conflict 미스 감소</td>
+        <td>태그 비교 비용, hit time</td>
+      </tr>
+      <tr>
+        <td>write-back</td>
+        <td>쓰기 트래픽 감소</td>
+        <td>상태 관리 복잡도</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="s5">2.5 캐시 최적화 감각</h2>
+  <p>
+    교재에는 캐시 최적화 기법이 길게 나옵니다. 이름은 많지만 큰 방향은 세 가지입니다.
+    <strong>히트 시간을 줄이기, 미스율을 줄이기, 미스 페널티를 줄이기.</strong>
+    AMAT 식의 세 항을 각각 겨냥한다고 보면 됩니다.
+  </p>
+
+  <dl class="term">
+    <dt>Hit time 줄이기</dt>
+    <dd>작고 단순한 L1, way prediction, trace cache 같은 접근이 여기에 들어갑니다.</dd>
+  </dl>
+  <dl class="term">
+    <dt>Miss rate 줄이기</dt>
+    <dd>큰 캐시, 높은 연관도, victim cache, 컴파일러의 데이터 배치 개선이 도움을 줍니다.</dd>
+  </dl>
+  <dl class="term">
+    <dt>Miss penalty 줄이기</dt>
+    <dd>다단계 캐시, critical word first, early restart, nonblocking cache가 대표적입니다.</dd>
+  </dl>
+
+  <p>
+    특히 nonblocking cache는 미스 하나가 나는 동안 독립적인 다른 메모리 접근을 계속 진행하게 해줍니다.
+    고성능 코어에서는 메모리 미스를 하나씩 얌전히 기다리는 것이 너무 비쌉니다. 여러 미스를 동시에 떠안고,
+    준비된 일부터 처리해야 파이프라인이 숨을 쉽니다.
+  </p>
+
+  <h2 id="s6">2.6 프리패치와 블로킹</h2>
+  <p>
+    프리패치는 앞으로 필요할 데이터를 미리 가져오는 기술입니다. 잘 맞으면 compulsory 미스와 긴 지연을 줄입니다.
+    틀리면 필요 없는 데이터를 가져와 대역폭을 쓰고 캐시를 오염시킵니다. 미래를 맞히는 일은 늘 보상이 크고, 틀렸을 때의 표정도 큽니다.
+  </p>
+
+<pre><code>// 순차 접근은 하드웨어 프리패처가 좋아하는 냄새입니다.
+for (i = 0; i &lt; n; i++) {
+  sum += A[i];
+}
+
+// 일정한 stride도 어느 정도 예측할 수 있습니다.
+for (i = 0; i &lt; n; i += 4) {
+  sum += A[i];
+}</code></pre>
+
+  <p>
+    블로킹은 큰 작업을 캐시에 들어갈 만한 작은 타일로 나누는 방법입니다. 행렬 곱처럼 같은 데이터를 여러 번 재사용하는 계산에서 특히 중요합니다.
+    한 번 가져온 데이터를 캐시 안에서 충분히 써먹고 내보내자는 전략입니다.
+  </p>
+
+<pre><code>// 개념적 타일링: C의 작은 블록을 잡고 A/B의 필요한 조각을 반복 사용합니다.
+for (ii = 0; ii &lt; N; ii += B)
+  for (jj = 0; jj &lt; N; jj += B)
+    for (kk = 0; kk &lt; N; kk += B)
+      multiply_block(C[ii:ii+B][jj:jj+B],
+                     A[ii:ii+B][kk:kk+B],
+                     Bm[kk:kk+B][jj:jj+B]);</code></pre>
+
+  <div class="callout principle">
+    <div class="callout-title">지역성은 계약서</div>
+    <p>
+      캐시는 프로그램이 시간적, 공간적 지역성을 어느 정도 지킨다는 가정 위에 서 있습니다.
+      배열을 순서대로 읽으면 캐시가 웃고, 포인터를 따라 무작위 주소를 뛰어다니면 캐시는 조용히 표정을 잃습니다.
+    </p>
+  </div>
+
+  <h2 id="s7">2.7 가상 메모리와 TLB</h2>
+  <p>
+    가상 메모리는 각 프로그램에게 자기만의 크고 연속적인 주소 공간이 있는 것처럼 보이게 합니다.
+    실제 물리 메모리는 운영체제가 페이지 단위로 나누어 관리하고, 하드웨어는 가상 주소를 물리 주소로 변환합니다.
+    이 변환 정보는 페이지 테이블에 있지만, 매 접근마다 페이지 테이블을 읽으면 너무 느립니다.
+    그래서 <strong>TLB</strong>가 있습니다. TLB는 최근 주소 변환 결과를 저장하는 작은 캐시입니다.
+  </p>
+
+<pre><code>가상 주소
+  ├─ VPN: 가상 페이지 번호  → TLB/페이지 테이블로 물리 페이지 번호 찾기
+  └─ offset: 페이지 안 위치 → 그대로 사용
+
+물리 주소 = 물리 페이지 번호 + offset</code></pre>
+
+  <p>
+    TLB hit이면 주소 변환이 빠르게 끝납니다. TLB miss이면 페이지 테이블을 찾아야 하고, 필요한 페이지가 메모리에 없으면
+    page fault가 발생해 운영체제가 저장장치에서 페이지를 가져옵니다. 캐시 미스가 “느림”이라면, page fault는 “잠깐 나갔다 오겠습니다”에 가깝습니다.
+    단위가 훨씬 큽니다.
+  </p>
+
+  <h3>큰 페이지의 유혹</h3>
+  <p>
+    페이지가 크면 TLB 한 엔트리가 커버하는 주소 범위가 커집니다. 이를 TLB reach 또는 coverage라고 부릅니다.
+    큰 페이지는 대용량 배열이나 데이터베이스처럼 넓은 메모리를 훑는 작업에서 유리할 수 있습니다.
+    대신 내부 단편화가 늘고, 페이지 관리가 둔해질 수 있습니다. 역시 한쪽을 누르면 다른 쪽이 올라옵니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>항목</th>
+        <th>작은 페이지</th>
+        <th>큰 페이지</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>TLB 커버리지</td>
+        <td>작음</td>
+        <td>큼</td>
+      </tr>
+      <tr>
+        <td>내부 단편화</td>
+        <td>적음</td>
+        <td>커질 수 있음</td>
+      </tr>
+      <tr>
+        <td>관리 유연성</td>
+        <td>세밀함</td>
+        <td>거칠지만 TLB에 친절함</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="s8">2.8 메모리 성능을 읽는 법</h2>
+  <p>
+    메모리 성능 문제를 보면 먼저 현상을 분리해야 합니다. L1 miss인지, LLC miss인지, TLB miss인지,
+    대역폭이 꽉 찬 것인지, coherence 트래픽이 많은 것인지가 다릅니다. 모두 “메모리가 느려요”로 들리지만 처방은 완전히 달라집니다.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">하드웨어/소프트웨어 인터페이스</div>
+    <p>
+      하드웨어는 캐시와 프리패처를 제공하지만, 프로그램의 접근 패턴을 대신 고쳐주지는 못합니다.
+      소프트웨어가 데이터를 연속적으로 배치하고, 재사용을 늘리고, 공유 쓰기를 줄일 때 하드웨어의 장치들이 제 힘을 냅니다.
+    </p>
+  </div>
+
+  <p>
+    그래서 이 장의 결론은 단순합니다. 메모리 계층은 빠른 저장소를 많이 붙이는 장식이 아니라,
+    프로그램의 지역성을 숫자로 이용하는 설계입니다. 좋은 코드는 캐시에게 힌트를 줍니다. 좋은 캐시는 그 힌트를 놓치지 않습니다.
+  </p>
+
+  <nav class="chapter-nav">
+    <a href="chapter1.html">
+      <div class="label">Previous</div>
+      <div class="title">1장. 정량 설계와 분석</div>
+    </a>
+    <a href="chapter3.html" class="next">
+      <div class="label">Next</div>
+      <div class="title">3장. 명령어 수준 병렬성</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  <p>Computer Architecture: A Quantitative Approach 흐름을 바탕으로 다시 쓴 한국어 해설 노트</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

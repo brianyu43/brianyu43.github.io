@@ -1,4 +1,4 @@
-const categories = ["전체", "수학", "기초 CS", "시스템", "컴파일러/PL", "CUDA/병렬", "연구 가이드"];
+const categories = ["전체", "수학", "기초 CS", "시스템", "컴파일러/PL", "CUDA/병렬"];
 
 const books = [
   {
@@ -211,6 +211,22 @@ const books = [
     ]
   },
   {
+    id: "comarchi-advanced",
+    title: "컴퓨터구조 심화",
+    category: "시스템",
+    description: "정량 설계, 메모리 계층, ILP/DLP/TLP, 창고 규모 컴퓨터를 숫자 중심으로 읽는 심화 해설 노트입니다.",
+    href: "comarchi/advanced/index.html",
+    tags: ["컴퓨터구조", "정량분석", "성능"],
+    chapters: [
+      ["01", "정량 설계와 분석", "comarchi/advanced/chapter1.html"],
+      ["02", "메모리 계층 설계", "comarchi/advanced/chapter2.html"],
+      ["03", "명령어 수준 병렬성", "comarchi/advanced/chapter3.html"],
+      ["04", "데이터 수준 병렬성", "comarchi/advanced/chapter4.html"],
+      ["05", "스레드 수준 병렬성", "comarchi/advanced/chapter5.html"],
+      ["06", "창고 규모 컴퓨터", "comarchi/advanced/chapter6.html"]
+    ]
+  },
+  {
     id: "compiler",
     title: "컴파일러 엔지니어링",
     category: "컴파일러/PL",
@@ -313,74 +329,53 @@ const books = [
       ["V17", "Training System", "cudaserious/cuda_onebooks/V17_training_system.html"],
       ["V18", "Roofline & Profiling", "cudaserious/cuda_onebooks/V18_profiling_roofline.html"]
     ]
-  },
-  {
-    id: "pmpponebook",
-    title: "PMPP 단권화",
-    category: "CUDA/병렬",
-    description: "대규모 병렬 프로세서 프로그래밍 핵심을 압축한 별도 단권 자료입니다.",
-    href: "cudaserious/pmpp/pmpponebook.html",
-    tags: ["GPU", "요약", "성능"],
-    chapters: []
-  },
-  {
-    id: "comic",
-    title: "CUDA 교육 만화",
-    category: "CUDA/병렬",
-    description: "GPU 부서 첫 출근을 웹툰과 슬라이드 형식으로 읽는 정적 자료입니다.",
-    href: "cudaserious/webtoon_viewer/public/comic/v01/index.html",
-    tags: ["웹툰", "GPU", "입문"],
-    chapters: [
-      ["세로", "V01 GPU 부서 첫 출근", "cudaserious/webtoon_viewer/public/comic/v01/index.html"],
-      ["가로", "V01 GPU 부서 첫 출근 - Landscape", "cudaserious/webtoon_viewer/public/comic/v01_landscape/index.html"]
-    ]
-  },
-  {
-    id: "twoprof",
-    title: "성효진 · 유민수 연구 세계 입문",
-    category: "연구 가이드",
-    description: "두 연구자의 연구 흐름, 대표 프로젝트, 읽기 로드맵을 묶은 가이드입니다.",
-    href: "twoprof/index.html",
-    tags: ["연구", "컴파일러", "아키텍처"],
-    chapters: []
   }
 ];
 
+const bookOrder = [
+  "comarchi",
+  "comarchi-advanced",
+  "csapp",
+  "osstep",
+  "networking",
+  "pmppbook",
+  "cudaonebooks",
+  "compiler",
+  "automata",
+  "pfpl",
+  "discrete",
+  "datastruct",
+  "algorithms",
+  "calculus2",
+  "calculus3",
+  "linearalge",
+  "numericallinalg",
+  "optimization"
+];
+
+const orderedBooks = bookOrder
+  .map((id) => books.find((book) => book.id === id))
+  .filter(Boolean)
+  .concat(books.filter((book) => !bookOrder.includes(book.id)));
+
 const state = {
-  category: "전체",
-  query: ""
+  category: "전체"
 };
 
 const libraryEl = document.querySelector("[data-library]");
 const filtersEl = document.querySelector("[data-filters]");
-const searchInput = document.querySelector("[data-search]");
-const clearButton = document.querySelector("[data-clear-search]");
 const resultCount = document.querySelector("[data-result-count]");
 const emptyState = document.querySelector("[data-empty-state]");
 const totalBooks = document.querySelector("[data-total-books]");
 const totalEntries = document.querySelector("[data-total-entries]");
 const totalCategories = document.querySelector("[data-total-categories]");
 
-function normalize(value) {
-  return value.toLowerCase().replace(/\s+/g, "");
-}
-
-function bookSearchText(book) {
-  return normalize([
-    book.title,
-    book.category,
-    book.description,
-    book.tags.join(" "),
-    book.chapters.map((chapter) => chapter.slice(0, 2).join(" ")).join(" ")
-  ].join(" "));
-}
-
 function chapterCount(book) {
   return book.chapters.length;
 }
 
 function totalEntryCount() {
-  return books.reduce((sum, book) => sum + 1 + chapterCount(book), 0);
+  return orderedBooks.reduce((sum, book) => sum + 1 + chapterCount(book), 0);
 }
 
 function renderFilters() {
@@ -391,13 +386,11 @@ function renderFilters() {
 }
 
 function renderLibrary() {
-  const query = normalize(state.query);
   let visible = 0;
 
-  libraryEl.innerHTML = books.map((book) => {
+  libraryEl.innerHTML = orderedBooks.map((book) => {
     const matchesCategory = state.category === "전체" || book.category === state.category;
-    const matchesQuery = !query || bookSearchText(book).includes(query);
-    const isVisible = matchesCategory && matchesQuery;
+    const isVisible = matchesCategory;
     if (isVisible) visible += 1;
 
     const chapters = book.chapters.map(([number, title, href]) => `
@@ -441,7 +434,7 @@ function renderLibrary() {
 }
 
 function updateStats() {
-  totalBooks.textContent = books.length;
+  totalBooks.textContent = orderedBooks.length;
   totalEntries.textContent = totalEntryCount();
   totalCategories.textContent = categories.length - 1;
 }
@@ -451,18 +444,6 @@ filtersEl.addEventListener("click", (event) => {
   if (!button) return;
   state.category = button.dataset.category;
   renderFilters();
-  renderLibrary();
-});
-
-searchInput.addEventListener("input", (event) => {
-  state.query = event.target.value;
-  renderLibrary();
-});
-
-clearButton.addEventListener("click", () => {
-  state.query = "";
-  searchInput.value = "";
-  searchInput.focus();
   renderLibrary();
 });
 

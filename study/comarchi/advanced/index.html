@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>컴퓨터구조 심화 · 정량적 접근 한국어 해설 노트</title>
+<meta name="description" content="Computer Architecture: A Quantitative Approach 흐름을 바탕으로 정량 설계, 메모리 계층, ILP, DLP, TLP, 창고 규모 컴퓨터를 한국어로 풀어쓴 심화 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">QA</span>
+      컴퓨터구조 심화
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">구조 입문</a>
+      <a href="index.html" class="active">심화 홈</a>
+      <a href="chapter1.html">1장</a>
+      <a href="chapter2.html">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>컴퓨터구조 심화</h1>
+    <p class="subtitle">빠른 컴퓨터를 감으로 만들지 않고, 숫자로 밀어붙이는 법</p>
+    <p class="quote">성능 튜닝은 “느낌상 빠름”을 “몇 배, 몇 와트, 몇 달러”로 바꾸는 일입니다.</p>
+  </section>
+
+  <section class="track-note">
+    <h2>이 노트는 어떤 포지션인가요?</h2>
+    <p>
+      이 페이지는 Hennessy와 Patterson의 <em>Computer Architecture: A Quantitative Approach</em> 흐름을
+      따라가되, 원문을 그대로 옮기지 않고 한국어 학습용으로 다시 설명한 <strong>심화 해설 노트</strong>입니다.
+      입문 컴퓨터구조가 “CPU가 명령어를 어떻게 실행하나”를 묻는다면, 여기서는 한 발 더 나가서
+      “그 설계가 진짜 빠른가, 전기는 얼마나 먹는가, 비용 대비 성능은 어떤가”를 묻습니다.
+    </p>
+    <p>
+      말투는 기존 컴퓨터 구조 노트처럼 조금 가볍게 잡았습니다. 숫자는 진지하게 보고, 설명은 숨 좀 쉬면서 갑니다.
+      아키텍처가 회의록처럼 굳어지면 읽는 사람도 캐시 미스 납니다.
+    </p>
+  </section>
+
+  <h2>챕터 선택</h2>
+  <p>
+    1장은 반드시 먼저 읽는 편이 좋습니다. 나머지는 관심사대로 들어가도 되지만,
+    메모리 계층을 먼저 잡아두면 ILP, DLP, TLP가 훨씬 덜 휘청입니다.
+  </p>
+
+  <div class="chapter-grid">
+    <a href="chapter1.html" class="chapter-card available">
+      <div class="num">Chapter 1</div>
+      <h3>정량 설계와 분석</h3>
+      <p>성능 공식, 벤치마크, 암달의 법칙, 전력/에너지, 신뢰성을 숫자로 다룹니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+    <a href="chapter2.html" class="chapter-card available">
+      <div class="num">Chapter 2</div>
+      <h3>메모리 계층 설계</h3>
+      <p>AMAT, 캐시 미스, 프리패치, 블로킹, TLB까지 빠른 척의 기술을 봅니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+    <a href="chapter3.html" class="chapter-card available">
+      <div class="num">Chapter 3</div>
+      <h3>명령어 수준 병렬성</h3>
+      <p>파이프라인, 동적 스케줄링, 리네이밍, 분기 예측과 추측 실행을 다룹니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+    <a href="chapter4.html" class="chapter-card available">
+      <div class="num">Chapter 4</div>
+      <h3>데이터 수준 병렬성</h3>
+      <p>벡터, SIMD, GPU, 워프 발산, coalescing, 루프라인 모델로 계산 덩어리를 봅니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+    <a href="chapter5.html" class="chapter-card available">
+      <div class="num">Chapter 5</div>
+      <h3>스레드 수준 병렬성</h3>
+      <p>멀티코어, 동기화, 캐시 일관성, 메모리 일관성과 false sharing을 정리합니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+    <a href="chapter6.html" class="chapter-card available">
+      <div class="num">Chapter 6</div>
+      <h3>창고 규모 컴퓨터</h3>
+      <p>데이터센터를 하나의 컴퓨터처럼 보고 tail latency, 전력, 비용, 장애를 다룹니다.</p>
+      <span class="tag">읽기</span>
+    </a>
+  </div>
+
+  <h2>읽는 순서 추천</h2>
+  <ol>
+    <li><strong>1장</strong>에서 성능을 숫자로 말하는 습관을 잡습니다.</li>
+    <li><strong>2장</strong>에서 메모리 병목 감각을 챙깁니다. 대부분의 성능 드라마는 여기서 시작합니다.</li>
+    <li><strong>3-5장</strong>은 병렬성 3종 세트입니다. 한 코어, 많은 데이터, 많은 스레드 순서로 보세요.</li>
+    <li><strong>6장</strong>은 관점을 칩 밖으로 확장합니다. 건물 하나가 컴퓨터가 되는 순간입니다.</li>
+  </ol>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 안내</div>
+    <p>
+      이 심화 트랙의 주문은 하나입니다. “어디가 병목인가?” 이 질문을 계속 들고 다니면,
+      성능 그래프가 갑자기 덜 무섭고 조금 더 수다스러워집니다.
+    </p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  컴퓨터구조 심화 한국어 해설 노트 · 원문 직역이 아니라 학습용 재구성입니다.
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6장. 창고 규모 컴퓨터 · 컴퓨터구조 심화</title>
+<meta name="description" content="창고 규모 컴퓨터, 요청 수준 병렬성, 데이터센터 네트워크, tail latency, 전력과 비용, 고장 복구, 성능/달러와 성능/와트를 설명하는 한국어 심화 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">QA</span>
+      컴퓨터구조 심화
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">구조 입문</a>
+      <a href="index.html">심화 홈</a>
+      <a href="chapter1.html">1장</a>
+      <a href="chapter2.html">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html" class="active">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 6</div>
+    <h1>창고 규모 컴퓨터</h1>
+    <p class="ch-subtitle">서버 한 대가 아니라 건물 전체를 컴퓨터로 보는 법</p>
+  </section>
+
+  <p>
+    개인용 컴퓨터에서는 CPU, 메모리, 저장장치, 네트워크 카드가 한 상자 안에 들어갑니다. 창고 규모 컴퓨터,
+    즉 WSC(Warehouse-Scale Computer)에서는 그 상자가 건물로 커집니다. 랙 수백 개, 서버 수만 대, 네트워크 스위치,
+    전력 설비, 냉각 장치, 운영 소프트웨어가 합쳐져 하나의 거대한 계산 기계가 됩니다.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      데이터센터에서는 “빠른 CPU”보다 “요청을 싸고 안정적으로 많이 처리하는 전체 시스템”이 중요합니다.
+      성능의 단위도 바뀝니다. 초당 명령어보다 초당 요청, 평균 지연보다 꼬리 지연, 칩 면적보다 성능/달러와 성능/와트가
+      더 큰 목소리를 냅니다.
+    </p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">이 장의 지도</div>
+    <ol>
+      <li><a href="#wsc">창고 규모 컴퓨터란 무엇인가</a></li>
+      <li><a href="#rlp">요청 수준 병렬성</a></li>
+      <li><a href="#network">데이터센터 네트워크</a></li>
+      <li><a href="#tail">Tail Latency</a></li>
+      <li><a href="#power">전력, 냉각, 비용</a></li>
+      <li><a href="#failure">고장과 복구</a></li>
+      <li><a href="#metrics">성능/달러와 성능/와트</a></li>
+      <li><a href="#summary">정리</a></li>
+    </ol>
+  </div>
+
+  <h2 id="wsc">창고 규모 컴퓨터란 무엇인가</h2>
+  <p>
+    WSC는 단순히 서버를 많이 사서 꽂아 둔 방이 아닙니다. 하나의 서비스가 수많은 서버에 퍼져 실행되도록
+    설계된 컴퓨터입니다. 검색, 추천, 지도, 광고, 사진 저장, 대규모 학습과 추론은 서버 한 대의 문제가 아닙니다.
+    데이터는 쪼개져 있고, 복제되어 있고, 가까운 곳으로 캐시되며, 작업은 큐와 스케줄러를 따라 이동합니다.
+  </p>
+  <p>
+    전통적인 컴퓨터구조가 코어 안의 파이프라인과 캐시를 보았다면, WSC에서는 랙, 클러스터, 네트워크, 전원,
+    장애 도메인이 새로운 구성 요소가 됩니다. 건물 전체가 마더보드가 되고, 네트워크가 버스가 되며, 운영팀의
+    자동화가 제어 로직의 일부가 됩니다. 약간 과장하면, 여기서는 시설 관리도 아키텍처입니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>단일 시스템 관점</th>
+        <th>WSC 관점</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>CPU 코어</td>
+        <td>서버, 가속기, 랙 단위 자원</td>
+      </tr>
+      <tr>
+        <td>메모리 계층</td>
+        <td>DRAM, 로컬 SSD, 분산 저장소, 원격 캐시</td>
+      </tr>
+      <tr>
+        <td>버스/인터커넥트</td>
+        <td>데이터센터 네트워크</td>
+      </tr>
+      <tr>
+        <td>고장 드문 부품</td>
+        <td>항상 어딘가 고장 나는 대규모 부품 집합</td>
+      </tr>
+      <tr>
+        <td>성능</td>
+        <td>처리량, 지연 분포, 비용, 전력 효율</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="rlp">요청 수준 병렬성</h2>
+  <p>
+    WSC가 특히 잘 활용하는 병렬성은 <strong>요청 수준 병렬성</strong>입니다. 사용자 A의 검색 요청과 사용자 B의
+    사진 업로드, 사용자 C의 추천 피드 생성은 서로 독립적입니다. 이런 요청은 여러 서버에 흩뿌려 동시에 처리할 수 있습니다.
+    명령어 하나를 쪼개는 게 아니라, 요청이라는 큰 알갱이를 왕창 처리하는 방식입니다.
+  </p>
+  <p>
+    요청 하나도 내부에서는 여러 조각으로 나뉩니다. 검색 요청은 문서 색인 서버, 랭킹 서버, 광고 서버, 사용자 정보 서버를
+    동시에 두드릴 수 있습니다. 빠른 응답을 위해 병렬로 물어보고, 결과를 모아 합칩니다. 이때 전체 지연 시간은 보통
+    가장 느린 하위 작업에게 끌려갑니다.
+  </p>
+
+  <pre><code>전체 응답 시간 ≈ max(하위 요청 지연 시간들) + 집계 비용
+
+검색 요청
+  ├─ 색인 shard 1
+  ├─ 색인 shard 2
+  ├─ 광고 후보 생성
+  ├─ 사용자 컨텍스트 조회
+  └─ 결과 병합과 랭킹</code></pre>
+
+  <div class="callout principle">
+    <div class="callout-title">핵심 원칙</div>
+    <p>
+      요청 수준 병렬성은 처리량을 크게 올리지만, 팬아웃이 커질수록 느린 조각 하나가 전체 응답을 붙잡을 확률도 커집니다.
+      평균만 보면 편안하고, 백분위 지연을 보면 현실이 보입니다.
+    </p>
+  </div>
+
+  <h2 id="network">데이터센터 네트워크</h2>
+  <p>
+    데이터센터에서 네트워크는 주변 장치가 아니라 핵심 자원입니다. 서버가 아무리 빨라도 필요한 데이터가 다른 랙에 있고
+    네트워크가 막히면 서비스는 느려집니다. 네트워크는 서버들을 하나의 컴퓨터처럼 묶는 혈관입니다.
+  </p>
+
+  <h3>토폴로지와 대역폭</h3>
+  <p>
+    흔한 구성은 ToR(Top-of-Rack) 스위치가 랙 안 서버를 묶고, 그 위에 집선과 코어 계층이 올라가는 형태입니다.
+    더 큰 환경에서는 fat-tree, Clos 계열 구조로 여러 경로를 만들어 병목을 줄입니다. 중요한 지표는 bisection bandwidth,
+    oversubscription, 지연 시간, 장애 시 우회 가능성입니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>관심사</th>
+        <th>질문</th>
+        <th>나빠지면 생기는 일</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>대역폭</td>
+        <td>동시에 얼마나 많은 데이터를 옮길 수 있나</td>
+        <td>분산 저장소와 셔플 작업이 느려짐</td>
+      </tr>
+      <tr>
+        <td>지연 시간</td>
+        <td>작은 메시지가 얼마나 빨리 도착하나</td>
+        <td>온라인 요청 응답이 길어짐</td>
+      </tr>
+      <tr>
+        <td>혼잡 제어</td>
+        <td>순간 트래픽 폭증을 어떻게 다루나</td>
+        <td>패킷 손실과 재전송으로 꼬리 지연 악화</td>
+      </tr>
+      <tr>
+        <td>복원력</td>
+        <td>스위치나 링크가 죽어도 우회할 수 있나</td>
+        <td>일부 랙이 섬처럼 고립됨</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="tail">Tail Latency</h2>
+  <p>
+    평균 지연 시간이 20ms인 서비스는 좋아 보입니다. 그런데 99번째 백분위가 900ms라면 사용자는 가끔씩
+    “왜 멈췄지?”라고 느낍니다. 온라인 서비스에서는 평균보다 꼬리가 중요합니다. 특히 요청이 여러 하위 요청으로
+    나뉘면, 각 하위 요청의 꼬리 지연이 전체 요청에서 더 자주 드러납니다.
+  </p>
+
+  <pre><code>하위 요청 100개가 각각 99% 확률로 빠르게 끝난다면
+전체 요청이 모두 빠르게 끝날 확률 = 0.99^100 ≈ 36.6%
+
+즉 "가끔 느림"이 팬아웃 후에는 "자주 느림"이 된다.</code></pre>
+
+  <p>
+    tail latency를 줄이는 방법에는 복제 요청, hedged request, 느린 작업 회피, 큐 길이 관리, 우선순위 스케줄링,
+    가비지 컬렉션과 백그라운드 작업의 간섭 줄이기 등이 있습니다. 핵심은 느린 하나를 기다리지 않도록 설계하는 것입니다.
+    데이터센터의 성능 튜닝은 평균을 예쁘게 만드는 작업이 아니라, 꼬리를 얌전하게 만드는 작업입니다.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">서비스 감각</div>
+    <p>
+      평균 지연은 발표 자료에서 미소 짓고, 99.9번째 백분위는 새벽 장애 알림에서 본색을 드러냅니다.
+      사용자는 평균 사용자가 아니라, 지금 느린 요청을 맞은 바로 그 사람입니다.
+    </p>
+  </div>
+
+  <h2 id="power">전력, 냉각, 비용</h2>
+  <p>
+    WSC의 비용 구조에서 전력은 매우 큰 비중을 차지합니다. 서버가 먹는 전기만 문제가 아닙니다. 전기를 안정적으로
+    공급하는 장비, 열을 빼내는 냉각 설비, UPS, 배전, 건물까지 모두 비용입니다. 성능이 조금 좋아져도 전력을 크게
+    더 먹으면 총소유비용 관점에서 손해일 수 있습니다.
+  </p>
+
+  <pre><code>PUE = 데이터센터 전체 전력 / IT 장비 전력
+
+PUE가 1.2라면
+IT 장비가 1W를 쓸 때 냉각과 전력 설비까지 포함해 총 1.2W를 쓴다는 뜻</code></pre>
+
+  <p>
+    전력 관리는 여러 층에서 이뤄집니다. 칩은 전압과 주파수를 조절하고, 서버는 유휴 상태를 깊게 만들며,
+    스케줄러는 작업을 몰아 넣거나 분산시켜 냉각과 성능의 균형을 잡습니다. 더운 랙에 작업을 계속 밀어 넣으면
+    성능 문제가 아니라 열 문제가 먼저 옵니다. 컴퓨터가 아니라 온실을 운영하는 기분이 살짝 납니다.
+  </p>
+
+  <h2 id="failure">고장과 복구</h2>
+  <p>
+    서버 한 대가 3년에 한 번 고장 난다고 합시다. 서버가 3만 대라면 통계는 태도를 바꿉니다. 매일 어딘가가
+    고장 난다고 보는 편이 맞습니다. WSC에서는 고장이 예외가 아니라 정상 상태의 일부입니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>고장 대상</th>
+        <th>흔한 대응</th>
+        <th>설계 목표</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>디스크/SSD</td>
+        <td>복제, erasure coding, 자동 재빌드</td>
+        <td>데이터 손실 없이 용량 효율 확보</td>
+      </tr>
+      <tr>
+        <td>서버</td>
+        <td>헬스 체크, 작업 재시작, 부하 재배치</td>
+        <td>요청 실패를 짧고 작게 만들기</td>
+      </tr>
+      <tr>
+        <td>랙/스위치</td>
+        <td>다중 경로, 장애 도메인 분산</td>
+        <td>한 지점 고장이 서비스 전체로 번지지 않게</td>
+      </tr>
+      <tr>
+        <td>소프트웨어 배포</td>
+        <td>카나리, 롤백, 점진 배포</td>
+        <td>사람이 만든 고장을 작게 시험하기</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    복구 설계의 핵심은 평균 고장 간격만 보는 것이 아니라 평균 복구 시간도 함께 줄이는 것입니다. 완벽히 안 고장 나는
+    시스템을 기다리기보다, 고장이 나도 빨리 감지하고 자동으로 우회하고 조용히 회복하는 시스템이 현실적입니다.
+  </p>
+
+  <h2 id="metrics">성능/달러와 성능/와트</h2>
+  <p>
+    WSC에서는 최고 성능 하나만으로 설계를 고르기 어렵습니다. 같은 예산으로 더 많은 요청을 처리하는가,
+    같은 전력으로 더 많은 일을 끝내는가, 같은 랙 공간에 더 높은 처리량을 넣을 수 있는가가 중요합니다.
+    그래서 성능/달러와 성능/와트가 설계의 중심 지표가 됩니다.
+  </p>
+
+  <pre><code>성능/달러 = 처리량 / 총소유비용
+성능/와트 = 처리량 / 소비 전력
+
+총소유비용에는 장비 가격뿐 아니라 전력, 냉각, 공간, 운영 비용이 들어간다.</code></pre>
+
+  <p>
+    범용 서버가 좋은 선택일 때도 있고, GPU나 TPU 같은 가속기가 압도적으로 좋은 선택일 때도 있습니다.
+    하지만 가속기도 공짜는 아닙니다. 높은 사용률을 유지해야 하고, 데이터 이동 비용을 감당해야 하며,
+    소프트웨어 스택이 따라와야 합니다. “빠른 장치”가 아니라 “서비스 전체에서 돈값을 하는 장치”가 이기는 곳이
+    창고 규모 컴퓨터의 세계입니다.
+  </p>
+
+  <div class="callout check">
+    <div class="callout-title">체크포인트</div>
+    <p>
+      WSC의 정량 분석은 벤치마크 점수 하나로 끝나지 않습니다. 처리량, 지연 분포, 가용성, 전력, 냉각, 공간,
+      운영 난이도를 한꺼번에 봐야 합니다. 숫자가 많아진 만큼 거짓말하기도 쉬워져서, 지표 선택이 설계의 일부가 됩니다.
+    </p>
+  </div>
+
+  <h2 id="summary">정리</h2>
+  <p>
+    창고 규모 컴퓨터는 컴퓨터구조의 시야를 칩 밖으로 확장합니다. 요청 수준 병렬성으로 엄청난 처리량을 얻지만,
+    네트워크 병목과 tail latency가 사용자 경험을 좌우합니다. 전력과 냉각은 성능만큼 중요한 제약이고, 고장은
+    없애는 대상이 아니라 견디고 회복해야 할 일상입니다.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">마지막 감각</div>
+    <p>
+      6장의 메시지는 단순합니다. 컴퓨터가 커지면 성능의 의미도 커집니다. 빠른 서버 한 대보다, 싸고 효율적이며
+      고장에도 무너지지 않는 서버 무리가 더 중요해집니다. 이쯤 되면 아키텍처는 회로도와 운영 노트 사이에 서 있습니다.
+    </p>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="chapter5.html">
+      <div class="label">Previous</div>
+      <div class="title">5장. 스레드 수준 병렬성</div>
+    </a>
+    <a href="index.html" class="next">
+      <div class="label">Home</div>
+      <div class="title">심화 홈으로</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  <p>Computer Architecture: A Quantitative Approach 흐름을 바탕으로 다시 쓴 한국어 해설 노트</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

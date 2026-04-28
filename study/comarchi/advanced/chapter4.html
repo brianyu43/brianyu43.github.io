@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4장. 데이터 수준 병렬성 · 컴퓨터구조 심화</title>
+<meta name="description" content="데이터 수준 병렬성, 벡터 아키텍처, SIMD, GPU 실행 모델, 워프와 분기 발산, coalescing, 산술 강도와 루프라인 모델을 한국어로 풀어쓴 심화 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">QA</span>
+      컴퓨터구조 심화
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">구조 입문</a>
+      <a href="index.html">심화 홈</a>
+      <a href="chapter1.html">1장</a>
+      <a href="chapter2.html">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html" class="active">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 4</div>
+    <h1>데이터 수준 병렬성</h1>
+    <p class="ch-subtitle">같은 일을 데이터 떼에게 한꺼번에 시키는 법</p>
+  </section>
+
+  <p>
+    데이터 수준 병렬성(DLP)은 같은 연산을 많은 데이터 원소에 반복 적용할 때 나타납니다.
+    이미지의 모든 픽셀에 필터를 씌우거나, 행렬 원소들을 곱하고 더하거나, 배열 전체에 같은 수식을 적용하는 일이 그렇습니다.
+    명령어 하나하나는 단순하지만 데이터가 산처럼 많습니다. 이럴 때는 똑똑한 한 명보다 같은 동작을 맞춰 하는 많은 실행 유닛이 이깁니다.
+  </p>
+
+  <div class="toc">
+    <div class="toc-title">이 장에서 다루는 것</div>
+    <ol>
+      <li><a href="#shape">DLP가 잘 보이는 코드</a></li>
+      <li><a href="#vector">벡터 아키텍처</a></li>
+      <li><a href="#simd">SIMD 확장</a></li>
+      <li><a href="#gpu">GPU 실행 모델</a></li>
+      <li><a href="#warp">워프와 분기 발산</a></li>
+      <li><a href="#memory">Coalescing과 메모리 접근</a></li>
+      <li><a href="#intensity">산술 강도</a></li>
+      <li><a href="#roofline">루프라인 모델</a></li>
+    </ol>
+  </div>
+
+  <h2 id="shape">DLP가 잘 보이는 코드</h2>
+  <p>
+    DLP는 “서로 다른 원소가 서로를 거의 기다리지 않는 반복문”에서 잘 보입니다. 아래 루프에서
+    <code>i</code>번째 계산은 <code>i+1</code>번째 계산과 대체로 독립입니다. 이런 코드는 한 번에 여러 원소를 처리하기 좋습니다.
+  </p>
+
+<pre><code>for (int i = 0; i &lt; n; i++) {
+  y[i] = a * x[i] + y[i];
+}</code></pre>
+
+  <p>
+    반대로 앞 원소의 결과가 다음 원소에 필요한 누적 합 같은 코드는 조심해야 합니다. 병렬화가 불가능한 것은 아니지만,
+    연산 순서를 다시 설계해야 하고 동기화나 단계적 축약이 끼어듭니다. DLP의 첫 질문은 늘 단순합니다.
+    <strong>각 데이터 원소가 독립적으로 움직일 수 있는가?</strong>
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      ILP가 한 스레드 내부에서 서로 다른 명령어를 겹치는 기술이라면, DLP는 같은 명령 흐름을 여러 데이터에 펼치는 기술입니다.
+      제어는 단순하게, 데이터 길이는 길게. 하드웨어 입장에서는 이보다 고마운 손님도 드뭅니다.
+    </p>
+  </div>
+
+  <h2 id="vector">벡터 아키텍처</h2>
+  <p>
+    벡터 아키텍처는 긴 데이터 묶음을 한 명령어로 처리합니다. 스칼라 명령어가 “값 하나 더해”라면,
+    벡터 명령어는 “이 배열 조각 전체를 더해”에 가깝습니다. 벡터 레지스터는 여러 원소를 담고,
+    벡터 길이 레지스터는 이번에 몇 원소를 처리할지 알려줍니다.
+  </p>
+
+<pre><code>LV    V1, R1      <span class="code-comment">// x 벡터 로드</span>
+LV    V2, R2      <span class="code-comment">// y 벡터 로드</span>
+MULVS V3, V1, F0  <span class="code-comment">// V3 = a * V1</span>
+ADDV  V4, V3, V2  <span class="code-comment">// V4 = V3 + V2</span>
+SV    R2, V4      <span class="code-comment">// y 벡터 저장</span></code></pre>
+
+  <p>
+    벡터 방식의 장점은 명령어 인출과 해독 부담을 크게 줄인다는 점입니다. 명령어 하나가 많은 원소의 작업을 대표하므로
+    프런트엔드가 바쁘게 뛰지 않아도 됩니다. 또 메모리 접근 패턴이 규칙적이면 하드웨어가 미리 길을 닦기 좋습니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>개념</th>
+        <th>역할</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>벡터 레지스터</td>
+        <td>여러 데이터 원소를 한 묶음으로 보관</td>
+      </tr>
+      <tr>
+        <td>벡터 길이</td>
+        <td>이번 명령이 처리할 원소 수를 지정</td>
+      </tr>
+      <tr>
+        <td>스트라이드</td>
+        <td>연속 배열뿐 아니라 일정 간격 접근을 표현</td>
+      </tr>
+      <tr>
+        <td>마스크</td>
+        <td>조건을 만족하는 원소만 선택적으로 실행</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="simd">SIMD 확장</h2>
+  <p>
+    SIMD는 하나의 명령어가 여러 데이터 lane에 동시에 적용되는 방식입니다. 범용 CPU의 AVX, NEON 같은 확장이 여기에 속합니다.
+    벡터 아키텍처가 길이 가변적인 큰 벡터 기계를 떠올리게 한다면, SIMD는 고정 폭 레지스터 안에 여러 값을 포장해 한 번에
+    처리하는 느낌에 가깝습니다.
+  </p>
+
+<pre><code>256-bit SIMD register
+float 8개  = [f0 f1 f2 f3 f4 f5 f6 f7]
+double 4개 = [d0 d1 d2 d3]</code></pre>
+
+  <p>
+    SIMD의 성능은 데이터 정렬, 메모리 연속성, 컴파일러 자동 벡터화에 크게 좌우됩니다. 루프에 포인터 alias가 있거나
+    조건문이 복잡하면 컴파일러가 “이거 정말 안전한가요?” 하며 물러날 수 있습니다. 그래서 고성능 코드에서는
+    데이터 배치와 루프 모양이 알고리즘만큼 중요해집니다.
+  </p>
+
+  <div class="callout principle">
+    <div class="callout-title">설계 감각</div>
+    <p>
+      SIMD는 계산기를 여러 개 붙인 것처럼 보이지만, 사실 더 큰 싸움은 데이터를 예쁘게 줄 세우는 일입니다.
+      산술 유닛은 빠릅니다. 문제는 대개 먹이를 제때, 연속으로, 배부르게 주는 쪽입니다.
+    </p>
+  </div>
+
+  <h2 id="gpu">GPU 실행 모델</h2>
+  <p>
+    GPU는 DLP를 아주 노골적으로 밀어붙인 장치입니다. 많은 스레드를 만들고, 비슷한 명령 흐름을 가진 스레드 묶음을
+    함께 실행합니다. CUDA식 용어로 보면 스레드는 블록으로 묶이고, 블록은 그리드를 이룹니다. 하드웨어는 그 안에서
+    워프 또는 웨이브프런트 같은 작은 묶음을 실제 실행 단위로 다룹니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>CPU</th>
+        <th>GPU</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>복잡한 제어와 낮은 지연 시간에 강함</td>
+        <td>대량 스레드와 높은 처리량에 강함</td>
+      </tr>
+      <tr>
+        <td>큰 캐시와 강한 단일 스레드 성능</td>
+        <td>많은 연산 유닛과 메모리 지연 숨기기</td>
+      </tr>
+      <tr>
+        <td>몇 개의 무거운 작업을 빨리 끝내기 좋음</td>
+        <td>수많은 비슷한 작업을 몰아서 처리하기 좋음</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    GPU는 메모리 지연을 줄이기보다 숨기는 쪽에 가깝습니다. 어떤 워프가 메모리를 기다리면 다른 준비된 워프를 실행합니다.
+    그래서 충분한 스레드가 있어야 GPU가 배부르게 일합니다. 작업량이 작거나 분기가 복잡하면 거대한 병렬 장치가 어색하게
+    서성일 수 있습니다.
+  </p>
+
+  <h2 id="warp">워프와 분기 발산</h2>
+  <p>
+    워프는 여러 스레드가 같은 명령어를 함께 실행하는 묶음입니다. 이상적으로는 워프 안의 스레드들이 모두 같은 길을 갑니다.
+    그런데 조건문에서 일부 스레드는 if 쪽으로, 일부는 else 쪽으로 가면 <strong>분기 발산(branch divergence)</strong>이 생깁니다.
+    GPU는 두 경로를 차례로 실행하고, 해당 경로에 속하지 않는 스레드는 마스크로 꺼 둡니다.
+  </p>
+
+<pre><code>if (x[tid] &gt; 0) {
+  y[tid] = sqrt(x[tid]);
+} else {
+  y[tid] = 0;
+}</code></pre>
+
+  <p>
+    위 코드는 간단하지만, 한 워프 안에서 양수와 음수가 섞이면 실행 효율이 떨어집니다. 모든 스레드가 같은 쪽으로 가면
+    한 번에 끝날 일을, 갈라진 경로만큼 나눠 처리해야 하기 때문입니다. 그래서 GPU 코드는 계산량뿐 아니라
+    <strong>스레드들이 비슷한 제어 흐름을 갖도록 데이터와 작업을 배치하는 일</strong>도 중요합니다.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 위트</div>
+    <p>
+      GPU 워프는 단체 줄넘기입니다. 한두 명이 다른 박자로 뛰면 줄은 계속 돌지만, 효율은 조용히 눈물을 흘립니다.
+    </p>
+  </div>
+
+  <h2 id="memory">Coalescing과 메모리 접근</h2>
+  <p>
+    GPU에서 전역 메모리 접근은 비쌉니다. 다행히 워프 안의 스레드들이 연속된 주소를 읽거나 쓰면 하드웨어가 접근을
+    묶어서 처리할 수 있습니다. 이것을 coalescing이라고 부릅니다. 반대로 스레드마다 멀리 떨어진 주소를 건드리면
+    메모리 트랜잭션이 늘고 대역폭이 낭비됩니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>접근 패턴</th>
+        <th>예</th>
+        <th>GPU의 표정</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>연속 접근</td>
+        <td><code>a[tid]</code></td>
+        <td>좋음. 묶어서 가져오기 쉬움</td>
+      </tr>
+      <tr>
+        <td>고정 간격 접근</td>
+        <td><code>a[tid * stride]</code></td>
+        <td>stride가 클수록 대역폭 손해</td>
+      </tr>
+      <tr>
+        <td>임의 접근</td>
+        <td><code>a[index[tid]]</code></td>
+        <td>캐시와 coalescing에 기대기 어려움</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    공유 메모리나 캐시를 이용해 데이터를 재사용하면 전역 메모리 왕복을 줄일 수 있습니다. 행렬 곱에서 타일링을 쓰는 이유도
+    여기에 있습니다. 작은 블록을 빠른 메모리에 올려 여러 번 재사용하면, 같은 바이트로 더 많은 연산을 할 수 있습니다.
+  </p>
+
+  <h2 id="intensity">산술 강도</h2>
+  <p>
+    산술 강도(arithmetic intensity)는 메모리에서 가져온 바이트당 얼마나 많은 연산을 하는지 나타냅니다.
+    값이 낮으면 메모리 대역폭에 묶이고, 값이 높으면 연산 유닛 성능에 가까워질 수 있습니다.
+  </p>
+
+<pre><code>Arithmetic intensity = operations / bytes transferred</code></pre>
+
+  <p>
+    예를 들어 단순 벡터 덧셈은 원소 두 개를 읽고 하나를 쓰면서 연산은 덧셈 하나뿐입니다. 바이트는 많이 오가는데
+    계산은 적습니다. 반면 타일링된 행렬 곱은 한 번 가져온 값을 여러 곱셈과 덧셈에 재사용할 수 있어 산술 강도를 높이기 좋습니다.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">하드웨어/소프트웨어 인터페이스</div>
+    <p>
+      “GPU를 썼는데 왜 안 빨라요?”라는 질문의 절반은 산술 강도에서 답이 나옵니다. 계산보다 데이터 이동이 더 많으면,
+      더 많은 코어를 붙여도 메모리 입구에서 줄을 섭니다.
+    </p>
+  </div>
+
+  <h2 id="roofline">루프라인 모델</h2>
+  <p>
+    루프라인(roofline) 모델은 성능의 천장을 두 개로 봅니다. 하나는 계산 피크, 다른 하나는 메모리 대역폭이 허용하는 성능입니다.
+    산술 강도가 낮을 때는 대역폭 선이 천장이고, 산술 강도가 충분히 높아지면 계산 피크가 천장이 됩니다.
+  </p>
+
+<pre><code>Attainable performance =
+  min(peak compute performance,
+      memory bandwidth × arithmetic intensity)</code></pre>
+
+  <p>
+    이 모델의 힘은 단순함입니다. 최적화가 필요한 코드가 메모리 바운드인지 계산 바운드인지 빠르게 가늠할 수 있습니다.
+    메모리 바운드라면 coalescing, 타일링, 데이터 재사용, 압축된 표현을 봐야 합니다. 계산 바운드라면 더 나은 명령 선택,
+    벡터화, 점유율, 파이프라인 활용을 봐야 합니다. 지붕을 보고 사다리를 고르는 셈입니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>상태</th>
+        <th>주요 병목</th>
+        <th>먼저 볼 것</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>메모리 바운드</td>
+        <td>대역폭, 접근 패턴, 재사용 부족</td>
+        <td>coalescing, 타일링, 캐시/공유 메모리</td>
+      </tr>
+      <tr>
+        <td>계산 바운드</td>
+        <td>연산 유닛 처리량</td>
+        <td>SIMD 폭, 명령 혼합, 점유율</td>
+      </tr>
+      <tr>
+        <td>제어 바운드</td>
+        <td>분기 발산, 불규칙 작업</td>
+        <td>데이터 재배치, 마스크 비용, 알고리즘 변형</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout check">
+    <div class="callout-title">마무리 점검</div>
+    <p>
+      DLP는 같은 연산을 많은 데이터에 적용하는 힘입니다. 벡터와 SIMD는 CPU 안에서 이 힘을 쓰고,
+      GPU는 훨씬 많은 스레드와 워프로 처리량을 밀어붙입니다. 다만 분기 발산과 흩어진 메모리 접근은 병렬성을 금방 무디게 만듭니다.
+      산술 강도와 루프라인 모델은 “더 계산해야 하나, 덜 옮겨야 하나”를 판단하게 해주는 좋은 나침반입니다.
+    </p>
+  </div>
+
+  <nav class="chapter-nav" aria-label="심화 노트 이동">
+    <a href="chapter3.html">
+      <div class="label">Previous</div>
+      <div class="title">3장. 명령어 수준 병렬성</div>
+    </a>
+    <a href="chapter5.html" class="next">
+      <div class="label">Next</div>
+      <div class="title">5장. 스레드 수준 병렬성</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  컴퓨터구조 심화 한국어 해설 노트 · 원문 직역이 아니라 학습용 재구성입니다.
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

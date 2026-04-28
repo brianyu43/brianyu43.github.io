@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1장. 정량 설계와 분석 · 컴퓨터구조 심화</title>
+<meta name="description" content="Computer Architecture: A Quantitative Approach 흐름을 바탕으로 정량 설계, 성능 공식, 벤치마크, 암달의 법칙, 전력과 신뢰성을 한국어로 풀어쓴 심화 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">QA</span>
+      컴퓨터구조 심화
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">구조 입문</a>
+      <a href="index.html">심화 홈</a>
+      <a href="chapter1.html" class="active">1장</a>
+      <a href="chapter2.html">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 1</div>
+    <h1>정량 설계와 분석</h1>
+    <p class="ch-subtitle">“빠른 것 같아요”를 성능 회의에서 조용히 내보내는 장</p>
+  </section>
+
+  <p>
+    심화 컴퓨터구조의 첫 문장은 꽤 냉정합니다. 어떤 설계가 좋다고 말하려면 숫자를 가져와야 합니다.
+    “캐시를 키웠다”, “파이프라인을 깊게 했다”, “예측기가 똑똑하다”는 출발점일 뿐입니다. 진짜 질문은
+    <strong>얼마나 빨라졌는가, 어떤 프로그램에서 그런가, 전력과 비용은 얼마를 냈는가</strong>입니다.
+    이 장은 그 질문을 던지는 법을 배웁니다. 감상문에서 실험 보고서로 넘어가는 문턱이라고 보면 됩니다.
+  </p>
+
+  <div class="toc">
+    <div class="toc-title">이 장에서 다루는 것</div>
+    <ol>
+      <li><a href="#s1">정량 설계의 태도</a></li>
+      <li><a href="#s2">성능 공식과 세 가지 손잡이</a></li>
+      <li><a href="#s3">벤치마크를 믿되, 너무 사랑하지 않기</a></li>
+      <li><a href="#s4">암달의 법칙과 개선의 천장</a></li>
+      <li><a href="#s5">전력과 에너지</a></li>
+      <li><a href="#s6">신뢰성과 가용성</a></li>
+      <li><a href="#s7">설계 판단의 체크리스트</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">1.1 정량 설계의 태도</h2>
+  <p>
+    컴퓨터 아키텍트는 멋진 회로를 그리는 사람인 동시에 숫자 사이에서 타협을 중재하는 사람입니다.
+    성능을 올리면 전력이 튀고, 전력을 낮추면 지연 시간이 늘고, 면적을 줄이면 병렬성이 줄어듭니다.
+    하나를 당기면 다른 쪽이 따라 움직입니다. 그래서 심화 설계의 기본 자세는 “좋다/나쁘다”가 아니라
+    <strong>무엇을 얼마만큼 얻고 무엇을 내주었는가</strong>입니다.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      정량 접근은 취향을 지우자는 말이 아닙니다. 취향이 설계 방향을 고를 수는 있지만, 출하할 설계는 숫자로 버텨야 합니다.
+      좋은 아이디어도 워크로드 앞에서 느리면 느린 것이고, 아름다운 구조도 전력을 너무 먹으면 제품 회의에서 표정이 어두워집니다.
+    </p>
+  </div>
+
+  <h2 id="s2">1.2 성능 공식과 세 가지 손잡이</h2>
+  <p>
+    CPU 성능을 볼 때 가장 기본이 되는 식은 실행 시간을 세 덩어리로 나눕니다. 복잡한 설계도 결국 이 셋 중 하나를 건드립니다.
+  </p>
+
+<pre><code>CPU 실행 시간 = 명령어 수 × CPI × 클럭 주기
+             = 명령어 수 × CPI / 클럭 속도
+
+성능 = 1 / 실행 시간</code></pre>
+
+  <p>
+    <strong>명령어 수</strong>는 프로그램, 컴파일러, ISA가 함께 결정합니다. <strong>CPI</strong>는 명령어 하나가 평균 몇 사이클을 먹는지이며,
+    파이프라인, 캐시, 분기 예측, 병렬 실행의 영향을 받습니다. <strong>클럭 주기</strong>는 한 사이클의 길이로, 회로 경로와 공정,
+    전압, 발열과 얽혀 있습니다. 하나만 잡고 흔들면 나머지가 조용히 복수할 수 있습니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>성능 손잡이</th>
+        <th>줄이는 방법</th>
+        <th>흔한 대가</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>명령어 수</td>
+        <td>알고리즘 개선, 컴파일러 최적화, 적절한 ISA 지원</td>
+        <td>복잡한 명령이 디코드와 클럭을 어렵게 만들 수 있음</td>
+      </tr>
+      <tr>
+        <td>CPI</td>
+        <td>캐시, 동적 스케줄링, 분기 예측, 병렬 실행</td>
+        <td>면적, 전력, 검증 난도 증가</td>
+      </tr>
+      <tr>
+        <td>클럭 주기</td>
+        <td>짧은 critical path, 깊은 파이프라인, 회로 최적화</td>
+        <td>분기 실패 비용과 전력 밀도 증가</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>상대 성능을 말하는 법</h3>
+  <p>
+    “A가 B보다 빠르다”는 말은 실행 시간의 역수로 비교해야 깔끔합니다. B가 10초, A가 6초에 끝난다면
+    A는 B보다 <code>10 / 6 = 1.67</code>배 빠릅니다. 반대로 “40% 빠르다” 같은 표현은 기준을 헷갈리게 만들기 쉬우니,
+    보고서에서는 배율과 실행 시간을 함께 적는 편이 좋습니다.
+  </p>
+
+  <div class="callout principle">
+    <div class="callout-title">설계 원칙</div>
+    <p>
+      평균 CPI 하나만 보고 안심하지 마세요. 같은 평균이라도 어떤 명령이 병목인지, 캐시 미스가 어디서 나는지,
+      지연 시간이 평균 뒤에 숨어 있는지에 따라 다음 설계 결정은 완전히 달라집니다.
+    </p>
+  </div>
+
+  <h2 id="s3">1.3 벤치마크를 믿되, 너무 사랑하지 않기</h2>
+  <p>
+    벤치마크는 설계의 체중계입니다. 체중계가 없으면 다이어트가 감정이 되고, 벤치마크가 없으면 성능 논쟁이 목소리 크기 싸움이 됩니다.
+    하지만 체중계 숫자 하나로 건강을 다 설명할 수 없듯, 벤치마크 점수 하나로 컴퓨터를 다 설명할 수도 없습니다.
+  </p>
+
+  <p>
+    좋은 벤치마크는 실제 사용을 어느 정도 대표해야 하고, 반복 가능해야 하며, 측정 환경이 투명해야 합니다.
+    입력 데이터가 너무 작으면 캐시에 전부 들어가서 현실보다 예쁘게 보이고, 컴파일러 옵션이 과하게 맞춤화되면 제품의 평균 사용 경험과 멀어집니다.
+    심지어 벤치마크가 유명해질수록 설계가 그 벤치마크에 맞춰 자라나는 일도 생깁니다. 시험 범위가 공개되면 모두가 그 단원만 열심히 보는 법입니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>확인할 것</th>
+        <th>왜 중요한가</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>워크로드 대표성</td>
+        <td>실제 사용자가 겪는 성능과 벤치마크 점수가 같은 방향인지 봐야 합니다.</td>
+      </tr>
+      <tr>
+        <td>입력 크기</td>
+        <td>작은 입력은 캐시와 분기 예측기에 지나치게 친절할 수 있습니다.</td>
+      </tr>
+      <tr>
+        <td>측정 조건</td>
+        <td>컴파일러, 전력 제한, 냉각, OS 상태가 결과를 흔듭니다.</td>
+      </tr>
+      <tr>
+        <td>요약 방식</td>
+        <td>산술 평균은 큰 값에 끌리고, 기하 평균은 상대 성능 비교에 자주 쓰입니다.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 감각</div>
+    <p>
+      벤치마크는 지도입니다. 지도는 길을 찾게 해주지만, 지도 위에서 살 수는 없습니다.
+    </p>
+  </div>
+
+  <h2 id="s4">1.4 암달의 법칙과 개선의 천장</h2>
+  <p>
+    어떤 부분을 대단히 빠르게 만들었다고 해서 전체 프로그램이 같은 비율로 빨라지는 것은 아닙니다.
+    전체 시간 중 개선되는 부분의 비율이 성능 향상의 천장을 정합니다. 이 불편한 진실을 공식으로 적으면 다음과 같습니다.
+  </p>
+
+<pre><code>전체 속도 향상 = 1 / ((1 - F) + F / S)
+
+F = 개선되는 부분이 전체 실행 시간에서 차지하는 비율
+S = 그 부분의 속도 향상 배율</code></pre>
+
+  <p>
+    예를 들어 전체 실행 시간의 40%를 차지하는 부분을 10배 빠르게 해도 전체 속도 향상은
+    <code>1 / (0.6 + 0.4 / 10) = 1.56</code>배입니다. 그 부분을 무한히 빠르게 해도 최대는 <code>1 / 0.6 = 1.67</code>배입니다.
+    무한대라는 단어를 꺼냈는데 결과가 1.67배라니 조금 억울합니다. 하지만 이 억울함을 설계 전에 알려주는 게 암달의 법칙의 쓸모입니다.
+  </p>
+
+  <h3>Common case를 빠르게</h3>
+  <p>
+    암달의 법칙이 주는 실무적 조언은 단순합니다. 자주 일어나는 일을 빠르게 하세요. 드문 일을 100배 빠르게 만드는 것보다
+    흔한 일을 20% 줄이는 편이 전체에 더 클 수 있습니다. 그래서 프로파일링이 중요합니다. 병목은 상상 속에서 자주 변장합니다.
+  </p>
+
+  <div class="callout check">
+    <div class="callout-title">혼자 점검</div>
+    <p>
+      프로그램의 25%가 메모리 대기이고, 새 캐시가 그 대기를 절반으로 줄인다면 전체 속도 향상은 얼마일까요?
+      식은 <code>1 / (0.75 + 0.25 / 2)</code>입니다. 답은 약 1.14배입니다. 캐시가 멋져도 전체는 차분합니다.
+    </p>
+  </div>
+
+  <h2 id="s5">1.5 전력과 에너지</h2>
+  <p>
+    과거에는 클럭을 올리면 성능이 제법 순하게 따라왔습니다. 지금은 전력과 발열이 먼저 문 앞을 막습니다.
+    노트북은 팬 소리가 사용 경험이고, 휴대폰은 배터리가 제품성이고, 데이터센터는 전기 요금이 곧 운영비입니다.
+  </p>
+
+<pre><code>동적 전력 ∝ 부하 정전용량 × 전압² × 스위칭 빈도
+에너지 = 전력 × 시간</code></pre>
+
+  <p>
+    전력은 순간 소비량이고, 에너지는 일을 끝낼 때까지 쓴 총량입니다. 어떤 설계는 순간 전력은 높아도 빨리 끝나서 에너지가 낮을 수 있습니다.
+    반대로 얌전하게 오래 돌면 총 에너지가 커질 수 있습니다. 그래서 모바일과 서버에서는 “성능만”이 아니라
+    <strong>성능/와트</strong>, <strong>작업당 에너지</strong> 같은 지표가 중요합니다.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>지표</th>
+        <th>묻는 질문</th>
+        <th>주로 중요한 곳</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>전력</td>
+        <td>지금 얼마나 뜨겁고 배고픈가?</td>
+        <td>냉각, 전원 설계, 열 제한</td>
+      </tr>
+      <tr>
+        <td>에너지</td>
+        <td>이 작업 하나에 총 얼마를 썼는가?</td>
+        <td>배터리, 운영비, 지속 가능성</td>
+      </tr>
+      <tr>
+        <td>성능/와트</td>
+        <td>전기 한 단위로 일을 얼마나 했는가?</td>
+        <td>서버, 모바일, 가속기</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="s6">1.6 신뢰성과 가용성</h2>
+  <p>
+    컴퓨터가 한 대일 때 고장은 이벤트입니다. 컴퓨터가 수만 대일 때 고장은 날씨에 가깝습니다. 언젠가가 아니라 계속 일어납니다.
+    그래서 대규모 시스템은 “고장이 안 나게”만 설계하지 않고, <strong>고장이 나도 서비스가 계속되게</strong> 설계합니다.
+  </p>
+
+<pre><code>가용성 = MTTF / (MTTF + MTTR)
+
+MTTF = 평균 고장 간격
+MTTR = 평균 수리 시간</code></pre>
+
+  <p>
+    MTTF가 길수록 좋고, MTTR이 짧을수록 좋습니다. 하지만 어느 쪽이 더 효과적인지는 상황에 따라 다릅니다.
+    아주 비싼 부품으로 고장을 줄이는 방법도 있고, 고장난 부품을 빠르게 우회하고 복구하는 방법도 있습니다.
+    클라우드와 데이터센터에서는 후자가 특히 중요합니다. 부품은 실패할 수 있지만, 서비스는 실패하지 않은 척해야 하니까요.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">하드웨어/소프트웨어 인터페이스</div>
+    <p>
+      신뢰성은 하드웨어만의 문제가 아닙니다. ECC 메모리, RAID, 체크포인트, 재시도, 복제, 장애 감지, 스케줄러가 함께 움직입니다.
+      좋은 시스템은 고장을 숨기는 게 아니라 고장을 절차 안에 넣습니다.
+    </p>
+  </div>
+
+  <h2 id="s7">1.7 설계 판단의 체크리스트</h2>
+  <p>
+    이 장의 핵심은 공식을 외우는 데 있지 않습니다. 설계 제안을 만났을 때 어떤 질문을 던질지 몸에 익히는 데 있습니다.
+    “더 빠릅니다”라는 말 뒤에 측정 조건과 대가를 붙이면, 설계 논의가 갑자기 어른스러워집니다.
+  </p>
+
+  <dl class="term">
+    <dt>성능</dt>
+    <dd>실행 시간, 처리량, 지연 시간 중 무엇을 말하는지 먼저 고릅니다.</dd>
+  </dl>
+  <dl class="term">
+    <dt>비용</dt>
+    <dd>면적, 검증 시간, 제조 비용, 운영 비용까지 포함해서 봅니다.</dd>
+  </dl>
+  <dl class="term">
+    <dt>전력</dt>
+    <dd>전력 제한에 걸리는지, 작업당 에너지는 줄었는지 따로 봅니다.</dd>
+  </dl>
+  <dl class="term">
+    <dt>신뢰성</dt>
+    <dd>고장 확률만 보지 말고, 고장 후 복구 시간과 사용자 영향까지 봅니다.</dd>
+  </dl>
+
+  <nav class="chapter-nav">
+    <a href="index.html">
+      <div class="label">Previous</div>
+      <div class="title">심화 홈</div>
+    </a>
+    <a href="chapter2.html" class="next">
+      <div class="label">Next</div>
+      <div class="title">2장. 메모리 계층 설계</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  <p>Computer Architecture: A Quantitative Approach 흐름을 바탕으로 다시 쓴 한국어 해설 노트</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>
