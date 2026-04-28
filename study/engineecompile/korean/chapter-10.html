@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>10장 스칼라 최적화 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html" class="active">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>10장. 스칼라 최적화</h1>
+<p class="lead">죽은 코드 제거, 코드 이동, 강도 감소, 특수화 — 컴파일러가 하는 잔손질의 백과사전.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 539–596</span>
+<span><strong>키워드:</strong> dead code elimination, lazy code motion, strength reduction, specialization, redundancy elimination</span>
+</div>
+
+<h2>10.1 들어가며 — 비효율을 잡는 다섯 가지 사냥법</h2>
+
+<p>최적화는 결국 <em>코드를 다시 쓰는 일</em>이다. 9장에서 데이터 흐름 분석으로 "어디에 무엇이 살아있는가"를 알아냈다면, 10장은 그 정보를 무기 삼아 실제로 코드에 손을 댄다. 이 챕터가 다루는 것은 단일 제어 흐름(single thread of control) 위에서 일어나는 <strong>스칼라 최적화(scalar optimization)</strong> — 즉 병렬화나 벡터화 같은 거창한 변환이 아니라, 한 줄짜리 흐름을 더 빠르고 더 작게 만드는 잔손질들이다.</p>
+
+<div class="term-box">
+<span class="term">스칼라 최적화</span> <span class="en">(scalar optimization)</span> — 단일 제어 흐름에 초점을 맞춘 코드 개선 기법. 루프 병렬화 같은 의존성 기반 변환과 대비된다.
+</div>
+
+<p>최적화가 컴파일러에 처음 등장한 건 1957년의 FORTRAN이었다. 그 시절 사람들은 컴파일러가 만든 코드가 손으로 쓴 어셈블리에 비해 부끄럽지 않기를 원했다. 그 야망 덕분에 60년이 흐른 지금, 최적화 문헌에는 수천 편의 논문이 쌓였고, 컴파일러 작성자는 그중 어느 변환을 어느 순서로 적용할지 골라야 하는 행복한 고민에 빠진다.</p>
+
+<p>이 책은 그 고민을 다섯 갈래로 정리한다. 컴파일러가 코드에서 잡아낼 수 있는 비효율은 결국 다음 다섯 가지 효과 중 하나로 환원된다 — 그리고 10장 전체는 이 다섯 효과를 따라 흐른다.</p>
+
+<ol>
+<li><strong>쓸모없거나 도달 불가능한 코드 제거</strong> — 결과를 아무도 안 쓰거나, 아예 실행되지 않는 연산을 지운다.</li>
+<li><strong>코드 이동(code motion)</strong> — 같은 답을 더 적게 실행되는 자리로 옮긴다. 루프 안에서 변하지 않는 식을 루프 밖으로 빼는 식의 일.</li>
+<li><strong>특수화(specialization)</strong> — 일반적인 연산 시퀀스를 문맥에 맞게 좁혀서 더 싼 형태로 바꾼다. <code>mult r2, 2</code>를 <code>lshiftI r2, 1</code>로 바꾸는 게 대표 예.</li>
+<li><strong>중복 제거(redundancy elimination)</strong> — 이미 계산된 값이라면 다시 계산하지 말고 재사용한다.</li>
+<li><strong>다른 변환을 가능하게 하기(enabling)</strong> — 코드 모양 자체를 바꿔서 뒷단의 최적화에 기회를 만들어 준다. 인라인 치환이 대표적인 enabler.</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">기계 독립 vs 기계 의존</div>
+<p>이 챕터의 변환은 대체로 <strong>기계 독립(machine independent)</strong>이다 — 어떤 타깃에서도 보통 이득이다. 반면 11~13장의 명령어 선택, 스케줄링, 레지스터 할당은 본질적으로 <strong>기계 의존</strong>이다. 두 부류의 경계는 흐릿할 때가 있어서, 본문에서는 "타깃 기계의 특성을 의도적으로 무시했다면 기계 독립"으로 분류한다.</p>
+</div>
+
+<h3>패스로 나누는 이유</h3>
+
+<p>대부분의 옵티마이저는 여러 <strong>패스(pass)</strong>의 시퀀스로 만들어진다. 각 패스는 IR을 입력받아 다시 쓴 IR을 내놓는다. 굳이 패스로 쪼개는 이유는 거창하지 않다 — 작게 나누면 작게 만들 수 있고, 독립적으로 테스트할 수 있고, "최적화 레벨"이라는 사용자 인터페이스도 자연스럽게 만들어진다. <code>-O0</code>, <code>-O1</code>, <code>-O2</code>는 결국 어떤 패스를 어떤 순서로 돌릴지에 대한 선언일 뿐이다.</p>
+
+<p>그런데 패스 사이에는 미묘한 상호작용이 있다. 한 변환이 다른 변환의 기회를 <em>만들기도</em> 하고 <em>가리기도</em> 한다. 예를 들어 <code>2 × a</code>를 좌측 시프트로 바꿔 두면, 그 다음 패스가 교환법칙(commutativity)으로 식을 재배열하려 할 때 기회를 잃는다 — 곱셈은 교환 가능하지만 시프트는 그렇지 않으니까. 그래서 "어느 변환을, 어느 순서로"는 옵티마이저 설계에서 가장 까다로운 선택이고, 10.7.3절에서 따로 다룬다.</p>
+
+<h2>10.2 쓸모없거나 도달 불가능한 코드 제거</h2>
+
+<p>프로그램에는 종종 외부에서 관찰 가능한 효과가 전혀 없는 계산이 들어 있다. 프로그래머가 일부러 그런 코드를 쓰지는 않는다. 대부분 매크로 확장이나 프론트엔드의 단순 번역, 혹은 앞 단계 최적화의 부산물로 발생한다.</p>
+
+<div class="term-box">
+<span class="term">쓸모없는(useless)</span> 연산 — 결과를 아무도 사용하지 않는 연산.<br>
+<span class="term">도달 불가능(unreachable)</span> 연산 — 어떤 실행에서도 도달할 수 없는 연산.
+</div>
+
+<p>흔히 둘 다 "죽은 코드(dead code)"로 뭉뚱그려 부르지만, 본문은 구분한다. 둘 다 지워도 외부 동작은 그대로니까 안전하게 제거할 수 있다.</p>
+
+<h3>10.2.1 쓸모없는 코드 — Mark/Sweep식 청소</h3>
+
+<p>쓸모없는 코드를 제거하는 알고리즘은 <strong>Dead</strong>라고 부르며, 마크-스윕(mark-sweep) 가비지 컬렉터와 똑같은 발상으로 동작한다. SSA 형식의 코드를 데이터로 보고 두 패스를 돌린다.</p>
+
+<ol>
+<li><strong>Mark 패스</strong>: 모든 마크를 지우고, 우선 "비판적(critical)" 연산만 useful로 표시한다. 비판적이라는 건 — 함수의 반환값을 설정하거나, I/O를 하거나, 호출 외부에서 보이는 메모리에 영향을 주는 연산. 그 다음 워크리스트(worklist)로 useful 연산의 피연산자를 따라 거꾸로 추적해 나가며 정의(definition)들을 useful로 마킹한다.</li>
+<li><strong>Sweep 패스</strong>: 마크되지 않은 모든 연산을 지운다.</li>
+</ol>
+
+<p>분기(branch)는 좀 까다롭다. 점프(jump)는 항상 쓸모있다고 본다 — 그냥 흐름을 바꿀 뿐이니까. 하지만 조건 분기는 "그 분기 결정에 따라 어떤 useful 연산이 실행되는가"에 달려 있다. 이걸 정확히 잡으려면 <strong>제어 의존(control dependence)</strong>이라는 개념이 필요한데, 이는 <strong>역지배 프론티어(reverse dominance frontier, RDF)</strong>로 표현된다. 어떤 블록 <code>b</code>를 useful로 마킹할 때, <code>RDF(b)</code>에 들어 있는 블록들의 분기도 useful로 함께 마킹한다.</p>
+
+<p>Sweep은 마크되지 않은 분기를 만나면, 가장 가까운 마크된 <strong>후지배자(postdominator)</strong>로 가는 점프로 대체한다. 후지배 트리를 따라 위로 올라가며 useful 연산이 있는 블록을 찾는데, 출구(exit) 블록은 정의상 useful이므로 이 탐색은 반드시 종료된다.</p>
+
+<h3>10.2.2 쓸모없는 제어 흐름 — Clean</h3>
+
+<p>Dead가 끝나면 빈 블록이나 의미 없는 분기가 남을 수 있다. 이를 정리하는 알고리즘이 <strong>Clean</strong>이다. CFG에 직접 작용하며 네 가지 변환을 순서대로 적용한다.</p>
+
+<ol>
+<li><strong>중복 분기 접기(fold a redundant branch)</strong>: <code>cbr</code>의 양쪽 타깃이 같은 블록이라면 그냥 <code>jump</code>로 바꾼다.</li>
+<li><strong>빈 블록 제거(remove an empty block)</strong>: 점프 하나만 남은 블록 <code>B<sub>i</sub></code>는 후속 블록 <code>B<sub>j</sub></code>에 흡수시키고, <code>B<sub>i</sub></code>로 들어오던 모든 엣지를 <code>B<sub>j</sub></code>로 돌린다.</li>
+<li><strong>블록 합치기(combine blocks)</strong>: <code>B<sub>i</sub></code>가 <code>B<sub>j</sub></code>로 점프하고 <code>B<sub>j</sub></code>의 선행자가 <code>B<sub>i</sub></code> 하나뿐이면, 두 블록을 한 블록으로 합친다.</li>
+<li><strong>분기 끌어올리기(hoist a branch)</strong>: <code>B<sub>i</sub></code>가 빈 블록 <code>B<sub>j</sub></code>로 점프하고 <code>B<sub>j</sub></code>가 분기로 끝난다면, <code>B<sub>i</sub></code>의 점프를 <code>B<sub>j</sub></code>의 분기 사본으로 덮어쓴다.</li>
+</ol>
+
+<p>흥미로운 점은 Clean 혼자서는 "빈 루프"를 제거하지 못한다는 것이다. 빈 블록이 분기로 끝난다면 빈 블록 제거 규칙이 적용되지 않으니까. 하지만 Dead와 Clean이 협력하면 가능하다. Dead가 "쓸모없는 분기 → 후지배자로의 점프"로 바꿔 놓으면, Clean이 그 점프를 흡수하면서 루프 자체가 사라진다. 작게 나누고 협력시키는 게 큰 변환 하나보다 단순하고 모듈적이다.</p>
+
+<h3>10.2.3 도달 불가능한 코드</h3>
+
+<p>도달 불가능한 코드는 두 종류다. (1) CFG 상으로 진입 노드에서 닿을 수 없는 블록과 (2) 그곳에 닿는 경로가 실행 불가능한 경우(예: 항상 false인 조건이 가드하는 블록). 전자는 단순한 마크-스윕 도달성 분석으로 잡을 수 있다. 후자는 분기를 지배하는 표현식의 값을 추론해야 하므로 훨씬 어렵고, 10.7.1절의 SCCP가 이를 부분적으로 해결한다.</p>
+
+<h2>10.3 코드 이동 — 더 적게 실행되는 자리로</h2>
+
+<p>같은 답을 더 적게 실행되는 자리로 옮기면 총 연산 수가 준다. 루프는 보통 본체보다 훨씬 자주 도는 곳이니까, 루프 바깥으로 식을 뽑아내는 게 가장 큰 이득이다.</p>
+
+<h3>10.3.1 게으른 코드 이동(Lazy Code Motion, LCM)</h3>
+
+<p>LCM은 9.2.4절에서 본 가용 표현식(available expressions)의 데이터 흐름 문제를 확장한다. 핵심 아이디어는 <strong>부분 중복(partial redundancy)</strong> 개념이다.</p>
+
+<div class="term-box">
+<span class="term">중복</span> <span class="en">(redundant)</span> — 표현식 <code>e</code>가 점 <code>p</code>에 도달하는 모든 경로에서 이미 평가된 경우.<br>
+<span class="term">부분 중복</span> <span class="en">(partially redundant)</span> — <code>p</code>에 도달하는 일부 경로에서만 이미 평가된 경우.
+</div>
+
+<p>예를 들어 두 갈래 분기가 만나는 합류점에서 한쪽 경로에는 <code>a ← b × c</code>가 있고 다른 쪽에는 없을 때, <code>a ← b × c</code>가 부분 중복이다. 다른 쪽 경로에 <code>b × c</code>를 한 번 끼워 넣으면 합류점 뒤의 평가는 완전한 중복이 되어 제거할 수 있다. 이게 부분 중복을 완전 중복으로 바꾸고, 그 다음 제거하는 핵심 트릭이다.</p>
+
+<p>특히 루프 백엣지(back edge)를 따라 부분 중복인 표현식을 발견하고, 진입엣지에 평가를 끼워 넣은 뒤 루프 안의 평가를 제거하면 — 그게 바로 <strong>루프 불변 코드 이동(loop-invariant code motion)</strong>이다. LCM은 별도 패스로 구현된 것이 아니라, 부분 중복 제거의 자연스러운 부산물로 일어난다.</p>
+
+<h4>네 단계 데이터 흐름</h4>
+
+<p>LCM은 네 개의 데이터 흐름 문제를 차례로 푼다.</p>
+
+<ol>
+<li><strong>AvailOut</strong>: 블록 끝에서 가용한 표현식 집합. "이 표현식을 이 자리에 옮겨도 안전한가, 즉 새로운 값이 안 만들어지는가"를 판정.</li>
+<li><strong>AntOut/AntIn</strong>: 예측 가능한(anticipable) 표현식 집합. 역방향 데이터 흐름. "이 자리에서 평가하면 어차피 뒤에서 또 평가될 것인가"를 판정.</li>
+<li><strong>Earliest</strong>: 각 CFG 엣지마다 표현식을 둘 수 있는 가장 이른 위치를 계산. <code>Earliest(i,j) = AntIn(j) ∩ ¬AvailOut(i) ∩ (ExprKill(i) ∪ ¬AntOut(i))</code>.</li>
+<li><strong>Later/LaterIn</strong>: Earliest 자리에서 미루어도 같은 효과를 보는 더 나중 자리를 찾는다. 값의 수명(live range)을 짧게 만들기 위해서다.</li>
+</ol>
+
+<p>마지막으로 <strong>Insert</strong>와 <strong>Delete</strong> 집합을 산출한다. Insert는 어느 엣지에 어떤 평가를 끼워 넣을지, Delete는 어느 블록에서 어떤 평가를 지울지를 알려준다. 이 두 집합으로 코드를 다시 쓰면 LCM이 끝난다.</p>
+
+<div class="callout note">
+<div class="callout-title">코드 모양 규칙</div>
+<p>LCM은 텍스트적으로 동일한 표현식이 항상 같은 이름을 쓴다고 가정한다. 즉 <code>r<sub>i</sub> + r<sub>j</sub></code>는 어디서 나오든 항상 <code>r<sub>k</sub></code>를 정의해야 한다. 이 규칙 덕분에 중복을 발견했을 때 평가를 제거하고 <code>r<sub>k</sub></code>로 복사하기만 하면 된다 — 이름 공간이 깔끔할수록 분석이 단순해진다.</p>
+</div>
+
+<h3>10.3.2 코드 호이스팅(Code Hoisting)</h3>
+
+<p>LCM이 실행 시간을 줄이는 게 목표라면, <strong>호이스팅(hoisting)</strong>은 코드 크기를 줄이는 게 목표다. 어떤 표현식 <code>e</code>가 블록 <code>b</code>를 떠나는 모든 경로에서 평가된다면(<code>e ∈ AntOut(b)</code>), 각 경로의 첫 평가 자리에 두는 대신 <code>b</code>의 끝에 한 번만 두면 된다. 사본 N개를 사본 1개로 줄이는 것 — 그게 호이스팅이다.</p>
+
+<p>대칭형으로 "여러 자리의 평가가 합류 후 한 자리로 모이는" 변환은 <strong>코드 싱킹(code sinking)</strong> 또는 <strong>크로스 점핑(cross jumping)</strong>이라고 부른다.</p>
+
+<h2>10.4 특수화 — 일반 코드를 문맥에 맞게 좁히기</h2>
+
+<p>프론트엔드는 어쩔 수 없이 <em>아무 문맥에서나 돌아가는</em> 일반적인 코드를 만든다. 옵티마이저는 분석을 통해 그 코드가 실제로 만나는 문맥을 좁힐 수 있고, 좁혀진 문맥에 맞춰 코드를 특수화할 수 있다.</p>
+
+<p>책 다른 곳에서 다룬 특수화 기법은 이미 많다 — 상수 전파(constant propagation), 강도 감소(operator strength reduction), 피프홀(peephole), 값 번호 매기기(value numbering). 10.4절은 그 중에서도 <strong>프로시저 호출</strong>의 비효율을 노리는 세 가지를 본다.</p>
+
+<h3>10.4.1 꼬리 호출 최적화(Tail-Call Optimization)</h3>
+
+<p>프로시저가 마지막으로 하는 일이 다른 프로시저 호출이라면, 그게 <strong>꼬리 호출(tail call)</strong>이다. <code>o</code>가 <code>p</code>를 부르고 <code>p</code>가 <code>q</code>를 부른다고 하자. <code>q</code>에서 돌아오면 <code>p</code>의 후처리(postreturn)와 에필로그를 거쳐 결국 <code>o</code>로 돌아간다. 그런데 <code>p → q</code>가 꼬리 호출이라면, <code>q</code>가 끝난 뒤 <code>p</code>에서 <em>아무것도 일어나지 않는다</em>. 그렇다면 <code>p</code>의 상태를 보존했다 복원하는 일은 모두 헛수고다.</p>
+
+<p>꼬리 호출 최적화는 <code>p → q</code>의 호출 시퀀스를 잘라내고 <code>q</code>가 끝나면 <code>o</code>로 직접 돌아가도록 만든다. 호출자 저장(caller-saves) 레지스터는 보존할 필요 없고(어차피 <em>p</em>에서 라이브하지 않다), 새 활성 레코드(AR)도 할당할 필요 없다 — <code>q</code>가 <code>p</code>의 AR을 그대로 쓰면 된다.</p>
+
+<p>특히 자기 재귀(self-recursive) 꼬리 호출은 거의 마법에 가깝다. <code>p</code>가 자기를 꼬리 호출하면, 사전 호출 시퀀스 전체가 단순한 인자 평가와 함수 시작점으로의 분기로 줄어든다. 결과적으로 재귀가 평범한 루프와 비슷한 효율을 낸다 — 그래서 함수형 언어에서는 이 최적화가 사실상 필수다.</p>
+
+<h3>10.4.2 잎(Leaf) 호출 최적화</h3>
+
+<p>다른 프로시저를 부르지 않는 함수를 <strong>리프 프로시저(leaf procedure)</strong>라고 한다. 호출을 하지 않으니 "후속 호출을 위한 준비" 작업도 필요 없다. 반환 주소를 AR에 저장하지 않아도 되고(레지스터에 그대로 두면 된다), 디스플레이 갱신도 생략할 수 있다.</p>
+
+<p>레지스터 할당기는 리프 프로시저에서는 호출자 저장(caller-saves) 레지스터를 우선 쓴다 — 호출자 측에서 이미 보존했다면 우리가 또 보존할 이유가 없다. 활성 레코드 자체도 정적으로 할당해서 런타임 오버헤드를 없앨 수 있고, 호출자가 미리 잡아 두어 비용을 분산시킬 수도 있다.</p>
+
+<h3>10.4.3 매개변수 승격(Parameter Promotion)</h3>
+
+<p>참조 호출(call-by-reference) 매개변수는 보통 매번 로드/스토어를 해야 한다. 별칭(aliasing) 가능성을 배제할 수 없어서 레지스터에 캐싱하기 어렵기 때문이다. 그런데 컴파일러가 <em>이 매개변수가 모호한 참조가 아니다</em>라는 걸 증명할 수 있다면, 값을 지역 스칼라 변수로 승격(promote)시켜 레지스터에 살게 할 수 있다. 이게 <strong>매개변수 승격</strong>이다.</p>
+
+<p>승격을 적용하려면 모든 호출 사이트가 안전해야 한다. 안 그렇다면 <strong>프로시저 복제(procedure cloning)</strong>로 사본을 만들어 그 사본에만 적용한다 — 10.6.2절에서 다룬다.</p>
+
+<h2>10.5 중복 제거 — 같은 값을 두 번 계산하지 말 것</h2>
+
+<p>식 <code>x + y</code>가 어떤 점 <code>p</code>에 도달하는 모든 경로에서 이미 평가되었고 그 사이 <code>x</code>나 <code>y</code>가 변경되지 않았다면, <code>p</code>에서의 <code>x + y</code>는 중복이다. 책은 이미 세 가지 중복 제거 기법을 보여줬다 — 지역 값 번호 매기기(LVN), 슈퍼로컬 값 번호 매기기(SVN), 그리고 LCM. 셋 다 효과는 비슷하지만, "두 값이 같다"는 걸 어떻게 판정하느냐가 다르다.</p>
+
+<h3>10.5.1 값 동일성 vs 이름 동일성</h3>
+
+<p>LVN은 <strong>값 동일성(value identity)</strong>으로 판정한다. 각 값에 고유한 번호를 부여하고, "같은 연산자 + 같은 번호의 피연산자"라면 같은 값을 만든다고 본다. 덕분에 <code>2 + a</code>와 <code>a + 2</code>가 같다는 걸 안다(교환법칙). 또 <code>x + 0 ⇒ x</code> 같은 대수적 항등식도 적용해 쓸모없는 연산을 지운다.</p>
+
+<p>반면 LCM은 <strong>이름 동일성(name identity)</strong>에 의존한다. 데이터 흐름 분석은 사전 정의된 이름 위에서 동작하기 때문이다. <code>a + b</code>와 <code>a + c</code>가 보이면 <code>b ≠ c</code>이므로 다른 값으로 처리한다 — <code>b</code>와 <code>c</code>의 실제 값이 같더라도. 데이터 흐름 프레임워크는 LVN식 임시 비교를 자연스럽게 받지 못한다.</p>
+
+<p>두 접근의 강점이 다르므로 결합하면 좋다. 먼저 값 기반 기법(예: 다음 절의 DVNT)으로 동일한 값에 같은 이름을 부여한 뒤, 그 이름 공간 위에서 LCM을 돌리면 된다. 값 동일성을 이름 공간으로 인코딩하는 것 — 이게 두 세계의 좋은 점만 취하는 길이다.</p>
+
+<h3>10.5.2 도미네이터 기반 값 번호 매기기(DVNT)</h3>
+
+<p>SVN은 EBB(extended basic block)까지 다룰 수 있지만, 합류점(join point) 이후의 코드는 빈손으로 시작한다. <strong>DVNT(Dominator-based Value Numbering Technique)</strong>는 이를 도미네이터 트리를 따라 확장한다.</p>
+
+<p>핵심 통찰: 블록 <code>B<sub>4</sub></code>가 어떤 정보를 <em>안전하게</em> 사용할 수 있는가? <code>B<sub>4</sub></code>의 모든 선행자에서 공통으로 보이는 값만 쓸 수 있는데, 바로 그게 <code>B<sub>4</sub></code>의 도미네이터들이다. 그래서 DVNT는 도미네이터 트리를 전위 순회하며, 각 블록을 그 도미네이터가 만든 해시 테이블 스코프 안에서 처리한다.</p>
+
+<p>SSA 형식을 쓰면 두 가지 문제가 자연스럽게 풀린다. 첫째, 합류점에서의 재정의는 φ-함수가 만들어낸 새 SSA 이름으로 이미 표현돼 있다 — 분석이 따로 추적할 필요가 없다. 둘째, 값 번호로 SSA 이름 자체를 쓸 수 있다. <code>a<sub>i</sub> × b<sub>j</sub></code>의 첫 평가가 <code>t<sub>k</sub> ← a<sub>i</sub> × b<sub>j</sub></code>라면, 이 식의 값 번호는 <code>t<sub>k</sub></code>다.</p>
+
+<p>알고리즘은 각 블록 <code>B</code>에 대해 (1) <code>B</code>의 φ-함수 처리, (2) <code>B</code>의 대입문 처리, (3) <code>B</code>의 후속자에게 정보 전파, (4) <code>B</code>의 자식들로 재귀, (5) <code>B</code>의 스코프 폐기 순으로 진행된다. 도미네이터 트리 전위 순회이므로, 어떤 블록이 처리될 때 그 블록이 의존하는 모든 정보(도미네이터들의 결과)가 이미 갖춰져 있다.</p>
+
+<div class="callout warn">
+<div class="callout-title">DVNT의 한계</div>
+<p>DVNT는 백엣지(루프 닫기 엣지)를 따라 값을 전파하지 않는다. 따라서 루프 본체에서 매 반복마다 같은 값을 만들어내는 식이 있어도 DVNT는 못 잡는다. 그런 경우는 LCM 같은 진정한 "전역" 기법이 필요하다.</p>
+</div>
+
+<h2>10.6 다른 변환을 가능하게 하기</h2>
+
+<p>어떤 패스는 자기 자신이 직접 코드를 더 빠르게 만들지는 않지만, <em>다른 변환의 기회를 만들어 주는</em> 게 본업이다. 이런 패스를 <strong>인에이블링 변환(enabling transformation)</strong>이라고 부른다.</p>
+
+<h3>10.6.1 슈퍼블록 복제(Superblock Cloning)</h3>
+
+<p>다중 선행자가 있는 블록은 옵티마이저에게 골치다. 한 경로에서 <code>x = 7</code>, 다른 경로에서 <code>x = 13</code>이면, 합류 블록에서 <code>x</code>의 값은 ⊥(무엇이든 가능)으로 떨어진다. 사실 각 경로에서는 <em>알려진 값</em>이었는데, 합류 때문에 정보가 사라진 것이다.</p>
+
+<p>슈퍼블록 복제는 합류 블록의 사본을 만들어 각 선행자에 연결한다. 그러면 각 사본은 단일 선행자를 갖고, 경로별 정보가 보존된다. 루프 헤드에서 시작해 백엣지에 닿을 때까지 각 경로를 복제하는 게 <strong>슈퍼블록(superblock)</strong> — 명령어 스케줄링이 특히 좋아하는 코드 모양이다.</p>
+
+<p>장점은 셋이다 — (1) 블록이 길어져 지역 최적화가 더 많은 문맥을 본다, (2) 분기가 줄어 파이프라인 효율이 오른다, (3) 각 사본에서 더 정확한 문맥 정보로 추가 최적화가 가능하다. 단점도 있다 — 코드가 커진다. 그래서 명령어 캐시에 부담을 줄 수 있고, 코드 크기가 우선인 경우라면 역효과다.</p>
+
+<h3>10.6.2 프로시저 복제</h3>
+
+<p>인라인 치환과 비슷한 효과를 코드 증가를 덜 들이고 얻는 방법이다. <code>P<sub>3</sub></code>가 입력 매개변수에 따라 동작이 크게 달라지는 함수라고 하자. <code>P<sub>0</sub></code>와 <code>P<sub>1</sub></code>은 항상 1을 넘기고, <code>P<sub>2</sub></code>는 17을 넘긴다. 호출 그래프 전반의 상수 전파만으로는 매개변수 값이 <code>1 ∧ 1 ∧ 17 = ⊥</code>로 떨어져 정보를 잃는다.</p>
+
+<p>프로시저를 두 사본 <code>P<sub>3a</sub></code>(매개변수 1용)와 <code>P<sub>3b</sub></code>(일반용)로 복제하면, <code>P<sub>0</sub></code>와 <code>P<sub>1</sub></code>은 <code>P<sub>3a</sub></code>를 부르고 거기서는 매개변수가 항상 1이라는 걸 활용해 특수화할 수 있다. <code>P<sub>2</sub></code>만 <code>P<sub>3b</sub></code>를 부른다. 인라인보다 코드 증가가 적고, 호출 비용은 그대로지만 호출되는 쪽의 코드가 특수화된다.</p>
+
+<h3>10.6.3 루프 언스위칭(Loop Unswitching)</h3>
+
+<p>루프 안에 루프 불변(loop-invariant) <code>if-then-else</code>가 있다면, 그걸 루프 바깥으로 끌어내고 각 분기 안에 루프를 통째로 사본으로 둔다.</p>
+
+<div class="figure">
+<pre><code>do i = 1 to n              if (x &gt; y) then
+  if (x &gt; y)                  do i = 1 to n
+    then a(i) = b(i)*x          a(i) = b(i)*x
+    else a(i) = b(i)*y       else
+                                do i = 1 to n
+(원래 루프)                     a(i) = b(i)*y
+                            (언스위칭 후)</code></pre>
+<span class="figure-caption">루프 언스위칭 — 매 반복마다 같은 값으로 평가되는 분기를 루프 밖으로</span>
+</div>
+
+<p>매 반복마다 같은 값으로 평가될 게 뻔한 분기를 매번 평가하는 건 낭비다. 언스위칭하면 결과 루프는 더 깔끔해지고, LCM 같은 후속 최적화가 잡지 못했던 루프 불변 식들을 잡을 수 있게 된다.</p>
+
+<h3>10.6.4 리네이밍(Renaming)</h3>
+
+<p>이름은 단순한 식별자가 아니라 <em>분석에 노출되는 정보</em>다. LCM은 어휘적 동일성에 의존하므로, <code>x + x</code>와 <code>2 × x</code>가 같은 값이라는 걸 알아채지 못한다. 또 <code>x = y</code>일 때 <code>x + x</code>와 <code>x + y</code>가 같다는 것도 모른다.</p>
+
+<p>그래서 LCM 전에 값 기반 기법(예: DVNT)을 돌려 같은 값을 가진 식들에 같은 이름을 부여하는 리네이밍 패스를 끼우면, LCM이 더 많은 중복을 발견한다. 이름 공간을 솜씨 있게 다루는 것 — 그것만으로도 옵티마이저의 효율이 크게 달라진다.</p>
+
+<p>역방향도 있다. 레지스터 할당기가 두 개의 다른 값을 같은 물리 레지스터에 넣으면, 그게 명령어 스케줄러에게는 가짜 의존성처럼 보인다 — 이걸 <strong>거짓 공유(false sharing)</strong>라고 한다. 따라서 스케줄링 전에는 이름을 풀어 주는(SSA화) 게 좋다.</p>
+
+<h2>10.7 심화 주제</h2>
+
+<h3>10.7.1 최적화 결합 — SCCP</h3>
+
+<p>두 최적화를 따로 돌려서는 절대 못 잡는 효과가 있다. 두 최적화를 <em>한 프레임 안에서 함께 풀면</em>만 잡힌다. 대표 예가 <strong>희소 조건부 상수 전파(Sparse Conditional Constant Propagation, SCCP)</strong>다.</p>
+
+<p>SSCP(9.3.6절)는 상수 전파만 한다. 그래서 도달 불가능한 블록 안의 정의가 ⊥로 떨어지면, 도달 가능한 블록의 분석 결과까지 오염시킨다. 반면 도달 불가능 코드 제거(10.2.3절)만 따로 돌리면, 분기 조건의 상수성을 보지 못해 "사실은 가지 않는 분기"를 못 잡는다.</p>
+
+<p>SCCP는 두 가지를 동시에 한다. CFG 위에는 도달 가능성 정보를, SSA 그래프 위에는 값 정보를 전파하면서, 둘이 서로를 강화한다. 어떤 분기의 조건이 상수로 판명되면 한쪽 타깃 엣지를 "실행되지 않음"으로 표시한다 — 그러면 그 타깃의 정의들은 분석에서 제외되고, 그 결과 다른 곳의 값 추론이 더 정확해진다. 그게 또 다른 분기를 상수로 만들 수 있고, 연쇄가 일어난다.</p>
+
+<p>두 워크리스트(CFGWorkList, SSAWorkList)를 번갈아 처리하면서 고정점에 도달할 때까지 도는 알고리즘이다. 핵심은 "도달하지 못한 블록의 값은 무시한다"는 가드 — 이 가드가 없으면 분기와 값이 서로 잘못된 정보로 오염된다.</p>
+
+<div class="callout">
+<div class="callout-title">⊤ × ⊥의 함정</div>
+<p>SCCP가 곱셈 <code>⊤ × ⊥</code>를 만났다고 하자. 단순히 <code>⊥</code>로 정의하면 비단조(non-monotonic) 동작을 일으킬 수 있다 — 나중에 <code>⊤</code>가 0으로 좁혀지면 결과가 <code>⊥</code>에서 0으로 다시 올라가 버린다. 격자(lattice)는 한 방향으로만 흘러야 하니까, SCCP는 <code>⊤ × ⊥ → ⊤</code>, <code>α × ⊥ → ⊥</code> (α ≠ ⊤, α ≠ 0), <code>0 × ⊥ → 0</code>이라는 세 규칙을 분리해 쓴다.</p>
+</div>
+
+<h3>10.7.2 강도 감소 — 곱셈을 덧셈으로</h3>
+
+<p><strong>강도 감소(operator strength reduction)</strong>는 비싼("강한") 연산의 반복을 싼("약한") 연산의 반복으로 바꾼다. 가장 고전적인 예는 루프 인덱스에 기반한 정수 곱셈을 덧셈으로 바꾸는 것이다.</p>
+
+<p>비유로 말하면 — 매 반복마다 처음부터 곱하는 대신, "지난번 답에 일정한 양을 더한" 것을 누적해 가는 식이다. 1부터 100까지 i에 대해 <code>i × 4 + @a</code>를 계산해야 한다고 하자. 매번 곱셈을 하는 대신, <code>@a, @a+4, @a+8, ..., @a+396</code>이라는 수열을 만들어 두면, 다음 값은 그저 <em>전 값 + 4</em>다.</p>
+
+<div class="figure">
+<pre><code>// 원래 (매 반복 곱셈 1번)        // 강도 감소 후 (덧셈만)
+subI  r_i, 1   ⇒ r1              addI  r_t6, 4    ⇒ r_t7
+multI r1, 4    ⇒ r2              load  r_t7        ⇒ r4
+addI  r2, @a   ⇒ r3              add   r_s1, r4   ⇒ r_s2
+load  r3       ⇒ r4
+add   r_s1, r4 ⇒ r_s2</code></pre>
+<span class="figure-caption">i × 4 + @a를 누적 덧셈으로 — multI가 사라짐</span>
+</div>
+
+<p>핵심 개념은 두 가지다.</p>
+
+<div class="term-box">
+<span class="term">유도 변수</span> <span class="en">(induction variable)</span> — 루프 반복마다 일정한 양만큼 증감하는 변수.<br>
+<span class="term">영역 상수</span> <span class="en">(region constant)</span> — 해당 루프 안에서 변하지 않는 값(루프 불변).
+</div>
+
+<p>SSA 그래프에서 강하게 연결된 컴포넌트(SCC)를 찾으면 그게 곧 유도 변수다 — SCC 내부의 모든 갱신이 (1) 유도 변수에 영역 상수를 더하거나, (2) 빼거나, (3) φ-함수이거나, (4) 다른 유도 변수의 복사라면 유도 변수다. <strong>OSR</strong> 알고리즘은 Tarjan의 SCC 알고리즘으로 SSA 그래프를 훑으며, 각 SCC를 만나면 그게 유도 변수인지, 그 SCC를 쓰는 연산이 강도 감소 후보(<code>x ← i × c</code>나 <code>x ← c + i</code> 같은)인지 본다. 후보면 새 유도 변수를 클로닝해 만들고 원래 연산을 그쪽 유도 변수로의 복사로 바꾼다.</p>
+
+<h4>선형 함수 검사 대체(LFTR)</h4>
+
+<p>강도 감소 후 원래 유도 변수 <code>i</code>는 보통 죽지만, 루프 종료 검사에 아직 쓰이는 경우가 많다. <code>i ≤ 100</code> 같은 비교다. 이 비교를 새 유도 변수에 대한 비교로 바꿔 버리면 <code>i</code> 전체가 죽는다. 예에서 보면 <code>i ≤ 100</code>이 <code>r<sub>t8</sub> ≤ 396 + @a</code>로 바뀐다 — 비교의 상수 부분도 변환을 따라 함께 조정된다. 이게 <strong>선형 함수 검사 대체(linear-function test replacement, LFTR)</strong>다.</p>
+
+<h3>10.7.3 최적화 시퀀스 선택</h3>
+
+<p>옵티마이저의 효과는 어떤 변환을 어떤 순서로 적용하는지에 결정적으로 의존한다. 전통적으로 컴파일러는 <code>-O0, -O1, -O2, ...</code>식 미리 정해진 시퀀스를 제공한다. 더 많이 돌린다고 더 좋아진다는 보장은 없다.</p>
+
+<p>한 변환의 유효성을 가르는 요인은 셋이다.</p>
+
+<ol>
+<li><strong>기회가 있는가?</strong> 노릴 패턴이 코드에 없으면 변환은 무력하다.</li>
+<li><strong>이전 변환이 기회를 가렸는가?</strong> 예: LVN이 <code>2 × a</code>를 시프트로 바꿔 두면, 교환법칙에 의존하는 후속 변환은 기회를 놓친다.</li>
+<li><strong>이전 변환이 이미 비효율을 제거했는가?</strong> 효과가 겹치는 변환들이 있다(LVN과 전역 상수 전파, 루프 언롤링과 슈퍼블록 복제 등).</li>
+</ol>
+
+<p>최근 연구는 코드별로 맞춤 시퀀스를 자동 탐색하는 방향으로 가고 있다. 길이 10의 시퀀스를 15개 변환에서 고른다면 후보가 10<sup>15</sup>개라는 우주적 숫자가 나오니까, 유전 알고리즘이나 무작위 탐색, 통계적 기계학습 같은 휴리스틱이 필요하다. 잘 조율된 탐색이라면 100~200번의 시도로 "최선의 5% 이내" 시퀀스를 찾을 수 있다고 한다 — 일상적으로 쓰기엔 아직 비싸지만, <code>-O2</code>의 기본 시퀀스를 정하는 데는 충분히 활용 가능하다.</p>
+
+<h2>10.8 정리</h2>
+
+<p>이 챕터는 컴파일러 잔손질의 백과사전이었다. 다섯 가지 비효율 — 쓸모없는 코드, 비최적 위치의 코드, 일반화된 코드, 중복 계산, 다른 변환을 막는 코드 모양 — 각각에 대응하는 변환들을 살펴봤다. 각 변환은 단독으로는 작은 이득을 주지만, 함께 쓰면 협력해서 큰 차이를 만든다. Dead와 Clean이 빈 루프를 함께 잡고, 리네이밍이 LCM의 시야를 넓히고, 슈퍼블록 복제가 스케줄러에게 더 긴 블록을 선물하는 식이다.</p>
+
+<p>옵티마이저 설계의 진짜 어려움은 어느 변환을 고르는가가 아니라 <em>어느 순서로 적용하는가</em>에 있다. 변환들은 서로의 기회를 만들기도 하고 가리기도 한다 — 그래서 시퀀스 선택은 휴리스틱과 탐색의 영역이고, 여전히 활발한 연구 주제다. 이 챕터에서 다루지 않은 한 가지가 있다면, 그건 결국 "이 코드에 어떤 변환이 어울리는가"는 코드를 봐야 안다는 점일 것이다.</p>
+
+<div class="chapter-nav">
+<a href="chapter-9.html"><span class="label">← 이전</span><span>9장. 데이터 흐름 분석</span></a>
+<a href="chapter-11.html" class="next-link"><span class="label">다음 →</span><span>11장. 명령어 선택</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

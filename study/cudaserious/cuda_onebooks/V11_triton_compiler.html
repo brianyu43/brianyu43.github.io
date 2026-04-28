@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V11 Triton 컴파일러 내부 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA/COMPILER 18-VOL · CONTENT-FIRST · A4 LANDSCAPE · 18p</div>
+    <h1>Triton 컴파일러 <span class="accent">내부</span></h1>
+    <div class="subtitle">Triton IR · TritonGPU IR · Layout Inference · Pipeline Pass — <span class="ko">사용법이 아닌 내부 구조</span></div>
+    <div class="meta">
+      <div><b>Volume</b> V11 / 18</div>
+      <div><b>Tier</b> T4 Compiler</div>
+      <div><b>선행</b> V01 · V03 · V04 · V06</div>
+      <div><b>용도</b> <span class="ko">Triton 소스 읽기 · 내부 pass 지도</span></div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row star"><span class="t">1. Triton 이라는 추상의 정체</span><span class="p">p.2</span></div>
+        <div class="row star"><span class="t">2. Compilation pipeline 전체 흐름</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">3. Frontend (Python → IR)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">4. Triton IR (상위)</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">5. TritonGPU IR (하위)</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">6. Layout 종류와 의미</span><span class="p">p.7</span></div>
+        <div class="row"><span class="t">7. Layout Inference Pass</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">8. Coalescing Pass</span><span class="p">p.9</span></div>
+        <div class="row star"><span class="t">9. Pipeline Pass (SW pipelining)</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. Prefetch Pass</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Dot 최적화 Pass</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. LLVM 변환 (NVPTX)</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. Autotuner 메커니즘</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. tl.constexpr · specialization</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">15. 디버깅 / 소스 읽기 가이드</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">16. Hopper backend 추가 사항</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">17. Cheat Sheet</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더 / 매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수하기 쉬움</span></div>
+      <div class="row"><span class="sym">★</span><span>반드시 숙지</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>다른 권 cross-ref</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·흐름·lowering</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유·결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄 설정</b> · A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">src: triton-lang/triton · MLIR dialect `triton`/`triton_gpu` · Tillet 2019·2023 · 18p</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Triton이라는 추상의 정체 ============================ -->
+<section class="page" data-screen-label="02 What Triton Is">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Triton 이라는 추상의 정체</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> What Triton hides <span class="ko">★ warp-level 을 숨긴다</span>
+          <span class="mnemonic">no thread, only tile</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Triton</mark> = <span class="kw">block-level tile</span> programming model on GPU.
+          Thread/warp 개념을 user 에게서 감춘다.
+          <span class="ko">연산 단위는 thread가 아니라 tile tensor.</span>
+        </div>
+        <ul>
+          <li>CUDA 의 1급 시민 = <code>threadIdx</code>, <code>warp</code>, <code>shared memory</code></li>
+          <li>Triton 의 1급 시민 = <code>tl.arange</code>, <code>tl.load</code>, <code>tl.dot</code> 위의 <mark>block tensor</mark></li>
+          <li>Thread assignment · shmem stage · bank conflict 회피 = <span class="red">컴파일러 책임</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 추상 레벨 스펙트럼</h3>
+        <table class="compact">
+          <thead><tr><th>레벨</th><th>사용자 단위</th><th>할당 주체</th></tr></thead>
+          <tbody>
+            <tr><td>CUDA C++</td><td>thread</td><td>user</td></tr>
+            <tr><td>CUTLASS / CuTe</td><td>thread + tile</td><td>user (layout algebra)</td></tr>
+            <tr><td><mark>Triton</mark></td><td>block tile</td><td><span class="kw">compiler</span></td></tr>
+            <tr><td>Linalg / XLA HLO</td><td>tensor op</td><td>compiler stack</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">cf. CuTe 자세히 <span class="xref">↗ V06 §4</span></p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 왜 이 추상인가 ★</h3>
+        <div class="formula">
+          <span class="hl">productivity</span> &times; <span class="hl">peak ratio</span> &asymp; CUTLASS 수준
+          <span class="legend">peak ratio: sustained / peak HW throughput, 대략 0.7~0.9</span>
+        </div>
+        <ol class="bullet-num">
+          <li>tile-level 이면 coalescing·bank conflict·TC fragment <span class="kw">결정론적 lowering</span> 가능</li>
+          <li>SIMT divergence 가 노출되지 않음 → mask가 predicate</li>
+          <li>Python AST 직접 변환 → debug loop 짧음</li>
+          <li>DL 커널 ≈ block matmul + reduce → 이 영역에 최적</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 숨기는 것 vs 노출하는 것</h3>
+        <table class="compact">
+          <thead><tr><th>hide</th><th>expose</th></tr></thead>
+          <tbody>
+            <tr><td>thread index</td><td>program_id(axis)</td></tr>
+            <tr><td>warp / lane</td><td>num_warps hint</td></tr>
+            <tr><td>shmem 배치</td><td>constexpr shape</td></tr>
+            <tr><td>bank conflict</td><td>—</td></tr>
+            <tr><td>sync barrier</td><td>—</td></tr>
+            <tr><td>pipeline stage</td><td>num_stages hint</td></tr>
+            <tr><td>TC fragment</td><td>tl.dot</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Triton 이 잘 맞는 도메인</h3>
+        <ul>
+          <li><span class="kw">GEMM 변종</span>: scaled mm, block-sparse, grouped</li>
+          <li><span class="kw">Fused attention</span>: QK·softmax·AV 한 kernel</li>
+          <li><span class="kw">Elementwise + reduce</span>: RMSNorm, LayerNorm</li>
+          <li>그 외 elementwise fusion, rotary, moe routing</li>
+        </ul>
+        <p class="tiny">Triton 사용법·실제 matmul 코드 → <span class="xref">↗ cudalearning v2 p13·14</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Triton 의 비-목표</h3>
+        <ul>
+          <li>general-purpose GPU compiler 아님 — DL tile workload 한정</li>
+          <li>dynamic shape 1급 지원 X <span class="ko">autotune 재컴파일로 우회</span></li>
+          <li>host-side graph / scheduling 영역 아님 → <span class="xref">↗ V13 TorchInductor</span></li>
+          <li>HW 독립 IR 목표가 아니다 — NVIDIA·AMD backend 별도</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">오해</span>: Triton은 "CUDA 위의 wrapper" 가 아니다.
+        독자적 <span class="kw">MLIR dialect + pass pipeline</span> 을 가진 컴파일러다.
+        PTX 는 마지막 단계 산출물.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·2</span>
+    <span class="tiny">Triton 2.x 기준 · triton-lang/triton `main` branch 구조</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Compilation pipeline ============================ -->
+<section class="page" data-screen-label="03 Pipeline">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Compilation Pipeline 전체 흐름</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 6 stage overview ★
+          <span class="mnemonic">Py→ttir→ttgir→llir→ptx→sass</span>
+        </h3>
+<pre class="ascii">Python source (@triton.jit fn)
+      │  [1] AST walk, type infer
+      ▼
+Triton IR              (.ttir)   dialect: triton
+      │  [2] convert-triton-to-tritongpu
+      ▼
+TritonGPU IR           (.ttgir)  dialect: triton_gpu  (+layout)
+      │  [3] optimize-passes (coalesce/pipeline/...)
+      ▼
+TritonGPU IR optimized (.ttgir)
+      │  [4] convert-tritongpu-to-llvm
+      ▼
+LLVM IR                (.llir)   target nvptx64
+      │  [5] llc / ptxas frontend → NVPTX codegen
+      ▼
+PTX text               (.ptx)    sm_80 / sm_90
+      │  [6] ptxas / driver JIT
+      ▼
+SASS binary                      sm-specific</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> 각 단계 IR 예시 ★</h3>
+<pre class="code"><span class="cmt"># Python</span>
+<span class="kw2">@triton.jit</span>
+<span class="kw2">def</span> <span class="fn">add</span>(X,Y,Z,N,BS:tl.constexpr):
+  pid = tl.program_id(<span class="num2">0</span>)
+  o = pid*BS + tl.arange(<span class="num2">0</span>,BS)
+  m = o &lt; N
+  x = tl.load(X+o, m); y = tl.load(Y+o, m)
+  tl.store(Z+o, x+y, m)</pre>
+<pre class="code"><span class="cmt">// Triton IR (ttir) — layout 無</span>
+tt.func @add(%X, %Y, %Z, %N) {
+  %pid = tt.get_program_id x
+  %r   = tt.make_range {start=0,end=BS}
+  %o   = arith.addi (%pid*BS), %r
+  %m   = arith.cmpi slt, %o, %N
+  %x   = tt.load %X+%o, %m
+  %y   = tt.load %Y+%o, %m
+  %s   = arith.addf %x, %y
+  tt.store %Z+%o, %s, %m
+}</pre>
+<pre class="code"><span class="cmt">// TritonGPU IR (ttgir) — #blocked layout 주입</span>
+#bl = #triton_gpu.blocked&lt;{
+  sizePerThread=[4], threadsPerWarp=[32],
+  warpsPerCTA=[4], order=[0]}&gt;
+%x : tensor&lt;1024xf32, #bl&gt;</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> pass 카테고리</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th>주요 pass</th></tr></thead>
+          <tbody>
+            <tr><td>ttir</td><td>inliner, combine, canonicalize</td></tr>
+            <tr><td>ttir→ttgir</td><td>convert-triton-to-tritongpu</td></tr>
+            <tr><td>ttgir</td><td>coalesce, layout-infer, remove-layout-conversions</td></tr>
+            <tr><td>ttgir</td><td>pipeline, prefetch, accelerate-matmul</td></tr>
+            <tr><td>ttgir→llir</td><td>convert-tritongpu-to-llvm</td></tr>
+            <tr><td>llir→ptx</td><td>NVPTX backend (LLVM)</td></tr>
+            <tr><td>ptx→sass</td><td>ptxas (closed source)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">각 pass 세부 → 이후 §7~§11</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 입력·출력 구조</h3>
+        <ul>
+          <li>입력: function ptr table, int/float constexpr, pointer dtype</li>
+          <li>출력: PTX string + kernel metadata (spills, shmem bytes, num_warps)</li>
+          <li>특정 <code>sm_arch</code> 에 바인딩 → arch 변경 시 재컴파일</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: ttir 에는 layout 이 아직 없다.
+        ttgir 진입 시 <span class="kw">모든 tensor 가 layout encoding</span>을 획득한다 (§5).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·3</span>
+    <span class="tiny">triton::compiler::compile() · python/triton/compiler/compiler.py</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 4: §3 Frontend ============================ -->
+<section class="page" data-screen-label="04 Frontend">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — Frontend (Python → Triton IR)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> <code>@triton.jit</code> 의 역할</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>@triton.jit</mark> 은 Python 함수를 <span class="kw">AST 로 파싱</span>한 뒤
+          각 <code>tl.*</code> 호출을 MLIR <span class="kw">triton dialect op</span> 으로 번역하는
+          custom compiler entry.
+        </div>
+        <ul>
+          <li>실행시 Python interpreter 통해 호출되지 않는다 <span class="ko">JIT cached</span></li>
+          <li>함수 body 를 <code>ast.parse</code> 로 tree 화 → <code>CodeGenerator</code> visitor 가 IR builder 호출</li>
+          <li>caching key = (fn, signature, constexpr 값, sm_arch, num_warps, num_stages)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Python 지원 범위</h3>
+        <table class="compact">
+          <thead><tr><th>구문</th><th>지원</th></tr></thead>
+          <tbody>
+            <tr><td>if / else</td><td>scf.if 로 lowering</td></tr>
+            <tr><td>for range(...)</td><td>scf.for (static bound 권장)</td></tr>
+            <tr><td>while</td><td>scf.while (제한적)</td></tr>
+            <tr><td>assert</td><td>dev assert</td></tr>
+            <tr><td>recursion</td><td><span class="red">불가</span></td></tr>
+            <tr><td>list / dict</td><td><span class="red">불가</span> (constexpr tuple 만)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> AST 변환 예시</h3>
+<pre class="code"><span class="cmt"># Python</span>
+o = pid * BS + tl.arange(<span class="num2">0</span>, BS)</pre>
+<pre class="code"><span class="cmt"># AST nodes</span>
+BinOp(Add, BinOp(Mult, Name(pid), Name(BS)),
+           Call(Attribute(tl, arange),
+                [Const 0, Name BS]))</pre>
+<pre class="code"><span class="cmt">// Triton IR emission</span>
+%bs  = arith.constant BS : i32
+%p0  = arith.muli %pid, %bs
+%rng = tt.make_range {start=0, end=BS}
+%pb  = tt.splat %p0 : tensor&lt;BSxi32&gt;
+%o   = arith.addi %pb, %rng</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> tl.* → IR op 매핑 ★</h3>
+        <table class="compact">
+          <thead><tr><th><code>tl.*</code></th><th>MLIR op</th></tr></thead>
+          <tbody>
+            <tr><td><code>tl.program_id</code></td><td><code>tt.get_program_id</code></td></tr>
+            <tr><td><code>tl.arange</code></td><td><code>tt.make_range</code></td></tr>
+            <tr><td><code>tl.load</code></td><td><code>tt.load</code></td></tr>
+            <tr><td><code>tl.store</code></td><td><code>tt.store</code></td></tr>
+            <tr><td><code>tl.dot</code></td><td><code>tt.dot</code></td></tr>
+            <tr><td><code>tl.reduce</code> / max</td><td><code>tt.reduce</code></td></tr>
+            <tr><td><code>tl.atomic_*</code></td><td><code>tt.atomic_rmw / cas</code></td></tr>
+            <tr><td>broadcast</td><td><code>tt.broadcast</code></td></tr>
+            <tr><td>reshape</td><td><code>tt.reshape</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Type inference</h3>
+        <ul>
+          <li>입력 argument: Python dtype → MLIR type
+            <ul>
+              <li><code>torch.float16</code> → <code>f16</code></li>
+              <li><code>torch.float32</code> → <code>f32</code></li>
+              <li><code>int64 ptr</code> → <code>!tt.ptr&lt;f16&gt;</code></li>
+            </ul>
+          </li>
+          <li>중간 tensor: shape = (BM, BK) <span class="kw">constexpr 전개</span></li>
+          <li>promotion rule: numpy 와 유사, <code>tl.int32 + tl.float16 → f16</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Specialization key</h3>
+        <div class="formula">
+          key = hash(fn_src, <span class="hl">signature</span>, <span class="hl">constexpr_values</span>, sm, num_warps, num_stages)
+          <span class="legend">constexpr 값이 바뀌면 <b>재컴파일</b>. 일반 int arg 는 signature 만 체크.</span>
+        </div>
+        <p class="tiny">alignment hint (pow2) 도 specialization 영향 → §14</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: tensor 크기를 Python int 로 넘기면 매 호출 재컴파일.
+        반드시 <code>tl.constexpr</code> 로 선언.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·4</span>
+    <span class="tiny">src: python/triton/compiler/code_generator.py `CodeGenerator`</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 5: §4 Triton IR ============================ -->
+<section class="page" data-screen-label="05 Triton IR">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — Triton IR (상위 dialect)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> dialect <code>triton</code></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>triton</mark> dialect 는 MLIR upstream dialect 위에 추가된
+          <span class="kw">target-agnostic tile-level</span> dialect.
+          Layout 정보가 <span class="red">아직 없다</span>. Ops prefix = <code>tt.</code>.
+        </div>
+        <ul>
+          <li>MLIR 자체 → <span class="xref">↗ V12 §2</span></li>
+          <li>의존 dialect: <code>arith</code>, <code>scf</code>, <code>cf</code>, <code>math</code></li>
+          <li>정의 위치: <code>include/triton/Dialect/Triton/IR/TritonOps.td</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 op 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>tt.get_program_id</code></td><td>grid axis id</td></tr>
+            <tr><td><code>tt.get_num_programs</code></td><td>grid size</td></tr>
+            <tr><td><code>tt.make_range</code></td><td>[start, end) i32 tensor</td></tr>
+            <tr><td><code>tt.splat</code></td><td>scalar → tensor</td></tr>
+            <tr><td><code>tt.broadcast</code></td><td>rank-match broadcast</td></tr>
+            <tr><td><code>tt.load</code> / <code>tt.store</code></td><td>ptr tensor + mask</td></tr>
+            <tr><td><code>tt.dot</code></td><td>C += A·B (tile)</td></tr>
+            <tr><td><code>tt.reduce</code></td><td>axis reduce + combiner region</td></tr>
+            <tr><td><code>tt.atomic_rmw</code></td><td>atomic op</td></tr>
+            <tr><td><code>tt.func</code> / <code>tt.return</code></td><td>kernel entry</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Block type system</h3>
+        <div class="formula">
+          T = <span class="hl">tensor&lt;shape × dtype&gt;</span> &nbsp;|&nbsp; <span class="hl">!tt.ptr&lt;dtype&gt;</span>
+          <span class="legend">shape 은 constexpr (BM, BN, BK...). dtype = f16/bf16/f32/f8/i32...</span>
+        </div>
+        <ul>
+          <li>scalar: 그냥 <code>f32</code> / <code>i32</code></li>
+          <li>tile: <code>tensor&lt;128×64×f16&gt;</code></li>
+          <li>ptr tile: <code>tensor&lt;128×64×!tt.ptr&lt;f16&gt;&gt;</code> <span class="ko">gather/scatter 전용</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> tt.load / tt.store</h3>
+<pre class="code">%v = tt.load %ptrs, %mask, %other
+       {cache = ca, evict = normal}
+       : tensor&lt;128x64xf16&gt;
+tt.store %p_out, %v, %mask</pre>
+        <ul>
+          <li>mask tensor 필요 시 OOB skip</li>
+          <li>other tensor = masked-out fill value</li>
+          <li>cache modifier = <code>ca</code>/<code>cg</code>/<code>cs</code>/<code>wb</code> → PTX <code>.ca</code>/<code>.cg</code> 매핑</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> tt.dot 의 의미</h3>
+        <div class="def"><span class="label">의미</span>
+          <code>tt.dot %a, %b, %c</code> = <span class="kw">C += A · B</span>
+          over (M, N, K) tile. Ttir 단계에서는 <span class="red">어떻게 실현될지 미정</span>
+          (FMA vs TC, layout 미결정).
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> tt.reduce 구조</h3>
+<pre class="code">%r = "tt.reduce"(%x) ({
+  ^bb(%a: f32, %b: f32):
+    %s = arith.maxnumf %a, %b
+    tt.reduce.return %s : f32
+}) {axis = 1 : i32}
+   : (tensor&lt;128x64xf32&gt;) -&gt; tensor&lt;128xf32&gt;</pre>
+        <ul>
+          <li>axis 와 combiner region 으로 모든 reduce 일반화 (sum, max, argmax, ...)</li>
+          <li>ttgir 에서 warp shuffle / shmem 으로 lowering</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Pointer arithmetic</h3>
+        <pre class="ascii">ptr tensor + i32 tensor = ptr tensor
+(element-wise, shape 일치)
+BroadCast shape 맞추기:
+  A_ptrs = A + m[:,None]*sAm + k[None,:]*sAk</pre>
+        <p class="tiny">실 example <span class="xref">↗ cudalearning v2 p13 §4</span></p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: ttir 는 "what"만 표현.
+        "how" (warp 분배, shmem 배치, pipeline) 는 ttgir pass 가 결정.
+        둘의 경계가 Triton 설계의 core.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·5</span>
+    <span class="tiny">src: include/triton/Dialect/Triton/IR/ · TritonOps.td</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 6: §5 TritonGPU IR ============================ -->
+<section class="page" data-screen-label="06 TritonGPU IR">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — TritonGPU IR (하위 dialect + layout)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> dialect <code>triton_gpu</code> ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>triton_gpu</mark> dialect = Triton IR 의 <span class="kw">GPU-bound 버전</span>.
+          모든 tensor 타입에 <span class="kw">layout encoding</span> 이 attribute 로 부착된다.
+          <span class="ko">이 단계부터 "누가 어떤 원소를 들고 있나"가 확정.</span>
+        </div>
+        <ul>
+          <li>prefix = <code>#triton_gpu</code> / op 는 대부분 <code>tt.*</code> 유지 + layout 부여</li>
+          <li>핵심 op: <code>triton_gpu.convert_layout</code>, <code>triton_gpu.alloc_tensor</code>, <code>triton_gpu.async_copy_global_to_local</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> tensor type w/ layout</h3>
+<pre class="code">tensor&lt;128x64xf16, <span class="hl">#blocked</span>&gt;
+tensor&lt;128x64xf16, <span class="hl">#shared</span>&gt;
+tensor&lt;128x64xf16, <span class="hl">#mma</span>&gt;
+tensor&lt;128x64xf16,
+       <span class="hl">#dot_operand&lt;{opIdx=0, parent=#mma}&gt;</span>&gt;</pre>
+        <p>layout 은 <span class="kw">같은 tensor 를 누가 어떻게 들고 있는지</span> 를 기술한다.</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> convert_layout op ★
+          <span class="mnemonic">같은 tensor, 다른 소유자</span>
+        </h3>
+        <div class="def"><span class="label">역할</span>
+          <code>triton_gpu.convert_layout %x : src → dst</code>
+          은 tensor 의 <span class="kw">값은 동일</span>하되 layout 만 변경한다.
+          실제 lowering 시 shmem 경유한 <span class="red">재분배</span> 로 구현됨.
+        </div>
+        <pre class="ascii">blocked → shared   (store to shmem)
+shared  → dot_op   (ldmatrix 발행)
+mma     → blocked  (TC 결과 재배치)</pre>
+        <p>insert / remove 는 Layout Inference pass 가 관리 (§7).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> async copy op</h3>
+<pre class="code"><span class="cmt">// Ampere: cp.async</span>
+%tok = triton_gpu.async_copy_global_to_local
+         %gptr, %smem_slice
+         : tensor&lt;…, #blocked&gt; → memdesc&lt;…, #shared&gt;
+triton_gpu.async_commit_group
+triton_gpu.async_wait {num = 2 : i32}</pre>
+        <ul>
+          <li>Ampere → <code>cp.async</code> PTX</li>
+          <li>Hopper → TMA bulk tensor copy (§16)</li>
+          <li>commit/wait = stage 카운팅 (§9 Pipeline)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> ttir → ttgir 전환 예</h3>
+<pre class="code"><span class="cmt">// ttir</span>
+%x : tensor&lt;1024xf32&gt;
+%y : tensor&lt;1024xf32&gt;
+%z = arith.addf %x, %y : tensor&lt;1024xf32&gt;</pre>
+<pre class="code"><span class="cmt">// ttgir (default blocked 주입)</span>
+#bl = #triton_gpu.blocked&lt;{
+  sizePerThread=[4], threadsPerWarp=[32],
+  warpsPerCTA=[4], order=[0]}&gt;
+%x : tensor&lt;1024xf32, #bl&gt;
+%y : tensor&lt;1024xf32, #bl&gt;
+%z = arith.addf %x, %y : tensor&lt;1024xf32, #bl&gt;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> num_warps 와의 관계</h3>
+        <div class="formula">
+          warpsPerCTA · 32 = <span class="hl">num_warps · 32</span> = CTA thread count
+          <span class="legend">사용자가 지정한 num_warps 가 곧 layout 의 warp 축 총곱</span>
+        </div>
+        <ul>
+          <li>num_warps=4 · 1D → warpsPerCTA=[4]</li>
+          <li>num_warps=8 · 2D tile → warpsPerCTA=[4,2] 등 pass 결정</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: ttgir 는 "결정이 내려진 tile IR".
+        ttir 와 달리 같은 알고리즘이라도 hardware 에 따라 전혀 다른 ttgir 이 나온다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·6</span>
+    <span class="tiny">src: include/triton/Dialect/TritonGPU/IR/ · TritonGPUOps.td / TritonGPUAttrDefs.td</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 7: §6 Layout 종류 ============================ -->
+<section class="page" data-screen-label="07 Layouts">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Layout 종류와 의미</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Layout 5종 한눈에 ★
+          <span class="mnemonic">Bl · Sh · Mma · Dot · Sl</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>layout</th><th>용도</th><th>생성자</th><th>변환</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Blocked</mark></td><td>register tile (load/store/ewise)</td><td>Coalescing pass</td><td>→ Shared</td></tr>
+            <tr><td><mark>Shared</mark></td><td>shmem 배치 (swizzle)</td><td>Pipeline/Prefetch</td><td>↔ Blocked, → DotOp</td></tr>
+            <tr><td><mark>Mma</mark></td><td>TC accumulator fragment</td><td>AccelerateMatmul</td><td>→ Blocked (store)</td></tr>
+            <tr><td><mark>DotOperand</mark></td><td>tt.dot A/B operand fragment</td><td>AccelerateMatmul</td><td>← Shared (ldmatrix)</td></tr>
+            <tr><td><mark>Slice</mark></td><td>reduce 결과 1D</td><td>Reduce lowering</td><td>← parent (axis drop)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> BlockedLayout 분해 ★</h3>
+        <div class="formula">
+          element = sizePerThread[d] · threadsPerWarp[d] · warpsPerCTA[d] · CTAsPerCGA[d]
+          <span class="legend">각 축 d 를 4계층으로 분해. <b>order</b> = 내부 메모리 순서 (contig 우선).</span>
+        </div>
+<pre class="ascii">tensor&lt;128x64xf16, #blocked&lt;{
+  sizePerThread = [4, 4],
+  threadsPerWarp = [8, 4],
+  warpsPerCTA  = [4, 1],
+  order = [1, 0]}&gt;
+→ thread 한 개가 (4,4) block 소유
+→ warp 하나가 (32,16) tile 커버
+→ 4 warps 면 (128, 16) — K축 4 iter</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> SharedLayout · swizzle</h3>
+        <div class="def"><span class="label">swizzle</span>
+          shmem bank conflict 회피용 주소 변환.
+          <span class="kw">vec · perPhase · maxPhase</span> 세 param 으로 기술.
+        </div>
+<pre class="code">#shared = #triton_gpu.shared&lt;{
+  vec = 8, perPhase = 2, maxPhase = 4,
+  order = [1,0]
+}&gt;</pre>
+        <ul>
+          <li>TC fragment load (ldmatrix) 요구 패턴과 일치 시켜야 conflict-free</li>
+          <li>PMPP shmem bank 기초 → <span class="xref">↗ V01 §8</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> MmaLayout · TC fragment</h3>
+        <ul>
+          <li>Ampere: <code>#mma&lt;{versionMajor=2, warpsPerCTA=[2,2], instrShape=[16,8]}&gt;</code></li>
+          <li>Hopper: <code>#mma&lt;{versionMajor=3, warpsPerCTA=[4,1], instrShape=[64,N,16]}&gt;</code> (WGMMA)</li>
+          <li>각 thread 가 TC 정의한 레지스터 slot 을 소유</li>
+          <li>PTX <code>mma.sync</code> fragment 와 1:1 대응</li>
+        </ul>
+        <p class="tiny">mma.sync / WGMMA 상세 → <span class="xref">↗ V03 §7 · V04 §7</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> DotOperandLayout</h3>
+<pre class="code">#dot_a = #triton_gpu.dot_op&lt;{
+  opIdx = 0, parent = #mma, kWidth = 8
+}&gt;
+#dot_b = #triton_gpu.dot_op&lt;{
+  opIdx = 1, parent = #mma, kWidth = 8
+}&gt;</pre>
+        <ul>
+          <li>opIdx=0 = A operand, 1 = B operand</li>
+          <li>parent = 결과 MmaLayout</li>
+          <li>kWidth = inner dim 단위 (8·16)</li>
+          <li>shared → dot_op 변환 시 <code>ldmatrix</code> 생성</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> SliceLayout</h3>
+        <div class="def"><span class="label">역할</span>
+          reduce 결과의 <span class="kw">한 축이 제거된</span> 1D tensor 를 표현.
+          parent layout + dim 조합으로 "어느 축이 사라졌는지" 를 유지.
+        </div>
+        <p>예: <code>#slice&lt;{dim=1, parent=#blocked}&gt;</code> → reduce(axis=1) 후.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·7</span>
+    <span class="tiny">src: include/triton/Dialect/TritonGPU/IR/TritonGPUAttrDefs.td</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Layout Inference ============================ -->
+<section class="page" data-screen-label="08 Layout Inference">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Layout Inference Pass</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목표</h3>
+        <div class="def"><span class="label">문제</span>
+          ttir → ttgir 전환 시점에 모든 tensor 는 <span class="kw">default blocked layout</span> 으로
+          초기화된다. 실제로는 <code>tt.dot</code> 는 Mma 가 필요하고, 재사용 경계에는 Shared 가 필요.
+          Inference pass 가 <span class="red">어디서 어떤 layout</span> 을 쓸지를 결정한다.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 알고리즘 개요 ★</h3>
+        <ol class="bullet-num">
+          <li><span class="kw">anchor op</span> 에 강한 layout 고정 (tt.dot → Mma, tt.load → Blocked)</li>
+          <li><span class="kw">bottom-up</span> propagation: operand 가 다음 op 요구와 맞도록 layout 전파</li>
+          <li><span class="kw">top-down</span> propagation: 소비자 요구가 생산자로 역전파</li>
+          <li>mismatch 지점에 <code>convert_layout</code> 삽입</li>
+          <li>cost 기반 선택 (§4): conversion 비용 최소화</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Anchor op 표</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>선호 layout</th></tr></thead>
+          <tbody>
+            <tr><td><code>tt.load</code> (contig)</td><td>Blocked (coalesced)</td></tr>
+            <tr><td><code>tt.store</code> (contig)</td><td>Blocked (coalesced)</td></tr>
+            <tr><td><code>tt.dot</code> result</td><td>Mma</td></tr>
+            <tr><td><code>tt.dot</code> operand</td><td>DotOperand (parent Mma)</td></tr>
+            <tr><td><code>tt.reduce</code> 결과</td><td>Slice (parent=입력)</td></tr>
+            <tr><td><code>async_copy → local</code></td><td>Shared</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Cost model 대략</h3>
+        <div class="formula">
+          cost(convert src → dst) ≈ <span class="hl">nElts · shmem_roundtrip_factor</span>
+          <span class="legend">같은 layout 이면 0, blocked↔blocked 는 작고, blocked→mma 는 shmem 경유로 큼</span>
+        </div>
+        <ul>
+          <li>동일 layout 사이 trivial → DCE 로 제거</li>
+          <li>Mma ↔ Mma (다른 warpsPerCTA) 는 shmem 필수</li>
+          <li>Blocked ↔ Blocked (order 다름) 는 transpose 비용</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Remove-layout-conversions</h3>
+        <pre class="ascii">after insertion: 많은 convert_layout
+→ redundant 제거 pass:
+  · convert(convert(x)) → convert(x)
+  · convert(x) where src==dst → x
+  · hoist convert out of loop (loop-invariant)
+  · sink convert past elementwise</pre>
+        <p>결과적으로 <span class="kw">핵심 boundary 에만 convert 남음</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 예시: matmul mainloop</h3>
+<pre class="code"><span class="cmt">// before</span>
+%a = tt.load … : #blocked
+%b = tt.load … : #blocked
+%c = tt.dot %a, %b : #mma
+
+<span class="cmt">// after inference</span>
+%a_b = tt.load …             : #blocked
+%a_s = convert_layout %a_b   : #shared
+%a_d = convert_layout %a_s   : #dot_op&lt;0,mma&gt;
+%b_b = tt.load …             : #blocked
+%b_s = convert_layout %b_b   : #shared
+%b_d = convert_layout %b_s   : #dot_op&lt;1,mma&gt;
+%c   = tt.dot %a_d, %b_d, %c : #mma</pre>
+        <p class="tiny">이후 Pipeline pass 가 shared stage 를 loop 로 분할 → §9</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·8</span>
+    <span class="tiny">pass: TritonGPULayoutPropagation · RemoveLayoutConversions</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Coalescing Pass ============================ -->
+<section class="page" data-screen-label="09 Coalescing">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Coalescing Pass</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목표 <span class="ko">★ BlockedLayout 조정</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <code>tt.load</code> / <code>tt.store</code> 의 pointer tensor 패턴을 분석해,
+          결과 BlockedLayout 이 <span class="kw">128B-aligned coalesced access</span> 를
+          만들도록 <code>sizePerThread</code> / <code>order</code> 를 수정한다.
+        </div>
+        <p class="tiny">coalescing 기초 규칙 → <span class="xref">↗ V01 §8</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 분석 순서</h3>
+        <ol class="bullet-num">
+          <li>pointer tensor 의 source 추적 (<code>tt.make_range</code>, <code>tt.splat</code>, <code>arith.addi</code>)</li>
+          <li>각 축 stride 상수/변수 분류</li>
+          <li>contiguous 축 탐지 (stride == 1 인 축)</li>
+          <li>해당 축을 layout <code>order[0]</code> 로 설정</li>
+          <li>vec width 결정 (dtype bits · alignment hint 기반)</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> vec width 결정 수식</h3>
+        <div class="formula">
+          vec = min( <span class="hl">128 / dtype_bits</span>, <span class="hl">align_hint</span>, contig_len )
+          <span class="legend">f16 → 최대 8, f32 → 최대 4. align_hint = pow2 alignment of ptr.</span>
+        </div>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th>max vec</th><th>PTX</th></tr></thead>
+          <tbody>
+            <tr><td>f16 / bf16</td><td>8 elem (128b)</td><td>ld.global.v4.b32</td></tr>
+            <tr><td>f32</td><td>4 elem</td><td>ld.global.v4.b32</td></tr>
+            <tr><td>f8</td><td>16 elem</td><td>ld.global.v4.b32</td></tr>
+            <tr><td>i32 / u32</td><td>4 elem</td><td>ld.global.v4.b32</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 2D tile 예시</h3>
+<pre class="code"><span class="cmt">// tile &lt;128,64&gt; f16, contig = axis 1</span>
+sizePerThread = [1, 8]   <span class="cmt">// vec=8 along axis 1</span>
+threadsPerWarp = [4, 8]
+warpsPerCTA  = [4, 1]
+order        = [1, 0]
+→ thread 32개가 한 row 의 64 col 커버</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 비-coalesced case 판정</h3>
+        <ul>
+          <li>stride 가 대형 상수 → non-contig → vec = 1</li>
+          <li>stride 가 data-dependent (gather) → pass skip, scalar load</li>
+          <li>mask 가 stride-wise 패턴 깨면 vec 축소</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">주의</span>: Coalescing pass 는 pointer 가 <span class="kw">compile-time stride</span>
+          로 표현될 때만 효과. Python 에서 affine 한 인덱싱 유지가 중요.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 다른 layout 과의 상호작용</h3>
+        <ul>
+          <li>Coalesce 가 확정된 Blocked → 이후 Layout Inference 가 anchor 로 고정</li>
+          <li>store 단계 Mma → Blocked 변환 시 Coalesced Blocked 가 목표</li>
+          <li>scatter/gather path 는 pass 가 <span class="kw">마지막 fallback</span> 으로 vec=1 설정</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> pass 순서 위치</h3>
+        <pre class="ascii">convert-triton-to-tritongpu
+→ <b>coalesce-pass</b>   (여기)
+→ accelerate-matmul
+→ layout-propagation
+→ remove-layout-conv
+→ pipeline</pre>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·9</span>
+    <span class="tiny">pass: TritonGPUCoalesce · Dialect/TritonGPU/Transforms/Coalesce.cpp</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Pipeline Pass ============================ -->
+<section class="page" data-screen-label="10 Pipeline Pass">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Pipeline Pass (Software Pipelining)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목적 ★
+          <span class="mnemonic">load + compute 겹치기</span>
+        </h3>
+        <div class="def"><span class="label">아이디어</span>
+          matmul K-loop 의 반복 i 에서 쓰일 데이터의 global→shmem 로딩을
+          반복 i-(s-1) 에서 <span class="kw">미리 발행</span>한다.
+          num_stages = s 만큼의 <span class="kw">shmem buffer</span> 를 순환 사용.
+        </div>
+        <ul>
+          <li>지연 숨김: HBM latency ~400 cycle vs compute cycle</li>
+          <li>Ampere: <code>cp.async</code> (§<span class="xref">↗ V03 §6</span>)</li>
+          <li>Hopper: TMA bulk + mbarrier (§16, <span class="xref">↗ V04 §4</span>)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> Before ★</h3>
+<pre class="code"><span class="cmt">// sync load + compute, no pipeline</span>
+scf.for %k = 0 to K step BK {
+  %a_b = tt.load A[%k]   <span class="cmt">// blocks</span>
+  %b_b = tt.load B[%k]
+  %a_s = conv %a_b : #shared
+  %b_s = conv %b_b : #shared
+  %a_d = conv %a_s : #dot_op
+  %b_d = conv %b_s : #dot_op
+  %c   = tt.dot %a_d, %b_d, %c
+}</pre>
+        <ul>
+          <li>load 가 끝나야 dot 시작 → <span class="red">완전 직렬</span></li>
+          <li>Tensor Core 대기 ↑↑</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> After (num_stages=3) ★</h3>
+<pre class="code"><span class="cmt">// prologue: stage 0,1 선행 발행</span>
+async_copy A[0] → smem[0]; async_commit
+async_copy B[0] → smem[0]
+async_copy A[1] → smem[1]; async_commit
+async_copy B[1] → smem[1]
+
+scf.for %k = 0 to K-2*BK step BK {
+  <span class="cmt">// 곧 쓸 stage 는 wait</span>
+  async_wait {num = 2}
+  <span class="cmt">// stage t : compute</span>
+  %a_d = conv smem[t]   <span class="cmt">// ldmatrix</span>
+  %b_d = conv smem[t]
+  %c   = tt.dot %a_d, %b_d, %c
+
+  <span class="cmt">// stage t+2 : 새 load 발행</span>
+  async_copy A[k+2*BK] → smem[(t+2)%3]
+  async_copy B[k+2*BK] → smem[(t+2)%3]
+  async_commit
+}
+<span class="cmt">// epilogue: 남은 stage 소진</span></pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> stage vs resource 표</h3>
+        <table class="compact">
+          <thead><tr><th>num_stages</th><th>shmem bytes</th><th>latency 은닉</th></tr></thead>
+          <tbody>
+            <tr><td>2</td><td>2·tile 크기</td><td>약함</td></tr>
+            <tr><td>3</td><td>3·tile</td><td>보통 (Ampere 기본)</td></tr>
+            <tr><td>4</td><td>4·tile</td><td>강함 (Hopper TMA)</td></tr>
+            <tr><td>≥5</td><td>shmem 초과 위험</td><td>register spill 위험</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">shmem capacity: A100 192KB, H100 228KB (configurable) <span class="xref">↗ V02 §3</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> pass 내부 절차</h3>
+        <ol class="bullet-num">
+          <li>loop 내 <code>async_copy</code>/<code>convert_layout</code>(blocked→shared) 식별</li>
+          <li>multi-buffer 할당: stage 수만큼 shmem tile 복제</li>
+          <li>prologue · steady · epilogue 3부분 생성</li>
+          <li>async_commit/async_wait 배치 (wait num = stages-1)</li>
+          <li>shmem-offset rotation: <code>(t + k) % stages</code></li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: <code>num_stages</code> 키우면 항상 빠르진 않다.
+        shmem 초과 시 <span class="kw">occupancy 1 block</span> 으로 강등되며 오히려 느려진다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·10</span>
+    <span class="tiny">pass: TritonGPUPipeline · SoftwarePipeliner</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Prefetch Pass ============================ -->
+<section class="page" data-screen-label="11 Prefetch">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Prefetch Pass</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Prefetch ≠ Pipeline</h3>
+        <table class="compact">
+          <thead><tr><th>비교</th><th>Pipeline Pass</th><th>Prefetch Pass</th></tr></thead>
+          <tbody>
+            <tr><td>계층</td><td>global → shmem</td><td>shmem → register</td></tr>
+            <tr><td>도구</td><td>cp.async / TMA</td><td>ldmatrix · LDS</td></tr>
+            <tr><td>단위</td><td>stage (BK 전체)</td><td>sub-tile (ldmatrix unit)</td></tr>
+            <tr><td>목적</td><td>HBM latency 은닉</td><td>shmem → reg latency 은닉</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 아이디어</h3>
+        <div class="def"><span class="label">아이디어</span>
+          mainloop 각 iteration 에서 TC 에 쓸 <span class="kw">다음 sub-k</span> 의
+          shmem → register 로딩을 <span class="kw">현재 dot 와 겹쳐</span> 발행.
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Before / After 스케치</h3>
+<pre class="ascii">before (k 단위만 pipeline):
+  smem[t] ─ldmatrix→ A_frag
+  smem[t] ─ldmatrix→ B_frag
+             │
+             ▼
+           tt.dot
+
+after (+ prefetch on k-sub):
+  A_frag[0] already loaded (prologue)
+  for kk in 0..BK/mma_k:
+    A_frag[kk+1] = ldmatrix smem[t] (kk+1)
+    B_frag[kk+1] = ldmatrix smem[t] (kk+1)
+    tt.dot A_frag[kk], B_frag[kk], c</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> register 압박</h3>
+        <div class="formula">
+          reg usage ≈ <span class="hl">2</span> · fragment_size
+          <span class="legend">A_frag, B_frag 이중 보유. 16x16 f16 mma 기준 thread당 +16 reg.</span>
+        </div>
+        <ul>
+          <li>spill 발생 시 <span class="red">local memory</span> 로 내려감 → DRAM 왕복</li>
+          <li>64K reg / SM (Ampere) · 256 threads CTA 기준 thread당 255 reg 상한</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 활성화 조건</h3>
+        <ul>
+          <li><code>tt.dot</code> 가 K-loop 내부에 있어야 함</li>
+          <li>operand layout = DotOperand (parent Mma) 인 경우만</li>
+          <li>shmem tile 이 stage buffer 로 등록되어 있어야 함 (pipeline 이후)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> trade-off 판단</h3>
+        <table class="compact">
+          <thead><tr><th>상황</th><th>prefetch 효과</th></tr></thead>
+          <tbody>
+            <tr><td>BK 큼 (≥64)</td><td>↑ dot-load 겹침 ↑</td></tr>
+            <tr><td>reg spill 발생</td><td>↓ 오히려 악화</td></tr>
+            <tr><td>HD 큰 attention</td><td>↑ main bottleneck 해소</td></tr>
+            <tr><td>elementwise fused</td><td>미미</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: pipeline 이 "stage 간 겹침", prefetch 가 "stage 내부 sub-k 겹침".
+        <span class="kw">둘 다 적용되어야</span> Tensor Core utilization 이 peak 에 근접.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·11</span>
+    <span class="tiny">pass: TritonGPUPrefetch · Transforms/Prefetch.cpp</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Dot 최적화 Pass ============================ -->
+<section class="page" data-screen-label="12 Dot Accel">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Dot 최적화 Pass (AccelerateMatmul)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목적</h3>
+        <div class="def"><span class="label">정의</span>
+          <code>tt.dot</code> 를 <span class="kw">MmaLayout</span> 기반으로 정확히
+          HW Tensor Core instruction 이 떨어지도록 재작성.
+          operand layout 을 DotOperand 로, 결과 layout 을 Mma 로 확정.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> HW version 선택</h3>
+        <table class="compact">
+          <thead><tr><th>sm</th><th>MmaLayout ver</th><th>instr</th></tr></thead>
+          <tbody>
+            <tr><td>sm_70 (V100)</td><td>v1</td><td>mma.m8n8k4</td></tr>
+            <tr><td>sm_75 (Turing)</td><td>v1</td><td>mma.m16n8k8</td></tr>
+            <tr><td>sm_80/86 (Ampere)</td><td>v2</td><td>mma.sync.m16n8k16</td></tr>
+            <tr><td>sm_90 (Hopper)</td><td>v3</td><td>wgmma.m64nNk16</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">dtype별 shape 매트릭스 → <span class="xref">↗ V03 §7 · V04 §7</span></p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> warpsPerCTA 결정</h3>
+        <div class="formula">
+          (M_warp, N_warp) : <span class="hl">M_warp · N_warp = num_warps</span>
+          <span class="legend">BM/BN 비율 · instrShape 반영. 일반 패턴: 비율 1:2 ~ 2:1.</span>
+        </div>
+        <ul>
+          <li>BM=128, BN=128, num_warps=4 → (2,2)</li>
+          <li>BM=128, BN=256, num_warps=8 → (2,4)</li>
+          <li>BM=64, BN=256, num_warps=8 → (1,8) (Hopper WGMMA 선호)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> operand 경로 ★</h3>
+<pre class="ascii">shmem (A tile)
+  │  convert_layout shared → dot_op
+  ▼           (lowering: ldmatrix)
+A_dot_op  ─┐
+           │ tt.dot
+B_dot_op  ─┤        → C_mma
+           │
+shmem (B tile)
+  │  convert_layout shared → dot_op
+  ▼           (lowering: ldmatrix.trans 가능)
+B_dot_op</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> ldmatrix 생성 규칙</h3>
+        <ul>
+          <li>source = <code>#shared</code> swizzle 과 정합</li>
+          <li>dest = DotOperand fragment (thread-register 매핑)</li>
+          <li><code>.x1</code>/<code>.x2</code>/<code>.x4</code> = 한 호출당 8x8 tile 수</li>
+          <li><code>.trans</code> variant = B operand K-major 일 때</li>
+        </ul>
+        <p class="tiny">ldmatrix 개요 → <span class="xref">↗ V03 §8</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> FP8 / low-bit 경로</h3>
+        <ul>
+          <li>Hopper: <code>wgmma</code> FP8 e4m3/e5m2 지원</li>
+          <li>Blackwell: FP4/FP6 (2nd-gen TE) — backend 확장 영역</li>
+          <li>scaled dot: <code>tt.dot_scaled</code> 로 표현 (block-scaling)</li>
+        </ul>
+        <p class="tiny">low-bit 정밀도 → <span class="xref">↗ V09 · V10</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> pass 위치</h3>
+        <pre class="ascii">coalesce
+→ <b>accelerate-matmul</b>  (여기)
+→ layout-propagation
+→ pipeline
+→ prefetch</pre>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·12</span>
+    <span class="tiny">pass: TritonGPUAccelerateMatmul · Transforms/AccelerateMatmul.cpp</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 13: §12 LLVM 변환 ============================ -->
+<section class="page" data-screen-label="13 LLVM Conversion">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — LLVM 변환 (convert-tritongpu-to-llvm)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 역할</h3>
+        <div class="def"><span class="label">정의</span>
+          ttgir 의 tensor-level op 를 <span class="kw">per-thread LLVM IR</span>
+          + NVPTX intrinsic 로 lowering.
+          이 단계에서 tensor 는 <span class="kw">thread-local register tuple</span> 로 분해된다.
+        </div>
+        <p class="tiny">MLIR → LLVM 일반 이론 → <span class="xref">↗ V12 §10</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Lowering 매핑 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>ttgir</th><th>LLVM / NVVM</th></tr></thead>
+          <tbody>
+            <tr><td><code>tt.load</code> (vec)</td><td>ld.global.v4.b32 (inline asm)</td></tr>
+            <tr><td><code>tt.store</code></td><td>st.global.v4.b32</td></tr>
+            <tr><td><code>tt.dot</code> (mma)</td><td><code>llvm.nvvm.mma.m16n8k16.*</code></td></tr>
+            <tr><td><code>tt.dot</code> (wgmma)</td><td>inline PTX <code>wgmma.mma_async</code></td></tr>
+            <tr><td>convert shared→dot</td><td>inline PTX <code>ldmatrix</code></td></tr>
+            <tr><td>async_copy</td><td>inline PTX <code>cp.async.cg</code></td></tr>
+            <tr><td>async_wait</td><td><code>cp.async.wait_group</code></td></tr>
+            <tr><td><code>tt.reduce</code></td><td><code>llvm.nvvm.shfl.sync.*</code> + shmem</td></tr>
+            <tr><td><code>tt.atomic_rmw</code></td><td>LLVM atomicrmw / inline PTX</td></tr>
+            <tr><td>program_id</td><td><code>llvm.nvvm.read.ptx.sreg.ctaid.*</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> tensor → register tuple</h3>
+        <pre class="ascii">tensor&lt;128x64xf16, #blocked&gt;
+ layout: thread 당 (4,4) = 16 elements
+ → 각 thread 가 16개 f16 reg 소유
+ → LLVM: vector&lt;16xf16&gt; 혹은
+          !llvm.struct&lt;(f16, f16, ..., f16)&gt;</pre>
+        <p>op 는 thread 당 element 수 만큼 펼쳐진다 (<span class="kw">unroll</span>).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Address space 매핑</h3>
+        <table class="compact">
+          <thead><tr><th>IR</th><th>NVPTX AS</th></tr></thead>
+          <tbody>
+            <tr><td>global ptr</td><td>addrspace(1)</td></tr>
+            <tr><td>shared (shmem)</td><td>addrspace(3)</td></tr>
+            <tr><td>constant</td><td>addrspace(4)</td></tr>
+            <tr><td>local (stack/spill)</td><td>addrspace(5)</td></tr>
+            <tr><td>generic</td><td>addrspace(0)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVPTX AS 상세 → <span class="xref">↗ V12 §10</span></p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Inline PTX 사용</h3>
+<pre class="code"><span class="cmt">// 실제 생성되는 LLVM IR snippet</span>
+call void asm sideeffect
+  "cp.async.cg.shared.global [$0], [$1], 16;",
+  "r,l"(i32 %smem_off, i8* %gptr)</pre>
+        <ul>
+          <li>LLVM intrinsic 이 없는 PTX 는 inline asm 으로 생성</li>
+          <li>register constraint: <code>r</code>(32b reg), <code>l</code>(64b reg), <code>f</code>(float reg)</li>
+          <li>clobber / sideeffect 지정 필수</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 이후 LLVM → PTX</h3>
+        <pre class="ascii">LLVM IR (nvptx64 target)
+ → LLVM opt: instcombine, mem2reg, ...
+ → NVPTX backend codegen
+ → PTX text file
+ → ptxas (external) → SASS</pre>
+        <p class="tiny">SASS / ptxas 는 NVIDIA closed source → <span class="xref">↗ V04 §12</span></p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: convert-tritongpu-to-llvm 이 Triton 고유 pass 중
+        가장 복잡. 각 layout 조합별 lowering template 이 존재.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·13</span>
+    <span class="tiny">src: lib/Conversion/TritonGPUToLLVM/</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Autotuner ============================ -->
+<section class="page" data-screen-label="14 Autotuner">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Autotuner 메커니즘</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> <code>@triton.autotune</code> 구조</h3>
+<pre class="code"><span class="kw2">@triton.autotune</span>(
+  configs=[
+    triton.Config({<span class="str">'BM'</span>:128,<span class="str">'BN'</span>:256,
+                   <span class="str">'BK'</span>:64,<span class="str">'GM'</span>:8},
+                   num_warps=8, num_stages=3),
+    triton.Config({<span class="str">'BM'</span>:64, <span class="str">'BN'</span>:64,
+                   <span class="str">'BK'</span>:32,<span class="str">'GM'</span>:8},
+                   num_warps=4, num_stages=2),
+    …
+  ],
+  key=[<span class="str">'M'</span>,<span class="str">'N'</span>,<span class="str">'K'</span>],
+  prune_configs_by={<span class="str">'perf_model'</span>: fn,
+                    <span class="str">'early_config_prune'</span>: fn},
+)
+<span class="kw2">@triton.jit</span>
+<span class="kw2">def</span> <span class="fn">mm</span>(…): …</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Config space 차원</h3>
+        <ul>
+          <li>tile 크기: BM, BN, BK</li>
+          <li>swizzle: GROUP_M (§13 cudalearning v2)</li>
+          <li>parallel: num_warps, num_stages</li>
+          <li>dtype 별 지원 조합 제한</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Caching key ★
+          <span class="mnemonic">k = (M,N,K,dtype,sm,arch)</span>
+        </h3>
+        <div class="formula">
+          cache_key = hash( <span class="hl">key_arg_values</span>, dtype_sig, sm_arch )
+          <span class="legend">key 에 지정한 runtime arg 값 별로 독립 config 탐색.</span>
+        </div>
+        <ul>
+          <li>같은 <code>(M,N,K)</code> 호출 → 재탐색 없이 best config 사용</li>
+          <li>새로운 값 조합 → 모든 config 벤치마크 후 저장</li>
+          <li>persistent cache: disk (<code>~/.triton/cache</code>)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Benchmark loop 내부</h3>
+        <ol class="bullet-num">
+          <li>pruner 가 config 후보 축소 (smem 초과 / reg 초과 제거)</li>
+          <li>각 남은 config 에 대해 compile → launch × N trial</li>
+          <li>median elapsed time 측정 (cuda event)</li>
+          <li>best config 선택 → cache</li>
+          <li>이후 호출은 fast path</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Prune 방법 비교</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>static</td><td>shmem / reg 추정 → 상한 초과 config 제거</td></tr>
+            <tr><td>perf_model</td><td>사용자 제공 cost 함수 top-k</td></tr>
+            <tr><td>restore_value</td><td>in-place 연산 시 원복용</td></tr>
+            <tr><td>warmup/rep</td><td>벤치마크 반복 수</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Heuristic vs Autotune</h3>
+        <ul>
+          <li><code>@triton.heuristics</code> = deterministic 규칙 (shape→config)</li>
+          <li><code>@triton.autotune</code> = 실측 기반 탐색</li>
+          <li>실무: heuristics 로 1차 후보 → autotune 최종</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: <code>key</code> 에 포함되지 않은 shape 축에 대해서는
+        config 가 <span class="kw">재사용</span>된다. dynamic batch 일 때
+        <code>key=['M','N','K']</code> 만 쓰면 잘못된 config 가 선택될 수 있음.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·14</span>
+    <span class="tiny">src: python/triton/runtime/autotuner.py</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 15: §14 constexpr & specialization ============================ -->
+<section class="page" data-screen-label="15 Constexpr">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — tl.constexpr · Compile-time Specialization</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> tl.constexpr 의 의미</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>tl.constexpr</mark> 로 표시된 argument 는 kernel signature 의
+          <span class="kw">type 일부</span> 가 된다.
+          값이 바뀌면 <span class="red">다른 kernel</span> 로 간주되어 재컴파일된다.
+          <span class="ko">C++ template parameter 와 유사.</span>
+        </div>
+        <ul>
+          <li>tile 크기 (BM/BN/BK), grid 구조 (GROUP_M), dtype 선택, bool 플래그에 사용</li>
+          <li>내부적으로 MLIR constant + type 로 embed</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 비교: 일반 int arg</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>재컴파일?</th><th>특성</th></tr></thead>
+          <tbody>
+            <tr><td>일반 int</td><td>N (sig 동일 시)</td><td>runtime value</td></tr>
+            <tr><td>tl.constexpr</td><td>Y (값 달라지면)</td><td>compile-time</td></tr>
+            <tr><td>pow2 hint</td><td>부분</td><td>alignment specialization</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Specialization 의 힘 ★</h3>
+        <ul>
+          <li><span class="kw">상수 전파</span>: BM=128 이면 for loop bound 가 상수 → 완전 unroll</li>
+          <li><span class="kw">shape 확정</span>: tensor type 완전 결정 → layout inference 최적</li>
+          <li><span class="kw">branch elision</span>: <code>if CAUSAL</code> 이 사라지며 dead code 제거</li>
+          <li><span class="kw">vec/align</span>: stride % 16 == 0 이면 vec=8 선택 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 실제 예시</h3>
+<pre class="code"><span class="kw2">@triton.jit</span>
+<span class="kw2">def</span> <span class="fn">norm</span>(X, Y, N,
+         BS: tl.constexpr,
+         USE_BF16: tl.constexpr):
+  pid = tl.program_id(<span class="num2">0</span>)
+  o = pid*BS + tl.arange(<span class="num2">0</span>, BS)
+  x = tl.load(X+o, o &lt; N)
+  <span class="kw2">if</span> USE_BF16:
+    x = x.to(tl.bfloat16)
+  ...</pre>
+        <p class="tiny"><code>USE_BF16=True</code>/<code>False</code> → 서로 다른 kernel 두 버전 컴파일.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Divisibility / alignment hint</h3>
+        <div class="formula">
+          divisibility(ptr) = <span class="hl">2^k</span> &nbsp; &rArr; &nbsp; vec width ≤ 2^k / dtype_bytes
+          <span class="legend">Triton 이 ptr alignment 를 추적해 load vec 를 자동 결정.</span>
+        </div>
+        <ul>
+          <li>torch tensor → triton 자동으로 16B align 추정</li>
+          <li>annotate 로 강제 가능: <code>tl.load(ptr, ..., eviction_policy=..., cache_modifier=...)</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> template-like 패턴</h3>
+        <pre class="ascii">kernel(…, DTYPE: tl.constexpr)
+  → 같은 kernel 소스가
+    f16, bf16, f32 각각 독립 cache
+  → 런타임 dispatch:
+    if   dt=='f16':  kernel[grid](…, f16)
+    elif dt=='bf16': kernel[grid](…, bf16)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: constexpr 값이 계속 바뀌면 cache thrashing.
+        <span class="kw">제한된 집합</span> 으로 제약해야 한다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·15</span>
+    <span class="tiny">src: python/triton/compiler/code_generator.py `constexpr` 처리</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 16: §15 디버깅 / 소스 읽기 ============================ -->
+<section class="page" data-screen-label="16 Debug / Read">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — 디버깅 · 소스 읽기 가이드</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 환경변수 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td><code>TRITON_CACHE_DIR</code></td><td>JIT cache 위치 (default <code>~/.triton/cache</code>)</td></tr>
+            <tr><td><code>MLIR_ENABLE_DUMP=1</code></td><td>각 pass 전후 IR stdout dump</td></tr>
+            <tr><td><code>TRITON_ENABLE_LLIR_DUMP=1</code></td><td>LLVM IR 덤프</td></tr>
+            <tr><td><code>TRITON_INTERPRET=1</code></td><td>kernel 을 CPU 에서 Python 실행 (debug)</td></tr>
+            <tr><td><code>TRITON_DEBUG=1</code></td><td>compile 단계 세부 로그</td></tr>
+            <tr><td><code>TRITON_PRINT_AUTOTUNING=1</code></td><td>best config 출력</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> cache 파일 종류</h3>
+        <pre class="ascii">~/.triton/cache/&lt;hash&gt;/
+  ├── kernel.ttir     Triton IR
+  ├── kernel.ttgir    TritonGPU IR
+  ├── kernel.llir     LLVM IR
+  ├── kernel.ptx      PTX text
+  ├── kernel.cubin    SASS (arch-specific)
+  └── kernel.json     metadata (smem, reg, shared, num_warps)</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 소스 트리 지도</h3>
+        <table class="compact">
+          <thead><tr><th>경로</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td><code>include/triton/Dialect/Triton/</code></td><td>ttir dialect 정의 (ODS)</td></tr>
+            <tr><td><code>include/triton/Dialect/TritonGPU/</code></td><td>ttgir dialect + layout attr</td></tr>
+            <tr><td><code>lib/Dialect/TritonGPU/Transforms/</code></td><td>핵심 pass (Coalesce, Pipeline, …)</td></tr>
+            <tr><td><code>lib/Conversion/TritonToTritonGPU/</code></td><td>ttir→ttgir</td></tr>
+            <tr><td><code>lib/Conversion/TritonGPUToLLVM/</code></td><td>ttgir→llir</td></tr>
+            <tr><td><code>python/triton/compiler/</code></td><td>frontend · cache · compile</td></tr>
+            <tr><td><code>python/triton/runtime/</code></td><td>autotune · launch</td></tr>
+            <tr><td><code>python/triton/language/</code></td><td>tl.* API</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 읽기 순서 추천</h3>
+        <ol class="bullet-num">
+          <li><code>python/triton/language/core.py</code> — tl.* 정의</li>
+          <li><code>compiler/code_generator.py</code> — AST → IR</li>
+          <li>ODS 파일 (TritonOps.td, TritonGPUOps.td)</li>
+          <li>TritonGPU Transforms (Coalesce.cpp → Pipeline.cpp)</li>
+          <li>TritonGPUToLLVM (LoadStoreOpToLLVM.cpp → DotOpToLLVM.cpp)</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> IR 덤프 읽기 팁</h3>
+        <ul>
+          <li>ttir 은 layout 無 → 알고리즘 구조 파악용</li>
+          <li>ttgir 은 layout 확정 → 실제 shmem/TC 경로 파악</li>
+          <li><code>// -----// IR Dump Before / After …</code> 구분선 기준으로 pass 영향 비교</li>
+          <li>diff tool 로 before/after 차이만 보기: <code>diff before.ir after.ir</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 디버그 모드</h3>
+        <ul>
+          <li><code>TRITON_INTERPRET=1</code> → Python 으로 tile 연산 에뮬</li>
+          <li>kernel 내부 <code>tl.device_print</code> 허용</li>
+          <li>CPU → GPU 이전 수식 검증용 (속도는 매우 느림)</li>
+          <li>pdb breakpoint 가능</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: <code>MLIR_ENABLE_DUMP=1</code> 은 모든 pass 전후 IR 를 찍는다.
+        kernel 하나에 수천줄 출력 가능 → 파일 redirect 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·16</span>
+    <span class="tiny">실습 영역은 의도적으로 축약 · 상세 디버깅 워크플로는 out-of-scope</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 17: §16 Hopper backend ============================ -->
+<section class="page" data-screen-label="17 Hopper Backend">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — Hopper Backend 추가 사항</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> sm_80 vs sm_90 요점 ★</h3>
+        <table class="compact">
+          <thead><tr><th>요소</th><th>sm_80</th><th>sm_90</th></tr></thead>
+          <tbody>
+            <tr><td>global→shmem</td><td>cp.async</td><td>TMA (bulk tensor)</td></tr>
+            <tr><td>sync</td><td>bar.sync</td><td>mbarrier (async)</td></tr>
+            <tr><td>TC instr</td><td>mma.sync m16n8k16</td><td>wgmma.mma_async m64nNk16</td></tr>
+            <tr><td>TC 단위</td><td>warp (32)</td><td>warpgroup (128)</td></tr>
+            <tr><td>cluster</td><td>없음</td><td>thread block cluster</td></tr>
+            <tr><td>shmem 접근</td><td>local</td><td>distributed shared</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">HW 상세 → <span class="xref">↗ V02 §9 · V04 §4·§7</span></p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> TMA 사용 조건</h3>
+        <div class="def"><span class="label">활성화 조건</span>
+          <ul>
+            <li>sm_90 target</li>
+            <li>source tensor 가 <span class="kw">contiguous 2D/3D tile</span></li>
+            <li>tile 크기가 TMA box dim 제약 충족 (16B 배수)</li>
+            <li>pointer align 이 최소 16B</li>
+          </ul>
+        </div>
+        <ul>
+          <li>조건 안 맞으면 <span class="kw">cp.async fallback</span></li>
+          <li>TMA descriptor = kernel launch 시 host 에서 구성</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> WGMMA 사용 조건</h3>
+        <ul>
+          <li>num_warps 가 4 의 배수 (warpgroup 단위)</li>
+          <li>A operand 가 shmem 또는 register</li>
+          <li>B operand 가 <span class="kw">shmem 필수</span></li>
+          <li>accumulator 는 register (f32)</li>
+          <li>shmem swizzle 이 WGMMA 모드와 일치 (128B/64B)</li>
+        </ul>
+        <p class="tiny">WGMMA shape 매트릭스 → <span class="xref">↗ V04 §8</span></p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> num_warps · num_stages 의미 변화</h3>
+        <table class="compact">
+          <thead><tr><th>param</th><th>sm_80</th><th>sm_90</th></tr></thead>
+          <tbody>
+            <tr><td>num_warps</td><td>CTA thread 수 / 32</td><td>warpgroup 수 × 4</td></tr>
+            <tr><td>num_stages 2</td><td>prologue 얇음</td><td>의미 약함 (TMA 깊은 파이프)</td></tr>
+            <tr><td>num_stages 4~6</td><td>shmem 초과 위험</td><td>TMA 권장 구간</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Warp specialization</h3>
+        <ul>
+          <li>Hopper 에서 Triton 은 producer/consumer 분리 pattern 코드 생성</li>
+          <li>producer warpgroup: TMA issue + mbarrier.arrive</li>
+          <li>consumer warpgroup: mbarrier.wait + WGMMA</li>
+          <li><code>setmaxnreg</code> 로 register 재분배 (inc/dec)</li>
+        </ul>
+        <p class="tiny">패턴 상세 → <span class="xref">↗ V04 §9</span></p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: sm_80 용으로 튜닝한 config 를 sm_90 에 그대로 쓰면
+        TMA/WGMMA 가 비활성화될 수 있음. autotune key 에 <code>sm</code> 반영 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·17</span>
+    <span class="tiny">src: lib/Dialect/TritonNvidiaGPU/ (Hopper-specific) · TargetInfo</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V11 Triton 내부 <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Stage × Pass 매트릭스 ★</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th>pass</th><th>user 영향</th></tr></thead>
+          <tbody>
+            <tr><td>frontend</td><td>AST → ttir</td><td>constexpr 설계</td></tr>
+            <tr><td>ttir→ttgir</td><td>convert-to-tritongpu</td><td>num_warps 선택</td></tr>
+            <tr><td>ttgir</td><td>coalesce</td><td>ptr affine 패턴 유지</td></tr>
+            <tr><td>ttgir</td><td>accelerate-matmul</td><td>tl.dot 명시</td></tr>
+            <tr><td>ttgir</td><td>layout-propagate</td><td>convert 수 ↓</td></tr>
+            <tr><td>ttgir</td><td>pipeline</td><td>num_stages 선택</td></tr>
+            <tr><td>ttgir</td><td>prefetch</td><td>reg 압박 주의</td></tr>
+            <tr><td>ttgir→llir</td><td>convert-to-llvm</td><td>—</td></tr>
+            <tr><td>llir→ptx</td><td>NVPTX backend</td><td>sm_arch 지정</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> Layout 선택 기준</h3>
+        <table class="compact">
+          <thead><tr><th>상황</th><th>layout</th></tr></thead>
+          <tbody>
+            <tr><td>global load/store</td><td>Blocked (order=contig)</td></tr>
+            <tr><td>shmem stage buffer</td><td>Shared (swizzle)</td></tr>
+            <tr><td>tt.dot operand</td><td>DotOperand(parent=Mma)</td></tr>
+            <tr><td>tt.dot result</td><td>Mma</td></tr>
+            <tr><td>reduce 결과</td><td>Slice(parent)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Debug flag 7종</h3>
+        <ul>
+          <li><code>MLIR_ENABLE_DUMP=1</code></li>
+          <li><code>TRITON_ENABLE_LLIR_DUMP=1</code></li>
+          <li><code>TRITON_INTERPRET=1</code></li>
+          <li><code>TRITON_PRINT_AUTOTUNING=1</code></li>
+          <li><code>TRITON_DEBUG=1</code></li>
+          <li><code>TRITON_CACHE_DIR=./tcache</code></li>
+          <li><code>TRITON_ALWAYS_COMPILE=1</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> xref 맵</h3>
+        <ul>
+          <li>MLIR / dialect 이론 → <span class="xref">↗ V12</span></li>
+          <li>TorchInductor → Triton → <span class="xref">↗ V13</span></li>
+          <li>XLA / TVM 비교 → <span class="xref">↗ V14</span></li>
+          <li>Triton 실전 코드 → <span class="xref">↗ cudalearning v2 p13·14</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 단계별 파일 확장자</h3>
+        <table class="compact">
+          <thead><tr><th>ext</th><th>단계</th></tr></thead>
+          <tbody>
+            <tr><td>.ttir</td><td>Triton IR (dialect triton)</td></tr>
+            <tr><td>.ttgir</td><td>TritonGPU IR (+layout)</td></tr>
+            <tr><td>.llir</td><td>LLVM IR (nvptx64)</td></tr>
+            <tr><td>.ptx</td><td>PTX assembly</td></tr>
+            <tr><td>.cubin</td><td>SASS binary</td></tr>
+            <tr><td>.json</td><td>metadata</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 튜닝 knob 우선순위</h3>
+        <ol class="bullet-num">
+          <li>tile (BM, BN, BK) — 가장 큰 영향</li>
+          <li>num_warps — warp layout 결정</li>
+          <li>num_stages — pipeline 깊이</li>
+          <li>GROUP_M (swizzle) — L2 hit</li>
+          <li>dtype 선택 (f16 / bf16 / f8) — 별개 구조</li>
+        </ol>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        6 stages: <span class="key">Py·ttir·ttgir·llir·ptx·sass</span>
+        (AST → Triton → GPU+layout → LLVM → PTX → SASS)
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">최종 원칙</span>: Triton 튜닝 = <span class="kw">pass 동작을 조건에 맞춰 주는 것</span>.
+        knob 은 pass 의 입력 hint.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V11·18</span>
+    <span class="tiny">V11 Triton 컴파일러 내부 — END · next: V12 MLIR &amp; LLVM for GPU</span>
+  </div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

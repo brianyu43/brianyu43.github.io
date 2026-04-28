@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V03 PTX ISA 완전판 (Ampere 중심) 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18 · T1 HW &amp; ISA · CONTENT-FIRST · A4 LANDSCAPE · 18p</div>
+    <h1>PTX ISA 완전판 <span class="accent">단권화</span></h1>
+    <div class="subtitle">Ampere PTX: <span class="mono">mma</span> · <span class="mono">ldmatrix</span> · <span class="mono">cp.async</span> · Memory Model</div>
+    <div class="meta">
+      <div><b>Volume</b> V03/18</div>
+      <div><b>Tier</b> T1 HW &amp; ISA</div>
+      <div><b>선행</b> V01, V02</div>
+      <div><b>용도</b> PTX 읽기·inline asm 이해의 정지된 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">1. PTX란? virtual ISA / JIT flow</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">2. PTX 기본 문법 (directive · instruction · type)</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">3. State Spaces (.reg/.shared/.global …)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">4. 산술 / 논리 instruction</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">5. Memory instruction (ld/st modifier)</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">6. cp.async (Ampere)</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">7. mma instruction (Tensor Core)</span><span class="p">p.8</span></div>
+        <div class="row star"><span class="t">8. ldmatrix</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">9. Warp-level primitive (shfl/vote/activemask)</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. Predication &amp; Control (bra/ret)</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Atomic &amp; RMW</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. Memory Fence &amp; Barrier</span><span class="p">p.13</span></div>
+        <div class="row star"><span class="t">13. Memory Consistency 상세 (scope × ordering)</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. Texture / Surface (축소)</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">15. Inline PTX (asm volatile)</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">16. PTX 읽기 워크플로우 (nvcc -ptx)</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">17. Ampere PTX Cheat Sheet</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (kw · 노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 (kw2 · 분홍)</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의 / 수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 / PTX snippet</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의 · 함정</span></div>
+      <div class="row"><span class="sym">★</span><span>Ampere 핵심 (페이지당 ≤3)</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>cross-volume reference</span></div>
+      <div class="row"><span class="sym">→</span><span>인과 · 흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유 · 결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">Source: PTX ISA 8.4+ · CUDA C PG Appendix · CUTLASS inline asm</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 PTX란? ============================ -->
+<section class="page" data-screen-label="02 §1 PTX?">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — PTX란? virtual ISA &amp; JIT flow</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Virtual ISA <span class="ko">가상 명령어 집합</span></h3>
+        <div class="def"><span class="label">정의</span>
+          PTX = <span class="kw">Parallel Thread Execution</span>. NVIDIA GPU용 <mark>architecture-independent</mark> 중간 표현.
+          실제 HW는 SASS (architecture-specific binary)에서 돈다.
+        </div>
+        <ul>
+          <li>PTX는 <span class="kw2">stable contract</span> — 세대 건너 forward-compat</li>
+          <li>SASS는 세대마다 opcode·encoding 변경 <span class="xref">↗ V04 §12</span></li>
+          <li>LLVM IR과 유사하나 GPU-specialized (warp·shared·predicate)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Compilation Flow ★
+          <span class="mnemonic">.cu→PTX→SASS</span>
+        </h3>
+<pre class="ascii">.cu  --(nvcc front)-->  .ptx
+.ptx --(ptxas)-->        .cubin (SASS)
+.cubin ──pack──>         fatbinary
+fatbin + embedded PTX ──>  application
+
+// runtime (JIT) path:
+driver.loadModule(ptx) → ptxas(JIT) → SASS</pre>
+        <p class="tiny">Source: CUDA C PG Compilation 섹션 (13.1)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Arch String <span class="ko">-arch / -code</span></h3>
+        <table class="compact">
+          <thead><tr><th>문자열</th><th>의미</th><th>대상</th></tr></thead>
+          <tbody>
+            <tr><td><code>compute_80</code></td><td>PTX virtual arch</td><td>Ampere GA100</td></tr>
+            <tr><td><code>sm_80</code></td><td>SASS real arch</td><td>A100</td></tr>
+            <tr><td><code>sm_86</code></td><td>SASS real arch</td><td>GA10x 소비자</td></tr>
+            <tr><td><code>sm_90</code></td><td>SASS real arch</td><td>Hopper H100</td></tr>
+            <tr><td><code>sm_90a</code></td><td>arch-specific</td><td>TMA/WGMMA 용</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Forward Compatibility</h3>
+        <div class="def"><span class="label">원칙</span>
+          오래된 PTX는 새 GPU에서 <mark>JIT로 재-컴파일</mark> 가능. 반대로 <span class="red">새 PTX feature를 옛 GPU에서는 에뮬 불가</span>.
+        </div>
+        <ul>
+          <li>fatbin = SASS(여러 arch) + PTX(1 virtual arch) 번들</li>
+          <li>일치하는 SASS 없으면 PTX가 드라이버에서 JIT</li>
+          <li>JIT 캐시: <code>~/.nv/ComputeCache</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> PTX Version ↔ Arch</h3>
+        <table class="compact">
+          <thead><tr><th>PTX ver</th><th>도입 Arch</th><th>대표 기능</th></tr></thead>
+          <tbody>
+            <tr><td>7.0</td><td>sm_80</td><td>cp.async, mma BF16/TF32</td></tr>
+            <tr><td>7.1</td><td>sm_86</td><td>ldmatrix 확장</td></tr>
+            <tr><td>7.5</td><td>sm_86</td><td>일반 개선</td></tr>
+            <tr><td>7.8</td><td>sm_90</td><td>TMA, WGMMA, cluster</td></tr>
+            <tr><td>8.0</td><td>sm_90</td><td>tensormap</td></tr>
+            <tr><td>8.3+</td><td>sm_90a</td><td>arch-specific 확장</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">cf. PTX ISA 8.4 (CUDA 12.4) 기준</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 왜 PTX를 읽는가</h3>
+        <ol class="bullet-num">
+          <li>inline <code>asm</code>로 intrinsic 없는 명령 호출</li>
+          <li>컴파일러 출력 검증 (의도한 <code>fma</code>가 났는가)</li>
+          <li>CUTLASS 등 라이브러리 커널의 실제 동작 추적</li>
+          <li>register pressure·unroll 결과 확인</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> PTX ↔ SASS 대응</h3>
+        <div class="formula">
+          PTX <span class="hl">1 instr</span> → SASS <span class="hl">0~N instr</span>
+          <span class="legend">ptxas가 register 할당·instruction scheduling·peephole 최적화 수행. 1:1 대응 아님.</span>
+        </div>
+        <ul>
+          <li>PTX <code>mad.lo.s32</code> → SASS <code>IMAD</code></li>
+          <li>PTX <code>ld.global</code> → SASS <code>LDG.E.128</code></li>
+          <li>PTX <code>mma.sync</code> → SASS <code>HMMA.16816.F32</code></li>
+          <li>상세 매핑 <span class="xref">↗ V04 §13</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> PTX 생성 트리거</h3>
+<pre class="code"><span class="cmt"># .ptx 파일 직접 보기</span>
+nvcc -ptx kernel.cu -arch=sm_80
+
+<span class="cmt"># PTX + SASS 모두</span>
+nvcc -keep kernel.cu -arch=sm_80
+<span class="cmt"># → kernel.ptx, kernel.cubin 생성</span>
+
+<span class="cmt"># cubin에서 SASS 역)</span>
+cuobjdump --dump-sass kernel.cubin</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 핵심 용어 한 줄</h3>
+        <ul>
+          <li><span class="kw">PTX</span>: virtual ISA text (human-readable)</li>
+          <li><span class="kw">SASS</span>: real ISA binary (GPU가 실제 실행)</li>
+          <li><span class="kw">ptxas</span>: PTX → SASS compiler</li>
+          <li><span class="kw">fatbinary</span>: multi-arch 번들</li>
+          <li><span class="kw">JIT</span>: driver가 runtime에 PTX 컴파일</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 오해</span>: PTX는 실제 ISA가 아니다. GPU는 SASS만 실행한다. 성능 튜닝은 SASS 관찰이 최종 근거.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+<!-- ============================ PAGE 3: §2 PTX 기본 문법 ============================ -->
+<section class="page" data-screen-label="03 §2 Syntax">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — PTX 기본 문법: directive · instruction · type</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 파일 골격 ★
+          <span class="mnemonic">ver · target · addr · func</span>
+        </h3>
+<pre class="code"><span class="cmt">// PTX skeleton</span>
+.version 7.8
+.target  sm_80
+.address_size 64
+
+.visible .entry <span class="fn">mykernel</span>(
+  .param .u64 <span class="fn">mykernel_param_0</span>,
+  .param .u32 <span class="fn">mykernel_param_1</span>
+)
+{
+  .reg .b32 %r&lt;8&gt;;
+  .reg .b64 %rd&lt;4&gt;;
+  .reg .pred %p&lt;4&gt;;
+  <span class="cmt">// body</span>
+  ret;
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Directive <span class="ko">. 으로 시작</span></h3>
+        <table class="compact">
+          <thead><tr><th>directive</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><code>.version</code></td><td>PTX ISA 버전</td></tr>
+            <tr><td><code>.target</code></td><td>대상 sm_XX</td></tr>
+            <tr><td><code>.address_size</code></td><td>32 / 64</td></tr>
+            <tr><td><code>.entry</code></td><td>kernel 함수</td></tr>
+            <tr><td><code>.func</code></td><td>device 함수</td></tr>
+            <tr><td><code>.visible</code></td><td>external 노출</td></tr>
+            <tr><td><code>.param</code></td><td>인자 선언</td></tr>
+            <tr><td><code>.reg</code></td><td>register 선언</td></tr>
+            <tr><td><code>.shared</code></td><td>shared mem 변수</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Instruction 형식 ★</h3>
+        <div class="formula">
+          <span class="hl">[@pred]</span> op<span class="hl">.modifier</span><span class="hl">.type</span>  dst, src1, src2, …;
+          <span class="legend">pred: predicate guard · modifier: state space / rounding / cache hint · type: operand 폭·부호·부동</span>
+        </div>
+<pre class="code"><span class="cmt">// 예</span>
+@%p1 add.s32 %r3, %r1, %r2;
+     mad.lo.s32 %r5, %r3, %r4, %r5;
+     ld.global.nc.f32 %f1, [%rd1];
+     st.shared.v4.f32 [%rs0], {%f0,%f1,%f2,%f3};</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Type Modifier (!)
+          <span class="mnemonic">uspbf</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>type</th><th>크기</th><th>해석</th></tr></thead>
+          <tbody>
+            <tr><td><code>.u8 .u16 .u32 .u64</code></td><td>1~8B</td><td>unsigned int</td></tr>
+            <tr><td><code>.s8 .s16 .s32 .s64</code></td><td>1~8B</td><td>signed int</td></tr>
+            <tr><td><code>.b8 .b16 .b32 .b64 .b128</code></td><td>1~16B</td><td>opaque bit</td></tr>
+            <tr><td><code>.f16 .f32 .f64</code></td><td>2~8B</td><td>IEEE float</td></tr>
+            <tr><td><code>.bf16</code></td><td>2B</td><td>brain float</td></tr>
+            <tr><td><code>.tf32</code></td><td>19-bit</td><td>TC-only, 32b 폭</td></tr>
+            <tr><td><code>.f16x2 .bf16x2</code></td><td>4B</td><td>packed 2-way</td></tr>
+            <tr><td><code>.pred</code></td><td>1-bit</td><td>predicate</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Register Naming <span class="ko">convention</span></h3>
+        <table class="compact">
+          <thead><tr><th>prefix</th><th>type</th><th>관례</th></tr></thead>
+          <tbody>
+            <tr><td><code>%r</code></td><td>.b32 / .u32 / .s32</td><td>general 32-bit</td></tr>
+            <tr><td><code>%rd</code></td><td>.b64 / .u64</td><td>address 64-bit</td></tr>
+            <tr><td><code>%f</code></td><td>.f32</td><td>float</td></tr>
+            <tr><td><code>%fd</code></td><td>.f64</td><td>double</td></tr>
+            <tr><td><code>%h</code></td><td>.f16 / .b16</td><td>half</td></tr>
+            <tr><td><code>%p</code></td><td>.pred</td><td>predicate</td></tr>
+            <tr><td><code>%rs</code></td><td>.b16</td><td>short</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">compiler 생성 PTX의 관례. inline asm은 자유.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Special Register
+          <span class="mnemonic">%tid %ctaid %ntid %nctaid</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>sreg</th><th>대응</th></tr></thead>
+          <tbody>
+            <tr><td><code>%tid.{x,y,z}</code></td><td>threadIdx</td></tr>
+            <tr><td><code>%ntid.{x,y,z}</code></td><td>blockDim</td></tr>
+            <tr><td><code>%ctaid.{x,y,z}</code></td><td>blockIdx</td></tr>
+            <tr><td><code>%nctaid.{x,y,z}</code></td><td>gridDim</td></tr>
+            <tr><td><code>%laneid</code></td><td>lane 0~31</td></tr>
+            <tr><td><code>%warpid</code></td><td>SM내 warp</td></tr>
+            <tr><td><code>%smid</code></td><td>SM 번호</td></tr>
+            <tr><td><code>%clock %clock64</code></td><td>cycle counter</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: <code>%warpid</code>, <code>%smid</code>는 <b>volatile</b>. 스케줄러가 warp를 이동시키므로 안정적 식별자 아님.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 3 -</div>
+</section>
+
+<!-- ============================ PAGE 4: §3 State Spaces ============================ -->
+<section class="page" data-screen-label="04 §3 State Spaces">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — State Spaces: .reg / .shared / .global / .const …</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> State Space 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          <span class="kw">State Space</span> = 주소가 속한 메모리 영역. PTX는 <mark>type-qualified address</mark>를 쓴다.
+          C의 storage class와 일대일 대응 <span class="xref">↗ V01 §6</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 전체 목록 ★
+          <span class="mnemonic">reg · sreg · param · local · global · shared · const · tex</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>space</th><th>범위</th><th>접근 명령</th></tr></thead>
+          <tbody>
+            <tr><td><code>.reg</code></td><td>thread</td><td>직접 피연산자</td></tr>
+            <tr><td><code>.sreg</code></td><td>thread (RO)</td><td>special reg</td></tr>
+            <tr><td><code>.param</code></td><td>kernel / func</td><td><code>ld.param</code></td></tr>
+            <tr><td><code>.local</code></td><td>thread</td><td><code>ld.local/st.local</code></td></tr>
+            <tr><td><code>.shared</code></td><td>CTA</td><td><code>ld.shared/st.shared</code></td></tr>
+            <tr><td><code>.global</code></td><td>device</td><td><code>ld.global/st.global</code></td></tr>
+            <tr><td><code>.const</code></td><td>device (RO)</td><td><code>ld.const</code></td></tr>
+            <tr><td><code>.tex</code></td><td>device (RO)</td><td><code>tex</code> (legacy)</td></tr>
+            <tr><td><code>.generic</code></td><td>통합 주소</td><td><code>ld / st</code> (no suffix)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 물리 매핑 <span class="ko">실제 HW</span></h3>
+        <table class="compact">
+          <thead><tr><th>state space</th><th>physical</th><th>latency</th></tr></thead>
+          <tbody>
+            <tr><td>.reg</td><td>RF 64K×32b/SM</td><td>0 cyc</td></tr>
+            <tr><td>.shared</td><td>SMEM 192KB/SM</td><td>~20 cyc</td></tr>
+            <tr><td>.local</td><td>HBM (per-thr)</td><td>~400 cyc</td></tr>
+            <tr><td>.global</td><td>HBM</td><td>~400 cyc</td></tr>
+            <tr><td>.const</td><td>const cache</td><td>~4 cyc (hit)</td></tr>
+            <tr><td>.param</td><td>const bank</td><td>~4 cyc</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">A100 기준. 정확 수치 <span class="xref">↗ V02 §14</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> .param 상세</h3>
+        <ul>
+          <li>kernel 인자는 <span class="kw">constant memory bank</span>에 배치</li>
+          <li>최대 <mark>4KB</mark> (sm_70~), sm_90+는 <mark>32KB</mark></li>
+          <li>device 함수의 <code>.param</code>은 ABI에 따라 stack 또는 reg</li>
+        </ul>
+<pre class="code">ld.param.u64 %rd1, [<span class="fn">mykernel_param_0</span>];
+cvta.to.global.u64 %rd2, %rd1;
+ld.global.f32 %f1, [%rd2];</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Generic vs Specific Addr
+          <span class="mnemonic">cvta · cvta.to</span>
+        </h3>
+        <div class="formula">
+          <span class="hl">cvta.to.global</span> %rd, %rd  → specific  &nbsp;|&nbsp;  <span class="hl">cvta.global</span> %rd, %rd  → generic
+          <span class="legend">Unified Virtual Addressing: generic pointer 1개로 global/shared/local 모두 주소. state space는 HW가 상위 비트로 판별.</span>
+        </div>
+<pre class="code"><span class="cmt">// shared → generic</span>
+cvta.shared.u64 %rd_gen, %rd_sh;
+<span class="cmt">// generic → global</span>
+cvta.to.global.u64 %rd_g, %rd_gen;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> .shared 선언</h3>
+<pre class="code">.shared .align 16 .b8
+  smem_buf[16384];
+
+<span class="cmt">// dynamic (extern shmem)</span>
+.extern .shared .align 16
+  .b8 smem_dyn[];</pre>
+        <ul>
+          <li>정적 shmem: <code>__shared__ float buf[N]</code> 대응</li>
+          <li>동적 shmem: <code>extern __shared__ ...</code>, 런치 3번째 인자로 크기</li>
+          <li>CTA 내 모든 thread가 같은 주소 공간</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>.local</code>은 이름과 달리 <b>HBM</b>. register spill이 이곳으로 가면 latency ×20 ↑. 컴파일러의 "register pressure too high" 경고는 이걸 의미.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 4 -</div>
+</section>
+
+<!-- ============================ PAGE 5: §4 산술/논리 ============================ -->
+<section class="page" data-screen-label="05 §4 Arith">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — 산술 / 논리 instruction: add · mad · fma · setp</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정수 산술
+          <span class="mnemonic">add sub mul mad div rem</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>형태</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td><code>add.s32</code></td><td>d = a + b</td><td>wrap</td></tr>
+            <tr><td><code>add.sat.s32</code></td><td>saturate</td><td>clamp</td></tr>
+            <tr><td><code>add.cc.s32</code></td><td>CC.CF set</td><td>multi-word</td></tr>
+            <tr><td><code>mul.lo.s32</code></td><td>하위 32b</td><td>wrap 허용</td></tr>
+            <tr><td><code>mul.hi.s32</code></td><td>상위 32b</td><td>64-bit 확장</td></tr>
+            <tr><td><code>mul.wide.s32</code></td><td>→ .s64</td><td>확장 결과</td></tr>
+            <tr><td><code>mad.lo.s32</code></td><td>a·b + c</td><td>IMAD 대응</td></tr>
+            <tr><td><code>div.s32</code></td><td>비싸다</td><td>~수십 cyc</td></tr>
+            <tr><td><code>rem.s32</code></td><td>비싸다</td><td>div+mul</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Float 산술 ★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>add.f32</code></td><td>a + b</td></tr>
+            <tr><td><code>mul.f32</code></td><td>a · b</td></tr>
+            <tr><td><code>fma.rn.f32</code></td><td>a·b + c (1 rounding)</td></tr>
+            <tr><td><code>sub.f32</code></td><td>a − b</td></tr>
+            <tr><td><code>neg.f32</code></td><td>−a</td></tr>
+            <tr><td><code>abs.f32</code></td><td>|a|</td></tr>
+            <tr><td><code>min.f32 max.f32</code></td><td>순서</td></tr>
+            <tr><td><code>rcp.rn.f32</code></td><td>1/a (근사)</td></tr>
+            <tr><td><code>sqrt.rn.f32</code></td><td>root</td></tr>
+            <tr><td><code>rsqrt.approx.f32</code></td><td>1/√a (fast)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Rounding Mode (!)
+          <span class="mnemonic">rn · rz · rm · rp</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>suffix</th><th>mode</th></tr></thead>
+          <tbody>
+            <tr><td><code>.rn</code></td><td>round to nearest even (IEEE)</td></tr>
+            <tr><td><code>.rz</code></td><td>round toward zero (truncate)</td></tr>
+            <tr><td><code>.rm</code></td><td>round toward −∞</td></tr>
+            <tr><td><code>.rp</code></td><td>round toward +∞</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li><code>fma</code>/<code>mul</code>/<code>add</code>는 rounding 필수</li>
+          <li><code>.ftz</code>: flush subnormal to zero</li>
+          <li><code>.sat</code>: clamp to [0,1] (f32) 또는 type range</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> FMA의 의미 <span class="ko">핵심</span></h3>
+        <div class="formula">
+          fma.rn.f32 d, a, b, c  ≡  <span class="hl">round( a·b + c )</span>
+          <span class="legend"><b>1회</b> rounding. mul+add 분리 시 2회 rounding → 수치 차이. 수치 안정성·Kahan sum에 중요. 상세 <span class="xref">↗ V09 §3</span>.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Logical &amp; Bit
+          <span class="mnemonic">and or xor not shl shr</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>and.b32</code></td><td>bitwise AND</td></tr>
+            <tr><td><code>or.b32 xor.b32</code></td><td>OR / XOR</td></tr>
+            <tr><td><code>not.b32</code></td><td>~a</td></tr>
+            <tr><td><code>shl.b32</code></td><td>left shift</td></tr>
+            <tr><td><code>shr.s32 shr.u32</code></td><td>signed / unsigned</td></tr>
+            <tr><td><code>popc.b32</code></td><td>popcount</td></tr>
+            <tr><td><code>clz.b32 bfind.u32</code></td><td>count leading zero / find MSB</td></tr>
+            <tr><td><code>brev.b32</code></td><td>bit reverse</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> setp / selp ★
+          <span class="mnemonic">compare → pred → select</span>
+        </h3>
+<pre class="code"><span class="cmt">// compare</span>
+setp.lt.s32 %p1, %r1, %r2;
+<span class="cmt">// select: %r3 = %p1 ? %r4 : %r5</span>
+selp.s32 %r3, %r4, %r5, %p1;
+
+<span class="cmt">// predicated</span>
+@%p1 add.s32 %r3, %r1, %r2;</pre>
+        <table class="compact">
+          <thead><tr><th>cmp suffix</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>eq ne</code></td><td>=, ≠</td></tr>
+            <tr><td><code>lt le gt ge</code></td><td>&lt; ≤ &gt; ≥</td></tr>
+            <tr><td><code>lo ls hi hs</code></td><td>unsigned ver</td></tr>
+            <tr><td><code>equ neu ltu …</code></td><td>float unordered</td></tr>
+            <tr><td><code>num nan</code></td><td>NaN test</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Type 변환 <span class="ko">cvt</span></h3>
+<pre class="code"><span class="cmt">// f32 → s32 (truncate)</span>
+cvt.rzi.s32.f32 %r, %f;
+<span class="cmt">// f16 → f32</span>
+cvt.f32.f16 %f, %h;
+<span class="cmt">// u32 → f32 (round-nearest)</span>
+cvt.rn.f32.u32 %f, %r;</pre>
+        <ul>
+          <li>float ↔ int: rounding mode 필수</li>
+          <li>float wide→narrow: rounding + optional .sat</li>
+          <li>packed: <code>cvt.rn.f16x2.f32</code> (두 f32 → f16x2)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>mul.lo.s32</code>는 <b>wrap</b>. overflow detect 필요 시 <code>mul.wide</code> 후 상위 비교. <code>.sat</code>은 float에만 meaningful.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 5 -</div>
+</section>
+
+<!-- ============================ PAGE 6: §5 Memory instruction ============================ -->
+<section class="page" data-screen-label="06 §5 ld/st">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — Memory instruction: ld / st &amp; modifier</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> ld / st 형식 ★</h3>
+        <div class="formula">
+          ld<span class="hl">.space</span><span class="hl">.cache</span><span class="hl">.vec</span><span class="hl">.type</span>  dst, [addr];
+          <span class="legend">space: global/shared/local/const/param · cache: hint · vec: .v2 .v4 · type: 데이터 폭</span>
+        </div>
+<pre class="code">ld.global.f32 %f1, [%rd1];
+ld.global.v4.f32 {%f0,%f1,%f2,%f3}, [%rd1];
+ld.global.nc.f32 %f1, [%rd1];  <span class="cmt">// non-coherent</span>
+st.global.wt.f32 [%rd1], %f1;  <span class="cmt">// write-through</span>
+st.shared.v2.b32 [%rs1], {%r0,%r1};</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Cache Modifier ★ <span class="ko">load</span>
+          <span class="mnemonic">ca · cg · cs · lu · cv · nc</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>mod</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.ca</code></td><td>cache all (L1+L2) · default</td></tr>
+            <tr><td><code>.cg</code></td><td>cache at global (L2 only, L1 bypass)</td></tr>
+            <tr><td><code>.cs</code></td><td>cache streaming (evict first)</td></tr>
+            <tr><td><code>.lu</code></td><td>last use (discard after)</td></tr>
+            <tr><td><code>.cv</code></td><td>cache volatile (re-fetch)</td></tr>
+            <tr><td><code>.nc</code></td><td>non-coherent (read-only cache)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">sm_80+: <code>.nc</code>는 <code>__ldg</code> intrinsic 대응</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Cache Modifier <span class="ko">store</span></h3>
+        <table class="compact">
+          <thead><tr><th>mod</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.wb</code></td><td>write-back (default)</td></tr>
+            <tr><td><code>.cg</code></td><td>cache global (L2만)</td></tr>
+            <tr><td><code>.cs</code></td><td>streaming</td></tr>
+            <tr><td><code>.wt</code></td><td>write-through (L2 통과)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Vector Load ★
+          <span class="mnemonic">.v2 .v4</span>
+        </h3>
+<pre class="code"><span class="cmt">// 128-bit load (4 × f32)</span>
+ld.global.v4.f32
+  {%f0,%f1,%f2,%f3}, [%rd1];
+<span class="cmt">// 128-bit load (2 × f64)</span>
+ld.global.v2.f64
+  {%fd0,%fd1}, [%rd1];
+<span class="cmt">// 64-bit load</span>
+ld.global.v2.f32
+  {%f0,%f1}, [%rd1];</pre>
+        <ul>
+          <li>peak bandwidth에 필수: <mark>128-bit</mark> transaction</li>
+          <li>주소 <span class="kw">align</span>: v4.f32 → 16B align</li>
+          <li>destination regs는 <span class="red">연속 번호</span> 권장</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Alignment 규칙</h3>
+        <table class="compact">
+          <thead><tr><th>type / vec</th><th>align (byte)</th></tr></thead>
+          <tbody>
+            <tr><td>.b8 / .u8 / .s8</td><td class="num">1</td></tr>
+            <tr><td>.b16 / .f16</td><td class="num">2</td></tr>
+            <tr><td>.b32 / .f32</td><td class="num">4</td></tr>
+            <tr><td>.v2.b32</td><td class="num">8</td></tr>
+            <tr><td>.v4.b32 / .v2.b64</td><td class="num">16</td></tr>
+            <tr><td>.b128</td><td class="num">16</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">misaligned → 여러 transaction으로 분해, BW 손실</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Volatile &amp; Weak</h3>
+        <ul>
+          <li><code>ld.volatile.global</code>: 최적화 불가, cache bypass 의도</li>
+          <li><code>ld.weak</code>: relaxed consistency 명시 (PTX 6+)</li>
+          <li>일반 <code>ld</code>는 <span class="kw">relaxed</span> (acquire/release 아님)</li>
+          <li>ordering 필요 시 <code>ld.acquire</code> / <code>fence</code> 병행 <span class="xref">↗ §12</span></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 실수</span>: <code>ld.nc</code>(non-coherent)는 kernel 내에서 <b>write가 있는 메모리</b>에 쓰면 stale data. read-only 입력에만 사용.
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: <code>ld.global.cg</code>는 Ampere에서 <mark>L1 bypass</mark>. working set &gt; L1 인 대량 스트리밍에 적합, small reuse에는 부적합.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 6 -</div>
+</section>
+
+<!-- ============================ PAGE 7: §6 cp.async (Ampere) ============================ -->
+<section class="page" data-screen-label="07 §6 cp.async">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — cp.async: global → shared async copy (Ampere)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> cp.async 정의 ★
+          <span class="mnemonic">L1 bypass · ld→reg 거치지 않음</span>
+        </h3>
+        <div class="def"><span class="label">의미</span>
+          <mark>global → shared memory</mark> 비동기 복사. <span class="kw2">register를 거치지 않음</span> → RF pressure 해소.
+          Ampere (sm_80)에서 신설. Hopper의 TMA와 대응 <span class="xref">↗ V04 §5</span>.
+        </div>
+        <ul>
+          <li>기존: <code>ld.global</code> → reg → <code>st.shared</code> (2-hop)</li>
+          <li>신규: <code>cp.async</code> (1-hop, DMA-like)</li>
+          <li>async → prefetch 파이프라인 구성 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 형태</h3>
+<pre class="code"><span class="cmt">// 16B copy, cache global (L1 bypass)</span>
+cp.async.cg.shared.global
+  [smem_addr], [gmem_addr], 16;
+
+<span class="cmt">// 8B copy, cache all</span>
+cp.async.ca.shared.global
+  [smem_addr], [gmem_addr], 8;
+
+<span class="cmt">// 4B copy</span>
+cp.async.ca.shared.global
+  [smem_addr], [gmem_addr], 4;</pre>
+        <ul>
+          <li>byte size: <span class="kw">4 / 8 / 16</span>만 허용</li>
+          <li><code>.ca</code>: L1+L2 · <code>.cg</code>: L2만 (큰 복사에 유리)</li>
+          <li>16B 경우 align 16 필수</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> commit / wait ★</h3>
+<pre class="code"><span class="cmt">// 현재까지 issue한 cp.async들을</span>
+<span class="cmt">// 하나의 async-group으로 묶음</span>
+cp.async.commit_group;
+
+<span class="cmt">// 가장 오래된 그룹부터 최대 N개만 남기고 대기</span>
+cp.async.wait_group N;
+
+<span class="cmt">// 모든 그룹 완료 대기</span>
+cp.async.wait_all;</pre>
+        <div class="formula">
+          <span class="hl">wait_group N</span> ⇔ in-flight group 수 ≤ N
+          <span class="legend">N=0: 모두 완료. N=stages−2: 앞 stage만 대기, 뒤 stage는 in-flight 유지. multi-stage pipeline 핵심.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Byte Size × Cache 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>size</th><th>.ca</th><th>.cg</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>4B</td><td>✓</td><td>✓</td><td>int / f32</td></tr>
+            <tr><td>8B</td><td>✓</td><td>✓</td><td>f64 / v2.f32</td></tr>
+            <tr><td>16B</td><td>✓</td><td>✓ ★</td><td>v4.f32 · 권장</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">warp 32 × 16B = 512B/issue, 128B 트랜잭션 4개로 퍼짐</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Double Buffering Loop ★ <span class="ko">전체 pseudo-code</span></h3>
+<pre class="code"><span class="cmt">// STAGES = 2: double buffer</span>
+<span class="cmt">// STAGES = 3~: multi-stage</span>
+<span class="kw2">const</span> S = 3;
+.shared .align 16 .b8 sA[S][TILE_BYTES];
+.shared .align 16 .b8 sB[S][TILE_BYTES];
+
+<span class="cmt">// prologue: S-1 stage prefetch</span>
+<span class="kw2">for</span> (s = 0; s &lt; S-1; ++s) {
+  cp_async_tile(sA[s], gA[s]);
+  cp_async_tile(sB[s], gB[s]);
+  cp.async.commit_group;
+}
+
+<span class="cmt">// main loop</span>
+<span class="kw2">for</span> (k = 0; k &lt; K_TILES; ++k) {
+  <span class="cmt">// issue next stage (overlap)</span>
+  <span class="kw2">if</span> (k + S - 1 &lt; K_TILES) {
+    cp_async_tile(sA[(k+S-1) % S],
+                  gA[k+S-1]);
+    cp_async_tile(sB[(k+S-1) % S],
+                  gB[k+S-1]);
+  }
+  cp.async.commit_group;
+
+  <span class="cmt">// wait so [k] is ready</span>
+  cp.async.wait_group S-2;
+  bar.sync 0;  <span class="cmt">// __syncthreads</span>
+
+  <span class="cmt">// compute on stage k</span>
+  ldmatrix(rA, sA[k % S]);
+  ldmatrix(rB, sB[k % S]);
+  mma.sync(rD, rA, rB, rD);
+}
+
+<span class="cmt">// epilogue</span>
+cp.async.wait_all;
+bar.sync 0;</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정 3</span>: ①<code>commit_group</code> 빠뜨리면 wait가 영원히 풀리지 않음. ②<code>__syncthreads</code>는 in-flight async를 <b>기다리지 않음</b>. ③ byte size ≠ 4/8/16 이면 illegal.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 7 -</div>
+</section>
+
+<!-- ============================ PAGE 8: §7 mma instruction ============================ -->
+<section class="page" data-screen-label="08 §7 mma">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — mma instruction: Tensor Core 접근</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> mma.sync 의미 ★</h3>
+        <div class="def"><span class="label">의미</span>
+          <span class="kw">warp 32 thread 협력</span>으로 <mark>D = A·B + C</mark> 1회 실행. 각 thread는 fragment (register tile) 1조각만 보유.
+          warp-wide collaboration, <code>.sync</code>는 warp 내 barrier 포함.
+        </div>
+        <div class="formula">
+          mma.sync.aligned.<span class="hl">m{M}n{N}k{K}</span>.row.col.<span class="hl">.Dtype.Atype.Btype.Ctype</span>
+          <span class="legend">M/N/K: 행렬 shape · row/col: A/B layout · Dtype/Atype/Btype/Ctype: 4개 operand의 element type</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Ampere 기본 형태</h3>
+<pre class="code">mma.sync.aligned.m16n8k16.row.col
+  .f32.f16.f16.f32
+  {%f0,%f1,%f2,%f3},   <span class="cmt">// D (f32 × 4)</span>
+  {%r0,%r1,%r2,%r3},   <span class="cmt">// A (f16 × 8)</span>
+  {%r4,%r5},           <span class="cmt">// B (f16 × 4)</span>
+  {%f4,%f5,%f6,%f7};   <span class="cmt">// C (f32 × 4)</span></pre>
+        <p class="tiny">A100 throughput: 1 mma / cycle / SM (FP16 m16n8k16)</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> shape × dtype 완전 표 ★ <span class="ko">Ampere sm_80</span></h3>
+        <table class="compact">
+          <thead><tr><th>shape</th><th>A</th><th>B</th><th>C/D</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>m16n8k8</td><td>f16</td><td>f16</td><td>f16</td><td>Volta-style</td></tr>
+            <tr><td>m16n8k8</td><td>f16</td><td>f16</td><td>f32</td><td>mixed</td></tr>
+            <tr><td>m16n8k16</td><td>f16</td><td>f16</td><td>f16</td><td>Ampere std</td></tr>
+            <tr><td>m16n8k16</td><td>f16</td><td>f16</td><td>f32</td><td>★ DL 기본</td></tr>
+            <tr><td>m16n8k16</td><td>bf16</td><td>bf16</td><td>f32</td><td>★ BF16 training</td></tr>
+            <tr><td>m16n8k8</td><td>tf32</td><td>tf32</td><td>f32</td><td>★ FP32 acc</td></tr>
+            <tr><td>m16n8k16</td><td>s8</td><td>s8</td><td>s32</td><td>INT8</td></tr>
+            <tr><td>m16n8k16</td><td>u8</td><td>u8</td><td>s32</td><td>UINT8</td></tr>
+            <tr><td>m16n8k32</td><td>s8</td><td>s8</td><td>s32</td><td>larger K</td></tr>
+            <tr><td>m16n8k32</td><td>u8</td><td>s8</td><td>s32</td><td>mixed sign</td></tr>
+            <tr><td>m16n8k64</td><td>s4</td><td>s4</td><td>s32</td><td>INT4</td></tr>
+            <tr><td>m16n8k128</td><td>b1</td><td>b1</td><td>s32</td><td>binary (xor.popc)</td></tr>
+            <tr><td>m8n8k4</td><td>f64</td><td>f64</td><td>f64</td><td>FP64 TC</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">.row.col: A row-major, B col-major (standard). 다른 조합은 데이터 재배치 필요.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Fragment Layout <span class="ko">m16n8k16</span></h3>
+        <pre class="ascii">A: 16 × 16 (row-major, f16)
+  thread t 의 소유:
+    row = (t / 4)          (0..7)
+    col = (t % 4) * 2 + j  (j=0,1)
+    plus  row+8 행의 같은 col
+  → t당 8 × f16 = 4 × .b32
+
+B: 16 × 8 (col-major, f16)
+  row = (t / 4)
+  col = (t % 4) * 2 + j
+  → t당 4 × f16 = 2 × .b32
+
+D: 16 × 8 (row-major, f32)
+  row = (t / 4), col = (t%4)*2 + j
+  plus row+8
+  → t당 4 × f32</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 중요 규칙</h3>
+        <ul>
+          <li><code>.sync</code> = warp 내 암묵적 barrier (activemask 기준)</li>
+          <li><code>.aligned</code> = 모든 32 thread가 같은 instruction 도달 필수</li>
+          <li><span class="red">divergent 상태에서 호출 금지</span></li>
+          <li>accumulator D==C 허용 (in-place 누적)</li>
+          <li>fragment는 thread-private <span class="kw">register</span>; shmem 아님 (Hopper WGMMA에서 바뀜)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: fragment layout을 모르고 shmem에서 바로 reg로 옮기면 element 순서 어긋남. <code>ldmatrix</code>가 바로 이 layout에 맞춰 로드 <span class="xref">↗ §8</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 8 -</div>
+</section>
+
+<!-- ============================ PAGE 9: §8 ldmatrix ============================ -->
+<section class="page" data-screen-label="09 §8 ldmatrix">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — ldmatrix: shmem → register tile</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> ldmatrix 정의 ★</h3>
+        <div class="def"><span class="label">목적</span>
+          warp 32 thread가 협력해 shmem 상의 <mark>8×8 fragment 1~4개</mark>를 <span class="kw2">mma 입력 layout</span>에 맞춰 register로 로드. transpose variant 포함.
+        </div>
+        <div class="formula">
+          ldmatrix.sync.aligned.<span class="hl">x{1|2|4}</span><span class="hl">[.trans]</span>.m8n8.shared.b16
+          <span class="legend">x1/x2/x4: fragment 개수 · .trans: 전치 load · m8n8: 고정 shape · .b16: element 폭</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 사용</h3>
+<pre class="code"><span class="cmt">// x4: 4 fragment 한 번에</span>
+ldmatrix.sync.aligned.x4.m8n8.shared.b16
+  {%r0,%r1,%r2,%r3}, [%rs_base];
+
+<span class="cmt">// x4 + transpose (B matrix용)</span>
+ldmatrix.sync.aligned.x4.trans
+  .m8n8.shared.b16
+  {%r0,%r1,%r2,%r3}, [%rs_base];
+
+<span class="cmt">// x2 (A: 16x16 = 2 x 8x8)</span>
+ldmatrix.sync.aligned.x2.m8n8.shared.b16
+  {%r0,%r1}, [%rs_base];</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Thread → Row Address <span class="ko">매핑</span></h3>
+        <pre class="ascii">x1 (1 fragment, 8 rows):
+  thread 0~7   : row 0~7 base 제공
+  thread 8~31  : 주소 무시
+
+x2 (2 fragment, 16 rows):
+  thread 0~7   : frag0 row 0~7
+  thread 8~15  : frag1 row 0~7
+  thread 16~31 : 무시
+
+x4 (4 fragment, 32 rows):
+  thread 0~7   : frag0
+  thread 8~15  : frag1
+  thread 16~23 : frag2
+  thread 24~31 : frag3</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 각 thread 부담</h3>
+        <table class="compact">
+          <thead><tr><th>variant</th><th>t당 결과</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>x1</td><td>.b32 × 1</td><td>8×8 한 조각</td></tr>
+            <tr><td>x2</td><td>.b32 × 2</td><td>16×8 A 반쪽</td></tr>
+            <tr><td>x4</td><td>.b32 × 4</td><td>A full 16×16</td></tr>
+            <tr><td>x2.trans</td><td>.b32 × 2</td><td>B 전치 load</td></tr>
+            <tr><td>x4.trans</td><td>.b32 × 4</td><td>B full</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> mma와의 정합 ★</h3>
+        <ul>
+          <li><code>ldmatrix.x4</code> → A(16×16 f16) 4개 fragment</li>
+          <li><code>ldmatrix.x2.trans</code> → B(16×8 f16) 2개 fragment</li>
+          <li>로드 결과는 <span class="kw">그대로 mma.sync</span>에 입력</li>
+          <li>별도 shuffle / permute 불필요</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> shmem Swizzle과의 결합</h3>
+        <div class="def"><span class="label">이유</span>
+          naive row-major shmem + ldmatrix → <span class="red">bank conflict 8×</span>.
+          shmem을 <mark>swizzled</mark> 레이아웃으로 저장 → conflict 0.
+        </div>
+<pre class="code"><span class="cmt">// XOR swizzle (8-way)</span>
+col_swz = col ^ ((row &amp; 7) &lt;&lt; 3);
+<span class="cmt">// 쓸 때와 읽을 때 같은 swizzle</span>
+<span class="cmt">// → ldmatrix가 conflict 없이 읽음</span></pre>
+        <p class="tiny">CUTLASS의 <code>SmemLayoutSwizzle</code> 참고. 상세 <span class="xref">↗ V06 §9</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Ampere .x4 패턴</h3>
+<pre class="code"><span class="cmt">// A 16x16 f16 → fragment 4개</span>
+<span class="cmt">// B 16x8 f16 → fragment 2개 (trans)</span>
+ldmatrix.x4     {a0,a1,a2,a3}, [sA];
+ldmatrix.x2.trans {b0,b1},     [sB];
+mma.sync.m16n8k16.row.col
+  .f32.f16.f16.f32
+  {d0,d1,d2,d3},
+  {a0,a1,a2,a3},
+  {b0,b1},
+  {d0,d1,d2,d3};</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: 주소는 <b>thread별로 다름</b>. 각 thread가 자기가 맡을 row의 base를 제공. 나머지 thread는 값 무시. <code>%laneid</code>로 분기.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 9 -</div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Warp-level primitive ============================ -->
+<section class="page" data-screen-label="10 §9 Warp prim">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Warp-level primitive: shfl · vote · activemask</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> shfl.sync 4가지 ★
+          <span class="mnemonic">idx · up · down · bfly</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>C intrinsic</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.idx</code></td><td>__shfl_sync</td><td>임의 src lane</td></tr>
+            <tr><td><code>.up</code></td><td>__shfl_up_sync</td><td>lane − delta</td></tr>
+            <tr><td><code>.down</code></td><td>__shfl_down_sync</td><td>lane + delta</td></tr>
+            <tr><td><code>.bfly</code></td><td>__shfl_xor_sync</td><td>lane ^ mask</td></tr>
+          </tbody>
+        </table>
+<pre class="code">shfl.sync.down.b32
+  %r_out | %p_valid,
+  %r_in, <span class="num2">0x10</span>, <span class="num2">0x1f</span>, <span class="num2">0xffffffff</span>;
+<span class="cmt">// delta=16, clamp=31, mask=full</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 인자 해석</h3>
+        <div class="formula">
+          shfl.sync<span class="hl">.mode</span>.b32  d|p, a, b, c, membermask;
+          <span class="legend">a: source value · b: lane delta/idx/mask · c: clamp/segment · membermask: 참여 lane bitmap · d: result · p: src lane 유효 predicate</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> vote.sync</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td><code>vote.all.pred</code></td><td>모두 true면 1</td></tr>
+            <tr><td><code>vote.any.pred</code></td><td>하나라도 true면 1</td></tr>
+            <tr><td><code>vote.uni.pred</code></td><td>모두 동일하면 1</td></tr>
+            <tr><td><code>vote.ballot.b32</code></td><td>32-bit mask</td></tr>
+          </tbody>
+        </table>
+<pre class="code">vote.sync.ballot.b32
+  %r_mask, %p_cond, <span class="num2">0xffffffff</span>;
+<span class="cmt">// == __ballot_sync(0xff..., cond)</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> activemask</h3>
+<pre class="code">activemask.b32 %r_mask;
+<span class="cmt">// 현재 실행 중인 lane bitmap</span>
+<span class="cmt">// == __activemask()</span></pre>
+        <ul>
+          <li>divergent branch 내부에서 현재 active lane 파악</li>
+          <li>다음 <code>shfl.sync</code>의 membermask로 사용</li>
+          <li><span class="red">주의</span>: convergence 보장 아님</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> match.sync <span class="ko">Volta+</span></h3>
+<pre class="code"><span class="cmt">// 같은 값 가진 lane mask</span>
+match.any.sync.b32 %r_m, %r_v, %mask;
+match.all.sync.b32 %r_m | %p,
+                   %r_v, %mask;</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> membermask의 역할 ★</h3>
+        <div class="def"><span class="label">원칙</span>
+          Volta 이후 warp는 <mark>independent thread scheduling (ITS)</mark>. 모든 warp-primitive는 <span class="kw2">membermask</span>로 참여 lane을 명시.
+        </div>
+        <ul>
+          <li><code>0xffffffff</code>: 전체 32 lane</li>
+          <li>divergent branch 내부: <code>activemask</code> 결과 사용</li>
+          <li>참여 lane에서 값 unspecified → <span class="red">UB</span></li>
+          <li>동기화 contract를 HW가 검증 (warning/error)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Warp Reduction 예</h3>
+<pre class="code"><span class="cmt">// sum reduction</span>
+<span class="kw2">for</span> (d = 16; d &gt; 0; d &gt;&gt;= 1) {
+  shfl.sync.bfly.b32 %t|%p,
+    %sum, %d, <span class="num2">0x1f</span>, <span class="num2">0xffffffff</span>;
+  @%p add.f32 %sum, %sum, %t;
+}
+<span class="cmt">// lane 0 에 총합</span></pre>
+        <p class="tiny">5 단계 = log₂32, 총 32개 값 합산</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">구버전 호환</span>: <code>shfl.b32</code> (no <code>.sync</code>) 는 Volta 이전 전용. sm_70+ 에서는 <b>항상 <code>.sync</code> + membermask</b> 사용.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 10 -</div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Predication & Control ============================ -->
+<section class="page" data-screen-label="11 §10 Pred/Ctrl">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Predication &amp; Control: @p · bra · ret</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Predication ★
+          <span class="mnemonic">@p / @!p</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          instruction 앞에 <span class="kw">@p</span> 또는 <span class="kw">@!p</span>를 붙여 predicate가 참/거짓일 때만 실행.
+          branch 없이 분기 → <mark>warp divergence 회피</mark>.
+        </div>
+<pre class="code">setp.lt.s32 %p1, %r1, %r2;
+@%p1  add.s32 %r3, %r1, %r2;
+@!%p1 sub.s32 %r3, %r1, %r2;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 언제 predication이 유리한가</h3>
+        <table class="compact">
+          <thead><tr><th>시나리오</th><th>선택</th></tr></thead>
+          <tbody>
+            <tr><td>양 분기 모두 짧음</td><td>predication</td></tr>
+            <tr><td>한 분기 매우 김</td><td>branch</td></tr>
+            <tr><td>분기 비용 &gt; 양쪽 실행 비용</td><td>predication</td></tr>
+            <tr><td>lane 모두 같은 경로</td><td>branch (uniform)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">ptxas가 heuristic으로 선택. <code>-maxrregcount</code>·<code>__builtin_expect</code> 영향.</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Branch &amp; Jump</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>bra LBL</code></td><td>unconditional</td></tr>
+            <tr><td><code>@p bra LBL</code></td><td>predicated</td></tr>
+            <tr><td><code>bra.uni LBL</code></td><td>warp-uniform 선언</td></tr>
+            <tr><td><code>call .func</code></td><td>device func call</td></tr>
+            <tr><td><code>ret</code></td><td>return</td></tr>
+            <tr><td><code>exit</code></td><td>thread 종료</td></tr>
+            <tr><td><code>trap</code></td><td>fatal abort</td></tr>
+            <tr><td><code>brkpt</code></td><td>debugger halt</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Divergence &amp; Reconverge</h3>
+        <div class="def"><span class="label">개념</span>
+          warp 내 lane이 다른 경로를 택하면 <span class="red">serialized</span> 실행. <mark>reconvergence point</mark>에서 다시 합쳐짐. Volta 이후 ITS로 자동 수렴 보장되지 않음 → <code>__syncwarp</code> / <code>bar.warp.sync</code> 사용.
+        </div>
+<pre class="code"><span class="cmt">// 권장 패턴 (divergent region)</span>
+@%p bra TAKEN;
+    <span class="cmt">// not-taken path</span>
+    bra DONE;
+TAKEN:
+    <span class="cmt">// taken path</span>
+DONE:
+bar.warp.sync <span class="num2">0xffffffff</span>;
+<span class="cmt">// reconverge 명시</span></pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Early Exit 패턴</h3>
+<pre class="code"><span class="cmt">// boundary guard: thread 단위 early exit</span>
+setp.ge.s32 %p, %tid, %N;
+@%p exit;
+
+<span class="cmt">// 전 lane이 exit 하면 warp 제거</span>
+<span class="cmt">// 일부만 exit → 남은 lane만 진행</span></pre>
+        <ul>
+          <li><code>exit</code>: thread 종료, warp 수축</li>
+          <li><code>ret</code>: 함수 복귀</li>
+          <li>kernel entry의 <code>ret</code> = kernel 종료</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Uniform Branch 선언</h3>
+        <ul>
+          <li><code>bra.uni</code>: 모든 lane이 같은 target임을 컴파일러가 보장</li>
+          <li>HW가 warp 전체를 한 번에 점프</li>
+          <li>unify 못 하면 실행은 맞지만 스케줄링 손실</li>
+          <li><code>@p bra.uni</code>: 같은 predicate 값을 모두 가짐 전제</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Branch Metadata</h3>
+<pre class="code">.branchtargets L0, L1, L2;
+bra.sync LB, %r_idx;
+<span class="cmt">// indirect branch</span></pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: predication이 항상 빠르지 않음. 한쪽 분기가 무겁고 다른 lane은 idle → 낭비. <code>if (laneIdx &lt; 8)</code> 같은 lane-partial은 branch가 유리한 경우 많음.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 11 -</div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Atomic & RMW ============================ -->
+<section class="page" data-screen-label="12 §11 Atomic">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Atomic &amp; RMW: atom · red · cas</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> atom 형식 ★</h3>
+        <div class="formula">
+          atom<span class="hl">.space</span><span class="hl">.scope</span><span class="hl">.op</span><span class="hl">.type</span>  d, [addr], b<span class="hl">, c</span>;
+          <span class="legend">space: .global / .shared · scope: .cta / .gpu / .sys · op: add/cas/exch/min/max/and/or/xor · type: 폭 · c는 CAS에만</span>
+        </div>
+<pre class="code">atom.global.add.u32 %r_old,
+  [%rd_addr], %r_val;
+
+atom.global.cas.b32 %r_old,
+  [%rd_addr], %r_cmp, %r_new;
+
+atom.shared.max.s32 %r_old,
+  [%rs_addr], %r_val;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 지원 op 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th><th>type</th></tr></thead>
+          <tbody>
+            <tr><td><code>add</code></td><td>*a += v</td><td>u32 s32 u64 s64 f32 f64 f16 bf16</td></tr>
+            <tr><td><code>cas</code></td><td>compare-and-swap</td><td>b32 b64 b16</td></tr>
+            <tr><td><code>exch</code></td><td>*a ← v</td><td>b32 b64</td></tr>
+            <tr><td><code>min / max</code></td><td>clamp</td><td>u32 s32 u64 s64 (f*: sm_90)</td></tr>
+            <tr><td><code>and / or / xor</code></td><td>비트</td><td>b32 b64</td></tr>
+            <tr><td><code>inc / dec</code></td><td>wrap count</td><td>u32</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> atom vs red</h3>
+        <div class="def"><span class="label">차이</span>
+          <code>atom</code> = old value 반환. <code>red</code> = old value <span class="red">버림</span> (reduction). red가 가볍다.
+        </div>
+<pre class="code">atom.global.add.u32 %r_old,
+  [%rd], %r_val;
+<span class="cmt">// vs</span>
+red.global.add.u32 [%rd], %r_val;
+<span class="cmt">// no dst</span></pre>
+        <ul>
+          <li>global histogram: <code>red</code> 선호</li>
+          <li>lock / counter 시퀀싱: <code>atom</code> (old 필요)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Scope Qualifier ★
+          <span class="mnemonic">cta · gpu · sys</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>scope</th><th>범위</th></tr></thead>
+          <tbody>
+            <tr><td><code>.cta</code></td><td>CTA 내부 (shmem 범위)</td></tr>
+            <tr><td><code>.gpu</code></td><td>동일 GPU의 모든 CTA</td></tr>
+            <tr><td><code>.sys</code></td><td>전체 시스템 (CPU · peer GPU 포함)</td></tr>
+            <tr><td><code>.cluster</code></td><td>cluster 내부 (sm_90+) <span class="xref">↗ V04 §2</span></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">scope가 좁을수록 latency / trafic ↓</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> CAS 패턴 ★</h3>
+<pre class="code"><span class="cmt">// lock-free update template</span>
+LOOP:
+  ld.global.u32 %old, [%rd];
+  <span class="cmt">// compute new from old</span>
+  ...
+  atom.global.cas.b32 %cur,
+    [%rd], %old, %new;
+  setp.ne.b32 %p, %cur, %old;
+@%p bra LOOP;</pre>
+        <ul>
+          <li>CAS 실패 → 재시도</li>
+          <li>contention ↑ → throughput ↓</li>
+          <li>atomic FP32 add 없는 타입 구현에 사용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Ordering Qualifier <span class="ko">sm_70+</span></h3>
+        <table class="compact">
+          <thead><tr><th>suffix</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.relaxed</code></td><td>순서 보장 없음 (default)</td></tr>
+            <tr><td><code>.acquire</code></td><td>이후 op는 이 뒤</td></tr>
+            <tr><td><code>.release</code></td><td>이전 op는 이 앞</td></tr>
+            <tr><td><code>.acq_rel</code></td><td>양쪽</td></tr>
+          </tbody>
+        </table>
+<pre class="code">atom.acq_rel.global.add.u32
+  %r_old, [%rd], %r_val;</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: <code>atomicAdd(float*)</code>는 FP32에서 sm_20+, FP64에서 sm_60+ 지원. <b>FP16 atomic은 subnormal·NaN 처리 조건</b> 확인. 상세 <span class="xref">↗ V09 §4</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 12 -</div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Memory Fence & Barrier ============================ -->
+<section class="page" data-screen-label="13 §12 Fence/Bar">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Memory Fence &amp; Barrier: membar · fence · bar.sync</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> membar vs fence ★</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>세대</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>membar.cta</code></td><td>전통</td><td>CTA 내 memory ordering</td></tr>
+            <tr><td><code>membar.gl</code></td><td>전통</td><td>GPU 전역</td></tr>
+            <tr><td><code>membar.sys</code></td><td>전통</td><td>system-wide</td></tr>
+            <tr><td><code>fence.acq_rel.cta</code></td><td>sm_70+</td><td>모델 기반 acq_rel</td></tr>
+            <tr><td><code>fence.acq_rel.gpu</code></td><td>sm_70+</td><td>GPU scope</td></tr>
+            <tr><td><code>fence.acq_rel.sys</code></td><td>sm_70+</td><td>system scope</td></tr>
+            <tr><td><code>fence.sc.cta</code></td><td>sm_70+</td><td>seq-consistent</td></tr>
+            <tr><td><code>fence.sc.gpu</code></td><td>sm_70+</td><td>sc GPU</td></tr>
+            <tr><td><code>fence.sc.sys</code></td><td>sm_70+</td><td>sc system</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">fence는 memory consistency 모델 공식화(PTX 6+).</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> bar.sync / barrier</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>bar.sync 0</code></td><td>__syncthreads()</td></tr>
+            <tr><td><code>bar.sync N, cnt</code></td><td>partial barrier (N: 0~15)</td></tr>
+            <tr><td><code>bar.arrive N, cnt</code></td><td>arrive only (non-blocking)</td></tr>
+            <tr><td><code>bar.red.and.pred</code></td><td>barrier + vote</td></tr>
+            <tr><td><code>bar.warp.sync mask</code></td><td>warp 내 재수렴</td></tr>
+            <tr><td><code>barrier.sync 0</code></td><td>바뀐 이름(PTX 7.0+)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">16개 named barrier: 0~15. CTA 내 역할 분담 가능.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 의미적 구분 ★</h3>
+        <div class="def"><span class="label">구분</span>
+          <ul>
+            <li><span class="kw">fence</span>: ordering만. thread는 대기 안 함.</li>
+            <li><span class="kw">bar.sync</span>: <mark>arrive + wait</mark>. CTA-wide 합류 지점.</li>
+            <li><span class="kw">bar.arrive</span>: arrive만. wait는 다른 곳에서.</li>
+            <li><span class="kw">mbarrier</span>: async object (Hopper) <span class="xref">↗ V04 §6</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Producer-Consumer 예</h3>
+<pre class="code"><span class="cmt">// Producer</span>
+st.global.u32 [buf], %data;
+fence.release.gpu;
+st.global.u32 [flag], <span class="num2">1</span>;
+
+<span class="cmt">// Consumer</span>
+LOOP: ld.global.u32 %f, [flag];
+      setp.eq.u32 %p, %f, <span class="num2">0</span>;
+@%p   bra LOOP;
+fence.acquire.gpu;
+ld.global.u32 %data, [buf];</pre>
+        <p class="tiny">relaxed ld로 spin. acquire/release로 순서 보장.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> scope 선택 결정</h3>
+        <table class="compact">
+          <thead><tr><th>통신 상대</th><th>scope</th></tr></thead>
+          <tbody>
+            <tr><td>같은 CTA 내 thread</td><td>.cta</td></tr>
+            <tr><td>다른 CTA 같은 GPU</td><td>.gpu</td></tr>
+            <tr><td>CPU / peer GPU</td><td>.sys</td></tr>
+            <tr><td>같은 cluster (sm_90+)</td><td>.cluster</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 축약 매핑</h3>
+        <ul>
+          <li><code>__syncthreads()</code> ≡ <code>bar.sync 0</code></li>
+          <li><code>__threadfence()</code> ≡ <code>membar.gl</code> ≈ <code>fence.sc.gpu</code></li>
+          <li><code>__threadfence_block()</code> ≡ <code>membar.cta</code></li>
+          <li><code>__threadfence_system()</code> ≡ <code>membar.sys</code></li>
+          <li><code>__syncwarp(mask)</code> ≡ <code>bar.warp.sync mask</code></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>bar.sync</code>는 <b>arrive count</b>가 CTA 내 모든 thread여야 deadlock 안 남. divergent branch에서 일부만 도달하면 영원히 대기.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 13 -</div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Memory Consistency ============================ -->
+<section class="page" data-screen-label="14 §13 MemModel">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Memory Consistency: scope × ordering matrix</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> PTX Memory Model ★</h3>
+        <div class="def"><span class="label">개요</span>
+          PTX는 <span class="kw">weak consistency</span> 기반. CUDA thread는 C++11 style <mark>acquire / release / seq_cst</mark> semantics 지원 (sm_70+).
+          각 ordering은 scope 한정자와 함께 지정.
+        </div>
+        <ul>
+          <li>default ld/st: <code>.relaxed</code></li>
+          <li>ordering 필요 시 ld<code>.acquire</code> · st<code>.release</code> 또는 <code>fence</code></li>
+          <li>scope = 가시성 범위 (cta / gpu / sys / cluster)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Ordering 5종</h3>
+        <table class="compact">
+          <thead><tr><th>ordering</th><th>적용</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.weak / .relaxed</code></td><td>ld st atom</td><td>순서 보장 없음</td></tr>
+            <tr><td><code>.acquire</code></td><td>ld atom</td><td>이후 op를 넘어 이동 금지</td></tr>
+            <tr><td><code>.release</code></td><td>st atom</td><td>이전 op를 넘어 이동 금지</td></tr>
+            <tr><td><code>.acq_rel</code></td><td>atom fence</td><td>양쪽 장벽</td></tr>
+            <tr><td><code>.sc (seq-cst)</code></td><td>fence</td><td>전역 순서 존재</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Scope × Ordering 완전 매트릭스 ★</h3>
+        <table class="compact">
+          <thead>
+            <tr>
+              <th>scope \ ord</th>
+              <th>relaxed</th>
+              <th>acquire</th>
+              <th>release</th>
+              <th>acq_rel</th>
+              <th>sc</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>.cta</b></td>
+              <td>ld/st<br/>atom.relaxed.cta</td>
+              <td>ld.acquire.cta<br/>atom.acquire.cta</td>
+              <td>st.release.cta<br/>atom.release.cta</td>
+              <td>atom.acq_rel.cta<br/>fence.acq_rel.cta</td>
+              <td>fence.sc.cta</td>
+            </tr>
+            <tr>
+              <td><b>.gpu</b></td>
+              <td>atom.relaxed.gpu</td>
+              <td>ld.acquire.gpu<br/>atom.acquire.gpu</td>
+              <td>st.release.gpu<br/>atom.release.gpu</td>
+              <td>atom.acq_rel.gpu<br/>fence.acq_rel.gpu</td>
+              <td>fence.sc.gpu</td>
+            </tr>
+            <tr>
+              <td><b>.sys</b></td>
+              <td>atom.relaxed.sys</td>
+              <td>ld.acquire.sys<br/>atom.acquire.sys</td>
+              <td>st.release.sys<br/>atom.release.sys</td>
+              <td>atom.acq_rel.sys<br/>fence.acq_rel.sys</td>
+              <td>fence.sc.sys</td>
+            </tr>
+            <tr>
+              <td><b>.cluster</b><span class="tiny"> sm_90</span></td>
+              <td>atom.relaxed.cluster</td>
+              <td>ld.acquire.cluster</td>
+              <td>st.release.cluster</td>
+              <td>fence.acq_rel.cluster</td>
+              <td>fence.sc.cluster</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="tiny">scope 확장 시 latency ↑ (cta &lt; gpu &lt; sys). 꼭 필요한 최소 scope 선택.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Acquire / Release 짝</h3>
+        <div class="formula">
+          st.release.X [a] ⟶ <span class="hl">happens-before</span> ⟶ ld.acquire.X [a]
+          <span class="legend">release 이전 모든 op은 acquire 이후 모든 op에 대해 가시화. 두 명령이 <b>같은 주소</b>에 있고 <b>같은 scope X</b>일 때 성립.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Sequential Consistency (sc)</h3>
+        <div class="def"><span class="label">의미</span>
+          <code>fence.sc.X</code>는 <mark>전역 total order</mark> 생성. 모든 thread가 동일 interleaving 관찰.
+          비용 최대. 필요 최소로 사용.
+        </div>
+        <ul>
+          <li>acq_rel만으로 표현 불가한 3-thread IRIW 같은 패턴</li>
+          <li>Dekker's algorithm류 동기화에 필요</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> PTX ↔ CUDA C++ 매핑</h3>
+        <table class="compact">
+          <thead><tr><th>CUDA C++</th><th>PTX</th></tr></thead>
+          <tbody>
+            <tr><td><code>memory_order_relaxed</code></td><td>.relaxed</td></tr>
+            <tr><td><code>memory_order_acquire</code></td><td>.acquire</td></tr>
+            <tr><td><code>memory_order_release</code></td><td>.release</td></tr>
+            <tr><td><code>memory_order_acq_rel</code></td><td>.acq_rel</td></tr>
+            <tr><td><code>memory_order_seq_cst</code></td><td>.sc</td></tr>
+            <tr><td><code>thread_scope_block</code></td><td>.cta</td></tr>
+            <tr><td><code>thread_scope_device</code></td><td>.gpu</td></tr>
+            <tr><td><code>thread_scope_system</code></td><td>.sys</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: ordering과 scope는 <b>독립 축</b>. acquire 하면서 scope가 좁으면 해당 scope 내에서만 acquire 효과. 예: <code>ld.acquire.cta</code>는 다른 CTA 간 동기화에 무력.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 14 -</div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Texture/Surface ============================ -->
+<section class="page" data-screen-label="15 §14 Tex/Surf">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Texture &amp; Surface (축소)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 축소 맥락</h3>
+        <div class="def"><span class="label">현황</span>
+          legacy 그래픽스 경로. 현대 CUDA DL 워크로드에서는 사용 축소.
+          <span class="kw2">read-only cache</span>와 <mark>hardware sampler</mark> 접근이 필요한 이미징 kernel에서만 잔존.
+        </div>
+        <ul>
+          <li>DL은 <code>ld.global.nc</code> + 수동 interpolation으로 대체</li>
+          <li>volumetric rendering / CT 재구성 등에는 유용</li>
+          <li>PTX는 지원 유지, 새 기능은 없음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Texture PTX 명령</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>tex.1d / .2d / .3d</code></td><td>sampling</td></tr>
+            <tr><td><code>tex.a1d / .a2d</code></td><td>array</td></tr>
+            <tr><td><code>tex.cube / .acube</code></td><td>cube map</td></tr>
+            <tr><td><code>tld4</code></td><td>gather 4 texel</td></tr>
+            <tr><td><code>txq</code></td><td>query descriptor</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 기본 사용</h3>
+<pre class="code"><span class="cmt">// 2D bilinear sample</span>
+tex.2d.v4.f32.f32
+  {%f0,%f1,%f2,%f3},
+  [%rd_tex, {%f_u, %f_v}];
+
+<span class="cmt">// gather (R channel, 4 texel)</span>
+tld4.r.2d.v4.f32.f32
+  {%f0,%f1,%f2,%f3},
+  [%rd_tex, {%f_u,%f_v}];</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Surface (읽기 쓰기 모두)</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>suld.b</code></td><td>surface load (bypass)</td></tr>
+            <tr><td><code>sust.b</code></td><td>surface store</td></tr>
+            <tr><td><code>suld.p</code></td><td>format-converted load</td></tr>
+            <tr><td><code>sured</code></td><td>surface reduction</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">surface = 2D/3D array 이미지. texture와 달리 write 가능.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Sampler 기능</h3>
+        <ul>
+          <li>bilinear / trilinear / anisotropic 보간 (HW)</li>
+          <li>clamp / wrap / mirror address 모드</li>
+          <li>normalize coord [0,1]</li>
+          <li>automatic border / out-of-range 처리</li>
+          <li>CUDA array에 국한 (일반 linear memory 제한)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Bindless Texture <span class="ko">modern</span></h3>
+<pre class="code"><span class="cmt">// CUDA C: cudaTextureObject_t</span>
+tex.2d.v4.f32.f32
+  {%f0,%f1,%f2,%f3},
+  [%rd_texobj, {%f_u,%f_v}];
+<span class="cmt">// register에 handle 보유 → 함수 전달 OK</span></pre>
+        <ul>
+          <li>CUDA 5+ bindless: handle을 reg / param으로 전달</li>
+          <li>legacy: texture reference = 전역 심볼</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">선택 원칙</span>: DL kernel에는 쓰지 않음. 이미지 처리 / 3D 볼륨에서 HW 보간이 이득을 줄 때만. 그 외는 <code>ld.global.nc</code> + manual interpolation이 일반적.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 15 -</div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Inline PTX ============================ -->
+<section class="page" data-screen-label="16 §15 Inline PTX">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Inline PTX: asm volatile(...) in CUDA C</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> asm() 형식 ★</h3>
+        <div class="formula">
+          asm <span class="hl">volatile</span>("<i>template</i>" : <i>outputs</i> : <i>inputs</i> : <i>clobbers</i>);
+          <span class="legend">template: PTX 문자열 · %0 %1 …: operand slot · volatile: 최적화 방지 · clobbers: "memory" 등</span>
+        </div>
+<pre class="code">asm <span class="kw2">volatile</span>(
+  <span class="str">"mov.u32 %0, %%laneid;"</span>
+  : <span class="str">"=r"</span>(lane));</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Constraint 문자 (!)
+          <span class="mnemonic">r · l · f · d · h · n</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>문자</th><th>대응</th></tr></thead>
+          <tbody>
+            <tr><td><code>"r"</code></td><td>.u32 / .s32 / .b32 register</td></tr>
+            <tr><td><code>"l"</code></td><td>.u64 / .s64 / .b64 register</td></tr>
+            <tr><td><code>"f"</code></td><td>.f32</td></tr>
+            <tr><td><code>"d"</code></td><td>.f64</td></tr>
+            <tr><td><code>"h"</code></td><td>.u16 / .b16</td></tr>
+            <tr><td><code>"n"</code></td><td>compile-time immediate</td></tr>
+            <tr><td><code>"="</code></td><td>output prefix</td></tr>
+            <tr><td><code>"+"</code></td><td>in-out</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> operand 배치</h3>
+<pre class="code"><span class="cmt">// ldmatrix 인라인</span>
+asm volatile(
+  <span class="str">"ldmatrix.sync.aligned.x4.m8n8"</span>
+  <span class="str">".shared.b16 "</span>
+  <span class="str">"{%0,%1,%2,%3}, [%4];"</span>
+  : <span class="str">"=r"</span>(x0), <span class="str">"=r"</span>(x1),
+    <span class="str">"=r"</span>(x2), <span class="str">"=r"</span>(x3)
+  : <span class="str">"r"</span>(smem_addr));</pre>
+        <ul>
+          <li>%0~%3 → output regs (순서대로)</li>
+          <li>%4 → input reg</li>
+          <li>PTX의 <code>%%</code>는 실제 <code>%</code> 이스케이프</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> volatile의 효과</h3>
+        <div class="def"><span class="label">필요성</span>
+          nvcc는 <code>asm()</code>을 다른 op와 reorder/elide 할 수 있음. <span class="kw2">volatile</span>은 <mark>이동·제거 금지</mark>를 명시.
+        </div>
+        <ul>
+          <li>side-effect 있는 op (I/O, atomic) → volatile 필수</li>
+          <li>pure compute → volatile 불필요 (컴파일러 최적화 허용)</li>
+          <li>"memory" clobber: 메모리 부작용 있음을 알림</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> shmem 주소 변환</h3>
+<pre class="code"><span class="cmt">// generic → .shared smem_addr</span>
+uint32_t smem_addr;
+asm(<span class="str">"cvta.to.shared.u64 %0, %1;"</span>
+  : <span class="str">"=l"</span>(tmp64) : <span class="str">"l"</span>(ptr));
+asm(<span class="str">"cvt.u32.u64 %0, %1;"</span>
+  : <span class="str">"=r"</span>(smem_addr) : <span class="str">"l"</span>(tmp64));</pre>
+        <p class="tiny">ldmatrix / cp.async에 shared addr은 32-bit 필요.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> mma 인라인 ★</h3>
+<pre class="code">asm volatile(
+  <span class="str">"mma.sync.aligned.m16n8k16"</span>
+  <span class="str">".row.col.f32.f16.f16.f32 "</span>
+  <span class="str">"{%0,%1,%2,%3}, "</span>
+  <span class="str">"{%4,%5,%6,%7}, "</span>
+  <span class="str">"{%8,%9}, "</span>
+  <span class="str">"{%10,%11,%12,%13};"</span>
+  : <span class="str">"=f"</span>(d0), <span class="str">"=f"</span>(d1),
+    <span class="str">"=f"</span>(d2), <span class="str">"=f"</span>(d3)
+  : <span class="str">"r"</span>(a0), <span class="str">"r"</span>(a1),
+    <span class="str">"r"</span>(a2), <span class="str">"r"</span>(a3),
+    <span class="str">"r"</span>(b0), <span class="str">"r"</span>(b1),
+    <span class="str">"f"</span>(c0), <span class="str">"f"</span>(c1),
+    <span class="str">"f"</span>(c2), <span class="str">"f"</span>(c3));</pre>
+        <p class="tiny">f16 fragment는 .b32에 2개 pack → "r" constraint 사용.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> cp.async 인라인</h3>
+<pre class="code">asm volatile(
+  <span class="str">"cp.async.cg.shared.global "</span>
+  <span class="str">"[%0], [%1], 16;"</span>
+  :: <span class="str">"r"</span>(smem_addr),
+     <span class="str">"l"</span>(gmem_ptr));
+asm volatile(
+  <span class="str">"cp.async.commit_group;"</span>);
+asm volatile(
+  <span class="str">"cp.async.wait_group %0;"</span>
+  :: <span class="str">"n"</span>(STAGES-2));</pre>
+        <p class="tiny">wait_group의 count는 immediate (n constraint).</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: inline asm의 operand 갯수/순서 잘못 → 런타임에 garbage. PTX assembler 경고를 <b>반드시</b> 확인. <code>nvcc -Xptxas -v</code>로 상세 출력.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 16 -</div>
+</section>
+
+<!-- ============================ PAGE 17: §16 PTX 읽기 워크플로우 ============================ -->
+<section class="page" data-screen-label="17 §16 PTX workflow">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — PTX 읽기 워크플로우: nvcc -ptx</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> nvcc 옵션 ★
+          <span class="mnemonic">ptx · keep · src-in-ptx · Xptxas</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>옵션</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td><code>-ptx</code></td><td>.ptx 만 생성</td></tr>
+            <tr><td><code>-cubin</code></td><td>.cubin (SASS) 생성</td></tr>
+            <tr><td><code>-keep</code></td><td>중간 파일 유지</td></tr>
+            <tr><td><code>-lineinfo</code></td><td>source line 매핑</td></tr>
+            <tr><td><code>--generate-line-info</code></td><td>위와 동일</td></tr>
+            <tr><td><code>-src-in-ptx</code></td><td>PTX에 .cu 소스 삽입</td></tr>
+            <tr><td><code>-Xptxas -v</code></td><td>reg / smem 사용량 출력</td></tr>
+            <tr><td><code>-Xptxas -O3</code></td><td>ptxas 최적화 레벨</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 전형적 flow</h3>
+<pre class="code"><span class="cmt"># .cu → .ptx 만 보기</span>
+nvcc -O3 -arch=sm_80 \
+     -src-in-ptx -lineinfo \
+     -ptx kernel.cu -o kernel.ptx
+
+<span class="cmt"># reg/smem 사용량</span>
+nvcc -arch=sm_80 -Xptxas -v \
+     -c kernel.cu
+
+<span class="cmt"># 전 중간 파일 유지</span>
+nvcc -arch=sm_80 -keep kernel.cu</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> -Xptxas -v 해석</h3>
+<pre class="code"><span class="cmt">// 예시 출력</span>
+ptxas info    : Compiling entry function
+  <span class="str">'_Z6kerneli'</span> for <span class="str">'sm_80'</span>
+ptxas info    : Function properties for _Z6kerneli
+  0 bytes stack frame,
+  0 bytes spill stores,
+  0 bytes spill loads
+ptxas info    : Used 32 registers,
+  4096 bytes smem,
+  376 bytes cmem[0]</pre>
+        <ul>
+          <li><span class="kw">registers</span>: 32 → occupancy 상한 결정</li>
+          <li><span class="kw">smem</span>: shared memory 사용량</li>
+          <li><span class="kw">spill stores/loads</span>: &gt;0이면 local mem 사용 → <span class="red">감속 위험</span></li>
+          <li><span class="kw">stack frame</span>: device 함수 호출 스택</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Name Mangling</h3>
+        <div class="def"><span class="label">의미</span>
+          C++ 함수명은 PTX에서 <mark>Itanium ABI mangled name</mark>으로 변환. <code>_Z</code>로 시작.
+        </div>
+<pre class="code">kernel&lt;float, 256&gt;  →
+_Z6kernelIfLi256EEvPKT_Pi</pre>
+        <ul>
+          <li><code>c++filt -p _Z...</code>로 역변환</li>
+          <li><code>extern "C"</code> 선언 시 mangling 제거</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> PTX 읽는 순서 <span class="ko">루틴</span></h3>
+        <ol class="bullet-num">
+          <li><code>.entry</code> 찾기 → target kernel 확인</li>
+          <li><code>.param</code> 선언 → argument layout</li>
+          <li><code>.reg</code> 선언 → 사용된 register 종류/수</li>
+          <li>kernel body의 <span class="kw">hot loop</span> 위치 탐색</li>
+          <li>loop 내 <code>mma</code> / <code>cp.async</code> / <code>ld.global</code> 비율</li>
+          <li>spill signal: <code>.local</code> 언급 / <code>st.local</code></li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> pragma &amp; hint의 영향</h3>
+        <table class="compact">
+          <thead><tr><th>hint</th><th>PTX에 미치는 영향</th></tr></thead>
+          <tbody>
+            <tr><td><code>__launch_bounds__</code></td><td><code>.maxntid</code> 생성</td></tr>
+            <tr><td><code>#pragma unroll N</code></td><td>loop 전개</td></tr>
+            <tr><td><code>__restrict__</code></td><td>alias 제거 → reorder 가능</td></tr>
+            <tr><td><code>__forceinline__</code></td><td>device 함수 inline</td></tr>
+            <tr><td><code>__noinline__</code></td><td>call 유지</td></tr>
+            <tr><td><code>-maxrregcount N</code></td><td>reg 상한 강제</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">검증 루틴</span>: inline asm을 의도한 instruction으로 방출했는지 <code>grep mma.sync kernel.ptx</code> · <code>grep cp.async kernel.ptx</code>로 확인. 누락 시 <code>-arch</code> 버전 부족 가능성.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 17 -</div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 §17 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V03 PTX Ampere <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Ampere PTX Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 자주 쓰는 20 instruction ★</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>한 줄 요약</th></tr></thead>
+          <tbody>
+            <tr><td><code>ld.global.f32</code></td><td>HBM → reg f32</td></tr>
+            <tr><td><code>ld.global.v4.f32</code></td><td>128-bit vector load</td></tr>
+            <tr><td><code>ld.global.nc.f32</code></td><td>read-only cache</td></tr>
+            <tr><td><code>st.global.f32</code></td><td>reg → HBM</td></tr>
+            <tr><td><code>ld.shared.f32</code></td><td>SMEM → reg</td></tr>
+            <tr><td><code>st.shared.f32</code></td><td>reg → SMEM</td></tr>
+            <tr><td><code>cp.async.cg.shared.global</code></td><td>async copy (Ampere)</td></tr>
+            <tr><td><code>cp.async.commit_group</code></td><td>async 그룹 마감</td></tr>
+            <tr><td><code>cp.async.wait_group N</code></td><td>async 대기</td></tr>
+            <tr><td><code>ldmatrix.x4</code></td><td>SMEM → mma fragment</td></tr>
+            <tr><td><code>mma.sync m16n8k16</code></td><td>Tensor Core fma</td></tr>
+            <tr><td><code>shfl.sync.down.b32</code></td><td>warp reduction</td></tr>
+            <tr><td><code>vote.sync.ballot.b32</code></td><td>warp mask 생성</td></tr>
+            <tr><td><code>atom.global.add.u32</code></td><td>HBM atomic</td></tr>
+            <tr><td><code>fence.acq_rel.gpu</code></td><td>GPU-scope fence</td></tr>
+            <tr><td><code>bar.sync 0</code></td><td>__syncthreads</td></tr>
+            <tr><td><code>bar.warp.sync 0xff..</code></td><td>warp 재수렴</td></tr>
+            <tr><td><code>setp.lt.s32</code></td><td>predicate 생성</td></tr>
+            <tr><td><code>@%p bra L</code></td><td>predicated branch</td></tr>
+            <tr><td><code>ret</code></td><td>kernel exit</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> Ampere 핵심 3종 (!)
+          <span class="mnemonic">async · tile · mma</span>
+        </h3>
+        <div class="formula">
+          <span class="hl">cp.async</span> (load) → <span class="hl">ldmatrix</span> (stage) → <span class="hl">mma.sync</span> (compute)
+          <span class="legend">Ampere GEMM 파이프의 3단. 이 순서가 무너지면 throughput 급락. multi-stage로 중첩.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> State Space 요약</h3>
+        <table class="compact">
+          <thead><tr><th>space</th><th>한 글자</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>.reg</td><td>R</td><td>레지스터</td></tr>
+            <tr><td>.shared</td><td>S</td><td>CTA shmem</td></tr>
+            <tr><td>.global</td><td>G</td><td>HBM</td></tr>
+            <tr><td>.const</td><td>C</td><td>const bank</td></tr>
+            <tr><td>.local</td><td>L</td><td>thread-private HBM</td></tr>
+            <tr><td>.param</td><td>P</td><td>kernel arg</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Type Suffix 한 줄</h3>
+        <ul>
+          <li><code>.u/.s</code>: unsigned/signed</li>
+          <li><code>.b</code>: opaque bit</li>
+          <li><code>.f16/.bf16/.tf32/.f32/.f64</code>: 부동</li>
+          <li><code>.f16x2</code>: packed half pair</li>
+          <li><code>.pred</code>: 1-bit predicate</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Modifier 한 줄</h3>
+        <ul>
+          <li><code>.sync</code>: warp-wide barrier 포함</li>
+          <li><code>.aligned</code>: 모든 lane 동일 도달 보장</li>
+          <li><code>.nc</code>: non-coherent RO cache</li>
+          <li><code>.cg</code>: L1 bypass, L2만</li>
+          <li><code>.volatile</code>: 최적화 차단</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Memory Model 한 줄</h3>
+        <div class="formula">
+          (scope: <span class="hl">cta</span>|<span class="hl">gpu</span>|<span class="hl">sys</span>|<span class="hl">cluster</span>) × (ord: <span class="hl">relaxed</span>|<span class="hl">acquire</span>|<span class="hl">release</span>|<span class="hl">acq_rel</span>|<span class="hl">sc</span>)
+          <span class="legend">필요한 최소 scope × 최소 ordering. 넓고 강할수록 latency ↑.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Out-of-scope (이 권에서 배제)</h3>
+        <ul>
+          <li>SASS 전반 · opcode 대응 <span class="xref">↗ V04 §12~16</span></li>
+          <li>Hopper TMA / WGMMA / mbarrier <span class="xref">↗ V04 §4~10</span></li>
+          <li>Cluster / DSM <span class="xref">↗ V04 §2~3</span></li>
+          <li>실전 inline asm 작성 팁 / 디버깅 수법</li>
+          <li>특정 커널 튜닝 사례 <span class="xref">↗ V18</span></li>
+          <li>실측 benchmark 수치 (vendor 공식 외)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 다음 권으로</h3>
+        <ol>
+          <li>Hopper PTX 추가분: <span class="xref">↗ V04</span></li>
+          <li>CUTLASS에서 PTX 실사용: <span class="xref">↗ V06</span></li>
+          <li>Attention kernel의 PTX: <span class="xref">↗ V07</span></li>
+          <li>FP8 / 양자화 연산 PTX: <span class="xref">↗ V10</span></li>
+          <li>SASS 해석: <span class="xref">↗ V04 §12</span></li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 기억 포인트 요약</h3>
+        <ul>
+          <li>PTX = <span class="kw">virtual ISA</span>, SASS = 실제</li>
+          <li>Ampere 3종: <span class="kw2">cp.async · ldmatrix · mma</span></li>
+          <li>memory model: <mark>scope × ordering</mark> 직교</li>
+          <li>inline asm: constraint + volatile + %% 이스케이프</li>
+          <li>검증은 <code>-ptx</code> + <code>-Xptxas -v</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 18 -</div>
+</section>
+
+</div>
+<script src="tweaks.js"></script>
+</body>
+</html>

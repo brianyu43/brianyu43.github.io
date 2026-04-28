@@ -1,0 +1,389 @@
+<article id="ch10" class="chapter" data-part="II">
+  <header class="ch-header">
+    <p class="part-label">PART II — 구조</p>
+    <h2 class="ch-title">
+      <span class="ch-num">10</span>
+      <span class="ch-kr">유향 그래프와 부분 순서</span>
+      <span class="ch-en">Directed Graphs &amp; Partial Orders</span>
+    </h2>
+    <p class="ch-intro">정점과 화살표만으로 인터넷의 하이퍼링크 구조, 가족 관계의 조상-후손 관계, 빌드 시스템의 작업 의존성, 그리고 대학 교과목의 선수과목 그래프까지 모두 모델링할 수 있습니다. 이 챕터에서는 화살표 방향을 가진 그래프를 정의하고, 그 위에서 자라나는 두 가지 큰 줄기 ― 도달가능성과 순서 관계 ― 를 다룹니다. 단순한 그림 하나가 어떻게 알고리즘과 수학적 구조의 출발점이 되는지 따라가 봅시다.</p>
+  </header>
+
+  <section id="ch10-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.1</span>
+      <span class="sec-kr">정점 차수</span>
+      <span class="sec-en">Vertex Degrees</span>
+    </h3>
+    <p>유향 그래프(digraph)는 정점 집합 \(V\)와 정점들의 순서쌍을 원소로 갖는 간선 집합 \(E \subseteq V \times V\) 로 이루어진 쌍 \(G = (V, E)\)입니다. 무향 그래프와 달리 \((u, v)\)와 \((v, u)\)는 서로 다른 간선이에요. 화살표 \(u \to v\)는 "\(u\)에서 \(v\)로 가는 방향이 있다"는 뜻이고, 거꾸로는 가지 못할 수도 있습니다. 트위터의 팔로우 관계가 정확히 이런 구조죠. 내가 누군가를 팔로우한다고 그 사람이 나를 팔로우하는 건 아니니까요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.1.1 (들어오는/나가는 차수)</p>
+      <p>정점 \(v \in V\)에 대해, \(v\)로 들어오는 간선의 수를 <b>들어오는 차수(in-degree)</b>라 하고 \(\deg^-(v)\)로 씁니다. \(v\)에서 나가는 간선의 수는 <b>나가는 차수(out-degree)</b>이고 \(\deg^+(v)\)로 씁니다. 식으로 쓰면 \(\deg^-(v) = |\{u : (u,v) \in E\}|\), \(\deg^+(v) = |\{w : (v,w) \in E\}|\) 이에요.</p>
+    </div>
+
+    <p>무향 그래프에서는 모든 차수의 합이 간선 수의 두 배라는 악수 정리가 있었죠. 유향 그래프에서는 한 간선이 한쪽엔 나가는 차수 1, 다른 쪽엔 들어오는 차수 1로만 기여하므로 다음이 성립합니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.1.2 (유향 악수 정리)</p>
+      <p>모든 유향 그래프 \(G = (V, E)\)에 대해
+      \[\sum_{v \in V} \deg^+(v) = \sum_{v \in V} \deg^-(v) = |E|.\]
+      </p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.1.3 (웹페이지 모델)</p>
+      <p>정점이 웹페이지이고 \(u \to v\)가 "\(u\)에 \(v\)로 가는 하이퍼링크가 있다"는 의미라고 합시다. 이때 \(\deg^-(v)\)는 \(v\)를 가리키는 외부 링크의 수, 즉 \(v\)의 인기도와 관련된 양입니다. 구글 초창기 PageRank 알고리즘이 바로 이 들어오는 차수를 정교하게 가중평균한 값이에요.</p>
+    </div>
+  </section>
+
+  <section id="ch10-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.2</span>
+      <span class="sec-kr">워크와 경로</span>
+      <span class="sec-en">Walks and Paths</span>
+    </h3>
+    <p>그래프 위에서 화살표를 따라 정점들을 옮겨다니는 행위를 형식화합시다. 길이 \(k\)인 <b>워크(walk)</b>는 정점-간선 교대 수열 \(v_0, e_1, v_1, e_2, \dots, e_k, v_k\)이고, 각 \(e_i\)가 \(v_{i-1} \to v_i\)인 간선이어야 합니다. 정점이나 간선이 반복되어도 괜찮아요. 같은 모서리를 두 번 지나지 않으면 <b>트레일(trail)</b>, 같은 정점을 두 번 지나지 않으면 <b>단순 경로(simple path)</b>라고 부릅니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.2.1 (단순 경로)</p>
+      <p>워크 \(v_0 \to v_1 \to \cdots \to v_k\)가 단순 경로라는 것은 \(v_0, v_1, \dots, v_k\)가 모두 서로 다르다는 뜻이에요. 길이는 간선 수 \(k\)로 정의합니다 (정점 수 아님!).</p>
+    </div>
+
+    <p>한국어 학생들이 자주 헷갈리는 지점이 하나 있어요. 경로의 길이는 정점 수가 아니라 <b>간선 수</b>입니다. 정점 \(a, b, c\)를 지나는 경로 \(a \to b \to c\)의 길이는 2이지 3이 아닙니다. 사람을 셀 때는 두 명이 손을 잡으면 한 줄, 세 명이면 두 줄이듯, 간선이 한 칸이라고 생각하면 편해요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.2.2 (워크와 경로의 관계)</p>
+      <p>유향 그래프에서 \(u\)에서 \(v\)로 가는 워크가 존재하면, \(u\)에서 \(v\)로 가는 단순 경로도 존재합니다.</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (스케치)</p>
+      <p>워크 위에서 같은 정점 \(w\)가 두 번 등장한다면, 두 등장 사이의 부분 워크를 통째로 잘라내도 여전히 \(u\)에서 \(v\)로 가는 워크입니다. 워크의 길이는 자연수이므로, 잘라내는 과정을 반복해도 언젠간 멈추고, 결과물에는 같은 정점이 두 번 등장하지 않습니다. 즉, 단순 경로가 됐어요.</p>
+      <p class="qed">∎</p>
+    </div>
+  </section>
+
+  <section id="ch10-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.3</span>
+      <span class="sec-kr">인접 행렬</span>
+      <span class="sec-en">Adjacency Matrices</span>
+    </h3>
+    <p>유향 그래프를 컴퓨터에 저장하는 가장 깔끔한 방법은 행렬을 쓰는 것입니다. 정점이 \(n\)개일 때, \(n \times n\) 행렬 \(A\)를 다음과 같이 정의해요. \(A_{ij} = 1\)이면 간선 \(v_i \to v_j\)가 있고, 아니면 \(0\). 이 행렬을 <b>인접 행렬(adjacency matrix)</b>이라 부릅니다. 무향 그래프와 달리 일반적으로 대칭이 아니에요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.3.1 (워크 수 정리)</p>
+      <p>인접 행렬 \(A\)의 \(k\)제곱 \(A^k\)의 \((i, j)\) 성분은 \(v_i\)에서 \(v_j\)로 가는 길이 \(k\)인 워크의 개수와 같습니다.</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (귀납법 스케치)</p>
+      <p>\(k = 1\)이면 \(A^1 = A\)이고, 정의에 의해 \(A_{ij}\)는 길이 1인 워크 수(0 또는 1)입니다. 귀납 단계에서 \(A^{k+1} = A^k \cdot A\)의 \((i,j)\)성분은 \(\sum_m (A^k)_{im} A_{mj}\)인데, 이는 "중간 정점 \(v_m\)을 거쳐 \(v_i\)에서 \(v_m\)까지 길이 \(k\) 워크 수와 \(v_m \to v_j\) 직접 간선 수의 곱의 합"이에요. 정확히 길이 \(k+1\) 워크의 개수를 모든 마지막 직전 정점으로 분류해 더한 것입니다.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.3.2</p>
+      <p>정점 \(\{1, 2, 3\}\), 간선 \(\{1\to 2, 2\to 3, 3\to 1\}\)인 길이 3 사이클을 생각해봅시다. 인접 행렬은
+      \[A = \begin{pmatrix} 0 & 1 & 0 \\ 0 & 0 & 1 \\ 1 & 0 & 0 \end{pmatrix}.\]
+      계산해보면 \(A^3 = I\)가 됩니다. 즉, 자기 자신으로 돌아오는 길이 3인 워크가 정확히 하나씩 있다는 뜻이에요. 사이클을 한 바퀴 도는 그 워크 말이죠.</p>
+    </div>
+
+    <p>이 정리는 단순한 산수처럼 보이지만 강력합니다. 길이 \(k\) 워크의 수를 일일이 세지 않고 행렬 곱셈만으로 답을 얻을 수 있고, 빠른 거듭제곱 알고리즘을 쓰면 \(O(n^3 \log k)\)에 끝납니다.</p>
+  </section>
+
+  <section id="ch10-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.4</span>
+      <span class="sec-kr">워크 관계</span>
+      <span class="sec-en">Walk Relations</span>
+    </h3>
+    <p>그래프 위에서 "\(u\)에서 \(v\)로 갈 수 있는가?"라는 질문은 곧 도달가능성(reachability) 문제입니다. 유향 그래프 \(G\) 위에서 <b>워크 관계</b> \(G^*\)를 다음과 같이 정의합시다. \(u\, G^*\, v\) 라는 것은 \(u\)에서 \(v\)로 가는 길이 \(\geq 0\)인 워크가 존재한다는 의미입니다 (길이 0 워크는 자기 자신이에요).</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.4.1 (양의 길이 도달)</p>
+      <p>비슷하게 \(G^+\)를 길이 \(\geq 1\)인 워크의 존재로 정의합니다. 둘의 차이는 자기 자신에 대한 처리예요. \(G^*\)에서는 무조건 \(u G^* u\)가 성립하지만, \(G^+\)에서는 \(u\)에서 자기 자신으로 돌아오는 사이클이 있을 때만 성립합니다.</p>
+    </div>
+
+    <p>워크 관계 \(G^*\)는 두 가지 좋은 성질을 갖습니다. 첫째, <b>반사적</b>이에요. 모든 정점 \(u\)에 대해 길이 0 워크가 자명히 있죠. 둘째, <b>추이적</b>입니다. \(u G^* v\)이고 \(v G^* w\)이면 두 워크를 이어 붙여 \(u G^* w\)가 됩니다. 이 두 성질을 만족하는 관계를 일반적으로 <b>전순서(preorder)</b>라고 부릅니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 (인접 행렬과 도달가능성)</p>
+      <p>10.3에서 \(A^k\)의 \((i,j)\) 성분이 길이 \(k\) 워크 수라고 했죠. 그러면 \(I + A + A^2 + \cdots + A^{n-1}\)의 \((i,j)\) 성분이 0이 아닐 필요충분조건이 \(v_i\)에서 \(v_j\)로 도달 가능이라는 사실이 따라와요. (단순 경로는 길이가 \(n-1\) 이하임을 이용.) 이를 부울 행렬 합으로 보면 \(\text{원-볼커-와슬} (\textrm{Warshall})\) 알고리즘의 핵심 아이디어로 이어집니다.</p>
+    </div>
+  </section>
+
+  <section id="ch10-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.5</span>
+      <span class="sec-kr">DAG와 스케줄링</span>
+      <span class="sec-en">Directed Acyclic Graphs &amp; Scheduling</span>
+    </h3>
+    <p>유향 그래프 중에서 사이클이 없는 것을 <b>DAG(directed acyclic graph)</b>라고 부릅니다. 일상 어디에나 등장해요. 메이크파일의 빌드 의존성, 강의 계획표의 선수과목, 스프레드시트의 셀 의존성, 깃 커밋 이력 모두 DAG 구조를 갖죠. "A를 하기 전에 B와 C를 끝내야 한다"라는 종류의 제약은 모두 DAG로 표현됩니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.5.1 (위상 정렬)</p>
+      <p>DAG \(G = (V, E)\)의 <b>위상 정렬(topological sort)</b>은 정점들의 일렬 나열 \(v_{\sigma(1)}, v_{\sigma(2)}, \dots, v_{\sigma(n)}\)으로서, 모든 간선 \((u, v) \in E\)에 대해 \(u\)가 \(v\)보다 앞에 오는 순서를 말합니다.</p>
+    </div>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.5.2 (위상 정렬 존재성)</p>
+      <p>유향 그래프가 DAG일 필요충분조건은 위상 정렬이 존재하는 것입니다.</p>
+    </div>
+
+    <p>증명의 핵심은 "DAG에는 들어오는 차수가 0인 정점이 항상 존재한다"는 보조정리예요. 만약 모든 정점의 \(\deg^- \geq 1\)이면, 어디서든 거꾸로 화살표를 따라 무한히 갈 수 있는데 정점이 유한하므로 비둘기집에 의해 사이클이 생깁니다 ― 모순. 그래서 \(\deg^-(v) = 0\)인 정점을 골라 맨 앞에 두고 그 정점을 지운 뒤 재귀하면 위상 정렬이 만들어집니다. 이걸 알고리즘으로 옮긴 게 칸(Kahn)의 알고리즘이에요.</p>
+
+    <pre><code class="lang-py">def topo_sort(V, E):
+    indeg = {v: 0 for v in V}
+    for (u, v) in E:
+        indeg[v] += 1
+    ready = [v for v in V if indeg[v] == 0]
+    order = []
+    while ready:
+        u = ready.pop()
+        order.append(u)
+        for (a, b) in E:
+            if a == u:
+                indeg[b] -= 1
+                if indeg[b] == 0:
+                    ready.append(b)
+    if len(order) != len(V):
+        raise ValueError("graph has a cycle")
+    return order
+</code></pre>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.5.3 (요리 의존성)</p>
+      <p>스파게티를 만든다고 합시다. "물 끓이기 → 면 삶기", "양파 썰기 → 소스 볶기", "면 삶기, 소스 볶기 → 비비기" 같은 의존성이 있다면, 가능한 위상 정렬 중 하나는 "물 끓이기, 양파 썰기, 면 삶기, 소스 볶기, 비비기"예요. 물론 "양파 썰기, 물 끓이기, ..." 식의 다른 정당한 순서도 존재합니다. 위상 정렬은 일반적으로 유일하지 않아요.</p>
+    </div>
+  </section>
+
+  <section id="ch10-6" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.6</span>
+      <span class="sec-kr">부분 순서</span>
+      <span class="sec-en">Partial Orders</span>
+    </h3>
+    <p>10.5의 의존성 관계를 추상화하면 <b>부분 순서</b>가 됩니다. 직관적으로 부분 순서는 "어떤 둘은 비교 가능하지만, 어떤 둘은 비교 불가능"한 상황을 모형화해요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.6.1 (부분 순서)</p>
+      <p>집합 \(A\) 위의 관계 \(\preceq\)가 다음 세 조건을 만족하면 <b>부분 순서(partial order)</b>라고 합니다.
+      <br>(1) <b>반사성</b>: 모든 \(a \in A\)에 대해 \(a \preceq a\).
+      <br>(2) <b>반대칭성</b>: \(a \preceq b\)이고 \(b \preceq a\)이면 \(a = b\).
+      <br>(3) <b>추이성</b>: \(a \preceq b\)이고 \(b \preceq c\)이면 \(a \preceq c\).
+      <br>이 조건을 만족하는 쌍 \((A, \preceq)\)를 <b>포셋(poset)</b>이라 부릅니다.</p>
+    </div>
+
+    <p>예시는 흔합니다. 자연수 위의 \(\leq\), 양의 정수 위의 정수 나눗셈 \(|\) (\(a \mid b\)는 \(a\)가 \(b\)를 나눈다는 뜻), 집합 위의 부분집합 관계 \(\subseteq\) 등이 모두 부분 순서예요. 자연수의 \(\leq\)는 모든 둘이 비교되지만, 정수 나눗셈에서는 3과 5가 서로 나누지도 나누어지지도 않으므로 비교 불가능합니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.6.2 (해세 다이어그램)</p>
+      <p>포셋 \((A, \preceq)\)의 <b>해세 다이어그램(Hasse diagram)</b>은 부분 순서를 그림으로 보여주는 도구입니다. \(a \prec b\) (즉 \(a \preceq b\)이고 \(a \neq b\))이고 그 사이에 \(a \prec c \prec b\)인 \(c\)가 없는 경우에만 \(a\)에서 \(b\)로 화살표를 그립니다. 작은 원소를 아래에 놓고 위로 가는 선만 그려요. 추이성으로 따라오는 화살표는 생략합니다.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.6.3</p>
+      <p>\(\{1, 2, 3, 4, 6, 12\}\) 위의 정수 나눗셈 관계의 해세 다이어그램을 그리면, 1이 맨 아래, 그 위에 2와 3, 그 위에 4와 6, 맨 위에 12가 있고 \(1{-}2{-}4{-}12\), \(1{-}2{-}6{-}12\), \(1{-}3{-}6{-}12\) 같은 선들이 그어집니다. 자연수 \(\leq\) 부분순서와 달리 평면적으로 펼쳐지죠.</p>
+    </div>
+  </section>
+
+  <section id="ch10-7" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.7</span>
+      <span class="sec-kr">집합 포함으로 표현</span>
+      <span class="sec-en">Representing Partial Orders by Set Containment</span>
+    </h3>
+    <p>겉모습은 다양해 보이지만, 사실 모든 부분 순서는 깊은 의미에서 본질적으로 한 가지 모양을 합니다. 그게 바로 집합 포함 관계 \(\subseteq\)예요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.7.1 (표현 정리)</p>
+      <p>임의의 부분 순서 \((A, \preceq)\)는 어떤 집합 모음 \(\mathcal{F} \subseteq \mathcal{P}(X)\)와 그 위의 \(\subseteq\) 관계와 <b>동형(isomorphic)</b>입니다. 즉, 일대일 대응 \(\phi: A \to \mathcal{F}\)가 있어서 \(a \preceq b \iff \phi(a) \subseteq \phi(b)\)가 성립해요.</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (구성)</p>
+      <p>각 \(a \in A\)에 대해 <b>다운셋</b> \(\phi(a) = \{x \in A : x \preceq a\}\)를 대응시킵니다. 그러면 \(a \preceq b\)이면 \(x \preceq a \implies x \preceq b\) (추이성)이므로 \(\phi(a) \subseteq \phi(b)\). 역으로 \(\phi(a) \subseteq \phi(b)\)이면 \(a \in \phi(a)\) (반사성)이므로 \(a \in \phi(b)\), 즉 \(a \preceq b\). 또 \(\phi(a) = \phi(b)\)이면 \(a \preceq b\)이고 \(b \preceq a\)이니 반대칭성에 의해 \(a = b\), 즉 \(\phi\)는 단사입니다.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>이 정리는 단순하지만 철학적으로 시원합니다. "어떤 추상적인 순서든 결국 ‘이 원소 아래에 어떤 원소들이 있는가’의 집합 포함으로 환원된다." 즉 부분 순서론의 모든 일반론은 \(\subseteq\) 의 일반론과 같다는 뜻이에요. 컴퓨터 과학에서 타입의 서브타이핑(subtyping), 권한 격자(lattice of capabilities) 같은 구조도 결국 이 표현 정리의 그림자입니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트</p>
+      <p>여기서 다운셋을 썼는데, 업셋 \(\{x : a \preceq x\}\)을 써도 비슷한 정리가 성립합니다. 단 이때는 \(\subseteq\) 방향이 반대로 뒤집혀요. 어느 쪽을 쓰든 본질은 같지만 관습적으로 다운셋 표현을 더 자주 봅니다.</p>
+    </div>
+  </section>
+
+  <section id="ch10-8" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.8</span>
+      <span class="sec-kr">전순서</span>
+      <span class="sec-en">Linear Orders</span>
+    </h3>
+    <p>부분 순서 중에서 특히 임의의 두 원소가 비교 가능한 경우를 <b>전순서(linear order, total order)</b>라 부릅니다. 직관적으로 한 줄로 쭉 세울 수 있다는 뜻이에요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.8.1 (전순서)</p>
+      <p>부분 순서 \((A, \preceq)\)가 전순서라는 것은, 모든 \(a, b \in A\)에 대해 \(a \preceq b\) 또는 \(b \preceq a\)가 성립함을 의미합니다. 이 추가 조건을 <b>완전성(totality)</b> 또는 <b>비교 가능성(comparability)</b>이라 불러요.</p>
+    </div>
+
+    <p>전순서의 대표 예는 자연수 \((\mathbb{N}, \leq)\), 정수 \((\mathbb{Z}, \leq)\), 실수 \((\mathbb{R}, \leq)\), 그리고 사전식 순서로 정렬한 문자열들입니다. 반면 부분집합 \(\subseteq\)나 정수 나눗셈 \(\mid\)는 전순서가 아니에요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.8.2 (DAG의 전선형 확장)</p>
+      <p>임의의 유한 부분 순서는 어떤 전순서로 확장할 수 있습니다. 즉, 같은 집합 위에 \(\preceq \subseteq \preceq^*\)이고 \(\preceq^*\)는 전순서인 \(\preceq^*\)가 존재해요.</p>
+    </div>
+
+    <p>이 정리의 알고리즘적 사촌이 바로 위상 정렬(10.5)이에요. DAG의 도달가능성 부분 순서를 어떤 전체적 일렬 순서(스케줄)로 확장한 것이 위상 정렬이거든요. 그래서 위상 정렬은 일반적으로 유일하지 않아요. 비교 불가능했던 두 원소를 어느 쪽이 먼저인지 자유롭게 선택할 수 있기 때문입니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.8.3</p>
+      <p>집합 \(\{2, 3, 6\}\) 위에 정수 나눗셈을 부분 순서로 주면 \(2 \mid 6\), \(3 \mid 6\)이지만 2와 3은 비교 불가능. 이를 전순서로 확장하는 방법은 두 가지: \(2 \prec 3 \prec 6\) 또는 \(3 \prec 2 \prec 6\). 어느 쪽도 원래 부분 순서를 깨지 않습니다.</p>
+    </div>
+  </section>
+
+  <section id="ch10-9" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.9</span>
+      <span class="sec-kr">곱 순서</span>
+      <span class="sec-en">Product Orders</span>
+    </h3>
+    <p>두 포셋이 있으면 자연스럽게 그 곱집합 위에 새 부분 순서를 만들 수 있습니다. 이를 <b>곱 순서</b>라 해요. 컴퓨터과학에서는 다차원 좌표 비교, 다중 우선순위 정렬, 동적 계획법의 부분 문제 의존 관계 등에 끊임없이 등장합니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.9.1 (좌표별 순서)</p>
+      <p>포셋 \((A, \preceq_A)\)와 \((B, \preceq_B)\)에 대해, 곱집합 \(A \times B\) 위의 부분 순서 \(\preceq\)를
+      \[(a_1, b_1) \preceq (a_2, b_2) \iff a_1 \preceq_A a_2 \text{ 그리고 } b_1 \preceq_B b_2\]
+      로 정의합니다. 이를 <b>곱 순서(product order)</b> 또는 좌표별 순서라고 불러요.</p>
+    </div>
+
+    <p>주의할 점: 두 인자 \((A, \preceq_A)\)와 \((B, \preceq_B)\)가 모두 전순서라 해도 곱 순서는 전순서가 아닙니다. 예를 들어 \((\mathbb{N}, \leq)\)와 자기 자신의 곱을 보면, \((1, 2)\)와 \((2, 1)\)은 어느 쪽도 다른 쪽을 좌표별로 지배하지 못해요. 비교 불가능합니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 10.9.2 (파레토 우월)</p>
+      <p>경제학에서의 <b>파레토 우월(Pareto dominance)</b>이 정확히 \(\mathbb{R}^n\) 위의 곱 순서입니다. 옵션 \(x = (x_1, \dots, x_n)\)이 옵션 \(y = (y_1, \dots, y_n)\)을 파레토 우월한다는 것은 모든 \(i\)에 대해 \(x_i \geq y_i\)이고 어딘가 적어도 한 곳에서 진짜 큰 경우에요. 다목적 최적화의 핵심 개념이고, 모든 비교 가능한 후보들 사이에서 최적 집합인 <b>파레토 프런티어</b>는 곱 순서의 <b>극대 원소</b> 집합입니다.</p>
+    </div>
+
+    <p>덧붙이자면, 사전식 순서는 곱 순서와 다른 또 한 가지 자연스런 곱 구조예요. \((a_1, b_1) <_{\text{lex}} (a_2, b_2)\)는 "\(a_1 < a_2\) 또는 \(a_1 = a_2\)이고 \(b_1 < b_2\)". 사전식 순서는 두 인자가 전순서이면 곱도 전순서로 유지되지만 직관과 어긋나는 결과(\(\epsilon\)-우월 같은)를 낳기도 하니 상황에 맞게 골라 써야 합니다.</p>
+  </section>
+
+  <section id="ch10-10" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.10</span>
+      <span class="sec-kr">동치관계</span>
+      <span class="sec-en">Equivalence Relations</span>
+    </h3>
+    <p>부분 순서가 "어떤 것이 다른 것보다 더 큰가"를 다룬다면, <b>동치관계</b>는 "두 원소가 같은 종류인가"를 다룹니다. 약간 다른 세계지만 정의 형식은 비슷해요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.10.1 (동치관계)</p>
+      <p>집합 \(A\) 위의 관계 \(\sim\)이 다음을 만족하면 <b>동치관계(equivalence relation)</b>입니다.
+      <br>(1) <b>반사성</b>: \(a \sim a\).
+      <br>(2) <b>대칭성</b>: \(a \sim b \implies b \sim a\).
+      <br>(3) <b>추이성</b>: \(a \sim b\)이고 \(b \sim c\)이면 \(a \sim c\).
+      <br>부분 순서와의 차이는 반대칭성 대신 대칭성을 요구한다는 점이에요.</p>
+    </div>
+
+    <p>동치관계의 가장 친숙한 예가 모듈로 합동 \(a \equiv b \pmod n\)입니다. 같은 나머지를 갖는 정수들끼리 같다고 보는 거죠. 또 7장에서 다뤘던 함수의 동치, 도형의 합동 등도 모두 동치관계입니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 10.10.2 (동치류와 분할)</p>
+      <p>동치관계 \(\sim\)에 대해, \(a\)의 <b>동치류(equivalence class)</b>를 \([a] = \{x \in A : x \sim a\}\)로 정의합니다. 동치류들의 모임 \(\{[a] : a \in A\}\)을 <b>몫집합(quotient set)</b>이라 부르고 \(A/\sim\)이라 씁니다.</p>
+    </div>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 10.10.3 (분할 정리)</p>
+      <p>집합 \(A\) 위의 동치관계 \(\sim\)는 \(A\)의 <b>분할(partition)</b>을 만들어냅니다. 즉, 동치류들은 (1) 비어있지 않고, (2) \(A\)를 덮으며, (3) 서로 다른 두 동치류는 교집합이 빕니다. 역으로, 임의의 분할은 어떤 동치관계에서 나옵니다.</p>
+    </div>
+
+    <p>이 정리 덕분에 "동치관계"와 "분할"은 같은 개념의 두 얼굴이라고 봐도 됩니다. 한쪽에서 다른 쪽으로 자유롭게 오갈 수 있어요. 컴퓨터과학에서는 그래프의 강한 연결요소(SCC), 합동 연산을 통한 자료구조(union-find), 컴파일러의 등가 변수 분석 등에서 매일같이 등장합니다.</p>
+  </section>
+
+  <section id="ch10-11" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">10.11</span>
+      <span class="sec-kr">관계 성질 요약</span>
+      <span class="sec-en">Summary of Relational Properties</span>
+    </h3>
+    <p>10장에서 등장한 다양한 관계의 성질을 한 표로 정리하고 마무리합시다. 각 행은 관계의 종류이고, 각 열은 그 관계가 만족해야 하는 조건이에요. 같은 정의를 외우려 하기보단, 어떤 조합이 어떤 의미를 갖는지 음미하면 좋습니다.</p>
+
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>관계 종류</th>
+          <th>반사성</th>
+          <th>대칭성</th>
+          <th>반대칭성</th>
+          <th>추이성</th>
+          <th>완전성</th>
+          <th>대표 예</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>전순서(preorder)</td>
+          <td>O</td>
+          <td>―</td>
+          <td>―</td>
+          <td>O</td>
+          <td>―</td>
+          <td>워크 관계 \(G^*\)</td>
+        </tr>
+        <tr>
+          <td>부분 순서(partial order)</td>
+          <td>O</td>
+          <td>―</td>
+          <td>O</td>
+          <td>O</td>
+          <td>―</td>
+          <td>\(\subseteq\), \(\mid\)</td>
+        </tr>
+        <tr>
+          <td>엄격 부분 순서(strict)</td>
+          <td>X</td>
+          <td>―</td>
+          <td>비반사 + 비대칭</td>
+          <td>O</td>
+          <td>―</td>
+          <td>\(\subsetneq\), \(&lt;\)</td>
+        </tr>
+        <tr>
+          <td>전순서(linear order)</td>
+          <td>O</td>
+          <td>―</td>
+          <td>O</td>
+          <td>O</td>
+          <td>O</td>
+          <td>\((\mathbb{R}, \leq)\)</td>
+        </tr>
+        <tr>
+          <td>동치관계(equivalence)</td>
+          <td>O</td>
+          <td>O</td>
+          <td>―</td>
+          <td>O</td>
+          <td>―</td>
+          <td>\(\equiv \pmod n\)</td>
+        </tr>
+        <tr>
+          <td>일반 관계(general)</td>
+          <td>―</td>
+          <td>―</td>
+          <td>―</td>
+          <td>―</td>
+          <td>―</td>
+          <td>임의의 \(R \subseteq A \times B\)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout note">
+      <p class="callout-label">노트 (관계 = 그래프)</p>
+      <p>이 챕터의 진짜 메시지는 단순합니다. <b>유향 그래프 = 관계</b>. 정점 \(A\) 위의 모든 이항관계 \(R \subseteq A \times A\)는 곧 화살표가 있는 그림이고, 화살표의 패턴이 반사적이냐, 대칭적이냐, 추이적이냐에 따라 우리는 그것을 부분 순서, 동치관계, 워크 관계 등 다양한 이름으로 부를 뿐이에요. 이산수학의 큰 강 두 갈래(그래프와 관계)가 한 강이라는 사실이 이 챕터의 통찰입니다.</p>
+    </div>
+
+    <p>다음 챕터에서는 화살표 방향을 잊은 무향 그래프로 돌아가, 연결성과 트리의 세계를 본격적으로 탐험합니다. 거기서 만나는 도구들도 결국 이 챕터에서 다진 관계의 언어 위에 세워진 것임을 기억하면 좋겠어요.</p>
+  </section>
+</article>

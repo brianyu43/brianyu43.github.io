@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V08 기타 LLM 커널 단권화 — 16p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL · CONTENT-FIRST · A4 LANDSCAPE · 16p</div>
+    <h1>기타 LLM <span class="accent">커널</span> 단권화</h1>
+    <div class="subtitle">MoE · KV Cache Ops · RoPE · Norm · Sampling · Speculative Decoding</div>
+    <div class="meta">
+      <div><b>Volume</b> V08/18</div>
+      <div><b>Tier</b> T2 Kernel 패턴</div>
+      <div><b>선행</b> V01 · V05 · V06 · V07</div>
+      <div><b>용도</b> LLM forward pass 부품 인출 트리거</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">1. MoE 구조 개요</span><span class="p">p.2</span></div>
+        <div class="row star"><span class="t">2. MoE Permute / Unpermute</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">3. MoE Grouped GEMM (ragged)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">4. Dropless MoE (Megablocks)</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">5. KV Cache layout</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">6. KV Cache quantization</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">7. Rotary Position Embedding</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">8. RMSNorm / LayerNorm kernel</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">9. SwiGLU / GELU fusion</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. Sampling kernel</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Beam Search kernel</span><span class="p">p.12</span></div>
+        <div class="row star"><span class="t">12. Speculative Decoding</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. Medusa · EAGLE · Tree attn</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. Masked fill · attention bias</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">15. Cheat Sheet</span><span class="p">p.16</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 · 표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수 포인트</span></div>
+      <div class="row"><span class="sym">★</span><span>인출 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>타 권 cross-ref</span></div>
+      <div class="row"><span class="sym">→</span><span>흐름·인과</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유·결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · <b>범위 제외</b> vLLM 시스템 (↗ V16) · 학습 관련 (↗ V17)</div>
+    <div class="mono">Megablocks · Mixtral · Llama 2/3 · vLLM · TRT-LLM · Leviathan'23 · Medusa · EAGLE</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 MoE 구조 개요 ============================ -->
+<section class="page" data-screen-label="02 MoE 개요">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Mixture-of-Experts 구조 개요</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> MoE 정의 <span class="ko">sparse FFN</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Mixture-of-Experts</mark>: FFN 블록을 N개 <span class="kw">expert</span>로 분할.
+          token당 top-<span class="kw">k</span>(보통 k=1,2)개 expert만 활성. 파라미터 N×, 계산 k/N×.
+        </div>
+        <ul>
+          <li>dense FFN: 모든 token이 <b>모든</b> W₁·W₂ 통과</li>
+          <li>sparse MoE: token별 <span class="red">조건부</span> 경로 선택</li>
+          <li>Mixtral 8×7B · DeepSeek-V3 · Qwen-MoE</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Forward 5단 <span class="mnemonic">라탑게전합</span></h3>
+        <ol class="bullet-num">
+          <li><b>Router</b>: logits = x · W<sub>r</sub> ∈ ℝ<sup>N</sup></li>
+          <li><b>Top-k</b>: 상위 k index · score 선택</li>
+          <li><b>Gate</b>: softmax(top-k) · normalize</li>
+          <li><b>Expert FFN</b> e<sub>j</sub>: y<sub>j</sub> = W<sub>2,j</sub>·σ(W<sub>1,j</sub>·x)</li>
+          <li><b>Combine</b>: y = Σ<sub>j∈top-k</sub> g<sub>j</sub>·y<sub>j</sub></li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Router 수식</h3>
+        <div class="formula">
+          logits = x · W<sub>r</sub>&nbsp;&nbsp;W<sub>r</sub> ∈ ℝ<sup>d×N</sup><br/>
+          idx, s = topk(logits, k)<br/>
+          g = softmax(s) &nbsp; (또는 sigmoid · noisy)
+          <span class="legend">x : [T, d] token embedding &nbsp; N : expert 수 &nbsp; k : 활성 expert (1~2)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Top-k Router 커널</h3>
+<pre class="code"><span class="cmt">// 한 block = 한 token · thread N개 병렬</span>
+<span class="kw2">__shared__</span> <span class="ty">float</span> s_logits[N];
+<span class="ty">int</span> t = threadIdx.x;
+s_logits[t] = <span class="hl">dot(x[tid], Wr[:,t])</span>;
+<span class="fn">__syncthreads</span>();
+<span class="cmt">// warp-level bitonic/heap top-k</span>
+topk_warp(s_logits, k, idx, val);
+g = <span class="fn">softmax</span>(val);</pre>
+        <p class="tiny">N ≤ warp 시 single-warp top-k, 그 외 block-wide merge tree.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> MoE 변형 표</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>N</th><th>k</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>Switch</td><td class="num">128</td><td class="num">1</td><td>hard routing</td></tr>
+            <tr><td>GShard</td><td class="num">E</td><td class="num">2</td><td>capacity cap</td></tr>
+            <tr><td>Mixtral-8×7B</td><td class="num">8</td><td class="num">2</td><td>softmax gate</td></tr>
+            <tr><td>DeepSeek-V3</td><td class="num">256</td><td class="num">8</td><td>shared+routed</td></tr>
+            <tr><td>Qwen-MoE</td><td class="num">60</td><td class="num">4</td><td>fine-grained</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">N 수치는 각 모델 카드 기준 · 2024~2025.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Capacity &amp; Drop</h3>
+        <div class="formula">
+          capacity = ⌈T · k / N · <span class="hl">C<sub>f</sub></span>⌉<br/>
+          C<sub>f</sub> : capacity factor (1.0~1.25)
+        </div>
+        <ul>
+          <li>expert 하나에 몰린 token 수 &gt; capacity → <span class="red">drop</span></li>
+          <li>학습 시만 주로 사용 · inference는 <b>dropless</b> 선호 (↗ §4)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Load balancing loss <span class="ko">학습용</span></h3>
+        <div class="formula">
+          L<sub>aux</sub> = N · Σ<sub>j</sub> f<sub>j</sub> · p<sub>j</sub><br/>
+          f<sub>j</sub> : expert j로 라우팅된 token 비율<br/>
+          p<sub>j</sub> : expert j의 평균 router prob
+        </div>
+        <p class="tiny">Inference 시는 aux loss 불필요 (학습 ↗ V17).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> MoE 커널 Pipeline</h3>
+        <pre class="ascii">token [T,d]
+   │ router
+   ▼
+logits [T,N] → top-k → idx [T,k], g [T,k]
+   │ permute (↗ §2)
+   ▼
+grouped GEMM W1 (↗ §3)
+   │ act (SwiGLU ↗ §9)
+   ▼
+grouped GEMM W2
+   │ unpermute + weighted sum
+   ▼
+y [T,d]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Out-of-scope 범위</h3>
+        <ul>
+          <li>expert parallel · all-to-all 통신 → <span class="xref">↗ V15 §4</span></li>
+          <li>MoE 서빙 배치 스케줄링 → <span class="xref">↗ V16 §5</span></li>
+          <li>routing loss 역전파 → <span class="xref">↗ V17 §6</span></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 실수</span>: top-k 이후 softmax가 아닌
+        <b>전체 N에 softmax 후 top-k</b>를 하면 gradient sparse 성질 깨짐.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 2</span><span class="tiny">MoE 구조 · router → top-k → expert FFN → combine</span></div>
+</section>
+
+<!-- ============================ PAGE 3: §2 MoE Permute / Unpermute ============================ -->
+<section class="page" data-screen-label="03 MoE Permute">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — MoE Permute / Unpermute</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 permute? ★</h3>
+        <div class="def"><span class="label">동기</span>
+          grouped GEMM은 <mark>expert별로 연속된 token</mark>을 요구.
+          router 결과는 token 순서 → expert 순서로 <span class="kw">재배치</span>해야 GEMM이 가능.
+        </div>
+        <ul>
+          <li>k&gt;1 이면 token 하나가 <b>k번</b> 복제됨</li>
+          <li>역변환(unpermute)은 weighted sum으로 복원</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 자료구조 변화도 ★</h3>
+        <pre class="ascii">(k=1, T=6, N=3 예시)
+
+[1] router 결과 (token order)
+  t0→E1  t1→E0  t2→E2  t3→E1  t4→E0  t5→E2
+
+[2] histogram (expert별 카운트)
+  E0: 2  E1: 2  E2: 2
+
+[3] exclusive prefix sum (offset)
+  E0: 0  E1: 2  E2: 4
+
+[4] permuted (expert-major)
+  idx:   0  1  2  3  4  5
+  slot: E0 E0 E1 E1 E2 E2
+  src : t1 t4 t0 t3 t2 t5
+      └──┬──┘└──┬──┘└──┬──┘
+         group0  group1 group2
+         (→ grouped GEMM ↗ §3)
+
+[5] unpermute (역매핑 · weighted)
+  y[t_src] = g · expert_out[slot]
+  (k&gt;1 이면 k개 slot 합산)</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Permute 3-stage 커널 <span class="mnemonic">히프재</span></h3>
+        <ol class="bullet-num">
+          <li><b>Histogram</b>: count[e] = Σ<sub>t</sub> [assign(t)=e] &nbsp; (atomic add)</li>
+          <li><b>Exclusive scan</b>: offset[e] = Σ<sub>e'&lt;e</sub> count[e'] &nbsp; (<span class="xref">↗ V05 §3</span>)</li>
+          <li><b>Scatter</b>: slot = offset[e] + atomicAdd(local[e],1)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 의사코드</h3>
+<pre class="code"><span class="cmt">// kernel 1: histogram</span>
+<span class="kw2">__global__</span> <span class="fn">hist</span>(idx, cnt){
+  <span class="ty">int</span> t = global_tid;
+  <span class="ty">int</span> e = idx[t];
+  <span class="fn">atomicAdd</span>(&amp;cnt[e], <span class="num2">1</span>);
+}
+<span class="cmt">// kernel 2: exclusive scan (block-wide)</span>
+scan_exclusive(cnt, offset, N);
+<span class="cmt">// kernel 3: scatter</span>
+<span class="kw2">__global__</span> <span class="fn">scatter</span>(idx, offset, perm, inv){
+  <span class="ty">int</span> t = global_tid, e = idx[t];
+  <span class="ty">int</span> slot = offset[e] + <span class="fn">atomicAdd</span>(&amp;loc[e],<span class="num2">1</span>);
+  perm[slot] = t;   <span class="cmt">// src index</span>
+  inv[t]     = slot; <span class="cmt">// reverse map</span>
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Permute 메모리 형태</h3>
+        <table class="compact">
+          <thead><tr><th>버퍼</th><th>shape</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>idx</td><td>[T,k]</td><td>token→expert</td></tr>
+            <tr><td>cnt</td><td>[N]</td><td>expert별 token</td></tr>
+            <tr><td>offset</td><td>[N+1]</td><td>group 시작</td></tr>
+            <tr><td>perm</td><td>[T·k]</td><td>slot→src token</td></tr>
+            <tr><td>inv</td><td>[T·k]</td><td>src→slot</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Unpermute <span class="ko">역매핑 + 가중합</span></h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="fn">unpermute</span>(out, expert_y, inv, g, T, k, d){
+  <span class="ty">int</span> t = blockIdx.x;
+  <span class="ty">int</span> c = threadIdx.x;
+  <span class="ty">float</span> acc = <span class="num2">0.f</span>;
+  <span class="kw2">for</span>(<span class="ty">int</span> j=<span class="num2">0</span>; j&lt;k; j++){
+    <span class="ty">int</span> slot = inv[t*k + j];
+    acc += g[t*k + j] * <span class="hl">expert_y[slot*d + c]</span>;
+  }
+  out[t*d + c] = acc;
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 성능 주의</h3>
+        <ul>
+          <li>histogram: expert 수 N 작음 → <span class="red">atomic contention</span></li>
+          <li>완화: block-local privatization → global reduce (<span class="xref">↗ V01 §10</span>)</li>
+          <li>scatter의 src load는 random → <b>coalesce 깨짐</b> 정상</li>
+          <li>d가 작을 땐 permute + GEMM1 fuse (CUTLASS epilogue)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Sort-based variant</h3>
+        <div class="def"><span class="label">대안</span>
+          (expert_id, token_id) pair를 <mark>radix sort</mark>로 정렬 → prefix sum 없이 permute 완료.
+        </div>
+        <p class="tiny">N 큰 경우(N&gt;64) radix sort가 histogram+scatter보다 안정.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">결정론</span> 필요 시 atomicAdd 순서 비결정 → sort-based 선택.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 3</span><span class="tiny">Permute = histogram + scan + scatter · Unpermute = weighted gather</span></div>
+</section>
+
+<!-- ============================ PAGE 4: §3 MoE Grouped GEMM ============================ -->
+<section class="page" data-screen-label="04 Grouped GEMM">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — MoE Grouped GEMM (ragged dim)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Ragged batch 문제</h3>
+        <div class="def"><span class="label">문제</span>
+          permute 후 expert별 token 수 <span class="kw">m<sub>e</sub></span>가 서로 다름.
+          standard batched GEMM은 모든 m 동일해야 함.
+        </div>
+        <pre class="ascii">expert 0: m=17  × [d, H]
+expert 1: m= 5  × [d, H]
+expert 2: m=23  × [d, H]
+ ...
+expert N: m=11  × [d, H]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Grouped GEMM 정의 ★</h3>
+        <div class="formula">
+          Y<sub>e</sub> = X<sub>e</sub> · W<sub>1,e</sub><sup>T</sup>&nbsp;&nbsp;e = 0..N-1<br/>
+          X<sub>e</sub> ∈ ℝ<sup>m<sub>e</sub>×d</sup>, W<sub>1,e</sub> ∈ ℝ<sup>H×d</sup>
+          <span class="legend">각 e는 독립 GEMM · 한 kernel launch로 처리 · GEMM 본체 ↗ V06 §5</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 두 접근</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>아이디어</th><th>pros</th></tr></thead>
+          <tbody>
+            <tr><td>Grouped</td><td>expert별 독립 GEMM</td><td>simple</td></tr>
+            <tr><td>Block-sparse</td><td>하나의 sparse matmul</td><td>dropless (↗ §4)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> CUTLASS Grouped GEMM <span class="ko">↗ V06</span></h3>
+        <pre class="ascii">problem_sizes [N]: {(m_e, n, k)}
+ptr_A [N]: X_0, X_1, ... X_{N-1}
+ptr_B [N]: W_0, W_1, ... W_{N-1}
+ptr_C [N]: Y_0, Y_1, ... Y_{N-1}
+lda/ldb/ldc [N]
+
+kernel: 각 CTA가 (e, tile_m, tile_n) 담당
+  → tile scheduler가 ragged m_e 고려
+  → 빈 expert(m_e=0) skip</pre>
+        <p class="tiny"><span class="xref">↗ V06 §10</span> CUTLASS GroupedGemm &amp; Persistent kernel 구조.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Tile scheduling</h3>
+        <ul>
+          <li><b>Per-expert</b>: expert별 grid(⌈m<sub>e</sub>/BM⌉, ⌈n/BN⌉) · load imbalance</li>
+          <li><b>Persistent</b>: CTA 수 고정 · work queue에서 (e, tile) pull · balance ↑</li>
+          <li>Hopper: <span class="xref">↗ V04 §4</span> TMA descriptor per expert</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Work estimate</h3>
+        <div class="formula">
+          FLOP<sub>total</sub> = 2 · H · d · Σ<sub>e</sub> m<sub>e</sub>
+          = 2 · H · d · T · k
+          <span class="legend">T · k 가 total 활성 token 수 · dense FFN 대비 정확히 k/N · (단, H는 보통 dense의 1/k배로 설정)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 두 GEMM 구조 (FFN)</h3>
+        <pre class="ascii">X[m_e,d]
+  │ GEMM1 W1_e  [d, 2H]  (gate·up)
+  ▼
+Z[m_e,2H]
+  │ SwiGLU  (↗ §9)
+  ▼
+A[m_e, H]
+  │ GEMM2 W2_e  [H, d]
+  ▼
+Y[m_e, d]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Expert 병렬 축</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>분할</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>expert</td><td>CTA.z</td><td>ragged m<sub>e</sub></td></tr>
+            <tr><td>m</td><td>CTA.y</td><td>tile<sub>M</sub></td></tr>
+            <tr><td>n</td><td>CTA.x</td><td>tile<sub>N</sub></td></tr>
+            <tr><td>k</td><td>split-K opt</td><td>m<sub>e</sub> 작으면</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Small-m 문제</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">m<sub>e</sub> &lt; 16</span> 인 expert: Tensor Core tile 작아 under-util.
+          → <b>split-K</b> 또는 <b>GEMV</b> 경로 fallback.
+        </div>
+        <p class="tiny">Mixtral-8×7B decode 단계는 T=1 (batch=1 per seq) → GEMV 위주.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">quant MoE</span>: expert별 scale 다름 → 각 ptr_B에 scale pointer도 함께 (↗ V10 §7).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 4</span><span class="tiny">Grouped GEMM = N개 독립 GEMM · CUTLASS persistent scheduler</span></div>
+</section>
+
+<!-- ============================ PAGE 5: §4 Dropless MoE (Megablocks) ============================ -->
+<section class="page" data-screen-label="05 Megablocks">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — Dropless MoE · Megablocks (block-sparse)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 dropless ★</h3>
+        <div class="def"><span class="label">모티브</span>
+          capacity cap → <mark>token drop</mark>, padding, 품질 저하.
+          Megablocks: capacity 없이 <span class="kw">block-sparse GEMM</span> 하나로 모든 expert 처리.
+        </div>
+        <ul>
+          <li>quality: drop 0</li>
+          <li>load balance 압력 ↓ (학습 속도에 영향 없음)</li>
+          <li>inference에서 기본으로 선호</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Block-sparse 표현</h3>
+        <pre class="ascii">full FFN weight W ∈ [N·H, d]
+  W_stack: expert 0 ... expert N 을 행 방향 concat
+  mask: [T·k, N]  block-diagonal-ish
+
+X' [T·k, d]  (permuted)
+W_stack [N·H, d]
+
+result [T·k, H] 은 block-sparse matmul:
+  row r ∈ expert e 이면 W_e 구간만 접촉</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 비교 표</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>drop</th><th>pad</th><th>kernel</th></tr></thead>
+          <tbody>
+            <tr><td>Token choice</td><td class="num">有</td><td class="num">有</td><td>batched</td></tr>
+            <tr><td>Grouped</td><td class="num">無</td><td class="num">有(tile)</td><td>N grouped</td></tr>
+            <tr><td><b>Megablocks</b></td><td class="num">無</td><td class="num">無</td><td>block-sparse 1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Block-sparse layout (BCSR)</h3>
+        <div class="def"><span class="label">BCSR</span>
+          <mark>Block Compressed Sparse Row</mark>: block 단위의 CSR.
+          row_ptr · col_idx · block_val.
+        </div>
+        <pre class="ascii">block tile: BM × BK (e.g. 128×128)
+
+row_ptr  [T/BM + 1]  : row당 active block 누적
+col_idx  [nnz]       : 각 block의 열 tile idx
+values   [nnz,BM,BK] : block data</pre>
+        <p class="tiny">Megablocks : SDD (Sparse-Dense→Dense) · DSD · DDS 세 변형.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Kernel 구조</h3>
+        <ol class="bullet-num">
+          <li>CTA = (row block tile)</li>
+          <li>row_ptr로 active col block 스캔</li>
+          <li>각 active block → shmem load → MMA</li>
+          <li>dense accumulator → epilogue</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Formula</h3>
+        <div class="formula">
+          Y[i,j] = Σ<sub>b∈active(i)</sub> X[i, K<sub>b</sub>] · W[K<sub>b</sub>, j]<br/>
+          active(i) = { b : block (i,b) ≠ 0 }
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Padding 자동화</h3>
+        <ul>
+          <li>expert 당 token 수 m<sub>e</sub>가 BM 배수가 아니어도 <b>block 내부만</b> masked</li>
+          <li>token drop 없이 tile 경계 처리 → correctness</li>
+          <li>load imbalance → persistent CTA로 완화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 구현 노트</h3>
+        <table class="compact">
+          <thead><tr><th>단계</th><th>커널</th></tr></thead>
+          <tbody>
+            <tr><td>topology</td><td>permute 결과에서 block meta</td></tr>
+            <tr><td>SDD</td><td>block-sparse matmul</td></tr>
+            <tr><td>DSD/DDS</td><td>backward / dW (↗ V17)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Inference 전용 단순화</h3>
+        <div class="def"><span class="label">단순화</span>
+          학습 backward 불필요 → <mark>SDD</mark>만 필요. 사실상 permute + grouped GEMM과 등가하지만
+          block-level masking으로 padding 자동.
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        학습 세부 (routing loss · backward SDD) → <span class="xref">↗ V17 §6</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 5</span><span class="tiny">Dropless MoE = block-sparse GEMM · padding 자동 · token drop 0</span></div>
+</section>
+
+<!-- ============================ PAGE 6: §5 KV Cache Layout ============================ -->
+<section class="page" data-screen-label="06 KV Layout">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — KV Cache layout</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 KV cache ★</h3>
+        <div class="def"><span class="label">정의</span>
+          autoregressive decode에서 past K · V를 <mark>재계산 대신 저장</mark>.
+          prefill 이후 decode는 <span class="kw">step당 한 token</span>만 forward.
+        </div>
+        <ul>
+          <li>prefill: O(L²d) attention</li>
+          <li>decode: O(L·d) attention per step (cache hit)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 dim <span class="mnemonic">라배헤시디</span></h3>
+        <div class="formula">
+          KV ∈ ℝ<sup>[L<sub>layer</sub>, B, H<sub>kv</sub>, S, D<sub>h</sub>]</sup>
+          <span class="legend">L : layer 수 &nbsp; B : batch &nbsp; H<sub>kv</sub> : KV head (MHA=H, GQA=G, MQA=1) &nbsp; S : seq len &nbsp; D<sub>h</sub> : head dim</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 예산</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>L</th><th>H<sub>kv</sub></th><th>D<sub>h</sub></th><th>KB/token</th></tr></thead>
+          <tbody>
+            <tr><td>Llama3-8B</td><td class="num">32</td><td class="num">8</td><td class="num">128</td><td class="num">128</td></tr>
+            <tr><td>Llama3-70B</td><td class="num">80</td><td class="num">8</td><td class="num">128</td><td class="num">320</td></tr>
+            <tr><td>Mistral-7B</td><td class="num">32</td><td class="num">8</td><td class="num">128</td><td class="num">128</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">FP16 · 2(K,V) 포함 · KB/token = 2·L·H<sub>kv</sub>·D<sub>h</sub>·2B.</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Layout 변형 ★</h3>
+        <table class="compact">
+          <thead><tr><th>layout</th><th>order</th><th>access 특성</th></tr></thead>
+          <tbody>
+            <tr><td>head-major</td><td>[B,H,S,D]</td><td>head별 연속 · attention kernel 친화</td></tr>
+            <tr><td>seq-major</td><td>[B,S,H,D]</td><td>append 쉬움 · scatter 효율</td></tr>
+            <tr><td>paged</td><td>[page, H, D]</td><td>vLLM · ↗ V16</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">vLLM PagedAttention 세부 → <span class="xref">↗ V16 §3</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Update kernel (decode)</h3>
+<pre class="code"><span class="cmt">// new token k,v 1개 삽입</span>
+<span class="kw2">__global__</span> <span class="fn">kv_update</span>(K_cache, V_cache,
+                         k_new, v_new,
+                         b, s, h, D){
+  <span class="ty">int</span> tid = threadIdx.x;
+  <span class="kw2">if</span>(tid &lt; D){
+    <span class="hl">K_cache[b,h,s,tid] = k_new[b,h,tid]</span>;
+    V_cache[b,h,s,tid] = v_new[b,h,tid];
+  }
+}</pre>
+        <p class="tiny">보통 QKV projection epilogue와 fuse.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Contiguous vs Paged</h3>
+        <ul>
+          <li>contiguous: 한 sequence가 연속 S slot · 재배치 필요 시 memcpy 큼</li>
+          <li>paged: block(=page) 단위 할당 · block_table로 논리↔물리 mapping</li>
+          <li>fragmentation ↓ / attention kernel의 <span class="red">간접 주소</span> 한 단계</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Head-sharing (GQA/MQA)</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>H<sub>q</sub></th><th>H<sub>kv</sub></th><th>cache 절감</th></tr></thead>
+          <tbody>
+            <tr><td>MHA</td><td class="num">H</td><td class="num">H</td><td class="num">1×</td></tr>
+            <tr><td>GQA-8</td><td class="num">H</td><td class="num">H/G</td><td class="num">G×</td></tr>
+            <tr><td>MQA</td><td class="num">H</td><td class="num">1</td><td class="num">H×</td></tr>
+            <tr><td>MLA</td><td class="num">H</td><td class="num">—</td><td class="num">~D/r</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">attention kernel 연결 → <span class="xref">↗ V07 §6</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Prefill vs Decode</h3>
+        <div class="formula">
+          prefill: K,V  ← x · W<sub>K</sub>, x · W<sub>V</sub>&nbsp;(한 번에 S개)<br/>
+          decode:&nbsp; k,v  ← x<sub>new</sub> · W<sub>K,V</sub>&nbsp;(1개)<br/>
+          append: cache[S_cur : S_cur+1] ← (k,v)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 실패 모드</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">flash attn 호환</span>: head-major [B,H,S,D]가 표준.
+          seq-major 쓰면 attention kernel이 stride 재해석 필요.
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">beam search</span> 분기 시 cache copy 필요 (↗ §11).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 6</span><span class="tiny">KV cache layout [L,B,H<sub>kv</sub>,S,D] · head-major 표준 · paged는 V16</span></div>
+</section>
+
+<!-- ============================ PAGE 7: §6 KV Cache Quantization ============================ -->
+<section class="page" data-screen-label="07 KV Quant">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — KV Cache quantization</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 quantize</h3>
+        <div class="def"><span class="label">모티브</span>
+          long context에서 KV cache가 <mark>메모리 1순위</mark>.
+          INT8 → 2×, INT4 → 4× 절감. attention은 memory-bound → speedup 직결.
+        </div>
+        <ul>
+          <li>weight quant는 compute-bound 완화 (↗ V10 §5)</li>
+          <li>KV quant는 <b>memory-bound</b> 완화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Quantization 공식</h3>
+        <div class="formula">
+          q = round(clamp(x / s, q<sub>min</sub>, q<sub>max</sub>))<br/>
+          x̂ = q · s<br/>
+          s = amax(|x|) / q<sub>max</sub>
+          <span class="legend">INT8 : q<sub>max</sub>=127 &nbsp; INT4 : 7 &nbsp; per-token · per-head scale 독립</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Scale granularity</h3>
+        <table class="compact">
+          <thead><tr><th>granularity</th><th>메모리</th><th>정확도</th></tr></thead>
+          <tbody>
+            <tr><td>per-tensor</td><td class="num">1</td><td>낮음</td></tr>
+            <tr><td>per-channel (head)</td><td class="num">H</td><td>중</td></tr>
+            <tr><td><b>per-token</b></td><td class="num">S</td><td>높음</td></tr>
+            <tr><td>per-token per-head</td><td class="num">S·H</td><td>최고</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">KV는 보통 per-token (outlier가 token 단위로 나타남).</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 저장 layout</h3>
+        <pre class="ascii">K_q : [L, B, H_kv, S, D_h]  INT8/INT4
+K_s : [L, B, H_kv, S]       FP16/BF16
+
+decode 시:
+  fetch K_q[b,h,:S,:] 와 K_s[b,h,:S]
+  on-the-fly dequant:
+    K̂[t,d] = K_q[t,d] · K_s[t]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Fused dequant attention <span class="ko">핵심</span></h3>
+        <ol class="bullet-num">
+          <li>K_q shmem 로드 (INT8) — 대역폭 ½</li>
+          <li>score = Q · dequant(K_q, K_s) — MMA 입력에 scale 곱</li>
+          <li>softmax는 FP32 유지</li>
+          <li>V_q도 동일 경로로 dequant → attn·V</li>
+        </ol>
+        <p class="tiny">flash attention의 softmax online 흐름 유지 → <span class="xref">↗ V07 §4</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> INT4 추가 세부</h3>
+        <ul>
+          <li>4-bit packed: byte당 2 element (nibble)</li>
+          <li>unpack in register → INT8 확장 → MMA</li>
+          <li>group_size=64 or 128 within token (↗ V10 §6)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Quant 포인트</h3>
+        <pre class="ascii">  x → W_K → k_fp  ─┐
+                   │ online amax (per token · head)
+                   ▼
+                 k_q, k_s
+                   │ KV cache 저장 (INT8/INT4)
+                   ▼
+  attention (fused dequant)
+                   │
+                   ▼
+                 output FP16</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 정확도 고려</h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th>PPL Δ</th><th>KV mem</th></tr></thead>
+          <tbody>
+            <tr><td>FP16 (baseline)</td><td class="num">0</td><td class="num">1×</td></tr>
+            <tr><td>FP8 (E4M3)</td><td class="num">~0</td><td class="num">0.5×</td></tr>
+            <tr><td>INT8 per-token</td><td class="num">+0.02</td><td class="num">0.5×</td></tr>
+            <tr><td>INT4 group-128</td><td class="num">+0.1~0.3</td><td class="num">0.25×</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Δ는 WikiText2 PPL 기준 범위 · 모델/calibration 의존.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 주의</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">RoPE 이후 값</span>을 cache하면 sin/cos 분포가 섞여 outlier ↑.
+          RoPE 전 K 저장 + 매 step 회전 or RoPE 후 FP16 유지.
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">pre vs post softmax</span> quant: post는 불가 (smax 후 스케일 의미 없음).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 7</span><span class="tiny">KV quant = per-token scale · fused dequant attention · 상세 알고리즘 V10</span></div>
+</section>
+
+<!-- ============================ PAGE 8: §7 RoPE ============================ -->
+<section class="page" data-screen-label="08 RoPE">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Rotary Position Embedding</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> RoPE 아이디어 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          position m의 <mark>회전 변환</mark>을 Q,K에 적용. 내적 Q·K가
+          <span class="kw">상대위치 m-n</span>만의 함수가 되도록 설계.
+        </div>
+        <ul>
+          <li>absolute embedding과 달리 <b>추가 파라미터 없음</b></li>
+          <li>sequence 연장 시 interpolation 가능 (YaRN, NTK)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 복소 수식 ★</h3>
+        <div class="formula">
+          q<sub>m</sub> ∈ ℂ<sup>d/2</sup> : 2개씩 묶어 복소수 해석<br/>
+          θ<sub>i</sub> = b<sup>−2i/d</sup>&nbsp;(i=0..d/2−1)<br/>
+          <span class="hl">RoPE(q<sub>m</sub>)<sub>i</sub> = q<sub>m,i</sub> · e<sup>j·m·θ<sub>i</sub></sup></span><br/>
+          ⟨RoPE(q<sub>m</sub>), RoPE(k<sub>n</sub>)⟩ = f(q,k, m−n)
+          <span class="legend">b : base (보통 10000) &nbsp; θ<sub>i</sub> : rotation freq &nbsp; j : 허수단위</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 실수 2×2 rotation ★</h3>
+        <div class="formula">
+          [q'<sub>2i</sub>;&nbsp;q'<sub>2i+1</sub>] =<br/>
+          &nbsp;&nbsp;[cos(mθ<sub>i</sub>), −sin(mθ<sub>i</sub>);<br/>
+          &nbsp;&nbsp;&nbsp;sin(mθ<sub>i</sub>),&nbsp;&nbsp;cos(mθ<sub>i</sub>)] · [q<sub>2i</sub>;&nbsp;q<sub>2i+1</sub>]
+          <span class="legend">head dim D<sub>h</sub>개 component를 (2i, 2i+1) 쌍으로 처리</span>
+        </div>
+        <pre class="ascii">풀어 쓰면:
+  q'_{2i}   = q_{2i}·c − q_{2i+1}·s
+  q'_{2i+1} = q_{2i}·s + q_{2i+1}·c
+  (c = cos(mθ_i), s = sin(mθ_i))</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> sin/cos cache</h3>
+        <ul>
+          <li>pre-computed: <code>cos[S<sub>max</sub>, D/2]</code>, <code>sin[S<sub>max</sub>, D/2]</code></li>
+          <li>FP32로 보존 권장 (정밀도 손실 예방)</li>
+          <li>head 간 공유 · layer 간 공유</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Kernel 구조</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="fn">rope</span>(Q, K, cos_t, sin_t, B, H, S, D){
+  <span class="ty">int</span> t = blockIdx.y, h = blockIdx.z;
+  <span class="ty">int</span> i = threadIdx.x; <span class="cmt">// 0..D/2</span>
+  <span class="ty">float</span> c = cos_t[t*D/<span class="num2">2</span> + i];
+  <span class="ty">float</span> s = sin_t[t*D/<span class="num2">2</span> + i];
+  <span class="ty">float</span> a = Q[..<span class="num2">2</span>*i], b = Q[..<span class="num2">2</span>*i+<span class="num2">1</span>];
+  Q[..<span class="num2">2</span>*i]   = <span class="hl">a*c - b*s</span>;
+  Q[..<span class="num2">2</span>*i+<span class="num2">1</span>] = a*s + b*c;
+}</pre>
+        <p class="tiny">QKV projection epilogue로 fuse하는 것이 표준.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Interleave vs Split</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>pair</th><th>모델</th></tr></thead>
+          <tbody>
+            <tr><td>Interleaved</td><td>(0,1)(2,3)…</td><td>원 RoPE</td></tr>
+            <tr><td>Split-half</td><td>(i, i+D/2)</td><td>Llama 계열</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">같은 회전이지만 element layout이 다름 → 구현 시 불일치 주의.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Context 확장</h3>
+        <ul>
+          <li><b>PI</b> (Position Interpolation): m ← m · L<sub>train</sub>/L<sub>new</sub></li>
+          <li><b>NTK</b>: b ← b · (L<sub>new</sub>/L<sub>train</sub>)<sup>d/(d−2)</sup></li>
+          <li><b>YaRN</b>: freq별 wavelength으로 차등 스케일 (low freq만 interp)</li>
+        </ul>
+        <p class="tiny">YaRN: wavelength ≫ L<sub>train</sub> 이면 extrapolate, 짧으면 interpolate.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 융합 전략</h3>
+        <pre class="ascii">QKV_proj → (q,k,v)
+   │
+   ├─ rope(q, cos, sin)   ┐ epilogue
+   ├─ rope(k, cos, sin)   │ 로 fuse
+   └─ k,v → KV cache      ┘
+   │
+   ▼
+attention (↗ V07)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">MLA</span>의 RoPE는 latent와 decouple → RoPE 부분만 별도 head.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 8</span><span class="tiny">RoPE = 2D rotation per pair · sin/cos cache · YaRN/NTK 확장</span></div>
+</section>
+
+<!-- ============================ PAGE 9: §8 RMSNorm / LayerNorm ============================ -->
+<section class="page" data-screen-label="09 Norm">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — RMSNorm / LayerNorm kernel</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정의 비교</h3>
+        <div class="formula">
+          <b>LayerNorm</b>: y = γ · (x − μ)/√(σ² + ε) + β<br/>
+          <b>RMSNorm</b>:&nbsp;&nbsp;&nbsp; y = γ · x / √(mean(x²) + ε)
+          <span class="legend">μ,σ² : mean · var &nbsp; γ,β : learnable &nbsp; RMSNorm은 mean 없음 → 1-pass 더 쉬움</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 왜 RMSNorm</h3>
+        <ul>
+          <li>mean 제거: 1-pass 축 합 1개만</li>
+          <li>Llama · GPT-NeoX · Mistral 채택</li>
+          <li>β(bias) 제거로 parameter 절감</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 2-pass → 1-pass</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>pass</th><th>수치</th></tr></thead>
+          <tbody>
+            <tr><td>naive 2-pass</td><td class="num">2</td><td>정확</td></tr>
+            <tr><td>1-pass (sum, sumsq)</td><td class="num">1</td><td>cancel risk</td></tr>
+            <tr><td>Welford 1-pass</td><td class="num">1</td><td>안정</td></tr>
+            <tr><td>RMSNorm 1-pass</td><td class="num">1</td><td>단순</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Welford 1-pass <span class="ko">LayerNorm용</span></h3>
+        <div class="formula">
+          count ← count + 1<br/>
+          δ ← x − mean<br/>
+          mean ← mean + δ/count<br/>
+          M2 ← M2 + δ · (x − mean)<br/>
+          → var = M2 / count
+          <span class="legend">running update · FP32 안정성 &nbsp; warp shuffle로 병렬 merge</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Parallel reduction layout</h3>
+<pre class="code"><span class="cmt">// block당 token 1개 · D thread 병렬</span>
+<span class="ty">int</span> t = threadIdx.x;
+<span class="ty">float</span> v = x[row, t];
+<span class="ty">float</span> sq = v*v;
+<span class="cmt">// warp reduce sum</span>
+<span class="kw2">for</span>(<span class="ty">int</span> o=<span class="num2">16</span>; o&gt;<span class="num2">0</span>; o&gt;&gt;=<span class="num2">1</span>)
+  sq += <span class="fn">__shfl_xor_sync</span>(<span class="num2">0xFFFFFFFF</span>, sq, o);
+<span class="cmt">// block reduce across warps (shmem)</span>
+...
+<span class="ty">float</span> rms = <span class="fn">rsqrtf</span>(sq/D + eps);
+y[row,t] = v * rms * gamma[t];</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Vectorized load</h3>
+        <ul>
+          <li>D=4096 · FP16 → <code>half2</code>/<code>float4</code>로 4원소/thread</li>
+          <li>128-bit access · shmem 없이 register 누산</li>
+          <li>D &gt; block 시 thread당 multiple element</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Residual fusion ★</h3>
+        <div class="def"><span class="label">fuse</span>
+          attention/FFN 출력 y에 residual x 더한 뒤 바로 <mark>다음 layer Norm 입력</mark>.
+          add → norm 두 kernel을 1개로 융합.
+        </div>
+        <pre class="ascii">x_res = x + attn_out    (add)
+y     = RMSNorm(x_res)  (norm)
+─────────────────────────────
+fused: 한 kernel에서
+  read x, attn_out
+  sum = x + attn_out
+  write x_res to mem  (다음 residual용)
+  reduce sum(x_res²)
+  y = x_res · rms · γ</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 수치 안정성</h3>
+        <ul>
+          <li>mean·var 축적은 <span class="red">FP32</span> 강제</li>
+          <li>mixed precision: x FP16/BF16, 통계 FP32, 출력 FP16 (↗ <span class="xref">V09 §9</span>)</li>
+          <li>ε ≈ 1e−5 ~ 1e−6 (RMSNorm은 1e−6 흔함)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 실패 모드</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">var 계산 naive</span>: Σ(x−μ)² 를 (Σx²) − (Σx)²/n 로 대체 시
+          catastrophic cancellation. FP16이면 +∞ · NaN 가능.
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">shmem 부족</span>: D 크면 block당 1 token 기본이지만 thread당 원소 ↑ 필요.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 9</span><span class="tiny">RMSNorm 1-pass · warp reduce · residual fusion · FP32 통계</span></div>
+</section>
+
+<!-- ============================ PAGE 10: §9 SwiGLU / GELU ============================ -->
+<section class="page" data-screen-label="10 SwiGLU/GELU">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — SwiGLU / GELU activation fusion</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FFN 구조 변화</h3>
+        <table class="compact">
+          <thead><tr><th>act</th><th>FFN 식</th><th>mat 수</th></tr></thead>
+          <tbody>
+            <tr><td>ReLU</td><td>W<sub>2</sub>·ReLU(W<sub>1</sub>x)</td><td class="num">2</td></tr>
+            <tr><td>GELU</td><td>W<sub>2</sub>·GELU(W<sub>1</sub>x)</td><td class="num">2</td></tr>
+            <tr><td><b>SwiGLU</b></td><td>W<sub>2</sub>·(Swish(W<sub>g</sub>x) ⊙ W<sub>u</sub>x)</td><td class="num">3</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">SwiGLU: gate / up / down 세 matrix · H<sub>ff</sub>는 보통 dense FFN의 2/3.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Activation 수식</h3>
+        <div class="formula">
+          <b>Swish(x)</b> = x · σ(x) &nbsp; σ(x) = 1/(1+e<sup>−x</sup>)<br/>
+          <b>GELU(x)</b> = 0.5·x·(1 + erf(x/√2))<br/>
+          <b>GELU-tanh</b> ≈ 0.5·x·(1 + tanh(√(2/π)·(x + 0.044715·x³)))<br/>
+          <b>SwiGLU(a,b)</b> = Swish(a) ⊙ b
+          <span class="legend">⊙ : element-wise product &nbsp; a = W<sub>g</sub>x, b = W<sub>u</sub>x</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> GEMM + act + GEMM 흐름</h3>
+        <pre class="ascii">x [T, d]
+  │ GEMM1  (gate·up · [d, 2H])
+  ▼
+z [T, 2H]  →  a (first H), b (second H)
+  │ SwiGLU: s = silu(a) * b
+  ▼
+s [T, H]
+  │ GEMM2  [H, d]
+  ▼
+y [T, d]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Fusion 옵션 ★</h3>
+        <table class="compact">
+          <thead><tr><th>fuse</th><th>이득</th><th>난이도</th></tr></thead>
+          <tbody>
+            <tr><td>GEMM1 + act</td><td>write 생략</td><td>low (epilogue)</td></tr>
+            <tr><td>act + GEMM2</td><td>read 생략</td><td>high (prologue)</td></tr>
+            <tr><td>all three</td><td>최대</td><td>대부분 비현실</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">실전은 GEMM1 epilogue에 SwiGLU fuse가 표준. <span class="xref">↗ V06 §11</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Epilogue pseudo</h3>
+<pre class="code"><span class="cmt">// GEMM1 output tile [BM, 2BN]</span>
+<span class="ty">half</span> a = tile[m, n];
+<span class="ty">half</span> b = tile[m, n + BN];   <span class="cmt">// second half</span>
+<span class="ty">half</span> sa = a * <span class="fn">__hsigmoid</span>(a); <span class="cmt">// Swish</span>
+<span class="ty">half</span> out = sa * b;
+<span class="cmt">// write out [BM, BN] → feeds GEMM2</span>
+smem[m, n] = out;</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> GELU 근사식 선택</h3>
+        <ul>
+          <li><b>exact erf</b>: CUDA <code>erff</code> · 느림, 정확</li>
+          <li><b>tanh approx</b>: GPT-2 · BERT · 하드웨어 친화</li>
+          <li><b>sigmoid approx</b>: x·σ(1.702·x) — 일부 구현</li>
+        </ul>
+        <p class="tiny">inference: tanh approx가 속도·정확도 균형.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 수치 세부</h3>
+        <table class="compact">
+          <thead><tr><th>act</th><th>대칭</th><th>음수 영역</th></tr></thead>
+          <tbody>
+            <tr><td>ReLU</td><td>Y</td><td>= 0</td></tr>
+            <tr><td>GELU</td><td>~Y</td><td>small leak</td></tr>
+            <tr><td>Swish</td><td>N</td><td>smooth neg lobe</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Swish는 non-monotone (min at x≈−1.28).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 메모리 이득</h3>
+        <div class="formula">
+          fused (epilogue): H FLOP, 0 extra mem<br/>
+          unfused: H element write + H element read<br/>
+          bytes saved = T · H · 2 · 2B (FP16)
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">Quant FFN</span>: GEMM 출력이 INT32 accumulator. act 전에 dequant 필요
+        → epilogue order = dequant → act → requant (↗ V10).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 10</span><span class="tiny">SwiGLU = Swish(gate) ⊙ up · GEMM1 epilogue fuse 표준</span></div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Sampling ============================ -->
+<section class="page" data-screen-label="11 Sampling">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Sampling kernel</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Sampling 파이프 <span class="mnemonic">온페탑피</span></h3>
+        <ol class="bullet-num">
+          <li><b>logits</b> [B, V] from LM head</li>
+          <li><b>penalty</b>: repetition / presence</li>
+          <li><b>temperature</b>: l ← l / τ</li>
+          <li><b>top-k</b>: 상위 k만 남김</li>
+          <li><b>top-p (nucleus)</b>: 누적 확률 ≤ p</li>
+          <li><b>softmax</b> + sample</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Temperature · Penalty 식</h3>
+        <div class="formula">
+          l<sub>i</sub> ← l<sub>i</sub> / τ&nbsp;&nbsp;(τ=0 → argmax)<br/>
+          repetition: l<sub>i</sub> ← l<sub>i</sub> / r<sub>p</sub>&nbsp;if l<sub>i</sub>&gt;0 else l<sub>i</sub> · r<sub>p</sub><br/>
+          presence: l<sub>i</sub> ← l<sub>i</sub> − α&nbsp;&nbsp;(등장한 token i에 한해)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> V 크기</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>V</th></tr></thead>
+          <tbody>
+            <tr><td>Llama 2</td><td class="num">32,000</td></tr>
+            <tr><td>Llama 3</td><td class="num">128,256</td></tr>
+            <tr><td>GPT-NeoX</td><td class="num">50,257</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">V ~ 10⁵ → reduction·top-k 커널의 주 축.</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Top-k 알고리즘</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>복잡도</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>full sort</td><td>O(V log V)</td><td>k 큼</td></tr>
+            <tr><td>bitonic top-k</td><td>O(V log² k)</td><td>k≤1024</td></tr>
+            <tr><td>radix select</td><td>O(V · bits)</td><td>k 중간</td></tr>
+            <tr><td>heap (warp)</td><td>O(V log k)</td><td>k≤32</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">실전 top-k ∈ {50, 64, 200} 대부분 radix select 또는 bitonic.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Top-p (nucleus) ★</h3>
+        <ol class="bullet-num">
+          <li>descending sort or top-k + sort</li>
+          <li>softmax → cumulative sum</li>
+          <li>cutoff idx = 최소 i s.t. cum<sub>i</sub> &gt; p</li>
+          <li>i 이후 logit = −∞ (mask)</li>
+          <li>재정규화 softmax → sample</li>
+        </ol>
+        <p class="tiny">top-k(V') + top-p 조합이 일반적: k'≈1024로 V 축소 후 nucleus.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Fused sampling kernel</h3>
+<pre class="code"><span class="cmt">// block = 1 batch element · V thread (또는 분할)</span>
+penalty_apply(l);
+scale(l, 1/τ);
+(vals, idxs) = topk(l, K);
+p = softmax(vals);
+cum = scan_inclusive(p);
+cutoff = lower_bound(cum, p_top);
+mask(&amp;p, cutoff);
+renorm(p);
+out = inv_cdf_sample(p, rand);</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Softmax 안정화</h3>
+        <div class="formula">
+          l<sub>max</sub> = max(l)<br/>
+          p<sub>i</sub> = exp(l<sub>i</sub> − l<sub>max</sub>) / Σ exp(l<sub>j</sub> − l<sub>max</sub>)
+        </div>
+        <p class="tiny">overflow 방지 · FP16 logit은 FP32로 승격 후 exp.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Sample 선택</h3>
+        <table class="compact">
+          <thead><tr><th>method</th><th>식</th></tr></thead>
+          <tbody>
+            <tr><td>greedy</td><td>argmax(l)</td></tr>
+            <tr><td>multinomial</td><td>inv-CDF</td></tr>
+            <tr><td>Gumbel-max</td><td>argmax(l + g)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Gumbel: g<sub>i</sub> = −log(−log(u<sub>i</sub>)) · sort 없이 argmax 한 번.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Batch 주의</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">batch 결정론</span>: batch element마다 다른 seed 사용 · global RNG 공유 시 race.
+          curand_philox per-slot.
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          per-request τ·k·p가 <b>다름</b> → kernel 인자 [B] array.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 11</span><span class="tiny">Sampling = penalty → τ → top-k → top-p → softmax → sample</span></div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Beam Search ============================ -->
+<section class="page" data-screen-label="12 Beam Search">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Beam Search kernel</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정의</h3>
+        <div class="def"><span class="label">beam search</span>
+          각 step에서 <mark>beam width W</mark>개 후보 seq를 유지.
+          확률 곱(= log-prob 합)이 큰 상위 W를 선택.
+        </div>
+        <ul>
+          <li>greedy: W=1</li>
+          <li>W↑ → quality ↑, memory ↑, 다양성 ↓</li>
+          <li>실전 W ∈ {4, 8, 16}</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Score 누적</h3>
+        <div class="formula">
+          score<sub>seq</sub> = Σ<sub>t</sub> log p(y<sub>t</sub> | y<sub>&lt;t</sub>)<br/>
+          length norm: score / len<sup>α</sup>&nbsp;(α ∈ [0.6,1.0])
+          <span class="legend">곱 대신 log 합 · length penalty로 짧은 seq 선호 완화</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 확장 규칙</h3>
+        <ol class="bullet-num">
+          <li>현 W개 beam 각각에 V개 token 확장 후보</li>
+          <li>총 W·V 후보 점수 = score + log p</li>
+          <li>상위 W개 선택 → 다음 step beam</li>
+          <li>EOS 만난 beam은 finalized buffer로 분리</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Top-W of (W·V) 커널 ★</h3>
+<pre class="code"><span class="cmt">// 각 beam b ∈ [0,W)</span>
+<span class="kw2">for</span>(b=<span class="num2">0</span>; b&lt;W; b++){
+  logp[b,:] = log_softmax(logits[b,:]);
+  cand[b,:] = beam_score[b] + logp[b,:];
+}
+<span class="cmt">// flatten [W,V] → [W·V] 후 top-W</span>
+(vals, flat_idx) = topk(cand, W);
+<span class="ty">int</span> parent_b = flat_idx / V;
+<span class="ty">int</span> tok      = flat_idx % V;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> GPU 자료구조</h3>
+        <table class="compact">
+          <thead><tr><th>버퍼</th><th>shape</th></tr></thead>
+          <tbody>
+            <tr><td>beam_score</td><td>[B, W]</td></tr>
+            <tr><td>beam_tokens</td><td>[B, W, S<sub>max</sub>]</td></tr>
+            <tr><td>parent</td><td>[B, W, S<sub>max</sub>]</td></tr>
+            <tr><td>KV cache</td><td>[L, B·W, H, S, D]</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">effective batch = B·W → KV mem W배.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> KV cache 재배치 ★</h3>
+        <div class="def"><span class="label">문제</span>
+          선택된 W개 beam의 <mark>parent beam</mark>이 섞임.
+          이전 step cache [B·W] → 새 parent 순서로 <span class="red">gather</span> 필요.
+        </div>
+        <pre class="ascii">prev beams: 0 1 2 3
+selected parents: 2 0 2 1
+  → new beam 0 ← old 2 의 cache
+  → new beam 1 ← old 0
+  → new beam 2 ← old 2 (share)
+  → new beam 3 ← old 1</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Cache gather 방식</h3>
+        <ul>
+          <li><b>full copy</b>: [L·B·W·H·S·D] gather → 비쌈</li>
+          <li><b>pointer swap</b>: cache slot index를 parent로 재할당 (paged KV에 유리)</li>
+          <li><b>lazy</b>: 새 token에 대해서만 write, 조상 공유</li>
+        </ul>
+        <p class="tiny">paged KV는 block_table만 rewire · <span class="xref">↗ V16 §3</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 종료 조건</h3>
+        <ol>
+          <li>모든 beam이 EOS 또는 max_len 도달</li>
+          <li>finalized pool에 W_finish 개 확보 &amp; best_alive ≤ best_finished</li>
+          <li>return top-W by length-normalized score</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Beam vs Sampling</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>beam</th><th>sample</th></tr></thead>
+          <tbody>
+            <tr><td>quality</td><td>deterministic max</td><td>stochastic</td></tr>
+            <tr><td>diversity</td><td>낮음</td><td>높음</td></tr>
+            <tr><td>KV</td><td>W×</td><td>1×</td></tr>
+            <tr><td>용도</td><td>MT · summarize</td><td>chat · creative</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">중복 beam</span>: 같은 parent에서 top-W 모두 선택되면 부모-cache share.
+        KV gather 시 src 중복 고려.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 12</span><span class="tiny">Beam = log-prob 합 · top-W of W·V · KV gather by parent</span></div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Speculative Decoding ============================ -->
+<section class="page" data-screen-label="13 Spec Decoding">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Speculative Decoding (Leviathan '23)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 아이디어 ★</h3>
+        <div class="def"><span class="label">핵심</span>
+          <mark>작은 draft 모델</mark>이 γ token을 빠르게 생성.
+          target 모델이 γ+1개를 <span class="kw">한 번에</span> verify → 여러 token을 1 step으로 수락.
+        </div>
+        <ul>
+          <li>target 분포와 <b>정확히 동일</b> sample (no approx)</li>
+          <li>memory-bound decode 구간에서 FLOP 여유 활용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Loop 구조</h3>
+        <pre class="ascii">while not done:
+  1) draft: x_1..x_γ ~ q(·|ctx)      (γ forward, small)
+  2) target: p(·|ctx + x_1..x_i) for i=0..γ  (1 forward, large, batched)
+  3) for i = 1..γ:
+       r ~ U(0,1)
+       if r &lt; min(1, p_i(x_i) / q_i(x_i)): accept x_i
+       else: reject → resample from p_i - q_i, stop
+  4) if 모두 accept: bonus token ~ p_{γ+1}</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Acceptance rule ★</h3>
+        <div class="formula">
+          accept x<sub>i</sub> if&nbsp;&nbsp; r &lt; min(1, p<sub>i</sub>(x<sub>i</sub>) / q<sub>i</sub>(x<sub>i</sub>))<br/>
+          <br/>
+          reject 시 재샘플:<br/>
+          p'(x) = max(0, p<sub>i</sub>(x) − q<sub>i</sub>(x)) / Z<br/>
+          Z = Σ<sub>x</sub> max(0, p<sub>i</sub>(x) − q<sub>i</sub>(x))
+          <span class="legend">p : target prob &nbsp; q : draft prob &nbsp; r : U(0,1) &nbsp; 결과 분포 = p</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 기대 accept rate</h3>
+        <div class="formula">
+          α = E<sub>x∼q</sub>[ min(1, p(x)/q(x)) ]<br/>
+          &nbsp;&nbsp; = Σ<sub>x</sub> min(p(x), q(x))
+          <span class="legend">α ∈ [0,1] · q≈p 이면 α→1 · 독립이면 α≈0</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 기대 token / step ★</h3>
+        <div class="formula">
+          E[accepted + 1] = (1 − α<sup>γ+1</sup>) / (1 − α)
+          <span class="legend">γ개 draft의 prefix accept 기대값 + bonus 1 (모두 accept 시)</span>
+        </div>
+        <table class="compact">
+          <thead><tr><th>α</th><th>γ=3</th><th>γ=4</th><th>γ=6</th></tr></thead>
+          <tbody>
+            <tr><td>0.5</td><td class="num">1.88</td><td class="num">1.94</td><td class="num">1.98</td></tr>
+            <tr><td>0.7</td><td class="num">2.53</td><td class="num">2.80</td><td class="num">3.08</td></tr>
+            <tr><td>0.85</td><td class="num">3.06</td><td class="num">3.56</td><td class="num">4.26</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Speedup 공식 ★</h3>
+        <div class="formula">
+          c = cost<sub>draft</sub> / cost<sub>target</sub>&nbsp;&nbsp;(c ≪ 1)<br/>
+          speedup = (1 − α<sup>γ+1</sup>) / ((1 − α) · (γ·c + 1))
+          <span class="legend">분자 : 평균 수락 길이 &nbsp; 분모 : draft γ forward + target 1 forward</span>
+        </div>
+        <p class="tiny">Leviathan 2023 수식 · c는 보통 1/7B ~ 1/70B ratio.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> γ 선택</h3>
+        <ul>
+          <li>α 낮으면 γ 작게 (낭비 ↓)</li>
+          <li>c 작으면 γ 크게 여유</li>
+          <li>실전 γ ∈ {3, 4, 5}</li>
+          <li>도메인별 α 측정 → adaptive γ</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Verify 커널</h3>
+        <pre class="ascii">input ctx + [x_1..x_γ]  len = C+γ
+  → target forward (하나의 batch)
+  → logits [γ+1, V]
+  → softmax row별
+  → acceptance loop (CPU or GPU)
+  → update KV cache with accepted prefix</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">KV cache rollback</span>: reject 시 거부된 위치 이후 cache invalidate.
+        prefix만 유효 → seq len 조정.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 13</span><span class="tiny">Spec = draft γ · target verify · accept r&lt;min(1,p/q) · E[acc+1] = (1−α^{γ+1})/(1−α)</span></div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Medusa/EAGLE ============================ -->
+<section class="page" data-screen-label="14 Medusa/EAGLE">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Medusa · EAGLE · Tree attention</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 self-draft</h3>
+        <ul>
+          <li>별도 draft 모델 운영 비용 ↑</li>
+          <li>target의 <b>마지막 hidden</b>을 활용해 draft 생성</li>
+          <li>Medusa · EAGLE · Lookahead 등 variant</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Medusa <span class="ko">다중 head 병렬</span></h3>
+        <div class="def"><span class="label">구조</span>
+          target 마지막 hidden h<sub>t</sub> 위에 <mark>k개의 predictor head</mark>.
+          각 head k는 t+k+1 위치 token 분포 예측.
+        </div>
+        <pre class="ascii">h_t
+  ├── LM head (t+1)       original
+  ├── Medusa_1 head (t+2)
+  ├── Medusa_2 head (t+3)
+  └── Medusa_3 head (t+4)
+
+Top-s per head → 후보 조합 → tree</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> EAGLE</h3>
+        <ul>
+          <li>single extra transformer layer를 draft로 사용</li>
+          <li>입력: target hidden + 직전 embedding</li>
+          <li>Medusa 대비 accept rate ↑</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Tree attention ★</h3>
+        <div class="def"><span class="label">정의</span>
+          draft 후보가 <mark>트리</mark> 구조(여러 branch) → 한 번의 target forward로 모두 검증.
+          tree mask로 각 node가 자신의 조상만 참조.
+        </div>
+        <pre class="ascii">        ctx
+          │
+         t+1(A)         t+1(B)
+        /    \            │
+    t+2(a1) t+2(a2)   t+2(b1)
+       │      │          │
+    t+3(.) t+3(.)     t+3(.)
+
+mask M[i,j] = 1  iff  j ∈ ancestors(i) ∪ {i}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Tree mask 예</h3>
+        <pre class="ascii">node order: ctx, A, B, a1, a2, b1
+M =
+ [1 0 0 0 0 0]  ctx
+ [1 1 0 0 0 0]  A
+ [1 0 1 0 0 0]  B
+ [1 1 0 1 0 0]  a1
+ [1 1 0 0 1 0]  a2
+ [1 0 1 0 0 1]  b1
+(행 i가 attend 가능한 col j)</pre>
+        <p class="tiny">flash attention + custom mask → <span class="xref">↗ §14</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Verify 흐름</h3>
+        <ol class="bullet-num">
+          <li>tree의 linearized node sequence · position_ids</li>
+          <li>causal tree mask</li>
+          <li>target 1 forward → 각 node의 다음 token prob</li>
+          <li>각 경로(root→leaf)에 spec decode acceptance 적용</li>
+          <li>최장 accepted path 선택</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Tree 크기 최적화</h3>
+        <table class="compact">
+          <thead><tr><th>파라미터</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>depth</td><td>예측 step 수</td></tr>
+            <tr><td>topk<sub>depth</sub></td><td>각 level 후보</td></tr>
+            <tr><td>node 예산</td><td>검증 cost</td></tr>
+            <tr><td>calibration</td><td>α<sub>node</sub>로 가지치기</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">tree 크기는 target 1 forward batch의 seq dim으로 들어감.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 변형 비교</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>draft 재료</th><th>α 범위</th></tr></thead>
+          <tbody>
+            <tr><td>Vanilla spec</td><td>별도 소형 모델</td><td class="num">0.5~0.75</td></tr>
+            <tr><td>Medusa</td><td>multi-head</td><td class="num">0.6~0.8</td></tr>
+            <tr><td>EAGLE</td><td>1-layer on hidden</td><td class="num">0.75~0.85</td></tr>
+            <tr><td>Lookahead</td><td>n-gram cache</td><td class="num">가변</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">α는 논문 보고 범위 · 데이터 분포 의존.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 커널 포인트</h3>
+        <ul>
+          <li>tree mask는 희소 → bit-packed matrix</li>
+          <li>position embedding은 <b>tree depth</b> 기반 (선형 idx 아님)</li>
+          <li>KV append는 accepted path node만</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">오용</span>: tree root가 여러 개면 prefix 공유 깨짐 → 항상 root 1개.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 14</span><span class="tiny">Medusa/EAGLE = self-draft · tree attention · causal tree mask · 최장 path 수락</span></div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Masked fill / bias ============================ -->
+<section class="page" data-screen-label="15 Mask/Bias">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Masked fill · attention bias</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Mask 역할</h3>
+        <div class="def"><span class="label">정의</span>
+          attention score <mark>S = QK<sup>T</sup></mark>에 특정 위치를 무효화.
+          boolean mask 또는 additive bias 두 형태.
+        </div>
+        <ul>
+          <li><b>causal</b>: j &gt; i 금지</li>
+          <li><b>padding</b>: pad 토큰 무시</li>
+          <li><b>tree / custom</b>: 조상만 허용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Additive vs Boolean</h3>
+        <div class="formula">
+          <b>additive</b>:&nbsp; S' = S + B<br/>
+          &nbsp;&nbsp;B[i,j] = 0 (allow) · −∞ (block)<br/>
+          <br/>
+          <b>boolean</b>: S'[i,j] = S[i,j] if M[i,j] else −∞
+          <span class="legend">softmax(−∞) = 0 · 수학적 동일 · 메모리 형태만 차이</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> −∞ 대체값</h3>
+        <ul>
+          <li>FP16: <code>−65504.0</code> 또는 <code>−1e4</code> (큰 값)</li>
+          <li>BF16: 동일, exp→0</li>
+          <li>INT8 quant: scale 고려 큰 음수</li>
+        </ul>
+        <p class="tiny">실제 −∞는 IEEE NaN 위험 → 큰 음수 상수 사용.</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Causal mask 융합</h3>
+<pre class="code"><span class="cmt">// flash attn 내부 · score 타일별</span>
+<span class="kw2">if</span>(j &gt; i) s_ij = -<span class="num2">1e4</span>;
+<span class="cmt">// 타일 경계 밖은 skip (조기 break)</span>
+<span class="kw2">if</span>(j_tile_start &gt; i_tile_end) <span class="kw2">continue</span>;</pre>
+        <p class="tiny">flash attention은 causal을 타일 경계 비교로 loop 단축 (↗ <span class="xref">V07 §4</span>).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Sliding window</h3>
+        <div class="formula">
+          allow(i,j) iff max(0, i−w+1) ≤ j ≤ i<br/>
+          Mistral 계열: w = 4096
+          <span class="legend">local causal · full cache보다 메모리 낮음</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> ALiBi bias</h3>
+        <div class="formula">
+          B[i,j] = −m<sub>h</sub> · |i − j|&nbsp;&nbsp;(j ≤ i)<br/>
+          m<sub>h</sub> : head별 slope (등비수열)
+          <span class="legend">position embedding 대체 · 거리 기반 선형 penalty</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Custom mask 커널</h3>
+<pre class="code"><span class="cmt">// packed bit mask: M[i, j/8] &amp; (1 &lt;&lt; (j%8))</span>
+<span class="ty">bool</span> allow = (M[i, j&gt;&gt;<span class="num2">3</span>] &gt;&gt; (j &amp; <span class="num2">7</span>)) &amp; <span class="num2">1</span>;
+<span class="ty">float</span> s_ij = allow ? qk : -<span class="num2">1e4</span>;
+<span class="cmt">// 또는 per-(i,j) additive bias load</span>
+s_ij += bias[i, j];</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Mask 형태 비교</h3>
+        <table class="compact">
+          <thead><tr><th>형태</th><th>mem</th><th>비용</th></tr></thead>
+          <tbody>
+            <tr><td>implicit causal</td><td class="num">0</td><td>O(1)</td></tr>
+            <tr><td>sliding w</td><td class="num">0</td><td>O(1)</td></tr>
+            <tr><td>bit mask</td><td>S²/8</td><td>1 bit load</td></tr>
+            <tr><td>FP32 bias</td><td>4·S²</td><td>load + add</td></tr>
+            <tr><td>tree bit mask</td><td>T²/8</td><td>spec decode</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 실패 모드</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">전부 mask인 row</span>: softmax 분모 = 0 → NaN.
+          최소 1 slot allow 강제 또는 row 전체 skip.
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">bias dtype 혼용</span>: FP16 bias + FP32 score 시 BF16로 통일 권장.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 15</span><span class="tiny">Mask = additive bias(−∞) or boolean · causal · sliding · ALiBi · tree</span></div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="16 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V08 기타 LLM 커널 <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — LLM Forward Pass Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Forward 1-layer 순서 ★</h3>
+        <pre class="ascii">x [T,d]
+  │  RMSNorm (§8)
+  ▼
+x_n
+  │  QKV_proj  (GEMM ↗ V06)
+  ▼
+q,k,v
+  │  RoPE (§7) on q,k
+  ▼
+  │  KV cache append (§5)
+  ▼
+  │  Attention (↗ V07)
+  ▼
+a
+  │  O_proj (GEMM)
+  │  + residual (§8 fuse)
+  ▼
+x<sub>1</sub>
+  │  RMSNorm
+  ▼
+  │  FFN: GEMM1 → SwiGLU (§9) → GEMM2
+  │  or MoE: router (§1) → permute (§2)
+  │         → grouped GEMM (§3) → unpermute
+  ▼
+  │  + residual
+  ▼
+x<sub>out</sub> → next layer</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Sampling 순서</h3>
+        <pre class="ascii">x_final [T,d]
+  │  RMSNorm
+  │  LM head [d,V]
+  ▼
+logits
+  │  penalty · temperature (§10)
+  ▼
+  │  top-k · top-p · softmax
+  ▼
+token
+  │  (spec decode: verify §12)
+  ▼
+output</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Kernel 복잡도 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>kernel</th><th>FLOP</th><th>mem</th><th>bound</th></tr></thead>
+          <tbody>
+            <tr><td>RMSNorm</td><td>T·d</td><td>T·d</td><td>memory</td></tr>
+            <tr><td>QKV proj</td><td>T·d·3d</td><td>T·d</td><td>compute</td></tr>
+            <tr><td>RoPE</td><td>T·H·D</td><td>T·H·D</td><td>memory</td></tr>
+            <tr><td>Attention prefill</td><td>T²·H·D</td><td>T·H·D</td><td>compute</td></tr>
+            <tr><td>Attention decode</td><td>S·H·D</td><td>S·H·D</td><td>memory</td></tr>
+            <tr><td>FFN GEMM1</td><td>T·d·2H<sub>ff</sub></td><td>T·d</td><td>compute</td></tr>
+            <tr><td>SwiGLU</td><td>T·H<sub>ff</sub></td><td>T·H<sub>ff</sub></td><td>memory</td></tr>
+            <tr><td>FFN GEMM2</td><td>T·H<sub>ff</sub>·d</td><td>T·H<sub>ff</sub></td><td>compute</td></tr>
+            <tr><td>MoE route+perm</td><td>T·N + T·k</td><td>T</td><td>memory</td></tr>
+            <tr><td>Grouped GEMM</td><td>T·k·d·H<sub>ff</sub></td><td>ragged</td><td>compute</td></tr>
+            <tr><td>Sampling</td><td>V log V</td><td>V</td><td>memory</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Cross-ref 지도</h3>
+        <table class="compact">
+          <thead><tr><th>주제</th><th>상세</th></tr></thead>
+          <tbody>
+            <tr><td>attention 본체</td><td><span class="xref">↗ V07</span></td></tr>
+            <tr><td>GEMM · CUTLASS</td><td><span class="xref">↗ V06</span></td></tr>
+            <tr><td>reduction · scan</td><td><span class="xref">↗ V05</span></td></tr>
+            <tr><td>quantization 알고리즘</td><td><span class="xref">↗ V10</span></td></tr>
+            <tr><td>paged KV · 서빙</td><td><span class="xref">↗ V16</span></td></tr>
+            <tr><td>학습 · backward</td><td><span class="xref">↗ V17</span></td></tr>
+            <tr><td>expert parallel 통신</td><td><span class="xref">↗ V15</span></td></tr>
+            <tr><td>Hopper TMA/WGMMA</td><td><span class="xref">↗ V04</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 핵심 수식 3선 ★</h3>
+        <div class="formula">
+          <b>RoPE</b>: q'<sub>2i,2i+1</sub> = R(mθ<sub>i</sub>) · q<sub>2i,2i+1</sub><br/>
+          <b>Spec</b>: E[acc+1] = (1−α<sup>γ+1</sup>)/(1−α)<br/>
+          <b>SwiGLU</b>: y = Swish(W<sub>g</sub>x) ⊙ (W<sub>u</sub>x)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 흔한 실수 7선</h3>
+        <ol class="bullet-num">
+          <li>RoPE interleave/split 불일치</li>
+          <li>RMSNorm var FP16 축적 → NaN</li>
+          <li>MoE permute 후 atomic race</li>
+          <li>KV cache beam parent rewire 누락</li>
+          <li>softmax max subtract 생략 → overflow</li>
+          <li>spec decode reject 후 KV rollback 누락</li>
+          <li>top-p 후 renormalize 잊기</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Fusion 우선순위</h3>
+        <table class="compact">
+          <thead><tr><th>순</th><th>fuse</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>QKV_proj + RoPE + KV write</td></tr>
+            <tr><td>2</td><td>Add + RMSNorm (residual)</td></tr>
+            <tr><td>3</td><td>GEMM1 + SwiGLU</td></tr>
+            <tr><td>4</td><td>Attn + O_proj epilogue</td></tr>
+            <tr><td>5</td><td>MoE permute + GEMM1</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        LLM layer 6단: <span class="key">노Q로어오포</span>
+        (<b>노</b>름 · <b>Q</b>KV · <b>로</b>프 · <b>어</b>텐션 · <b>오</b>·proj · <b>포</b>워드 FFN/MoE)
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        out-of-scope 재확인: <span class="red">vLLM 서빙 시스템은 <span class="xref">↗ V16</span>, 학습 backward·optimizer는 <span class="xref">↗ V17</span></span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V08 · 16</span><span class="tiny">LLM forward = Norm → QKV+RoPE → Attn → FFN/MoE → Sample</span></div>
+</section>
+
+</div><!-- /.sheet-stack -->
+
+<script src="tweaks.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<article class="chapter" data-chapter="21" id="ch-21">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 21</span>
+    <h2 class="chapter-title">위계 정리</h2>
+    <p class="chapter-subtitle">자원을 더 주면 정말 더 많은 일을 할 수 있는가에 대한 명백한 답, 그리고 그 한계</p>
+  </header>
+
+  <section>
+    <h3>1. 자명해 보이지만 자명하지 않은 질문</h3>
+
+    <p>"자원을 두 배로 늘려 주면 풀 수 있는 문제가 정말로 늘어날까?" 이 질문에 1초도 망설이지 않고 "그럼"이라 답하고 싶지만, 형식적으로 따지자면 그리 단순하지 않다. 시간 <em>n</em><sup>2</sup>로는 풀 수 없는데 <em>n</em><sup>3</sup>로는 풀리는 문제가 진짜 있어야 자원의 의미가 살아난다. 그런 문제가 존재한다는 것을 어떻게 보일까?</p>
+
+    <p>이 강의에서 만날 <strong>위계 정리(hierarchy theorem)</strong>들은 그 답이다. 시간을 늘리면 정말로 새로운 언어가 결정 가능해지고, 공간을 늘리면 정말로 새로운 언어가 인식 가능해진다. 다만 "얼마나 늘려야 하는가"의 양적 조건이 달려 있고, 함수가 적당히 잘 행동해야 한다.</p>
+
+    <div class="definition">
+      <strong>정의 21.1 (시간/공간 구성 가능 함수).</strong> 함수 <em>f</em>: ℕ → ℕ가 <strong>시간 구성 가능</strong>(time-constructible)하다는 것은, 입력 1<sup><em>n</em></sup>에서 <em>f</em>(<em>n</em>)을 이진수로 출력하는 결정적 TM이 시간 O(<em>f</em>(<em>n</em>))에 존재함을 뜻한다(보통 <em>f</em>(<em>n</em>) ≥ <em>n</em>도 가정). 비슷하게 <em>f</em>가 <strong>공간 구성 가능</strong>(space-constructible)하다는 것은 <em>f</em>(<em>n</em>) ≥ log <em>n</em>이고 입력 1<sup><em>n</em></sup>에 대해 <em>f</em>(<em>n</em>)을 공간 O(<em>f</em>(<em>n</em>))으로 계산할 수 있는 TM이 있다는 것이다.
+    </div>
+
+    <p>일상에서 만나는 거의 모든 "정상적인" 함수 — <em>n</em><sup>2</sup>, <em>n</em> log <em>n</em>, 2<sup><em>n</em></sup> 등 — 는 두 종류 모두에 들어간다. 구성 가능성은 시뮬레이터가 시계나 자처럼 자원 한도를 셀 수 있어야 한다는 기술적 요청이다.</p>
+  </section>
+
+  <section>
+    <h3>2. 시간 위계 정리</h3>
+
+    <div class="theorem">
+      <strong>정리 21.2 (시간 위계 정리).</strong> <em>f</em>, <em>g</em>: ℕ → ℕ가 시간 구성 가능하고 <em>f</em>(<em>n</em>) log <em>f</em>(<em>n</em>) = o(<em>g</em>(<em>n</em>))이라 하자. 그러면
+      <br><br>
+      TIME(<em>f</em>(<em>n</em>)) ⊊ TIME(<em>g</em>(<em>n</em>)).
+    </div>
+
+    <p>"<em>f</em>를 한 단계 키워 <em>g</em>로 가면, 진짜로 더 많은 언어를 결정할 수 있다"는 정확한 형태다. 왜 단순히 <em>f</em>(<em>n</em>) = o(<em>g</em>(<em>n</em>))이 아니라 <em>f</em>(<em>n</em>) log <em>f</em>(<em>n</em>)이 끼어드는지가 증명에서 자연스럽게 드러난다. 보편 시뮬레이터가 어떤 TM을 흉내 낼 때 log 인자만큼의 오버헤드가 든다는 사실이 그 출처다.</p>
+
+    <h3>3. 증명의 핵심: 대각선화</h3>
+
+    <p>증명의 도구는 칸토어가 실수의 비가산성을 보일 때 쓴 것과 본질이 같은 <strong>대각선화</strong>다. 우리는 <em>g</em>(<em>n</em>) 시간에는 결정 가능하지만 어떤 <em>f</em>(<em>n</em>)-시간 TM도 결정할 수 없는 언어를 손수 만든다.</p>
+
+    <p>다음 TM <em>D</em>를 정의하자. 입력 ⟨<em>M</em>⟩ — TM <em>M</em>의 인코딩 — 에 대해</p>
+
+    <ol>
+      <li>입력 길이 <em>n</em>을 보고 <em>g</em>(<em>n</em>)을 시간 구성 가능성을 이용해 카운터에 적어 둔다.</li>
+      <li><em>M</em>을 입력 ⟨<em>M</em>⟩ 위에 시뮬레이션하되, <em>g</em>(<em>n</em>) 시간이 지나기 전까지만 돌린다. 시계가 만료되면 시뮬레이션을 중단.</li>
+      <li>시간 안에 <em>M</em>이 멈췄고 받아들였다면 <em>D</em>는 거부; 멈췄고 거부했다면 <em>D</em>는 받아들임; 시간이 만료되었다면 거부.</li>
+    </ol>
+
+    <p>핵심 두 사실.</p>
+
+    <p><strong>사실 1.</strong> <em>D</em>는 시간 O(<em>g</em>(<em>n</em>))에 동작한다. 보편 시뮬레이션의 log 오버헤드 때문에 <em>M</em>의 한 단계가 시뮬레이션 시 O(log <em>f</em>(<em>n</em>)) 시간이 들어, 전체 비용이 O(<em>f</em>(<em>n</em>) log <em>f</em>(<em>n</em>)) ≤ O(<em>g</em>(<em>n</em>))으로 묶인다 — 정확히 정리의 가정 <em>f</em> log <em>f</em> = o(<em>g</em>)가 여기서 쓰인다.</p>
+
+    <p><strong>사실 2.</strong> <em>D</em>를 결정하는 어떤 <em>f</em>(<em>n</em>)-시간 TM <em>M</em><sub>0</sub>도 존재하지 않는다. 만약 존재한다면, 충분히 큰 <em>n</em>에서 <em>M</em><sub>0</sub>의 동작이 <em>g</em>(<em>n</em>) 시간 안에 끝나도록 할 수 있다(<em>f</em> log <em>f</em> = o(<em>g</em>)). 입력 ⟨<em>M</em><sub>0</sub>⟩(또는 같은 언어를 결정하는 충분히 긴 인코딩)을 <em>D</em>에 넣으면, <em>D</em>의 정의에 의해 <em>D</em>(⟨<em>M</em><sub>0</sub>⟩) = ¬<em>M</em><sub>0</sub>(⟨<em>M</em><sub>0</sub>⟩). 그러나 <em>M</em><sub>0</sub>이 <em>D</em>를 결정한다면 <em>D</em>(⟨<em>M</em><sub>0</sub>⟩) = <em>M</em><sub>0</sub>(⟨<em>M</em><sub>0</sub>⟩). 모순. □</p>
+
+    <div class="aside">
+      <strong>이름의 유래.</strong> <em>D</em>는 자기 자신과 동치인 인코딩에서 다른 답을 내도록 강제된다. "대각선 위에서 부정"이라는 칸토어의 트릭과 동일하다. 다만 칸토어는 가능한 함수의 집합 위에서, 우리는 가능한 TM의 집합 위에서. 같은 논증이 자원 한계라는 새로운 제약 아래에서 다시 빛난다는 점이 이 분야의 즐거움이다. 그리고 정직히 말해, 대각선화는 한 번 익히면 평생 써먹는다.
+    </div>
+  </section>
+
+  <section>
+    <h3>4. 공간 위계 정리</h3>
+
+    <div class="theorem">
+      <strong>정리 21.3 (공간 위계 정리).</strong> <em>f</em>, <em>g</em>가 공간 구성 가능하고 <em>f</em>(<em>n</em>) = o(<em>g</em>(<em>n</em>))이라 하자(둘 다 ≥ log <em>n</em>). 그러면
+      <br><br>
+      SPACE(<em>f</em>(<em>n</em>)) ⊊ SPACE(<em>g</em>(<em>n</em>)).
+    </div>
+
+    <p>시간 위계와 비교하면 조건이 깔끔하다. 그저 <em>f</em>(<em>n</em>) = o(<em>g</em>(<em>n</em>))이면 충분하고, log 오버헤드가 없다. 이유는 단순. 공간은 <strong>재사용</strong>이 자유로운 자원이라 공간 시뮬레이션의 오버헤드는 상수배에 그친다. 한 셀을 천 번 다시 쓰든 자원이 늘지 않는다. 시간은 그렇지 않다. 한 단계는 한 번이고, 시뮬레이터의 내부 데이터구조 검색에 log가 자연스레 따라붙는다.</p>
+
+    <p>공간 위계의 증명도 같은 골격이다. <em>g</em>(<em>n</em>) 공간 시계를 들고 ⟨<em>M</em>⟩ 위에서 <em>M</em>을 시뮬레이션하다가 공간을 초과하면 멈춘다. 결과를 뒤집어 출력. 마찬가지로 어떤 <em>f</em>(<em>n</em>)-공간 기계도 이 언어를 결정할 수 없다. 한 가지 추가 주의는 공간 한계 시뮬레이션에서 무한 루프를 피하기 위해 형태 수가 2<sup>O(<em>g</em>(<em>n</em>))</sup>로 한정됨을 이용해 시계도 함께 도는 것 — 같은 형태가 두 번 나오면 정지로 간주.</p>
+  </section>
+
+  <section>
+    <h3>5. 따름정리: 강력한 분리</h3>
+
+    <p>위계 정리들은 추상적으로 보일 수 있으나, 곧장 구체적인 클래스 분리로 이어진다.</p>
+
+    <div class="corollary">
+      <strong>따름정리 21.4.</strong> P ⊊ EXPTIME.
+    </div>
+
+    <div class="proof">
+      <strong>증명.</strong> P = ⋃<sub><em>k</em></sub> TIME(<em>n</em><sup><em>k</em></sup>) ⊆ TIME(2<sup><em>n</em></sup>) ⊆ EXPTIME = ⋃<sub><em>k</em></sub> TIME(2<sup><em>n</em><sup><em>k</em></sup></sup>). 시간 위계 정리로 TIME(2<sup><em>n</em></sup>) ⊊ TIME(2<sup>2<em>n</em></sup>) ⊆ EXPTIME. 따라서 P ⊊ EXPTIME. □
+    </div>
+
+    <div class="corollary">
+      <strong>따름정리 21.5.</strong> PSPACE ⊊ EXPSPACE.
+    </div>
+
+    <p>이 두 분리는 직관적으로는 "그야 당연히 그렇겠지" 싶지만, 형식적인 증명을 위해서는 위계 정리의 대각선화가 반드시 필요하다는 사실을 짚어 두고 싶다. 추가로, P와 EXPTIME 사이를 채우는 클래스들 — NP, PSPACE — 가운데 어딘가에 진짜 ⊊가 일어난다는 것은 알지만, 어디인지는 모른다.</p>
+
+    <div class="example">
+      <strong>예 21.6.</strong> EXPTIME-완전 문제는 P에 들어가지 않는다. 만약 들어간다면 P = EXPTIME이 되어 위 따름정리에 모순. 그래서 EXPTIME-완전이라는 라벨은 "다항 시간으로는 절대 풀 수 없다"는 강력한 증명을 동반한다 — NP-완전이 누리지 못하는 형식적 자격이다.
+    </div>
+  </section>
+
+  <section>
+    <h3>6. 한계: 위계 정리로 풀리지 않는 것</h3>
+
+    <p>위계 정리는 같은 자원 종류 안에서 양적 차이가 클 때만 분리를 보장한다. 여기서 자연스럽게 떠오르는 한계들.</p>
+
+    <p><strong>자원 종류가 다르면 직접 적용 불가.</strong> P와 NP는 모두 다항 시간이지만, 비결정성이라는 정성적 차이를 가진다. 위계 정리는 결정적 시간 안에서의 양적 분리, 비결정적 시간 안에서의 양적 분리만 직접 말해 준다. 두 종류의 시간을 가로지르는 분리는 다른 도구가 필요하다 — 그리고 그 도구가 아직 없다.</p>
+
+    <p><strong>같은 종류 안에서도 격차가 작으면 무력.</strong> P vs PSPACE는 양쪽이 모두 결정적이지만, P는 다항 시간을, PSPACE는 다항 공간을 다룬다. 다항 시간 ⇒ 다항 공간이지만 그 역은 미해결. 시간과 공간을 잇는 위계는 별도의 미해결 영역이다.</p>
+
+    <p><strong>릴라티비제이션 장벽.</strong> 60년대 후반 Baker–Gill–Solovay는 oracle <em>A</em>를 잘 골라 P<sup><em>A</em></sup> = NP<sup><em>A</em></sup>를 만들 수도, P<sup><em>B</em></sup> ≠ NP<sup><em>B</em></sup>를 만들 수도 있음을 보였다. 위계 정리의 대각선화는 oracle 아래에서도 그대로 작동한다(시뮬레이션이 oracle을 그대로 통과). 따라서 P vs NP는 단순한 대각선화 논증으로는 풀 수 없다는 강력한 신호. 이것이 <strong>relativization barrier</strong>다. P와 NP 사이의 진짜 분리(혹은 등식)는 더 정교한 도구가 필요하다는 메시지로 받아들여진다.</p>
+
+    <div class="aside">
+      <strong>위계 정리의 위치.</strong> 위계 정리는 복잡도 이론의 가장 단단한 기초석 중 하나다. 시간/공간이라는 자원이 진짜 의미를 가지며, 자원이 늘면 능력이 정말 늘어난다는 사실의 보증서. 그 위에 P, NP, PSPACE, EXPTIME 같은 큰 클래스가 쌓이고, 클래스 사이의 미해결 관계가 우리의 지적 지평을 정의한다. 위계 정리만으로는 P ≠ NP를 풀 수 없다는 그 한계가, 사실 우리가 어디서 더 깊이 파야 하는지를 말해 주는 안내판인 셈이다.
+    </div>
+  </section>
+
+  <section>
+    <h3>7. 마무리</h3>
+
+    <p>이 강의에서는 자원의 의미를 정량적으로 굳혔다. 시간을 한 단계 늘리면 (log 인자를 감안하고) 진짜로 새 언어가 풀리고, 공간도 마찬가지다. 그 결과 P ⊊ EXPTIME, PSPACE ⊊ EXPSPACE 같은 가장 자연스러운 분리가 안전하게 손에 들어왔다. 동시에, P vs NP, P vs PSPACE 같은 작은 격차의 클래스 분리는 위계 정리의 손이 닿지 않는 영역임을 확인했다.</p>
+
+    <div class="note">
+      <strong>다음 강의 다리.</strong> 같은 자원 종류 안의 양적 분리에서 한 발 떼어, 환원의 구조와 전체 풍경을 한 번 더 정리하자. 다항 위계, 교대 튜링 기계, 회로 복잡도 — 다음 단계의 도구들이 그 풍경을 더 선명히 그려 줄 것이다.
+    </div>
+  </section>
+</article>

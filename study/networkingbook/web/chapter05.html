@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5장 · 네트워크 계층 (제어 평면) — 네트워크 한 입에</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html" class="brand">📡 네트워크 한 입에</a>
+    <nav>
+      <a href="chapter01.html">1</a>
+      <a href="chapter02.html">2</a>
+      <a href="chapter03.html">3</a>
+      <a href="chapter04.html">4</a>
+      <a href="chapter05.html" class="current">5</a>
+      <a href="chapter06.html">6</a>
+      <a href="chapter07.html">7</a>
+      <a href="chapter08.html">8</a>
+    </nav>
+  </header>
+  <div class="layout">
+    <aside class="toc">
+      <h3>이 챕터 목차</h3>
+      <ol>
+        <li><a href="#sec-5-1">5.1 라우팅 알고리즘</a></li>
+        <li><a href="#sec-5-2">5.2 AS 내부 라우팅 — OSPF</a></li>
+        <li><a href="#sec-5-3">5.3 AS 간 라우팅 — BGP</a></li>
+        <li><a href="#sec-5-4">5.4 SDN 제어 평면</a></li>
+        <li><a href="#sec-5-5">5.5 ICMP — 인터넷의 진단</a></li>
+        <li><a href="#sec-5-6">5.6 SNMP와 네트워크 관리</a></li>
+        <li><a href="#recap">한 줄 요약</a></li>
+      </ol>
+    </aside>
+    <article>
+      <h1><span class="num">Chapter 05</span>네트워크 계층 — 제어 평면</h1>
+
+      <p>4장에서 우리는 라우터의 <strong>데이터 평면</strong>을 들여다봤다. 들어온 패킷을 헤더 한 줄 보고 어디로 내보낼지 1나노초 단위로 결정하는, 그 빠르고 단순한 세계 말이다. 그런데 거기엔 한 가지 의문이 남는다. 그 라우터의 <strong>전달 테이블(forwarding table)</strong>은 도대체 누가 채워 넣는가?</p>
+
+      <p>그게 바로 이번 장의 주인공, <strong>제어 평면(control plane)</strong>이다. 제어 평면은 "이 목적지로 가려면 어느 인터페이스로 내보내야 하나?"라는 질문에 답을 만들어 라우터들에게 나눠 주는 영역이다. 길찾기 알고리즘이 돌아가고, 라우터들끼리 정보를 주고받고, 정책이 작동하고, 가끔은 멀리 있는 컨트롤러가 명령을 내리기도 한다.</p>
+
+      <p>이 장에서는 길찾기의 두 가지 큰 갈래(링크 상태와 거리 벡터)부터 시작해서, 자율 시스템 내부에서 쓰이는 OSPF, AS와 AS 사이의 외교 프로토콜인 BGP, 그리고 분산을 깨고 등장한 SDN까지 차례로 본다. 끝으로 ICMP와 SNMP — 인터넷이 자기 몸 상태를 진단하고 운영자가 그 안을 들여다보는 도구들 — 도 함께 살핀다.</p>
+
+      <div class="callout">
+        <span class="label">한 문장 미리보기</span>
+        <p>데이터 평면이 "주소 보고 옆 라우터에 넘기는 손"이라면, 제어 평면은 "그 손이 어디로 넘겨야 할지 결정해 주는 머리"다.</p>
+      </div>
+
+      <h2 id="sec-5-1">5.1 라우팅 알고리즘</h2>
+
+      <p>네트워크에서 길찾기를 한다는 건, 추상적으로 보면 그래프 위에서 최단 경로를 찾는 일과 같다. 각 라우터를 정점(vertex)으로, 라우터 사이의 직접 링크를 간선(edge)으로 두고, 그 간선마다 <strong>비용(cost)</strong>을 매긴다. 비용은 대역폭의 역수일 수도 있고, 지연일 수도 있고, 운영자가 그냥 "이 회선은 비싸니까 비용 1000"이라고 박아 놓은 숫자일 수도 있다.</p>
+
+      <p>그래프가 정해지면 문제는 하나다: 출발 라우터에서 모든 목적지 라우터까지의 최소 비용 경로를 어떻게 계산하느냐. 인터넷이 실제로 쓰는 알고리즘은 크게 두 부류로 나뉜다. <strong>링크 상태(LS, link state)</strong>와 <strong>거리 벡터(DV, distance vector)</strong>.</p>
+
+      <h3>그래프 추상화</h3>
+
+      <p>예를 들어 다음과 같은 6개 라우터로 된 작은 망이 있다고 하자. 숫자는 링크 비용이다.</p>
+
+      <div class="ascii-diagram">           5
+   (A)---------(B)
+    | \         | \
+    |  \2       |  \3
+   1|   \       |3  \
+    |    (C)    |    (D)
+    |   / \     |   /
+    |  4   \1   |1 2
+    | /     \   | /
+   (E)-------(F)
+        4
+</div>
+
+      <p>여기서 <strong>A에서 F까지의 최단 경로</strong>를 구한다고 하면, 후보가 여러 개다. A &rarr; B &rarr; F (5+3=8), A &rarr; C &rarr; F (2+1=3), A &rarr; E &rarr; F (1+4=5). 최단은 A &rarr; C &rarr; F, 비용 3. 사람 눈에는 한눈에 보이지만, 라우터에게는 누가 어떻게 알려주느냐가 문제다.</p>
+
+      <h3>링크 상태(LS) — 다 같이 지도를 그리자</h3>
+
+      <p>링크 상태 알고리즘의 발상은 단순하다. <em>"각자가 자기 주변 링크 정보만 알면 되니까, 그걸 모두에게 뿌리자. 그러면 모두가 같은 지도를 갖게 되고, 그 지도 위에서 각자 다익스트라(Dijkstra) 돌리면 된다."</em></p>
+
+      <p>구체적으로 각 라우터는 (1) 자기에게 직접 연결된 이웃들과 그 링크 비용을 측정하고, (2) 그 정보를 <strong>플러딩(flooding)</strong>으로 망 전체에 뿌린다. 모든 라우터는 결국 똑같은 <strong>링크 상태 데이터베이스(LSDB)</strong>를 갖게 되고, 거기서 다익스트라 알고리즘으로 자기 기준 최단 경로 트리를 계산한다.</p>
+
+      <p>다익스트라의 큰 줄기를 의사코드로 적으면 이렇다.</p>
+
+      <pre><code>// 출발 노드 u, 모든 노드 집합 N, 비용 c(x,y)
+function Dijkstra(u, N):
+    D[u] = 0
+    for each v in N where v != u:
+        D[v] = c(u,v) if neighbor(u,v) else INF
+        prev[v] = u  if neighbor(u,v) else null
+    S = { u }                       // 확정된 집합
+
+    while S != N:
+        // 아직 확정 안 된 것 중 D 값이 가장 작은 노드 w 선택
+        w = argmin { D[v] : v not in S }
+        S = S ∪ { w }
+        // w를 거쳐 가는 경로로 이웃 v를 갱신할 수 있나?
+        for each neighbor v of w not in S:
+            if D[w] + c(w,v) &lt; D[v]:
+                D[v] = D[w] + c(w,v)
+                prev[v] = w
+    return D, prev</code></pre>
+
+      <p>위 그래프에서 A를 출발점으로 다익스트라를 한 단계씩 굴려 보자. 표는 이미 확정된 집합 S와 현재 시점의 거리 추정치 D를 보여 준다.</p>
+
+      <div class="ascii-diagram">단계  S(확정 집합)        D(A) D(B) D(C) D(D) D(E) D(F)
+----  ------------------  ---- ---- ---- ---- ---- ----
+ 0    {A}                   0    5    2   inf   1   inf
+ 1    {A,E}                 0    5    2   inf   1    5    ← E 확정, F는 1+4=5
+ 2    {A,E,C}               0    5    2   inf   1    3    ← C 확정, F가 2+1=3으로 단축
+ 3    {A,E,C,F}             0    5    2    5    1    3    ← F 확정, D가 3+2=5
+ 4    {A,E,C,F,D}           0    5    2    5    1    3
+ 5    {A,E,C,F,D,B}         0    5    2    5    1    3    ← 끝
+</div>
+
+      <p>마지막 행이 A에서 모든 노드까지의 최단 비용이다. <code>prev[]</code>를 따라가면 실제 경로도 나온다. 이걸로 A의 라우팅 테이블에서 "F로 가려면 다음 홉은 C"라는 식의 결론이 만들어진다.</p>
+
+      <div class="callout tip">
+        <span class="label">왜 빠른가</span>
+        <p>다익스트라는 망에 노드가 N개일 때 단순 구현이 O(N²), 우선순위 큐를 쓰면 O((N+E) log N)이다. 한 AS 안의 라우터 수는 보통 수천 개를 넘지 않으니, 이 정도면 1초 이내에 충분히 다 돈다.</p>
+      </div>
+
+      <h3>거리 벡터(DV) — 이웃의 말을 믿어라</h3>
+
+      <p>거리 벡터는 발상이 다르다. <em>"누가 전체 지도를 그려? 그냥 이웃이 자기가 아는 거리 벡터를 알려 주면, 그걸 보고 내 거리 벡터를 갱신하자."</em></p>
+
+      <p>이 아이디어는 <strong>벨만-포드(Bellman-Ford) 식</strong>으로 표현된다. 노드 x에서 목적지 y까지의 최소 비용 D<sub>x</sub>(y)는 다음을 만족한다.</p>
+
+      <blockquote>D<sub>x</sub>(y) = min<sub>v</sub> { c(x,v) + D<sub>v</sub>(y) } &nbsp;&nbsp; (v는 x의 이웃)</blockquote>
+
+      <p>풀이하면, "x가 y로 가는 최선의 길은, x의 이웃 v들 각각에 대해 (x &rarr; v로 가는 비용) + (v가 알고 있는 v &rarr; y 비용)를 모두 따져, 그 중 가장 작은 것"이다. 각 라우터는 이 식으로 자기 거리 벡터 D<sub>x</sub>(&middot;)를 끊임없이 다시 계산한다.</p>
+
+      <p>실행 모델은 이렇다. (1) 각 라우터는 자기 거리 벡터를 이웃에게 보낸다. (2) 이웃의 벡터를 받으면 자기 벡터를 위 식으로 갱신한다. (3) 자기 벡터가 바뀌면 다시 이웃에게 보낸다. 자체 종료(self-terminating). 망이 안정되면 모두가 옳은 답에 수렴한다.</p>
+
+      <p>장점은 분명하다. 각자 이웃하고만 이야기하면 된다. 메시지 부담이 작고, 분산 환경에 잘 맞는다. 단점도 분명하다. 누가 누구의 이웃인지, 누가 옳은 정보를 들고 있는지 보증이 없다.</p>
+
+      <h3>카운트-투-인피니티 — DV의 나쁜 꿈</h3>
+
+      <p>거리 벡터의 악명 높은 결함이 <strong>count-to-infinity</strong>다. 간단한 시나리오를 보자. A &mdash;1&mdash; B &mdash;1&mdash; C라는 직선 망에서 모두가 안정 상태에 있다. 그러던 어느 날 A&ndash;B 링크가 끊어졌다고 하자.</p>
+
+      <div class="ascii-diagram">시점   A의 D(C)        B의 D(C)        C의 D(C)
+-----  --------        --------        --------
+초기   2 (via B)       1 (via C)       0
+ t1    링크 끊김. B는 곧 D(C)=inf로 가야 하는데...
+ t2    A는 자기 벡터를 B에게 광고하면서 "나 C까지 2"라고 말함
+ t3    B는 그 말을 듣고 "어? A 거쳐 가면 1+2=3"이라고 갱신
+ t4    A는 B의 새 벡터를 듣고 "B 거쳐 가면 1+3=4"
+ t5    B는 다시 "A 거쳐 가면 1+4=5"
+ ...   계속 천천히 1씩 늘면서 무한대로 기어감
+</div>
+
+      <p>망이 잘못된 방향으로 천천히 망가진다. 이걸 막기 위한 잔재주가 여럿 있다. <strong>스플릿 호라이즌(split horizon)</strong>은 "B를 거쳐 학습한 경로를 다시 B에게 광고하지 않는다"는 규칙이다. <strong>포이즌 리버스(poisoned reverse)</strong>는 "그 경로의 비용을 무한대로 광고한다"는 약간 더 강한 변형이다. 이 둘로도 못 잡는 사이클은 남아 있어서 RIP 같은 DV 계열 프로토콜은 따로 hop count 한도(보통 15)를 쳐서 폭주를 끊는다.</p>
+
+      <h3>LS vs DV 한눈 비교</h3>
+
+      <table>
+        <thead>
+          <tr><th>축</th><th>링크 상태(LS)</th><th>거리 벡터(DV)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>지식 범위</td><td>각 라우터가 망 전체 토폴로지를 안다</td><td>이웃이 알려 준 요약만 안다</td></tr>
+          <tr><td>광고 대상</td><td>모두에게 플러딩</td><td>이웃에게만</td></tr>
+          <tr><td>광고 내용</td><td>나의 링크 상태(이웃과 비용)</td><td>나의 거리 벡터(목적지별 비용)</td></tr>
+          <tr><td>계산</td><td>받은 정보로 다익스트라 한 번</td><td>벨만-포드 식으로 점진 갱신</td></tr>
+          <tr><td>수렴 속도</td><td>비교적 빠르고 예측 가능</td><td>망 크기와 토폴로지에 따라 들쭉날쭉</td></tr>
+          <tr><td>장애 전파</td><td>플러딩으로 빠르게 알려짐</td><td>잘못된 정보가 천천히 퍼질 수 있음(C2I)</td></tr>
+          <tr><td>대표 프로토콜</td><td>OSPF, IS-IS</td><td>RIP, EIGRP(변종), BGP(경로 벡터)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="sec-5-2">5.2 AS 내부 라우팅 — OSPF</h2>
+
+      <p>인터넷은 한 덩어리가 아니다. 사실 매우 잘게 쪼개져 있다. 각 통신사·기업·대학교가 자기 네트워크를 자기 정책대로 굴리고, 그 단위를 <strong>자율 시스템(Autonomous System, AS)</strong>이라고 부른다. AS마다 고유 번호(ASN, AS Number)가 있고, AS 안쪽 라우팅과 AS 사이 라우팅은 다른 프로토콜로 처리한다.</p>
+
+      <ul>
+        <li><strong>IGP(Interior Gateway Protocol)</strong>: AS 안쪽에서 쓰는 라우팅. 대표적으로 OSPF, IS-IS, RIP.</li>
+        <li><strong>EGP(Exterior Gateway Protocol)</strong>: AS 사이에서 쓰는 라우팅. 사실상 BGP 하나.</li>
+      </ul>
+
+      <p>AS를 굳이 가르는 이유는 두 가지다. 첫째, <strong>규모 문제</strong>. 전 세계 라우터가 다 한 다익스트라 안에 들어가면 그래프가 너무 커진다. 둘째, <strong>자율성 문제</strong>. KT 안의 라우팅 정책을 SK가 알아야 할 이유가 없다. AS는 정보 은닉의 단위다.</p>
+
+      <h3>OSPF가 하는 일</h3>
+
+      <p>OSPF(Open Shortest Path First)는 IGP의 사실상 표준 중 하나다. 이름에 답이 있다 &mdash; <em>최단 경로 먼저(SPF)</em>. 다익스트라 기반 링크 상태 프로토콜이다. AS 내부에서 라우터들이 같은 LSDB를 공유하도록 만들고, 각자 그 위에서 다익스트라를 돌린다.</p>
+
+      <p>OSPF가 동작하는 큰 그림은 이렇다.</p>
+
+      <ol>
+        <li><strong>이웃 발견</strong>. Hello 패킷을 주기적으로 보내서 누가 옆에 살아 있는지 확인한다.</li>
+        <li><strong>인접성 형성(adjacency)</strong>. 일정 조건을 만족한 이웃과는 데이터베이스를 동기화한다.</li>
+        <li><strong>LSA 광고</strong>. 자기 링크 상태를 <strong>LSA(Link State Advertisement)</strong>로 만들어 영역 안에 플러딩.</li>
+        <li><strong>LSDB 동기화</strong>. 모두가 같은 데이터베이스를 갖도록.</li>
+        <li><strong>SPF 계산</strong>. LSDB가 바뀔 때마다 다익스트라를 다시 돌려 라우팅 테이블을 갱신.</li>
+      </ol>
+
+      <h3>영역(Area) — 큰 AS를 더 쪼갠다</h3>
+
+      <p>대학 캠퍼스 정도라면 라우터 몇십 대로 끝나지만, 큰 통신사 AS는 라우터가 수천 대다. 다익스트라가 아무리 빨라도 LSDB 자체가 너무 커지면 메모리도 메시지도 부담이다.</p>
+
+      <p>OSPF는 이걸 <strong>영역(area)</strong>으로 쪼개서 푼다. 모든 영역은 백본 영역(area 0)에 붙고, 비백본 영역의 라우터는 자기 영역 안의 토폴로지만 자세히 안다. 영역 간 정보는 <strong>영역 경계 라우터(ABR, Area Border Router)</strong>가 요약해서 넘긴다.</p>
+
+      <div class="ascii-diagram">           ┌─────────────── Area 0 (백본) ─────────────┐
+           │   R1 ─── R2 ─── R3                       │
+           │    │      │      │                       │
+           │  [ABR]  [ABR]  [ABR]                     │
+           └────┬──────┬──────┬───────────────────────┘
+                │      │      │
+        ┌──── Area 1 ──┴── Area 2 ──┴── Area 3 ────┐
+        │     R4-R5      R6-R7        R8-R9        │
+        └──────────────────────────────────────────┘
+</div>
+
+      <p>이렇게 하면 각 영역 내 라우터의 LSDB는 그 영역만 담는다. 다른 영역 정보는 ABR이 요약해 준 형태로 받기 때문에, 망이 커져도 한 라우터가 들고 있어야 할 정보는 거의 일정하게 유지된다.</p>
+
+      <div class="callout">
+        <span class="label">왜 LS인가</span>
+        <p>한 AS 안은 보통 한 조직이 운영한다. 즉, 모두가 같은 정책 아래 있고, 토폴로지 정보를 공유해도 문제될 게 없다. 그래서 "전체 지도를 다 같이 그리자"는 LS 방식이 잘 어울린다. 반대로 AS와 AS 사이에서는 그 가정이 안 통한다 &mdash; 이게 다음 절의 BGP가 LS 대신 경로 벡터 방식을 택한 이유다.</p>
+      </div>
+
+      <p>OSPF 패킷은 IP 위에 직접 얹힌다(프로토콜 번호 89). TCP나 UDP를 쓰지 않는다. 메시지 자체에 서열 번호와 체크섬이 있고, 인접한 두 라우터끼리 신뢰성 있는 LSA 교환을 자체적으로 처리한다. 또 인증을 지원해 가짜 LSA로 영역을 흔드는 공격을 막는다.</p>
+
+      <h2 id="sec-5-3">5.3 AS 간 라우팅 — BGP</h2>
+
+      <p>AS 안에서는 다 같은 편이다. 하지만 KT와 SK, AWS와 Cloudflare처럼 AS와 AS 사이는 다르다. 각자 자기 이익이 있고, 어떤 트래픽은 받고 어떤 트래픽은 안 받는다. 어떤 이웃은 친구이고, 어떤 이웃은 손님이고, 어떤 이웃은 경쟁자다.</p>
+
+      <p>이 외교 관계 위에서 돌아가는 프로토콜이 <strong>BGP(Border Gateway Protocol)</strong>다. BGP는 인터넷의 풀(glue)이다. 사실 인터넷이 "인터넷"인 이유는 이 프로토콜 때문이라고 해도 과장이 아니다.</p>
+
+      <h3>eBGP와 iBGP</h3>
+
+      <p>BGP는 두 얼굴을 가진다.</p>
+
+      <ul>
+        <li><strong>eBGP(external BGP)</strong>: 다른 AS의 경계 라우터와 말한다. 진짜 AS 간 협상.</li>
+        <li><strong>iBGP(internal BGP)</strong>: 같은 AS 안의 BGP 라우터들끼리 말한다. eBGP로 받은 정보를 AS 내부에 퍼뜨리려고 쓴다.</li>
+      </ul>
+
+      <div class="ascii-diagram">       AS 100                              AS 200
+   ┌─────────────────┐               ┌─────────────────┐
+   │                 │               │                 │
+   │  R1 ──── R2 ════╪═══════════════╪═══ R5 ──── R6   │
+   │  │       ║      │     eBGP      │      ║       │   │
+   │  │ iBGP  ║ iBGP │  (다른 AS와)  │  iBGP║       │   │
+   │  │       ║      │               │      ║       │   │
+   │  R3 ──── R4 ════╪═══════════════╪═══ R7 ──── R8   │
+   │                 │               │                 │
+   └─────────────────┘               └─────────────────┘
+       (━━ 물리 링크,  ══ BGP 세션,  ══ iBGP는 AS 내부 풀-메시 또는 RR로)
+</div>
+
+      <p>BGP 세션은 <strong>TCP 포트 179</strong> 위에서 돈다. 이웃과 명시적으로 설정하고, 한번 연결되면 서로 자기가 도달할 수 있는 <strong>접두사(prefix)</strong>들과 그 속성을 광고한다.</p>
+
+      <h3>경로 광고에 따라붙는 속성들</h3>
+
+      <p>BGP는 거리 벡터의 사촌인 <strong>경로 벡터(path vector)</strong> 프로토콜이다. 단순히 "거리 N"이 아니라 "이 접두사로 가는 경로는 AS 100 &rarr; AS 200 &rarr; AS 300 순서로 거쳐 간다"라는 <em>경로 그 자체</em>를 광고한다. 가장 중요한 속성은 다음 두 가지다.</p>
+
+      <ul>
+        <li><strong>AS-PATH</strong>: 이 광고가 거쳐 온 AS 번호의 시퀀스. 자기 AS가 이 리스트에 있으면 그 광고는 무시한다 &mdash; 이게 BGP의 <em>루프 방지</em> 메커니즘이다. 카운트-투-인피니티 같은 헛돌이를 원천 차단.</li>
+        <li><strong>NEXT-HOP</strong>: 이 경로의 다음 홉이 될 IP 주소. 보통 광고를 보낸 이웃 라우터 자신이다.</li>
+      </ul>
+
+      <p>이 외에도 LOCAL_PREF, MED, COMMUNITIES 같은 속성이 정책의 손잡이로 쓰인다.</p>
+
+      <h3>정책 라우팅 — 이건 비즈니스다</h3>
+
+      <p>BGP의 진짜 매운 부분은 <strong>정책</strong>이다. 두 AS가 BGP로 이어진다고 해서 모든 트래픽을 다 받는다는 뜻은 아니다. 관계는 보통 세 가지다.</p>
+
+      <ul>
+        <li><strong>고객(customer) &rarr; 제공자(provider)</strong>: 고객이 제공자에게 돈을 낸다. 제공자는 고객을 모두에게 광고해 주고, 모두에게서 받은 경로도 고객에게 광고한다.</li>
+        <li><strong>피어(peer) &harr; 피어</strong>: 서로 트래픽을 무료로 교환한다. 단, 자기 고객 쪽 경로만 서로에게 광고한다. 피어가 받은 다른 피어의 경로를 또 다른 피어에게 넘기진 않는다(트랜짓 안 해줌).</li>
+        <li><strong>형제(sibling)</strong>: 같은 모기업 안의 두 AS. 거의 무제한 교환.</li>
+      </ul>
+
+      <p>이 관계가 BGP의 <strong>광고 수출 정책</strong>으로 코드화된다. 흔히 말하는 "valley-free 라우팅" 같은 규칙이 여기서 나온다 &mdash; 트래픽이 한번 위로(provider) 올라가면 다시 내려갔다 또 올라가면 안 된다는 식의.</p>
+
+      <div class="callout warn">
+        <span class="label">정치가 끼는 순간</span>
+        <p>2008년 파키스탄 ISP가 자국 내에서 YouTube를 막으려고 BGP에 잘못된 광고를 흘렸는데, 그 광고가 전 세계로 퍼지면서 진짜 YouTube로 가던 트래픽이 파키스탄으로 빨려 들어간 유명한 사건이 있다. BGP는 광고를 액면가로 믿는 게 기본이다. 이 신뢰 가정 때문에 RPKI, BGPsec 같은 보강책이 계속 추가되고 있다.</p>
+      </div>
+
+      <h3>경로 선택 우선순위</h3>
+
+      <p>같은 접두사로 가는 광고가 여러 개 들어오면, 라우터는 다음 우선순위로 하나를 고른다(대략적인 일반 순서다, 구현마다 약간 다르다).</p>
+
+      <ol>
+        <li><strong>LOCAL_PREF</strong>: 운영자가 정한 선호도. 가장 큰 값이 이긴다. <em>가장 위에 있다는 게 핵심.</em> 정책이 알고리즘을 이긴다.</li>
+        <li><strong>AS-PATH 길이</strong>: 짧을수록 좋다.</li>
+        <li><strong>오리진 타입</strong>: IGP &gt; EGP &gt; incomplete.</li>
+        <li><strong>MED(Multi-Exit Discriminator)</strong>: 이웃 AS가 "여러 입구 중 이쪽이 더 좋아"라고 표시해 준 값.</li>
+        <li><strong>eBGP &gt; iBGP</strong>.</li>
+        <li><strong>iBGP의 경우 IGP 비용이 가장 가까운 출구</strong> &mdash; <em>핫 포테이토 라우팅(hot-potato routing)</em>이라 부른다. "내 AS에서 빨리 빠져나가게 해 줘".</li>
+      </ol>
+
+      <div class="callout tip">
+        <span class="label">핫 포테이토 비유</span>
+        <p>뜨거운 감자는 빨리 옆 사람에게 넘기고 싶다. 외부로 가는 트래픽도 마찬가지다. 운영자 입장에선 자기 AS 안에서 들고 다닐수록 자기 회선만 닳는다. 그래서 자기 AS에서 가장 가까운 출구(=IGP 비용 최소)로 빨리 던지려 한다.</p>
+      </div>
+
+      <h2 id="sec-5-4">5.4 SDN 제어 평면</h2>
+
+      <p>지금까지 본 OSPF/BGP는 모두 <strong>분산 제어 평면</strong>이다. 라우터들이 서로 떠들면서 각자 자기 테이블을 채운다. 이 모델은 견고하고 인터넷 규모로 검증됐지만, 단점도 분명하다. 라우터마다 복잡한 제어 소프트웨어가 살아 있어야 하고, 정책을 바꾸려면 여러 라우터를 동시에 만져야 하고, 실험적인 새 라우팅 아이디어를 넣기가 어렵다.</p>
+
+      <p><strong>SDN(Software-Defined Networking)</strong>의 발상은 이렇다. <em>"제어 평면을 라우터에서 떼어 내, 한 군데(논리적으로)에 집중하자. 데이터 평면은 단순한 매치&mdash;액션 기계로 두고."</em></p>
+
+      <h3>논리적 중앙집중 컨트롤러</h3>
+
+      <p>SDN 모델에서 라우터/스위치는 <strong>전달 장치(forwarding device)</strong>로만 일한다. 어디로 보낼지는 외부의 <strong>컨트롤러(controller)</strong>가 결정해서, 매치-액션 룰의 형태로 내려보낸다.</p>
+
+      <div class="ascii-diagram">┌─────────────────────────────────────────────────────────┐
+│  네트워크 운영 애플리케이션 (라우팅, 부하분산, 보안 등)    │
+└────────────────────┬────────────────────────────────────┘
+                     │ 노스바운드 API
+┌────────────────────▼────────────────────────────────────┐
+│           SDN 컨트롤러 (논리적 중앙)                       │
+│  - 토폴로지 뷰   - 경로 계산   - 정책 결정                  │
+└────────────────────┬────────────────────────────────────┘
+                     │ 사우스바운드 API (예: OpenFlow)
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+   [SW1]        [SW2]        [SW3]   ← 단순 매치-액션 스위치
+</div>
+
+      <p>"논리적 중앙"이라고 한 이유가 있다. 컨트롤러를 진짜 한 대로 두면 그게 죽는 순간 네트워크가 무너진다. 그래서 실제로는 여러 대의 컨트롤러가 클러스터로 묶여서 상태를 공유한다(Raft, Paxos 같은 합의 알고리즘 위에서). 외부에서 보면 한 덩어리로 보이는, 그러나 안에선 분산된 시스템이다.</p>
+
+      <h3>OpenFlow와 사우스바운드</h3>
+
+      <p>컨트롤러와 스위치 사이의 통신을 <strong>사우스바운드 API</strong>라 부른다. 가장 잘 알려진 표준이 <strong>OpenFlow</strong>다. 4장에서 본 매치-액션 테이블이 바로 이 OpenFlow가 정의한 모델 위에서 자란 것이다.</p>
+
+      <p>OpenFlow 채널의 핵심 메시지를 거칠게 묶으면 이렇다.</p>
+
+      <ul>
+        <li><strong>설정 메시지</strong>: 컨트롤러 &rarr; 스위치. "이 매치 룰을 추가/삭제/수정해라."</li>
+        <li><strong>이벤트 메시지</strong>: 스위치 &rarr; 컨트롤러. "방금 들어온 패킷이 어떤 룰에도 안 맞는다. 어떻게 할까?"(Packet-In)</li>
+        <li><strong>통계 메시지</strong>: 양방향. 카운터, 매치 수, 트래픽 양 등을 주고받음.</li>
+      </ul>
+
+      <p>이 채널은 보통 TLS로 보호된 TCP 위에서 돈다. 컨트롤러가 스위치에 절대적인 권한을 갖기 때문에, 채널이 가짜로 가로채지면 그 자체로 네트워크 전체를 탈취당하는 셈이다.</p>
+
+      <h3>분산 vs SDN — 무엇이 다른가</h3>
+
+      <table>
+        <thead>
+          <tr><th>축</th><th>전통적 분산(OSPF/BGP)</th><th>SDN</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>제어 위치</td><td>각 라우터 안</td><td>외부 컨트롤러(논리적 중앙)</td></tr>
+          <tr><td>장치 복잡도</td><td>높음(라우팅 SW + 정책 처리)</td><td>낮음(매치-액션만)</td></tr>
+          <tr><td>일관성 모델</td><td>결국 수렴(eventual)</td><td>컨트롤러가 일관성을 적극 관리</td></tr>
+          <tr><td>혁신 속도</td><td>표준화 속도에 묶임</td><td>컨트롤러 SW 갱신으로 빠르게 적용</td></tr>
+          <tr><td>장애 양상</td><td>일부 라우터 장애 격리 잘 됨</td><td>컨트롤러 장애 시 영향이 큼(클러스터로 완화)</td></tr>
+          <tr><td>대표 사용처</td><td>인터넷 백본, 일반 ISP</td><td>데이터 센터, WAN(예: 사내 광역망)</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <span class="label">현실은 하이브리드</span>
+        <p>전 세계 인터넷은 여전히 BGP 기반이고, 앞으로도 그럴 것이다. 하지만 한 회사의 데이터 센터 내부, 한 조직의 사내 광역망은 점점 SDN 모델로 가고 있다. 구글이 자기 백본망을 SDN으로 바꿨다는 사례가 잘 알려진 예다. <em>"제어를 어디에 둘 것인가"</em>는 더 이상 양자택일이 아니라, 도메인별로 골라 쓰는 도구가 됐다.</p>
+      </div>
+
+      <h2 id="sec-5-5">5.5 ICMP — 인터넷의 진단</h2>
+
+      <p>네트워크 계층에는 패킷을 나르는 IP만 있는 게 아니다. <strong>ICMP(Internet Control Message Protocol)</strong>가 IP 옆에서 같은 계층을 차지한다. ICMP는 IP가 일을 하다가 마주친 문제를 호스트와 라우터에게 알리는 작은 시그널 시스템이다.</p>
+
+      <h3>메시지 형식과 흔한 타입</h3>
+
+      <p>ICMP 메시지는 IP 패킷의 페이로드로 실린다(프로토콜 번호 1). 헤더는 단순하다 &mdash; <strong>타입(Type)</strong>, <strong>코드(Code)</strong>, 체크섬, 그리고 타입에 따라 의미가 달라지는 가변 데이터.</p>
+
+      <ul>
+        <li><strong>Type 0 / 8</strong>: Echo Reply / Echo Request (ping이 쓰는 두 메시지).</li>
+        <li><strong>Type 3</strong>: Destination Unreachable. 코드로 세부 이유를 구분(네트워크/호스트/포트/단편화 필요 등).</li>
+        <li><strong>Type 11</strong>: Time Exceeded. TTL이 0이 됐을 때 라우터가 보낸다.</li>
+        <li><strong>Type 12</strong>: Parameter Problem. 헤더가 이상해.</li>
+        <li><strong>Type 5</strong>: Redirect. "이 목적지로 가려면 다른 라우터로 보내라"(요즘은 잘 안 쓴다).</li>
+      </ul>
+
+      <p>ICMPv6는 같은 자리를 차지하지만 더 많은 일을 한다. IPv4에서 ARP가 하던 이웃 발견 역할도 ICMPv6 안의 NDP(Neighbor Discovery Protocol)가 한다.</p>
+
+      <h3>ping &mdash; 살아 있나?</h3>
+
+      <p>ping은 가장 단순한 ICMP 사용 사례다. 호스트가 목적지에 Echo Request(타입 8)를 보내고, 응답으로 Echo Reply(타입 0)가 돌아오면 "살아 있다"고 판단한다. 왕복 시간(RTT)도 함께 측정한다.</p>
+
+      <p>방화벽이 ICMP를 차단해 버리면 ping이 안 가는 호스트도 많다 &mdash; 그럼 살아 있어도 응답이 안 온다는 말이다. 즉, ping의 침묵이 곧 호스트의 사망을 의미하지는 않는다.</p>
+
+      <h3>traceroute &mdash; TTL 트릭</h3>
+
+      <p>traceroute는 훨씬 영리하다. 목적지까지 가는 경로의 라우터 목록을 보여 주는데, 그 방법이 멋있다. <strong>TTL(Time To Live, IPv6에선 Hop Limit) 필드를 일부러 낮게 설정한 패킷을 차례로 보내는</strong> 트릭이다.</p>
+
+      <ol>
+        <li>TTL=1로 패킷을 보낸다. 첫 번째 라우터가 받자마자 TTL을 0으로 깎아 버려 패킷을 폐기하고, 발신자에게 ICMP Time Exceeded(타입 11)를 보낸다. 발신자는 그 응답의 출처 IP에서 첫 번째 라우터의 주소를 안다.</li>
+        <li>TTL=2로 다시 보낸다. 첫 번째 라우터를 통과하고 두 번째에서 폐기, 두 번째 라우터가 응답.</li>
+        <li>TTL을 1씩 늘려가며 반복하면 경로상의 모든 라우터를 차례로 알아낼 수 있다.</li>
+        <li>마침내 목적지에 도달하면, 목적지는 보통 닫힌 UDP 포트로 보낸 프로브에 대해 ICMP Port Unreachable(타입 3, 코드 3)을 돌려준다 &mdash; 그게 종료 신호다.</li>
+      </ol>
+
+      <div class="ascii-diagram">출발지(A) ─────────── R1 ─────── R2 ─────── R3 ─────── 목적지(B)
+
+  TTL=1 ──┐
+           ▼  R1: TTL=0! → ICMP Time Exceeded ────────────────▶ A  (R1 발견)
+  TTL=2 ─────────▶
+                  ▼  R2: TTL=0! → ICMP Time Exceeded ───────▶ A  (R2 발견)
+  TTL=3 ──────────────────▶
+                            ▼  R3: TTL=0! → ICMP Time Exceeded ──▶ A  (R3 발견)
+  TTL=4 ─────────────────────────────▶ B (닫힌 포트)
+                                        → ICMP Port Unreachable ▶ A  (끝!)
+</div>
+
+      <p>실제 출력은 이런 모양이다(IP는 가상).</p>
+
+      <pre><code>$ traceroute www.example.com
+traceroute to www.example.com (203.0.113.42), 30 hops max
+ 1  10.0.0.1            0.823 ms   0.751 ms   0.812 ms
+ 2  192.0.2.1           1.412 ms   1.388 ms   1.401 ms
+ 3  198.51.100.5       12.041 ms  11.992 ms  12.103 ms
+ 4  198.51.100.17      14.220 ms  14.187 ms  14.250 ms
+ 5  * * *                                                ← 응답 없음(차단/유실)
+ 6  203.0.113.40       21.553 ms  21.510 ms  21.601 ms
+ 7  203.0.113.42       21.892 ms  21.844 ms  21.910 ms</code></pre>
+
+      <p>각 줄에 같은 TTL로 보통 3번씩 보내서 RTT 세 개를 잰다. 별표(*)는 그 라우터가 응답을 안 줬다는 뜻 &mdash; ICMP 차단이 흔한 이유다. 또 traceroute가 보여 주는 경로가 반드시 양방향 동일하지는 않다. 인터넷은 보통 비대칭이다.</p>
+
+      <div class="callout tip">
+        <span class="label">실전 팁</span>
+        <p>traceroute가 어느 홉에서 멈추거나 RTT가 갑자기 튀어 오르면, 그 지점이 의심 구간이다. 다만 라우터들이 응답 패킷 생성을 일부러 낮은 우선순위로 처리하는 경우가 많아서, 중간 RTT가 좀 높은 건 그 라우터 자체의 문제가 아니라 응답 처리 지연일 수도 있다 &mdash; 진짜 병목은 보통 그 다음 홉부터 일관되게 RTT가 높아진다.</p>
+      </div>
+
+      <h2 id="sec-5-6">5.6 SNMP와 네트워크 관리</h2>
+
+      <p>망을 굴리는 사람 입장에서, 라우터가 살아 있느냐만 중요한 게 아니다. 인터페이스마다 트래픽이 얼마나 흐르는지, 큐가 꽉 찼는지, CPU가 비명을 지르는지, 어떤 링크에 에러가 쌓이는지 &mdash; 이런 걸 끊임없이 봐야 한다. 이 영역을 <strong>네트워크 관리(network management)</strong>라고 부르고, 인터넷이 가장 오래 쓰는 도구가 <strong>SNMP(Simple Network Management Protocol)</strong>다.</p>
+
+      <h3>관리 모델 &mdash; 매니저와 에이전트</h3>
+
+      <p>SNMP의 그림은 단순하다.</p>
+
+      <ul>
+        <li><strong>매니저(manager)</strong>: 운영자가 앉아서 보는 쪽. NMS(Network Management Station)라고도 부른다. 보통 한두 대.</li>
+        <li><strong>에이전트(agent)</strong>: 관리되는 장비(라우터, 스위치, 서버 등) 안에서 돌아가는 작은 프로세스.</li>
+        <li><strong>MIB(Management Information Base)</strong>: 에이전트가 관리하는 정보의 데이터 모델. "이 장비의 인터페이스 1번의 입력 옥텟 카운터" 같은 항목 하나하나가 OID(Object Identifier)라는 점-구분 숫자열로 식별된다.</li>
+        <li><strong>SMI(Structure of Management Information)</strong>: MIB를 정의할 때 쓰는 데이터 타입 명세 언어. 어떤 항목이 카운터인지 게이지인지 시간인지 등을 정한다.</li>
+      </ul>
+
+      <div class="ascii-diagram">  ┌──────────────┐                        ┌────────────────┐
+  │  매니저(NMS) │ ── SNMP GET / SET ──▶ │  라우터        │
+  │   (운영자)   │                        │  ┌──────────┐  │
+  │              │ ◀── GET-RESPONSE  ──── │  │ 에이전트 │  │
+  │              │                        │  └──────────┘  │
+  │              │ ◀── TRAP / INFORM ──── │  ┌──────────┐  │
+  │              │                        │  │   MIB    │  │
+  └──────────────┘                        │  └──────────┘  │
+                                          └────────────────┘
+</div>
+
+      <h3>SNMP 동작 &mdash; 폴링과 트랩</h3>
+
+      <p>SNMP는 두 가지 흐름으로 일한다.</p>
+
+      <ul>
+        <li><strong>폴링(polling)</strong>: 매니저가 에이전트에게 주기적으로 GET을 날린다. "포트 1번 입력 바이트 수 알려줘." 에이전트가 RESPONSE로 답한다. 매니저가 시간을 따라 그 카운터를 모아 그래프로 그리면, 그게 우리가 보는 트래픽 그래프다.</li>
+        <li><strong>트랩(trap) / 인폼(inform)</strong>: 에이전트가 자발적으로 매니저에게 "야! 일났어!"를 보내는 비동기 통보. 링크 다운, 인증 실패, 온도 임계 초과 같은 이벤트.</li>
+      </ul>
+
+      <p>주요 메시지 타입을 한 번 더 정리하면:</p>
+
+      <ul>
+        <li><strong>GET</strong>: 특정 OID의 값을 달라.</li>
+        <li><strong>GETNEXT / GETBULK</strong>: MIB 트리를 순회하면서 줄줄이 가져오기.</li>
+        <li><strong>SET</strong>: OID 값을 바꿔라(설정 변경).</li>
+        <li><strong>RESPONSE</strong>: GET/SET에 대한 답.</li>
+        <li><strong>TRAP / INFORM</strong>: 에이전트 발 비동기 알림. 인폼은 매니저의 ACK를 기대한다.</li>
+      </ul>
+
+      <p>SNMP는 보통 UDP 포트 161(에이전트 수신), 162(매니저의 트랩 수신) 위에서 돈다. UDP를 쓰는 이유는 가벼움 &mdash; 1초마다 수천 개 장비를 폴링해야 하는 대규모 망에서 TCP 핸드셰이크는 부담이다.</p>
+
+      <p>버전은 v1, v2c, v3가 있다. v1과 v2c는 인증을 평문 "커뮤니티 문자열"로 한다 &mdash; 내부망 외에는 절대 쓰면 안 되는 수준의 보안이다. v3는 사용자별 인증과 메시지 무결성, 암호화를 제대로 정의했다.</p>
+
+      <div class="callout warn">
+        <span class="label">SET은 위험하다</span>
+        <p>SNMP SET을 쓰면 매니저가 장비 설정을 바꿀 수 있다. 위력은 크지만, 한 번 잘못 쓰면 인터페이스를 셧다운하거나 라우팅을 망칠 수 있다. 그래서 실무에서는 읽기 전용 권한으로만 SNMP를 쓰고, 설정 변경은 NETCONF/RESTCONF나 별도의 설정 관리 도구로 미는 게 보통이다.</p>
+      </div>
+
+      <h3>그리고 텔레메트리</h3>
+
+      <p>SNMP는 30년 넘게 잘 살아남았지만, 한계도 분명하다. 폴링 주기가 길면(보통 1분~5분) 짧은 스파이크를 놓치고, 짧으면 매니저가 장비를 두드려 죽인다. 그래서 최근에는 <strong>모델 기반 스트리밍 텔레메트리(streaming telemetry)</strong>가 떠오르는 추세다 &mdash; YANG으로 정의된 데이터 모델을 gNMI/gRPC 같은 채널로 장비가 매니저에게 <em>밀어 보내는</em> 방식이다. 폴링이 아니라 구독. 큰 데이터센터·통신사부터 차례로 넘어가는 중이고, SNMP는 한동안 둘이 공존할 가능성이 크다.</p>
+
+      <h2 id="recap">한 줄 요약</h2>
+
+      <ul>
+        <li><strong>제어 평면은 라우터의 머리</strong>다. 전달 테이블을 누가 어떻게 채우느냐의 문제이며, 그 답은 분산 라우팅과 SDN 두 갈래로 나뉜다.</li>
+        <li><strong>LS는 모두가 같은 지도를 그리고 다익스트라를 돌리는 방식</strong>, <strong>DV는 이웃의 거리 벡터를 받아 벨만-포드로 갱신하는 방식</strong>이다. DV는 카운트-투-인피니티 같은 함정이 있다.</li>
+        <li><strong>OSPF는 AS 안의 LS</strong>, <strong>BGP는 AS 사이의 경로 벡터</strong>다. 둘이 갈라진 이유는 규모와 자율성 &mdash; AS 사이엔 정책과 신뢰가 끼기 때문에 LS가 통하지 않는다.</li>
+        <li><strong>BGP 경로 선택의 1순위는 LOCAL_PREF</strong>다. 알고리즘이 아니라 정책이 가장 먼저 작동한다는 뜻이고, 이게 BGP를 정치적인 프로토콜로 만든다.</li>
+        <li><strong>SDN은 제어 평면을 외부로 끌어낸다</strong>. 데이터 평면은 매치-액션, 컨트롤러는 OpenFlow 같은 사우스바운드로 룰을 내려보낸다. 인터넷 전체보다는 한 도메인 안(데이터 센터, 사내 WAN)에서 잘 어울린다.</li>
+        <li><strong>ICMP는 네트워크 계층의 진단 신경</strong>이고, ping과 traceroute가 그 위에서 산다. traceroute는 TTL을 1부터 늘려 가며 라우터들이 보내는 Time Exceeded를 모아 경로를 그린다.</li>
+        <li><strong>SNMP는 매니저-에이전트 + MIB</strong>로 구성된 오랜 운영 도구다. GET 폴링과 TRAP 비동기 통보가 두 축이고, 요즘은 모델 기반 스트리밍 텔레메트리가 그 옆에서 자라고 있다.</li>
+      </ul>
+
+      <nav class="chapter-nav">
+        <a href="chapter04.html">
+          <span class="label">← 이전</span>
+          <span class="title">4장 · 네트워크 계층 — 데이터 평면</span>
+        </a>
+        <a href="chapter06.html" class="next">
+          <span class="label">다음 →</span>
+          <span class="title">6장 · 링크 계층과 LAN</span>
+        </a>
+      </nav>
+    </article>
+  </div>
+</body>
+</html>

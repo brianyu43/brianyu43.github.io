@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>4장 문맥 의존 분석 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html" class="active">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+
+<main class="content">
+<h1>4장. 문맥 의존 분석</h1>
+<p class="lead">"이 문장 문법은 맞는데, 말이 되나?" — 타입 시스템과 의미 검사의 세계.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 161–220</span>
+<span><strong>키워드:</strong> type system, attribute grammar, syntax-directed translation, type inference</span>
+</div>
+
+<h2>4.1 들어가며 — 문법은 맞는데 말이 안 되는 코드</h2>
+
+<p>2장과 3장을 거쳐 컴파일러는 입력 텍스트를 토큰으로 잘게 썰고, 토큰 스트림을 파스 트리로 엮는 데까지 왔다. 이제 컴파일러는 한 가지 사실은 보장할 수 있다 — <em>문법적으로 정당한 문장이다.</em> 하지만 그게 끝이 아니다. 다음 코드를 보자.</p>
+
+<pre><code>x = y + z;</code></pre>
+
+<p>이 한 줄은 <code>x ← y</code>나 <code>x ← z</code>의 파스 트리와 모양이 거의 똑같다. 다른 점은 오른쪽에 어떤 <em>이름</em>이 들어가느냐 뿐. 그런데 만약 <code>x</code>와 <code>y</code>는 정수이고 <code>z</code>는 문자열이라면? 또는 <code>z</code>가 한 번도 선언된 적 없는 이름이라면? 파서는 이 차이를 잡아내지 못한다. 파스 트리만 보고는 "정수 더하기 문자열"이 안 된다는 사실을 알 길이 없다.</p>
+
+<p>그래서 필요한 것이 <strong>문맥 의존 분석</strong>(context-sensitive analysis)이다. 다른 이름으로는 <strong>의미 정교화</strong>(semantic elaboration)라고도 부른다. 결국 IR(중간 표현)에 의미라는 살을 붙여나가는 작업이라는 뜻이다.</p>
+
+<div class="callout note">
+<div class="callout-title">스캐너·파서가 못 잡는 것들</div>
+<ul>
+<li><strong>선언 후 사용</strong> 규칙: 모든 변수는 쓰기 전에 선언되어야 한다.</li>
+<li><strong>타입 일치</strong>: 정수와 복소수를 더해도 되는가? 함수에 넘긴 인자 개수와 타입은 맞는가?</li>
+<li><strong>이름 해소</strong>: 같은 이름이 여러 스코프에 있을 때 지금 이 등장은 어느 선언을 가리키는가?</li>
+<li><strong>표현 가능 범위</strong>: 정수가 들어갈 자리에 복소수를 두면 의미가 달라진다.</li>
+</ul>
+</div>
+
+<p>이런 검사는 문맥 자유 문법(CFG)으로는 깔끔하게 표현되지 않는다. 가능은 하지만 가능한 모든 변수 조합을 문법에 박아넣어야 하는데, 현실적인 언어의 이름 공간 크기를 생각하면 사실상 불가능에 가깝다. 그래서 컴파일러 작성자는 파서 옆에다 <em>"이건 따로 처리하겠습니다"</em>의 영역을 만든다. 이 장은 그 영역을 두 가지 방식으로 다룬다.</p>
+
+<ol>
+<li><strong>속성 문법</strong>(attribute grammar) — 함수형, 자동화, 우아한 명세.</li>
+<li><strong>임시방편 구문 주도 번역</strong>(ad hoc syntax-directed translation) — 파싱 도중에 코드 조각을 끼워넣는 실전형 접근.</li>
+</ol>
+
+<h2>4.2 타입 시스템 입문</h2>
+
+<p>모든 값에는 <strong>타입</strong>(type)이 있다. 타입이란 <em>같은 부류 값들이 공통으로 가지는 성질의 집합</em>이다. 정수 타입은 "−2³¹ ≤ i &lt; 2³¹ 범위의 정수"라는 멤버십으로 정의되고, 열거형 <code>colors = {red, orange, yellow, ...}</code>처럼 명시적 멤버 나열로 정의되기도 한다. 구조체처럼 규칙으로 만들어지는 타입도 있다. 언어 안의 모든 타입과 그 타입들을 사용하는 규칙을 묶어서 <strong>타입 시스템</strong>(type system)이라고 부른다.</p>
+
+<h3>4.2.1 타입 시스템은 왜 있는가</h3>
+
+<p>언어 설계자가 타입 시스템을 도입하는 이유는 셋이다. <strong>안전성, 표현력, 효율</strong>.</p>
+
+<h4>(1) 런타임 안전 보장</h4>
+
+<p>잘 만들어진 타입 시스템은 <em>실행되면 망할</em> 프로그램을 실행 전에 골라낸다. 컴파일러는 (a) 모든 식의 타입을 추론하고, (b) 각 연산자 자리에 들어간 피연산자 타입이 규칙에 맞는지 검사한다. FORTRAN 77의 + 연산자가 실제로 어떤 식으로 작동하는지 표로 보면 직관적이다.</p>
+
+<div class="figure">
+<table>
+<thead><tr><th>+</th><th>integer</th><th>real</th><th>double</th><th>complex</th></tr></thead>
+<tbody>
+<tr><th>integer</th><td>integer</td><td>real</td><td>double</td><td>complex</td></tr>
+<tr><th>real</th><td>real</td><td>real</td><td>double</td><td>complex</td></tr>
+<tr><th>double</th><td>double</td><td>double</td><td>double</td><td><strong>illegal</strong></td></tr>
+<tr><th>complex</th><td>complex</td><td>complex</td><td><strong>illegal</strong></td><td>complex</td></tr>
+</tbody>
+</table>
+<span class="figure-caption">그림 4.1 — FORTRAN 77의 + 결과 타입표</span>
+</div>
+
+<p>표를 외우는 게 아니라, <em>표가 있다는 사실</em>이 중요하다. 컴파일 타임에 표를 참조해서 위반을 잡으면, 런타임에 일일이 태그(tag)를 붙여 검사할 필요가 없다.</p>
+
+<div class="term-box">
+<span class="term">강타입(strongly typed) <span class="en">strongly typed</span></span> — 모든 식이 모호하지 않게 타입을 가지는 언어. 정적(static)으로 결정되면 <em>statically typed</em>, 일부가 런타임에 결정되면 <em>dynamically typed</em>. 타입 자체가 없으면 <em>untyped</em>(어셈블리, BCPL), 빈약하면 <em>weakly typed</em>.
+</div>
+
+<h4>(2) 표현력 — 연산자 오버로딩</h4>
+
+<p>강타입 언어가 누리는 호사 중 하나가 <strong>연산자 오버로딩</strong>(operator overloading)이다. <code>+</code> 하나로 정수 더하기, 실수 더하기, 복소수 더하기를 다 표현할 수 있다. 무타입 언어 BCPL에서는 그렇게 못한다 — 정수 덧셈은 <code>+</code>, 부동소수 덧셈은 <code>#+</code>처럼 별도의 연산자를 줘야 한다. 모든 값이 그냥 "셀"(cell)일 뿐이니까.</p>
+
+<h4>(3) 더 나은 코드 생성</h4>
+
+<p>컴파일러가 모든 식의 타입을 알면 <code>iADD</code>, <code>fADD</code>, <code>dADD</code>처럼 정밀도별로 다른 ILOC 명령을 직접 박을 수 있다. 만약 타입을 런타임에 검사해야 한다면 어떻게 될까?</p>
+
+<pre><code><span class="cm">// "a+b ⇒ c" 의 일부 코드 (런타임 타입 검사)</span>
+<span class="kw">if</span> (tag(a) = integer) <span class="kw">then</span>
+    <span class="kw">if</span> (tag(b) = integer) <span class="kw">then</span>
+        value(c) ← value(a) + value(b);
+        tag(c)   ← integer;
+    <span class="kw">else if</span> (tag(b) = real) <span class="kw">then</span>
+        temp     ← ConvertToReal(a);
+        value(c) ← temp + value(b);
+        tag(c)   ← real;
+    <span class="kw">else</span> ...
+<span class="kw">else if</span> (tag(a) = real) <span class="kw">then</span>
+    ...
+<span class="kw">else</span>
+    signal runtime type fault</code></pre>
+
+<p>덧셈 한 번이 if-else 사다리가 된다. 각 값에 타입 태그를 붙이고, 메모리도 더 먹고, 캐시도 망가진다. 컴파일 타임에 끝낼 수 있다면 <em>언제나</em> 그쪽이 빠르다. 단, 언어 설계가 그것을 허용해야 가능한 이야기다.</p>
+
+<h3>4.2.2 타입 시스템의 구성 요소</h3>
+
+<p>현대 언어의 타입 시스템은 보통 네 부분으로 이뤄진다.</p>
+
+<ol>
+<li><strong>기본 타입(base types)</strong> — 숫자(정수/실수), 문자, 불리언. 하드웨어가 직접 지원하는 것들.</li>
+<li><strong>구성 규칙(constructors)</strong> — 기본 타입에서 배열, 레코드, 포인터, 합집합 같은 복합 타입을 만드는 법.</li>
+<li><strong>등가 판정(equivalence)</strong> — 두 타입이 같은가? 호환 가능한가?</li>
+<li><strong>추론 규칙(inference rules)</strong> — 식의 타입을 피연산자 타입으로부터 어떻게 계산하는가.</li>
+</ol>
+
+<h4>등가 판정 두 학파: 이름 vs 구조</h4>
+
+<p>C에서 다음을 보자.</p>
+
+<pre><code><span class="kw">struct</span> Tree {
+  <span class="kw">struct</span> Tree *left;
+  <span class="kw">struct</span> Tree *right;
+  <span class="kw">int</span>          value;
+}
+<span class="kw">struct</span> STree {
+  <span class="kw">struct</span> STree *left;
+  <span class="kw">struct</span> STree *right;
+  <span class="kw">int</span>           value;
+}</code></pre>
+
+<p><code>Tree</code>와 <code>STree</code>는 같은 타입인가?</p>
+
+<ul>
+<li><strong>이름 등가</strong>(name equivalence): 이름이 같아야 같은 타입. 프로그래머가 다른 이름을 골랐다면 그건 의도다. → 둘은 다른 타입.</li>
+<li><strong>구조 등가</strong>(structural equivalence): 구조가 똑같으면 같은 타입. → 둘은 같은 타입.</li>
+</ul>
+
+<p>대규모 프로젝트에서 이름 등가는 같은 이름이 우연히 충돌할 위험이 있고, 구조 등가는 의미는 다른데 모양만 같은 두 타입(파일 I/O 블록 vs 화면 비트맵 정보)을 섞어버릴 수 있다. 트레이드오프다.</p>
+
+<h4>타입 시그니처 — 함수의 명함</h4>
+
+<p>함수도 타입을 가진다. C의 <code>strlen</code>은</p>
+
+<pre><code><span class="kw">unsigned int</span> strlen(<span class="kw">const char</span> *s);</code></pre>
+
+<p>인데, 추상 표기로는 <code>strlen : const char * → unsigned int</code>로 적을 수 있다. Scheme의 <code>filter</code>처럼 다형성이 들어가면</p>
+
+<pre><code>filter : (α → boolean) × list of α → list of α</code></pre>
+
+<p><em>"불리언을 반환하는 α 함수와 α의 리스트를 받아 α의 리스트를 돌려준다"</em>는 뜻. 반환 타입이 인자에 따라 결정되는 이런 성질을 <strong>매개변수 다형성</strong>(parametric polymorphism)이라고 한다.</p>
+
+<h2>4.3 속성 문법(Attribute Grammar) 프레임워크</h2>
+
+<p>지금까지 살펴본 검사들을 어떻게 <em>체계적으로</em> 자동화할까? 한 가지 답이 속성 문법이다. 이름 그대로 <strong>문법 + 속성 규칙</strong>으로, 각 문법 기호에 "속성"이라는 라벨을 붙이고, 그 속성을 다른 속성들의 함수로 정의하는 함수형 명세다.</p>
+
+<div class="term-box">
+<span class="term">속성(attribute) <span class="en">attribute</span></span> — 파스 트리의 한 노드(또는 여러 노드)에 붙는 값. <code>node.field</code> 형태로 참조한다.
+</div>
+
+<p>구체적으로 보자. 부호 있는 이진수 문법 SBN을 예로 든다.</p>
+
+<div class="figure">
+<pre>Number → Sign List
+Sign   → + | -
+List   → List Bit | Bit
+Bit    → 0 | 1</pre>
+<span class="figure-caption">그림 4.4 — 부호 있는 이진수 문법 SBN</span>
+</div>
+
+<p>이 문법이 만든 트리에 <em>"이 트리는 십진수로 얼마인가?"</em>를 라벨로 붙이고 싶다. 각 비기호에 다음 속성을 둔다.</p>
+
+<table>
+<thead><tr><th>기호</th><th>속성</th></tr></thead>
+<tbody>
+<tr><td>Number</td><td>value</td></tr>
+<tr><td>Sign</td><td>negative</td></tr>
+<tr><td>List</td><td>position, value</td></tr>
+<tr><td>Bit</td><td>position, value</td></tr>
+</tbody>
+</table>
+
+<p>그리고 각 생성 규칙(production)에 그 속성을 어떻게 계산하는지 적는다.</p>
+
+<div class="figure">
+<pre>1  Number → Sign List   List.position ← 0
+                        if Sign.negative
+                            then Number.value ← -List.value
+                            else Number.value ←  List.value
+2  Sign → +              Sign.negative ← false
+3  Sign → -              Sign.negative ← true
+4  List → Bit            Bit.position ← List.position
+                         List.value   ← Bit.value
+5  List₀ → List₁ Bit     List₁.position ← List₀.position + 1
+                         Bit.position   ← List₀.position
+                         List₀.value    ← List₁.value + Bit.value
+6  Bit → 0               Bit.value ← 0
+7  Bit → 1               Bit.value ← 2^Bit.position</pre>
+<span class="figure-caption">그림 4.5 — 부호 있는 이진수 문법의 속성 문법</span>
+</div>
+
+<p>"-101"이 들어오면 트리의 각 노드에 위 규칙들이 인스턴스화되어 값이 흐르고, 결국 루트의 <code>Number.value</code>에 -5가 박힌다.</p>
+
+<h4>합성 속성 vs 상속 속성</h4>
+
+<div class="term-box">
+<span class="term">합성 속성(synthesized) <span class="en">synthesized attribute</span></span> — 자식과 자기 자신, 상수만으로 정의되는 속성. 값이 <em>아래에서 위로</em> 흐른다.<br>
+<span class="term">상속 속성(inherited) <span class="en">inherited attribute</span></span> — 부모, 형제, 자기 자신을 참조해서 정의되는 속성. 값이 <em>위에서 아래/옆으로</em> 흐른다.
+</div>
+
+<p>SBN 예에서 <code>value</code>와 <code>negative</code>는 합성, <code>position</code>은 상속이다. 첫 규칙이 루트에서 <code>List.position ← 0</code>으로 박아주고, 그 값이 트리 아래로 흘러내려간다. 비트 자릿수는 위에서 알려줘야 하니까 어쩔 수 없이 상속이다.</p>
+
+<h3>4.3.1 평가 방법(Evaluation Methods)</h3>
+
+<p>속성 문법은 명세일 뿐 — 실제로 평가하는 평가기가 필요하다. 세 부류로 나뉜다.</p>
+
+<ol>
+<li><strong>동적(dynamic) 방법</strong> — 의존성 그래프를 만들고 데이터플로우 방식으로 흘려보낸다. Knuth의 원래 논문이 제안한 방식.</li>
+<li><strong>둔감한(oblivious) 방법</strong> — 그래프 모양과 무관하게 좌→우, 우→좌, 또는 교차 패스를 반복. 단순하지만 트리 구조를 못 활용한다.</li>
+<li><strong>규칙 기반(rule-based) 방법</strong> — 문법을 정적 분석해서 평가 순서를 미리 짜둔다. 빠르고 우아하지만 비순환 문법이어야 한다.</li>
+</ol>
+
+<h3>4.3.2 순환성(Circularity) — 닭이 먼저냐 알이 먼저냐</h3>
+
+<p>속성 규칙이 자기 자신에 의존하면(직접·간접) 의존성 그래프에 사이클이 생긴다. 이렇게 생긴 문법은 <em>잘못 짜인</em> 것이다 — 컴파일러가 무한 루프에 빠지거나 답을 못 낸다. 대처법은 두 가지.</p>
+
+<ul>
+<li><strong>회피</strong>(avoidance) — 합성 속성만 쓰는 등 사이클이 절대 안 생기는 부분집합으로 제한. <em>strongly noncircular</em> 문법은 다항 시간에 검사 가능.</li>
+<li><strong>평가 시 처리</strong> — 사이클을 만나면 기본값을 넣고 반복(iterate)으로 수렴.</li>
+</ul>
+
+<h3>4.3.3 확장 예제 — 식의 타입 추론</h3>
+
+<p>고전 식 문법에 <code>type</code> 속성을 붙여, <code>a - 2 × c</code>(<code>a</code>는 정수, <code>c</code>는 실수)의 타입을 추론해보자. 각 산술 연산자에 대해 두 피연산자 타입을 받아 결과 타입을 돌려주는 함수 𝓕₊, 𝓕₋, 𝓕×, 𝓕÷를 가정한다(그림 4.1의 표가 이 함수들이다).</p>
+
+<div class="figure">
+<pre>Expr₀ → Expr₁ + Term    Expr₀.type ← 𝓕₊(Expr₁.type, Term.type)
+      | Expr₁ - Term    Expr₀.type ← 𝓕₋(Expr₁.type, Term.type)
+      | Term            Expr₀.type ← Term.type
+Term₀ → Term₁ × Factor  Term₀.type ← 𝓕×(Term₁.type, Factor.type)
+      | Term₁ ÷ Factor  Term₀.type ← 𝓕÷(Term₁.type, Factor.type)
+      | Factor          Term₀.type ← Factor.type
+Factor → ( Expr )       Factor.type ← Expr.type
+       | num            num.type 는 이미 정의됨
+       | name           name.type 는 이미 정의됨</pre>
+<span class="figure-caption">그림 4.7 — 식 타입 추론용 속성 문법</span>
+</div>
+
+<p>모든 속성이 합성이다 — 자식의 <code>type</code>으로 부모의 <code>type</code>을 만든다. 이런 문법을 <strong>S-속성 문법</strong>(S-attributed grammar)이라고 부르고, 상향식 파서와 궁합이 좋다(reduce 시점에 바로 평가). 짧고, 우아하고, 빠른 평가기가 나온다.</p>
+
+<h4>실행 시간 추정기 — 요구가 늘면 규칙도 늘어난다</h4>
+
+<p>이번엔 직선 코드의 실행 사이클 수를 추정해보자. <code>cost</code> 속성을 만들고, 각 노드에서 ILOC 명령어 비용을 합한다. 처음에는 단순하다 — 모든 변수에 대해 매번 <code>load</code> 비용을 매기면 된다.</p>
+
+<p>그런데 더 현실적으로 만들고 싶다면? "한 블록 안에서 같은 변수를 여러 번 쓰면 첫 번째만 <code>load</code> 비용이 든다"고 모델링하고 싶다. 이를 위해 <code>Before</code>(이 노드 도달 전에 이미 로드된 이름 집합)과 <code>After</code>(노드 처리 후의 집합) 속성을 도입한다.</p>
+
+<p>여기서 속성 문법의 약점이 드러난다 — 속성 규칙은 <em>가까운 이웃</em>(부모, 자식, 형제)밖에 못 본다. 정보를 트리 멀리 보내려면 <strong>복사 규칙</strong>(copy rules)을 잔뜩 만들어 한 노드에서 다음 노드로 전달해야 한다. 그림 4.10의 규칙은 그래서 그림 4.7보다 세 배 이상 길다. 한 줄짜리 명세가 한 페이지짜리 명세로 부풀어오른다.</p>
+
+<h3>4.3.4 속성 문법의 골치들</h3>
+
+<div class="callout warn">
+<div class="callout-title">속성 문법이 널리 쓰이지 못한 이유</div>
+<ul>
+<li><strong>비국소(nonlocal) 정보 전달이 어렵다</strong> — 복사 규칙 폭발. 선언 정보를 사용처까지 끌고 가려면 트리 전체를 따라 복사해야 한다.</li>
+<li><strong>저장 관리(storage) 부담</strong> — 속성 인스턴스 수가 폭발한다. 어떤 속성이 더 이상 안 쓰이는지 자동으로 알기 어려워, 메모리를 못 회수한다.</li>
+<li><strong>파스 트리 구체화 비용</strong> — 속성 문법은 파스 트리 위에서 돌아간다는 가정이지만, 실제 컴파일러는 파스 트리를 짓지 않고 곧바로 AST나 다른 IR로 간다.</li>
+<li><strong>답을 찾기 어렵다</strong> — 분석 결과가 트리에 흩어져 있다. 후속 단계에서 정보를 쓰려면 트리를 다시 순회해야 한다.</li>
+<li><strong>함수형 패러다임의 균열</strong> — 위 문제를 해결하려고 중앙 저장소(테이블)를 도입하면, 그 순간 함수형의 우아함은 깨지고 사실상 임시방편 방식으로 변한다.</li>
+</ul>
+</div>
+
+<h2>4.4 임시방편 구문 주도 번역</h2>
+
+<p>속성 문법의 핵심 통찰 — <em>"문맥 의존 검사는 문법 구조 주위로 조직될 수 있다"</em> — 만 살리고, 함수형의 제약은 버려보자. 그러면 <strong>임시방편 구문 주도 번역</strong>(ad hoc syntax-directed translation, ad hoc SDT)이 된다.</p>
+
+<p>방식은 단순하다. 각 생성 규칙(production)에 <strong>코드 조각</strong>(action)을 매단다. 파서가 그 규칙으로 reduce할 때마다(또는 top-down 파서면 그 노드를 처리할 때마다) 그 코드를 실행한다. 임의의 코드를 끼워넣을 수 있고, 전역 자료구조(심볼 테이블 등)를 자유롭게 건드릴 수 있다.</p>
+
+<div class="callout">
+<div class="callout-title">비유로 보기</div>
+속성 문법은 트리에 라벨을 차곡차곡 붙이며 "정보가 알아서 흐르도록" 설계하는 방식이다. 임시방편 SDT는 파서 곳곳에 손으로 쪽지를 끼워넣는 방식이다. 전자는 우아하지만 멀리 보내기 어렵고, 후자는 지저분하지만 무엇이든 할 수 있다.
+</div>
+
+<p>SBN 예제를 ad hoc SDT로 다시 써보자. Yacc 표기법을 빌려, <code>$$</code>는 현재 reduce의 결과 자리, <code>$1, $2, ...</code>는 우변 i번째 기호의 값을 가리킨다.</p>
+
+<div class="figure">
+<pre>1  Number → Sign List      $$ ← $1 × $2
+2  Sign   → +              $$ ← 1
+3  Sign   → -              $$ ← -1
+4  List   → Bit            $$ ← $1
+5  List₀  → List₁ Bit      $$ ← 2 × $1 + $2
+6  Bit    → 0              $$ ← 0
+7  Bit    → 1              $$ ← 1</pre>
+<span class="figure-caption">그림 4.11 — SBN의 임시방편 구문 주도 번역</span>
+</div>
+
+<p>속성 문법 버전(그림 4.5)이 7개 규칙에 13~14줄의 속성 규칙이었다면, 이 버전은 7줄. 각 기호당 <strong>한 개</strong>의 값만 허용하고, 값은 <em>잎에서 루트로</em>만 흐른다. 이 두 가지 단순화가 LR(1) 파서와 자연스럽게 맞물린다 — 파서 스택에 값 슬롯 하나씩만 더 두면 된다.</p>
+
+<h3>4.4.1 구현 — 스택과 심볼 테이블</h3>
+
+<p>shift-reduce 파서는 각 기호에 대해 <code>(symbol, state)</code>를 스택에 쌓는다. 여기서 한 칸 더 늘려 <code>(value, symbol, state)</code>를 쌓으면, 액션은 자동으로 스택 맨 위로부터 일정 오프셋의 값을 읽고 쓰면 된다. <code>$1</code>은 스택 맨 위에서 3×|β|개 슬롯 아래의 값, <code>$i</code>는 3×(|β|−i+1) 아래의 값을 가리킨다.</p>
+
+<h4>액션 사이의 통신 — 심볼 테이블</h4>
+
+<p>속성 문법에서 가장 골치 아팠던 비국소 정보 전달이 여기서는 자명해진다. <strong>심볼 테이블</strong>(symbol table)을 하나 만들고 액션이 그것을 자유롭게 읽고 쓰면 끝이다.</p>
+
+<p>아까 손이 많이 갔던 "한 블록 안에서 변수당 <code>load</code>는 한 번만"을 ad hoc SDT로 다시 쓰면 이렇게 짧아진다.</p>
+
+<div class="figure">
+<pre>Block₀ → Block₁ Assign
+       | Assign
+Assign → name = Expr ;     { cost ← cost + Cost(store) }
+Expr   → Expr + Term       { cost ← cost + Cost(add) }
+       | Expr - Term       { cost ← cost + Cost(sub) }
+       | Term
+Term   → Term × Factor     { cost ← cost + Cost(mult) }
+       | Term ÷ Factor     { cost ← cost + Cost(div) }
+       | Factor
+Factor → ( Expr )
+       | num               { cost ← cost + Cost(loadI) }
+       | name              { if name 의 심볼테이블 필드가 아직
+                                로드되지 않았다고 표시하면
+                              cost ← cost + Cost(load)
+                              필드를 true 로 설정 }</pre>
+<span class="figure-caption">그림 4.12 — 임시방편 SDT로 load 추적하기</span>
+</div>
+
+<p><code>cost</code>는 전역 변수, "이미 로드되었는지"는 심볼 테이블 필드. 속성 문법 버전에서 <code>Before</code>·<code>After</code> 집합을 트리 따라 복사하던 그 모든 수고가 두 줄의 if문으로 사라진다.</p>
+
+<h3>4.4.2 활용 예 — AST 만들기, ILOC 내뿜기, 선언 처리</h3>
+
+<p>ad hoc SDT의 진짜 가치는 <strong>한 번의 파스로 여러 일을 동시에 한다</strong>는 점이다. 같은 액션 안에서</p>
+
+<ul>
+<li>AST 노드를 만들고(<code>MakeNode₂(Plus, $1, $3)</code>),</li>
+<li>타입을 추론해 노드에 저장하며(<code>$$.type ← 𝓕₊($1.type, $3.type)</code>),</li>
+<li>심볼 테이블을 갱신하고,</li>
+<li>ILOC 명령을 즉석에서 출력할 수도 있다(<code>Emit(add, $1, $3, $$)</code>).</li>
+</ul>
+
+<p>C 선언문 처리의 예를 보자. <code>int *p, q[10];</code> 같은 문장은 문맥 자유 문법으로 큰 줄기는 잡되, "<code>StorageClass</code>는 한 선언당 하나만"같은 세밀한 제약은 ad hoc 액션이 처리한다. 액션이 <em>속성 구조체</em>를 채워나가다가 변수 이름이 등장하는 순간 심볼 테이블 항목을 만들고, 다음 변수가 오면 일부 필드만 리셋한다. 문법은 자유롭게 두고, 의미 검사는 코드로 직접 박는다.</p>
+
+<div class="callout note">
+<div class="callout-title">왜 문맥 의존 문법(CSG)을 안 쓰나?</div>
+<p>"렉시컬은 정규 문법, 구문은 문맥 자유 문법, 그럼 문맥 의존 검사는 문맥 의존 문법!" — 자연스러운 진행 같지만 두 가지 이유로 막힌다. 첫째, 문맥 의존 문법의 파싱 문제는 <strong>P-Space 완전</strong>이다. 너무 느리다. 둘째, 선언 후 사용 같은 규칙은 모든 가능한 변수 이름 조합을 문법에 박아넣어야 표현되는데, 현실 언어의 이름 공간 크기로는 답이 없다.</p>
+</div>
+
+<h2>4.5 고급 주제</h2>
+
+<h3>4.5.1 더 어려운 타입 추론</h3>
+
+<p>지금까지 예제는 모두 <em>"변수와 함수가 선언되어 있다"</em>는 가정 위에 있었다. 그게 깨지면 타입 추론은 한 단계 어려워진다.</p>
+
+<h4>(가) 선언 없이 일관 사용 + 함수 반환 타입 고정</h4>
+
+<p>Smalltalk처럼 변수는 선언 안 하지만 같은 이름은 같은 타입으로 일관되게 쓰여야 하는 언어. <code>a ← b × 3.14159</code>를 보면 <code>b</code>는 숫자이고 <code>a</code>는 소수를 담을 수 있는 타입임을 추론할 수 있다. 함수 반환 타입이 항상 같다는 보장이 있다면, 타입의 격자(lattice) 위에서 <strong>고정점 반복</strong>(iterative fixed-point)으로 풀린다.</p>
+
+<h4>(나) 함수 반환 타입이 인자에 따라 달라질 때</h4>
+
+<p>Scheme의 <code>map: (α → β) × list of α → list of β</code> 같은 매개변수 다형성이 들어오면 단순 고정점 반복으로는 부족하다. 고전적 접근은 <strong>유니피케이션</strong>(unification, 5장에서 다시 등장)이다.</p>
+
+<h4>(다) 동적 타입 변경</h4>
+
+<p>APL처럼 같은 식이 한 번은 정수 곱셈, 다음은 다차원 부동소수 배열 연산일 수 있다면 컴파일러는 사실상 인터프리터 모드로 떨어진다. 다만 똑똑한 APL 시스템은 "이 지점에서 타입이 바뀔 수 있는가?"를 정적으로 분석해 불필요한 검사를 제거(check elimination, check motion)한다.</p>
+
+<h3>4.5.2 결합법칙 바꾸기 — 좌재귀 vs 우재귀</h3>
+
+<p>3장에서 봤듯 좌재귀 문법은 자연스럽게 좌결합 트리를, 우재귀 문법은 우결합 트리를 만든다. 같은 다섯 원소 리스트라도</p>
+
+<div class="figure">
+<pre>좌재귀:  ((((elt₁ elt₂) elt₃) elt₄) elt₅)
+우재귀:  (elt₁ (elt₂ (elt₃ (elt₄ elt₅))))</pre>
+</div>
+
+<p>구문 주도 액션을 영리하게 짜면 <em>좌재귀 문법으로 우결합 트리를 만들거나</em> 그 반대도 할 수 있다. 트릭 하나는 ε-생성으로 <strong>리스트 헤더 노드</strong>를 잠깐 만들어 두고, 끝에서 헤더를 제거하는 방식이다.</p>
+
+<pre><code>List → ε             { $$ ← MakeListHeader() }
+     | List elt      { $$ ← AddToEnd($1, $2) }
+Quux → List          { $$ ← RemoveListHeader($1) }</code></pre>
+
+<p>좌재귀 문법으로 LR(1) 파싱을 하면서 결과는 우결합(또는 정해진 순서) 리스트로 만들 수 있다. ε-생성 한 번의 작은 비용으로 결합법칙을 자유롭게 바꾼다.</p>
+
+<h2>4.6 정리</h2>
+
+<p>2장과 3장이 보여줬던 깔끔한 자동화 — <em>정규 표현 → 스캐너, CFG → 파서</em> — 가 4장에서는 약간 흐트러진다. 문맥 의존 분석에서는 형식주의가 임시방편을 완전히 대체하지 못했다. 두 갈래가 공존한다.</p>
+
+<table>
+<thead><tr><th></th><th>속성 문법</th><th>임시방편 SDT</th></tr></thead>
+<tbody>
+<tr><th>패러다임</th><td>함수형, 선언적</td><td>명령형, 조각 코드</td></tr>
+<tr><th>정보 흐름</th><td>합성·상속(국소만)</td><td>한 방향 + 전역 테이블</td></tr>
+<tr><th>비국소 처리</th><td>복사 규칙 폭발</td><td>심볼 테이블로 자명</td></tr>
+<tr><th>평가 순서</th><td>의존성 그래프 따라 자동</td><td>파서 reduce 순서로 결정</td></tr>
+<tr><th>장점</th><td>우아한 명세, 자동 평가기</td><td>파서 생성기와 궁합, 유연</td></tr>
+<tr><th>단점</th><td>저장 관리, 비국소성, 트리 비용</td><td>비형식, 디버깅 부담</td></tr>
+</tbody>
+</table>
+
+<p>현실의 컴파일러는 보통 ad hoc SDT를 골라 <strong>한 번의 파스</strong>에서 IR 만들기, 타입 추론, 심볼 테이블 채우기, 저장소 할당까지 동시에 처리한다. 이유는 단순하다 — 컴파일 시간이 빠르고, 이미 yacc/bison 같은 툴이 그 모델을 강력히 지원하기 때문이다.</p>
+
+<p>속성 문법은 학술적으로 풍부하고 깔끔한 부분 문제(완전 합성, 또는 완전 상속만 쓰는)에 잘 맞지만, 실무에서는 그 우아함이 비국소 정보 전달과 저장 관리 비용으로 빠르게 침식된다. 이론과 실전의 갈등을 가장 솔직하게 보여주는 장이다.</p>
+
+<div class="callout note">
+<div class="callout-title">한 줄 요약</div>
+파서가 "이 문장은 문법적으로 합법이다"라고 선언한 직후, 컴파일러는 <em>"근데 말이 되나?"</em>를 물어야 한다. 그 질문에 답하는 두 가지 방식이 속성 문법(우아하지만 멀리 못 가는 라벨링)과 임시방편 SDT(지저분하지만 무엇이든 되는 코드 조각)다. 대부분의 진짜 컴파일러는 후자를 골라, 심볼 테이블이라는 전역 메모를 들고 한 번의 파스로 모든 일을 끝낸다.
+</div>
+
+<div class="chapter-nav">
+<a href="chapter-3.html"><span class="label">← 이전</span><span>3장. 파서</span></a>
+<a href="chapter-5.html" class="next-link"><span class="label">다음 →</span><span>5장. 중간 표현</span></a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

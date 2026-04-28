@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제5장 · 프로그램 성능 최적화 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제5장 · 프로그램 성능 최적화</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="chapter04.html">← 제4장</a>
+    <a href="chapter06.html">제6장 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <h2>목차</h2>
+    <div class="ch-title">제5장 · 프로그램 성능 최적화</div>
+    <input class="search-box" type="text" placeholder="절 검색…">
+    <ol>
+      <li><a href="#sec-5-1">5.1 최적화 컴파일러의 능력과 한계</a></li>
+      <li><a href="#sec-5-2">5.2 프로그램 성능 표현</a></li>
+      <li><a href="#sec-5-3">5.3 프로그램 예제</a></li>
+      <li><a href="#sec-5-4">5.4 루프 비효율 제거</a></li>
+      <li><a href="#sec-5-5">5.5 프로시저 호출 줄이기</a></li>
+      <li><a href="#sec-5-6">5.6 불필요한 메모리 참조 제거</a></li>
+      <li><a href="#sec-5-7">5.7 현대 프로세서 이해하기</a></li>
+      <li class="sub-li"><a href="#sec-5-7-1">5.7.1 전반적 동작</a></li>
+      <li class="sub-li"><a href="#sec-5-7-2">5.7.2 기능 단위 성능</a></li>
+      <li class="sub-li"><a href="#sec-5-7-3">5.7.3 프로세서의 추상 모델</a></li>
+      <li><a href="#sec-5-8">5.8 루프 언롤링</a></li>
+      <li><a href="#sec-5-9">5.9 병렬성 향상</a></li>
+      <li class="sub-li"><a href="#sec-5-9-1">5.9.1 다중 누산기</a></li>
+      <li class="sub-li"><a href="#sec-5-9-2">5.9.2 재결합 변환</a></li>
+      <li><a href="#sec-5-10">5.10 결합 코드 최적화 결과 요약</a></li>
+      <li><a href="#sec-5-11">5.11 일부 한계 요인</a></li>
+      <li class="sub-li"><a href="#sec-5-11-1">5.11.1 레지스터 스필링</a></li>
+      <li class="sub-li"><a href="#sec-5-11-2">5.11.2 분기 예측과 잘못된 예측 패널티</a></li>
+      <li><a href="#sec-5-12">5.12 메모리 성능 이해하기</a></li>
+      <li class="sub-li"><a href="#sec-5-12-1">5.12.1 로드 성능</a></li>
+      <li class="sub-li"><a href="#sec-5-12-2">5.12.2 스토어 성능</a></li>
+      <li><a href="#sec-5-13">5.13 실세계: 성능 향상 기법 일반 원칙</a></li>
+      <li><a href="#sec-5-14">5.14 성능 병목 식별</a></li>
+      <li class="sub-li"><a href="#sec-5-14-1">5.14.1 프로그램 프로파일링</a></li>
+      <li class="sub-li"><a href="#sec-5-14-2">5.14.2 프로파일러 가이드 최적화</a></li>
+      <li><a href="#sec-5-15">5.15 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+
+    <header class="ch-header">
+      <span class="num">CHAPTER 05</span>
+      <h1>프로그램 성능 최적화</h1>
+      <div class="en">Optimizing Program Performance</div>
+      <p class="blurb">
+        하드웨어가 매년 빨라진다고 해서 우리 코드가 자동으로 빨라지는 건 아니다. 컴파일러는 안전을
+        위해 많은 변환을 포기하고, 의외로 보수적이다. 이 장의 핵심 메시지는 두 가지다.
+        첫째, 컴파일러가 무엇을 못 해주는지 이해해야 사람이 손볼 자리가 보인다.
+        둘째, 현대 프로세서는 슈퍼스칼라 + 비순차 실행으로 한 번에 여러 작업을 굴리는데,
+        우리 코드의 <em>데이터 의존성</em>이 그 잠재력을 가두고 있다는 사실이다.
+        이 장은 그 데이터 의존성 사슬을 끊는 기술 — 루프 언롤링, 다중 누산기, 재결합 — 을 차근차근 보여준다.
+      </p>
+    </header>
+
+    <!-- 5.1 -->
+    <section class="section" id="sec-5-1">
+      <h2><span class="anchor-num">5.1</span>최적화 컴파일러의 능력과 한계</h2>
+
+      <p>
+        먼저 인정할 것. <code>gcc -O2</code>는 똑똑하다. 상수 접기(constant folding), 공통 부분식 제거(CSE),
+        죽은 코드 제거(DCE), 강도 약화(strength reduction) 같은 고전적 변환은 컴파일러가 알아서 해준다.
+        그래서 우리가 손으로 <code>x*2</code>를 <code>x &lt;&lt; 1</code>로 고치는 건 대부분 헛수고고,
+        오히려 가독성만 떨어뜨린다.
+      </p>
+
+      <p>
+        문제는 컴파일러가 <strong>모든 변환을 안전하게만</strong> 한다는 점이다.
+        한 톨이라도 의미가 바뀔 가능성이 있으면, 컴파일러는 손을 뗀다. 두 가지 대표적 함정을 보자.
+      </p>
+
+      <h3>메모리 앨리어싱 (memory aliasing)</h3>
+      <p>
+        두 개의 포인터가 사실은 같은 곳을 가리키는 상황. 컴파일러는 <em>혹시 그럴 수도 있으니까</em>
+        보수적으로 행동한다.
+      </p>
+
+<pre class="with-caption"><span class="caption">aliasing 위험으로 컴파일러가 최적화를 포기하는 사례</span><code>// xp와 yp가 같은 주소를 가리킬 수도 있다고 가정하면
+// 컴파일러는 *xp를 두 번 읽을 수밖에 없다
+void twiddle1(long *xp, long *yp) {
+    *xp += *yp;
+    *xp += *yp;
+}
+
+// 사람이 보면 명백히 더 빠른 형태
+void twiddle2(long *xp, long *yp) {
+    *xp += 2 * (*yp);   // xp를 한 번만 읽고 한 번만 쓴다
+}</code></pre>
+
+      <p>
+        <code>twiddle1(p, p)</code>처럼 호출하면 두 함수의 결과가 달라진다.
+        그래서 <code>twiddle1</code>은 <code>twiddle2</code>로 자동 변환되지 않는다. C에서는
+        <code>restrict</code> 키워드로 "겹치지 않는다"를 약속할 수 있고, 그러면 컴파일러가 더 과감해진다.
+      </p>
+
+      <h3>함수의 부수 효과 (side effects)</h3>
+      <p>
+        함수가 전역 상태를 건드릴 가능성이 있으면 컴파일러는 호출을 합치거나 제거하지 못한다.
+        예를 들어 <code>f()</code>가 매번 다른 값을 반환하거나 카운터를 증가시킨다면,
+        <code>f() + f() + f() + f()</code>를 <code>4 * f()</code>로 바꿀 수 없다.
+      </p>
+
+      <h3>최적화 레벨</h3>
+      <table>
+        <thead><tr><th>옵션</th><th>의미</th><th>특징</th></tr></thead>
+        <tbody>
+          <tr><td><code>-O0</code></td><td>최적화 없음</td><td>디버깅용. 변수 위치가 소스와 일치한다.</td></tr>
+          <tr><td><code>-O1</code></td><td>기본 최적화</td><td>대부분의 안전한 변환. 컴파일 시간 부담 적음.</td></tr>
+          <tr><td><code>-O2</code></td><td>권장 레벨</td><td>인라이닝, 루프 변환 등 꽤 적극적. 프로덕션 표준.</td></tr>
+          <tr><td><code>-O3</code></td><td>공격적 최적화</td><td>벡터화, 적극적 인라이닝. 코드 크기는 늘어남.</td></tr>
+          <tr><td><code>-Ofast</code></td><td>표준 위반 허용</td><td>부동소수점 결합법칙 사용 등. 결과가 미세하게 달라질 수 있음.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout tip">
+        <span class="label">TIP</span>
+        벤치마크는 항상 같은 옵션으로. <code>-O0</code>에서 잰 수치는 의미가 없다.
+        그리고 <code>-fno-inline</code>으로 인라이닝을 끄면 프로파일러가 함수 단위로 분석하기 쉬워진다.
+      </div>
+    </section>
+
+    <!-- 5.2 -->
+    <section class="section" id="sec-5-2">
+      <h2><span class="anchor-num">5.2</span>프로그램 성능 표현</h2>
+
+      <p>
+        성능을 어떻게 잴까? "초당 몇 번 돌았다"는 머신마다 다르고, 클럭 주파수에 휘둘린다.
+        이 장에서 쓰는 단위는 <strong>CPE (Cycles Per Element)</strong>다. 입력 원소 하나를 처리하는 데
+        평균 몇 사이클이 들었느냐를 보는 것.
+      </p>
+
+      <p>
+        프로그램이 <code>n</code>개의 원소를 처리하는 데 걸리는 사이클 수를 <code>T(n)</code>이라 하자.
+        보통 <code>T(n) = a + b·n</code> 꼴이 된다. <code>a</code>는 함수 진입/종료 같은 고정 비용,
+        <code>b</code>는 원소당 비용(=CPE)이다. <code>n</code>이 커질수록 <code>a</code>는 묻힌다.
+      </p>
+
+      <pre><code>// 예: n=1000일 때 12,500 사이클이 걸렸다면
+// CPE는 약 12.5 cycles/element
+// 동일한 함수가 같은 머신에서 8,000 사이클이면 CPE = 8.0</code></pre>
+
+      <p>
+        이 장에서 우리는 베이스라인 <strong>약 22 CPE</strong>(부동소수점 곱셈)에서 출발해서,
+        몇 가지 변환을 거쳐 <strong>0.5 CPE</strong> 근처까지 내려간다. 40배 이상 빨라지는 셈이다.
+      </p>
+    </section>
+
+    <!-- 5.3 -->
+    <section class="section" id="sec-5-3">
+      <h2><span class="anchor-num">5.3</span>프로그램 예제</h2>
+
+      <p>
+        이 장의 마스코트는 벡터의 모든 원소를 하나로 결합하는 함수다. 합산일 수도 있고 곱셈일 수도 있다.
+        같은 코드 골격을 두고 데이터 타입(<code>int</code>, <code>float</code>, <code>double</code>)과
+        연산(<code>+</code>, <code>*</code>)을 바꿔가며 측정한다.
+      </p>
+
+<pre class="with-caption"><span class="caption">베이스라인: 가장 평범한 결합 함수</span><code>typedef long data_t;          // int일 수도, double일 수도
+#define IDENT 0                // + 연산의 항등원. *이면 1
+#define OP +                   // 결합 연산자
+
+typedef struct {
+    long len;
+    data_t *data;
+} vec_rec, *vec_ptr;
+
+// dest에 v의 모든 원소를 OP로 결합한 결과를 쓴다
+void combine1(vec_ptr v, data_t *dest) {
+    long i;
+    *dest = IDENT;
+    for (i = 0; i &lt; vec_length(v); i++) {
+        data_t val;
+        get_vec_element(v, i, &amp;val);
+        *dest = *dest OP val;
+    }
+}</code></pre>
+
+      <p>
+        이 코드는 <strong>모범적인 것 같지만 비효율의 종합 선물세트</strong>다.
+        매 반복마다 (1) <code>vec_length</code>를 호출하고, (2) <code>get_vec_element</code>로 경계 검사를 하고,
+        (3) <code>*dest</code>를 메모리에서 읽고 다시 쓴다. 이걸 하나씩 걷어낼 차례다.
+      </p>
+
+      <table>
+        <thead><tr><th>버전</th><th>설명</th><th>정수 +</th><th>정수 *</th><th>실수 +</th><th>실수 *</th></tr></thead>
+        <tbody>
+          <tr><td>combine1</td><td>-O0</td><td>22.68</td><td>20.02</td><td>19.98</td><td>20.18</td></tr>
+          <tr><td>combine1</td><td>-O1</td><td>10.12</td><td>10.12</td><td>10.17</td><td>11.14</td></tr>
+        </tbody>
+      </table>
+
+      <p>(숫자는 Intel Haswell 기준 대략값. 머신에 따라 다르지만 상대적 경향은 비슷하다.)</p>
+    </section>
+
+    <!-- 5.4 -->
+    <section class="section" id="sec-5-4">
+      <h2><span class="anchor-num">5.4</span>루프 비효율 제거</h2>
+
+      <p>
+        <code>combine1</code>의 첫 번째 죄목: <strong>루프 조건에서 매번 <code>vec_length(v)</code>를 호출</strong>.
+        벡터 길이가 루프 안에서 바뀌지 않는데도 매 반복마다 함수를 부른다. 이걸
+        <strong>루프 불변 코드 외부 이동(loop-invariant code motion)</strong>이라고 한다.
+      </p>
+
+<pre><code>void combine2(vec_ptr v, data_t *dest) {
+    long i;
+    long length = vec_length(v);   // 루프 밖으로 끌어냄
+    *dest = IDENT;
+    for (i = 0; i &lt; length; i++) {
+        data_t val;
+        get_vec_element(v, i, &amp;val);
+        *dest = *dest OP val;
+    }
+}</code></pre>
+
+      <div class="callout warn">
+        <span class="label">WARN</span>
+        고전 함정: <code>strlen</code>을 <code>for</code> 루프 조건에 넣는 코드.
+        <code>for (i = 0; i &lt; strlen(s); i++)</code> 는 <strong>O(n²)</strong>이 된다.
+        <code>strlen</code>이 매번 문자열 끝까지 훑기 때문. 컴파일러는 <code>s</code>가 루프 안에서
+        바뀔 수도 있다고 의심하므로 자동으로 빼주지 못한다.
+      </div>
+
+      <p>
+        그렇다고 모든 함수 호출을 무작정 끄집어낼 수 있는 건 아니다.
+        해당 함수가 <em>순수(pure)</em>해야 한다 — 같은 인자에 같은 결과를 내고, 외부 상태를 건드리지 않아야 한다.
+      </p>
+    </section>
+
+    <!-- 5.5 -->
+    <section class="section" id="sec-5-5">
+      <h2><span class="anchor-num">5.5</span>프로시저 호출 줄이기</h2>
+
+      <p>
+        <code>get_vec_element</code>는 매 호출마다 인덱스가 유효한지 검사한다. 안전하지만, 우리는 이미
+        루프 조건에서 <code>i &lt; length</code>로 똑같은 검사를 하고 있다. 이중 검사다.
+        벡터 내부 배열에 대한 직접 포인터를 한 번만 얻어 두면 깔끔해진다.
+      </p>
+
+<pre><code>data_t *get_vec_start(vec_ptr v) {
+    return v-&gt;data;
+}
+
+void combine3(vec_ptr v, data_t *dest) {
+    long i;
+    long length = vec_length(v);
+    data_t *data = get_vec_start(v);   // 직접 포인터 한 번만
+    *dest = IDENT;
+    for (i = 0; i &lt; length; i++) {
+        *dest = *dest OP data[i];      // 함수 호출 없이 바로 인덱싱
+    }
+}</code></pre>
+
+      <p>
+        함수 호출 자체의 오버헤드(레지스터 저장, 점프, 복귀)는 한 번에 몇 사이클 정도지만,
+        루프 안에서 매 반복마다 이뤄지면 합산이 무시 못 한다. 결정적으로, 함수 호출이 사라지면
+        컴파일러가 루프 본문을 더 적극적으로 변환할 수 있게 된다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">NOTE</span>
+        추상화 경계를 깬 것이다. <code>vec_ptr</code> 내부 표현이 바뀌면 이 코드는 깨진다.
+        성능과 캡슐화 사이의 거래 — 핫 루프에서만 신중하게 하자. 차라리 <code>get_vec_start</code> 같은
+        헬퍼를 노출시키는 편이 낫다.
+      </div>
+    </section>
+
+    <!-- 5.6 -->
+    <section class="section" id="sec-5-6">
+      <h2><span class="anchor-num">5.6</span>불필요한 메모리 참조 제거</h2>
+
+      <p>
+        <code>combine3</code>의 본문 한 줄을 다시 보자.
+      </p>
+
+      <pre><code>*dest = *dest OP data[i];</code></pre>
+
+      <p>
+        이 줄이 컴파일되면, 매 반복마다 <strong>(1) <code>*dest</code>를 메모리에서 로드 → (2) 연산 →
+        (3) <code>*dest</code>에 다시 스토어</strong>가 된다. 누산값이 메모리를 왕복하는 셈이다.
+        왜 컴파일러가 누산값을 레지스터에 들고 있지 않을까? <strong>앨리어싱 우려</strong> 때문이다.
+        만약 <code>dest</code>가 <code>data[i]</code>가 가리키는 곳과 겹친다면, 우리가 <code>*dest</code>에
+        쓴 값이 다음 <code>data[i+1]</code> 읽기에 영향을 줄 수 있다. 컴파일러는 그 가능성을
+        배제할 수 없으므로, 매번 메모리를 통해 동기화한다.
+      </p>
+
+      <p>
+        해결책은 간단하다. <strong>로컬 임시 변수</strong>로 누산하고, 끝나고 한 번만 <code>*dest</code>에 쓴다.
+      </p>
+
+<pre class="with-caption"><span class="caption">메모리 왕복 제거</span><code>void combine4(vec_ptr v, data_t *dest) {
+    long i;
+    long length = vec_length(v);
+    data_t *data = get_vec_start(v);
+    data_t acc = IDENT;          // 누산기를 레지스터에 둔다
+    for (i = 0; i &lt; length; i++) {
+        acc = acc OP data[i];
+    }
+    *dest = acc;                 // 마지막에 한 번만 저장
+}</code></pre>
+
+      <p>
+        이 변환만으로 정수 덧셈/곱셈, 부동소수점 덧셈은 CPE가 거의 절반으로 떨어진다.
+        실수 곱셈 같은 긴 지연(latency) 연산은 다른 병목이 있어서 효과가 다르게 나타난다.
+      </p>
+
+      <table>
+        <thead><tr><th>버전</th><th>정수 +</th><th>정수 *</th><th>실수 +</th><th>실수 *</th></tr></thead>
+        <tbody>
+          <tr><td>combine3</td><td>7.17</td><td>9.02</td><td>9.02</td><td>11.03</td></tr>
+          <tr><td>combine4 (임시 변수)</td><td>1.27</td><td>3.01</td><td>3.01</td><td>5.01</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout danger">
+        <span class="label">중요</span>
+        같은 코드인데 의미는 다를 수 있다. <code>combine3</code>은 매 반복마다 <code>*dest</code>를 갱신하므로,
+        외부에서 동시에 <code>*dest</code>를 관찰하면 중간값이 보인다. <code>combine4</code>는 마지막에만
+        쓴다. 단일 스레드에서는 차이가 없지만, 멀티 스레드 / 시그널 핸들러 / <code>volatile</code> 같은 맥락에서는
+        의미가 달라진다.
+      </div>
+    </section>
+
+    <!-- 5.7 -->
+    <section class="section" id="sec-5-7">
+      <h2><span class="anchor-num">5.7</span>현대 프로세서 이해하기</h2>
+
+      <p>
+        여기서부터는 코드를 더 빠르게 만들려면 CPU가 어떻게 도는지 알아야 한다.
+        90년대까지의 CPU는 한 사이클에 한 명령씩 처리했지만, 지금은 그렇지 않다.
+      </p>
+
+      <h3 id="sec-5-7-1"><span class="anchor-num">5.7.1</span>전반적 동작</h3>
+
+      <p>
+        현대 x86-64 프로세서는 <strong>슈퍼스칼라(super-scalar)</strong>이고
+        <strong>비순차 실행(out-of-order execution, OoO)</strong>한다. 두 단어가 길어서 무서워 보이지만,
+        의미는 단순하다.
+      </p>
+
+      <ul>
+        <li><strong>슈퍼스칼라</strong>: 한 사이클에 <em>여러 개의</em> 명령을 동시에 발행한다(issue). Haswell은 사이클당 최대 4개.</li>
+        <li><strong>비순차 실행</strong>: 코드에 적힌 순서가 아니라 <em>입력이 준비된 순서</em>로 명령을 실행한다. 단, 결과는 원래 순서대로 보이도록 정리한다(retirement).</li>
+      </ul>
+
+      <p>
+        프론트엔드는 명령어를 디코딩해서 <strong>마이크로 연산(μops)</strong>으로 쪼갠다.
+        예를 들어 <code>addq (%rax), %rdx</code>는 "메모리에서 로드"와 "정수 덧셈" 두 개의 μop으로 나뉜다.
+        이 μop들은 <strong>예약 스테이션(reservation station)</strong>에 대기하다가, 자기 입력이 준비되면
+        가용한 <strong>기능 단위(functional unit)</strong>로 보내진다.
+      </p>
+
+      <p>
+        결과적으로, 코드의 명령 순서는 단지 <em>의존 관계의 단서</em>일 뿐이다. 진짜로 중요한 건
+        <strong>데이터 의존성 그래프</strong>다.
+      </p>
+
+      <h3 id="sec-5-7-2"><span class="anchor-num">5.7.2</span>기능 단위 성능</h3>
+
+      <p>
+        각 연산의 비용은 두 숫자로 표현된다.
+      </p>
+      <ul>
+        <li><strong>지연(latency)</strong>: 연산 시작부터 결과가 나올 때까지 걸리는 사이클.</li>
+        <li><strong>발행 시간(issue time)</strong>: 같은 종류의 연산을 얼마나 자주 발행할 수 있는가. 0.5는 사이클당 두 개를 시작할 수 있다는 뜻.</li>
+        <li><strong>용량(capacity)</strong>: 해당 기능 단위가 몇 개 있는가.</li>
+      </ul>
+
+      <table>
+        <thead>
+          <tr>
+            <th>연산</th>
+            <th>지연 (cycles)</th>
+            <th>발행 시간 (cycles)</th>
+            <th>용량</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>정수 덧셈</td><td>1</td><td>0.5</td><td>4</td></tr>
+          <tr><td>정수 곱셈</td><td>3</td><td>1</td><td>1</td></tr>
+          <tr><td>정수 나눗셈</td><td>3 ~ 30</td><td>3 ~ 30</td><td>1</td></tr>
+          <tr><td>부동소수점 덧셈</td><td>3</td><td>1</td><td>1</td></tr>
+          <tr><td>부동소수점 곱셈</td><td>5</td><td>0.5</td><td>2</td></tr>
+          <tr><td>부동소수점 나눗셈</td><td>3 ~ 15</td><td>3 ~ 15</td><td>1</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--text-dim);">(Haswell 마이크로아키텍처 기준 근사값. 정확한 수치는 각 세대마다 다름.)</p>
+
+      <p>
+        주목할 점. 부동소수점 곱셈의 발행 시간이 0.5라는 건 <strong>2개의 곱셈 단위가 파이프라이닝</strong>되어 있어
+        매 사이클 한 개씩(혹은 사이클당 두 개씩) 새 곱셈을 시작할 수 있다는 의미다. 결과는 5사이클 뒤에 나오지만,
+        그 5사이클 동안에도 다른 곱셈 5개가 동시에 진행 중일 수 있다.
+        이게 <strong>병렬성의 잠재력</strong>이다 — 우리 코드가 그 잠재력을 살리느냐가 관건.
+      </p>
+
+      <h3 id="sec-5-7-3"><span class="anchor-num">5.7.3</span>프로세서 동작의 추상 모델</h3>
+
+      <p>
+        루프의 한 반복을 <strong>데이터 흐름 그래프(data-flow graph)</strong>로 그려보자.
+        노드는 연산, 간선은 "이 결과가 저쪽 입력으로 들어간다"는 의존이다.
+        <code>combine4</code>의 곱셈 버전 한 반복은 이렇게 생겼다.
+      </p>
+
+<pre><code>load data[i] ──┐
+               ├──→ mul ──→ (다음 반복의 acc)
+   acc ────────┘</code></pre>
+
+      <p>
+        <code>load</code>와 <code>mul</code>이 한 반복의 비용. 그런데 <code>mul</code>의 결과가
+        <code>다음 반복</code>의 <code>acc</code>가 되므로, 반복들이 한 줄로 줄지어 의존한다.
+        이걸 <strong>임계 경로(critical path)</strong>라 부른다. 임계 경로의 총 길이가 곧 실행 시간의 하한선이다.
+      </p>
+
+      <p>
+        실수 곱셈의 지연이 5사이클이라면, 단일 누산기로는 <strong>한 반복당 최소 5사이클</strong>이다.
+        CPE 5.0이 한계. 그 아래로 내려가려면 임계 경로를 분리해야 한다 — 그게 다중 누산기와 재결합이다.
+      </p>
+    </section>
+
+    <!-- 5.8 -->
+    <section class="section" id="sec-5-8">
+      <h2><span class="anchor-num">5.8</span>루프 언롤링 (Loop Unrolling)</h2>
+
+      <p>
+        반복마다 인덱스 증가, 종료 조건 비교, 분기가 들어간다. 이 오버헤드를 줄이려면 한 반복에서 여러 원소를
+        처리하면 된다. 4-way 언롤링 예시:
+      </p>
+
+<pre class="with-caption"><span class="caption">4-way 루프 언롤링</span><code>void combine5(vec_ptr v, data_t *dest) {
+    long i;
+    long length = vec_length(v);
+    long limit = length - 3;          // 4개씩 처리하다 모자라면 잔여 처리
+    data_t *data = get_vec_start(v);
+    data_t acc = IDENT;
+
+    // 본 루프: 한 반복에 4개씩
+    for (i = 0; i &lt; limit; i += 4) {
+        acc = ((acc OP data[i]) OP data[i+1])
+              OP data[i+2] OP data[i+3];
+    }
+    // 잔여 처리
+    for (; i &lt; length; i++) {
+        acc = acc OP data[i];
+    }
+    *dest = acc;
+}</code></pre>
+
+      <p>
+        루프 제어 비용이 줄고, 컴파일러가 메모리 로드를 미리 발행할 여지도 늘어난다.
+        하지만 <strong>임계 경로는 그대로</strong>다. <code>acc</code>가 4번의 OP를 직렬로 거치기 때문이다.
+        실수 곱셈 같은 long-latency 연산에서는 CPE가 거의 안 줄어든다.
+      </p>
+
+      <table>
+        <thead><tr><th>버전</th><th>정수 +</th><th>정수 *</th><th>실수 +</th><th>실수 *</th></tr></thead>
+        <tbody>
+          <tr><td>combine4</td><td>1.27</td><td>3.01</td><td>3.01</td><td>5.01</td></tr>
+          <tr><td>combine5 (4×1 언롤)</td><td>1.01</td><td>3.01</td><td>3.01</td><td>5.01</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        정수 덧셈은 발행 시간(0.5)이 워낙 짧아서 루프 오버헤드가 보였던 거고,
+        곱셈류는 그 자체가 길어서 오버헤드가 묻혀 있었던 셈이다.
+      </p>
+    </section>
+
+    <!-- 5.9 -->
+    <section class="section" id="sec-5-9">
+      <h2><span class="anchor-num">5.9</span>병렬성 향상</h2>
+
+      <p>
+        진짜 게임은 임계 경로를 자르는 데 있다. 두 가지 기법.
+      </p>
+
+      <h3 id="sec-5-9-1"><span class="anchor-num">5.9.1</span>다중 누산기 (Multiple Accumulators)</h3>
+
+      <p>
+        결합법칙이 성립하는 연산이라면 누산을 둘로 쪼갤 수 있다.
+        짝수 인덱스는 <code>acc0</code>에, 홀수 인덱스는 <code>acc1</code>에. 마지막에 둘을 합친다.
+      </p>
+
+<pre class="with-caption"><span class="caption">2×2 언롤 + 다중 누산기</span><code>void combine6(vec_ptr v, data_t *dest) {
+    long i;
+    long length = vec_length(v);
+    long limit = length - 1;
+    data_t *data = get_vec_start(v);
+    data_t acc0 = IDENT;
+    data_t acc1 = IDENT;
+
+    for (i = 0; i &lt; limit; i += 2) {
+        acc0 = acc0 OP data[i];      // 짝수 누산기
+        acc1 = acc1 OP data[i+1];    // 홀수 누산기 — 의존 사슬이 다르다!
+    }
+    for (; i &lt; length; i++) {
+        acc0 = acc0 OP data[i];
+    }
+    *dest = acc0 OP acc1;            // 마지막에 합친다
+}</code></pre>
+
+      <p>
+        <code>acc0</code>과 <code>acc1</code>은 서로 의존하지 않으므로 두 사슬이 <strong>병렬로</strong> 진행된다.
+        실수 곱셈 한 사이클당 두 개를 발행할 수 있는 머신에서, 임계 경로는 절반이 된다 — CPE 5.0 → 2.5 정도.
+      </p>
+
+      <p>
+        그럼 누산기를 더 늘리면? 일정 지점까지는 더 좋아진다. 하지만 한계가 있다.
+      </p>
+
+      <ul>
+        <li>해당 연산의 <strong>기능 단위 개수 × 1/지연</strong>이 이론적 최대 처리율이다. 실수 곱셈은 단위 2개, 지연 5 → 사이클당 2/5 = 0.4 처리. 즉 CPE의 하한은 약 0.5.</li>
+        <li>누산기가 많아지면 레지스터를 점점 더 잡아먹는다. x86-64는 16개의 GP 레지스터, 16개의 XMM/YMM. 너무 많으면 <strong>레지스터 스필링</strong>이 발생한다(5.11.1).</li>
+      </ul>
+
+      <h3 id="sec-5-9-2"><span class="anchor-num">5.9.2</span>재결합 변환 (Reassociation Transformation)</h3>
+
+      <p>
+        같은 4개를 한 번에 처리하더라도, 괄호를 어떻게 묶느냐로 의존 사슬이 달라진다.
+      </p>
+
+<pre><code>// (A) 직선 사슬: ((acc OP x0) OP x1) OP x2) OP x3
+//     acc → +x0 → +x1 → +x2 → +x3 (depth 4)
+
+// (B) 재결합:    acc OP ((x0 OP x1) OP (x2 OP x3))
+//     (x0+x1)와 (x2+x3)는 acc와 무관하게 미리 계산 가능
+//     acc 사슬은 1단만 늘어난다</code></pre>
+
+      <p>
+        (A)는 임계 경로가 4단, (B)는 1단. (B) 쪽이 임계 경로가 짧다. 정수에서는 결합법칙이 정확히 성립하므로
+        컴파일러도 가끔 이 변환을 한다. 부동소수점은 다른 얘기다.
+      </p>
+
+      <div class="callout warn">
+        <span class="label">WARN</span>
+        <strong>부동소수점은 결합법칙을 만족하지 않는다.</strong> <code>(a*b)*c</code>와 <code>a*(b*c)</code>가
+        반올림 오차로 인해 다른 비트 패턴을 줄 수 있다. 그래서 <code>gcc -O2</code>는 부동소수점에서
+        재결합을 하지 않는다. 사람이 손으로 바꿔도 좋지만 결과 검증을 꼭 해야 한다.
+        <code>-ffast-math</code>(또는 <code>-Ofast</code>)는 결합법칙을 허용하는 옵션이지만, IEEE 754 정확성을
+        포기하는 거니 신중하게.
+      </div>
+
+      <p>
+        실전에서는 다중 누산기와 재결합을 함께 쓰는 경우가 많다. 둘 다 임계 경로를 줄이는 같은 가족의 기법이다.
+      </p>
+    </section>
+
+    <!-- 5.10 -->
+    <section class="section" id="sec-5-10">
+      <h2><span class="anchor-num">5.10</span>결합 코드 최적화 결과 요약</h2>
+
+      <p>
+        지금까지 베이스라인부터 다중 누산기까지 가져온 변환을 한 표로. 같은 머신, 같은 데이터.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>버전</th>
+            <th>설명</th>
+            <th>정수 +</th>
+            <th>정수 *</th>
+            <th>실수 +</th>
+            <th>실수 *</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>combine1</td><td>베이스라인 (-O1)</td><td>10.12</td><td>10.12</td><td>10.17</td><td>11.14</td></tr>
+          <tr><td>combine2</td><td>루프 불변 코드 외부 이동</td><td>7.02</td><td>9.03</td><td>9.02</td><td>11.03</td></tr>
+          <tr><td>combine3</td><td>직접 데이터 접근</td><td>7.17</td><td>9.02</td><td>9.02</td><td>11.03</td></tr>
+          <tr><td>combine4</td><td>누산기 임시 변수</td><td>1.27</td><td>3.01</td><td>3.01</td><td>5.01</td></tr>
+          <tr><td>combine5</td><td>4×1 언롤</td><td>1.01</td><td>3.01</td><td>3.01</td><td>5.01</td></tr>
+          <tr><td>combine6 (2×2)</td><td>2-way 누산</td><td>0.81</td><td>1.51</td><td>1.51</td><td>2.51</td></tr>
+          <tr><td>combine6 (10×10)</td><td>10-way 누산</td><td>0.55</td><td>0.55</td><td>1.01</td><td>0.52</td></tr>
+          <tr><td><em>이론적 하한</em></td><td>발행 한계</td><td>0.50</td><td>1.00</td><td>1.00</td><td>0.50</td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:13px;color:var(--text-dim);">(숫자는 책 본문에서 인용한 Haswell 측정치 근사값.)</p>
+
+      <p>
+        흥미로운 점은 <code>combine6 (10×10)</code>이 일부 항목에서 이론적 하한을 살짝 밑돌거나 맞닿는다는 것이다.
+        반대로 정수 덧셈은 발행 시간 0.5 한계를 넘기지 못한다. <strong>최적화는 하한을 향해 다가가는 게임</strong>이다.
+      </p>
+    </section>
+
+    <!-- 5.11 -->
+    <section class="section" id="sec-5-11">
+      <h2><span class="anchor-num">5.11</span>일부 한계 요인</h2>
+
+      <h3 id="sec-5-11-1"><span class="anchor-num">5.11.1</span>레지스터 스필링 (Register Spilling)</h3>
+
+      <p>
+        누산기를 20개로 늘리면 어떨까? x86-64의 정수 레지스터는 16개, XMM/YMM도 16개.
+        활동 변수가 너무 많으면 컴파일러가 일부를 스택에 쏟아낸다(<em>spill</em>). 매 반복마다
+        스택을 통해 메모리 R/W가 일어나면, 우리가 5.6에서 그토록 피했던 메모리 왕복이 부활한다.
+      </p>
+
+      <pre><code># 누산기가 너무 많아 스필이 발생한 경우 (개념적)
+movsd  acc8, -16(%rsp)   # 스택에서 로드
+mulsd  data[i+8], acc8   # 곱셈
+movsd  acc8, -16(%rsp)   # 다시 스택으로 저장</code></pre>
+
+      <p>
+        결국 누산기 수에는 <em>스위트 스폿</em>이 있다. 보통 4~10개 사이. 그 이상은 오히려 손해.
+        머신마다, 데이터 타입마다 최적값이 다르므로 측정해서 찾는 수밖에 없다.
+      </p>
+
+      <h3 id="sec-5-11-2"><span class="anchor-num">5.11.2</span>분기 예측과 잘못된 예측 패널티</h3>
+
+      <p>
+        파이프라인은 명령을 미리 가져와 디코딩한다. 분기를 만나면 어디로 갈지 모르므로
+        <strong>분기 예측기(branch predictor)</strong>가 도박을 한다. 맞으면 그대로 진행, 틀리면
+        파이프라인을 비우고 다시 채운다 — Haswell 기준 약 <strong>15~20 사이클의 패널티</strong>.
+      </p>
+
+      <p>
+        예측기는 패턴을 잘 잡는다. 루프 종료 조건처럼 거의 항상 한 방향인 분기, 특정 if문이 입력에 따라
+        규칙적으로 바뀌는 패턴 등은 95~99% 적중한다. 문제는 <strong>데이터에 의존하면서 무작위적인 분기</strong>다.
+      </p>
+
+<pre class="with-caption"><span class="caption">유명한 정렬 vs 무작위 데이터 비교</span><code>// 0~255 사이의 값을 가진 배열에서 128 이상만 합산
+long sum = 0;
+for (int i = 0; i &lt; n; i++) {
+    if (data[i] &gt;= 128) {           // ← 데이터에 따라 분기
+        sum += data[i];
+    }
+}</code></pre>
+
+      <p>
+        같은 코드가 <strong>정렬된 배열</strong>에서는 무작위 배열보다 5~6배 빠르다.
+        정렬되어 있으면 분기는 "전부 false → 어느 시점부터 전부 true"가 되어 예측기가 거의 완벽하게 맞힌다.
+        무작위면 매번 50% 확률로 빗나가서 파이프라인이 끊임없이 비워진다.
+      </p>
+
+      <p>
+        대처법.
+      </p>
+
+      <ul>
+        <li><strong>분기 자체를 없애기</strong>: <code>cmov</code>(조건부 이동) 명령을 쓰는 형태로 코드를 재작성. <code>(data[i] &gt;= 128) ? data[i] : 0</code> 같은 삼항식이 종종 cmov로 컴파일된다.</li>
+        <li><strong>분기 없는 비트 마스킹</strong>: <code>sum += data[i] &amp; -(data[i] &gt;= 128)</code> 같은 트릭. 가독성은 떨어진다.</li>
+        <li><strong>예측기 친화적으로 데이터 정렬</strong>: 가능하면 정렬해서 처리.</li>
+        <li><strong><code>__builtin_expect</code></strong>(GCC): 자주 가는 방향을 컴파일러에 알려준다. 코드 레이아웃 최적화에 도움.</li>
+      </ul>
+
+      <div class="callout tip">
+        <span class="label">TIP</span>
+        분기 예측 미스율은 <code>perf stat -e branch-misses</code>로 잴 수 있다.
+        잘못된 예측이 많은 핫 함수가 보이면 거기가 손볼 자리.
+      </div>
+    </section>
+
+    <!-- 5.12 -->
+    <section class="section" id="sec-5-12">
+      <h2><span class="anchor-num">5.12</span>메모리 성능 이해하기</h2>
+
+      <p>
+        지금까지 우리가 잰 CPE는 데이터가 L1 캐시에 다 들어가는 작은 배열에서의 수치다.
+        실제 워크로드는 캐시를 벗어나 메모리까지 가는 일이 많고, 거기서는 또 다른 게임이 펼쳐진다.
+        6장에서 다룰 캐시 얘기는 잠시 미뤄두고, 여기서는 <strong>로드/스토어 자체의 마이크로아키텍처</strong>만 본다.
+      </p>
+
+      <h3 id="sec-5-12-1"><span class="anchor-num">5.12.1</span>로드 성능</h3>
+
+      <p>
+        Haswell의 로드 유닛은 2개. 사이클당 2개의 로드를 발행할 수 있다.
+        지연은 L1 히트 시 4~5사이클. 그러나 비순차 실행 덕에, 결과를 바로 쓰지 않는 한 이 지연은 잘 가려진다.
+      </p>
+
+      <p>
+        그럼 로드가 병목이 되는 경우는? <strong>포인터 추적(pointer chasing)</strong>이 대표적이다.
+        연결 리스트 순회처럼 다음 주소가 직전 로드 결과에 의존하면, 로드가 직렬화된다.
+      </p>
+
+<pre><code>// 매 반복의 next 주소가 직전 로드 결과에 의존
+// → 로드 지연이 그대로 임계 경로
+while (p) {
+    sum += p-&gt;val;
+    p = p-&gt;next;
+}</code></pre>
+
+      <p>
+        반대로 배열 순회처럼 다음 주소가 인덱스로 결정되면, CPU가 미리 여러 로드를 발행할 수 있어
+        지연이 거의 보이지 않는다. <strong>자료구조 선택이 곧 성능</strong>이라는 명제는 여기서 기인한다.
+      </p>
+
+      <h3 id="sec-5-12-2"><span class="anchor-num">5.12.2</span>스토어 성능 (Store-to-Load Forwarding)</h3>
+
+      <p>
+        스토어는 좀 다르다. CPU는 스토어를 <strong>스토어 버퍼(store buffer)</strong>에 일단 모은 뒤,
+        나중에 메모리/캐시에 반영한다. 이 사이에 같은 주소를 읽는 로드가 들어오면, 메모리까지 가지 않고
+        스토어 버퍼에서 직접 값을 받아간다 — <strong>store-to-load forwarding</strong>.
+      </p>
+
+      <p>
+        문제는 이 포워딩이 의존 관계를 만든다는 것. 로드는 스토어가 끝나야 시작할 수 있다.
+        다음 코드가 대표적인 함정이다.
+      </p>
+
+<pre class="with-caption"><span class="caption">조건부 의존: 데이터에 따라 임계 경로가 달라진다</span><code>// src와 dst가 같은 배열을 가리킬 수도 있는 함수
+void copy_array(long *src, long *dst, long n) {
+    for (long i = 0; i &lt; n; i++) {
+        dst[i] = src[i];          // dst에 쓴 값을 다음에 src로 다시 읽을 수도
+    }
+}</code></pre>
+
+      <p>
+        <code>src == dst</code>이면 매 반복에서 <code>dst[i]</code>로 쓴 값이 곧이어
+        <code>src[i+1]</code> 같은 주소로 읽힐 수 있다(인덱스가 겹치면). 그러면 스토어→로드 의존이 생겨서
+        파이프라인이 직렬화된다. CPU는 보수적으로, 같은 주소가 아닌 게 확실해질 때까지
+        포워딩 메커니즘에서 대기시킨다.
+      </p>
+
+      <p>
+        앨리어싱이 없다는 걸 컴파일러에 알려주는 게 <code>restrict</code> 키워드의 역할이다.
+        <code>memcpy</code>가 그렇게 빠른 이유 중 하나도 "겹치지 않는다"는 가정 때문이다.
+        (겹칠 수 있을 때는 <code>memmove</code>를 써야 한다.)
+      </p>
+    </section>
+
+    <!-- 5.13 -->
+    <section class="section" id="sec-5-13">
+      <h2><span class="anchor-num">5.13</span>실세계: 성능 향상 기법 일반 원칙</h2>
+
+      <p>
+        한 발 떨어져서 정리하자. 이 장에서 본 변환은 다 같은 노래의 변주다.
+      </p>
+
+      <ol>
+        <li><strong>측정 먼저</strong>. 어떤 변환을 적용하기 전에 베이스라인을 잡고, 후보를 적용한 뒤 같은 환경에서 다시 잰다. 측정 없이 짐작으로 손대면 거의 항상 망친다.</li>
+        <li><strong>알고리즘 변경 &gt; 미시 최적화</strong>. O(n²)를 O(n log n)으로 바꾸는 게 4-way 언롤보다 99% 더 큰 효과를 낸다. 마이크로 최적화는 알고리즘이 이미 최선일 때 의미 있다.</li>
+        <li><strong>핫스폿에 집중</strong>. Amdahl의 법칙: 실행 시간의 5%인 코드를 100배 빨라지게 해도 전체 속도는 5%만 줄어든다. 프로파일러로 시간 잡아먹는 곳을 먼저 찾는다.</li>
+        <li><strong>의존 사슬 끊기</strong>. 슈퍼스칼라 + OoO를 살리려면 데이터 흐름 그래프의 임계 경로를 줄여야 한다. 다중 누산기, 재결합, SIMD 모두 같은 목표.</li>
+        <li><strong>메모리 패턴이 곧 성능</strong>. 캐시·프리페치·앨리어싱·스토어 포워딩 모두 메모리 접근 패턴에 묶여 있다. 6장에서 깊이 본다.</li>
+        <li><strong>가독성 비용 의식</strong>. 손 최적화한 코드는 유지보수가 어렵다. 그만한 가치가 있는 핫 코드에만, 주석을 충분히 달고 적용한다.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="label">NOTE</span>
+        Donald Knuth의 명언: "Premature optimization is the root of all evil." 다만 인용이 자주 잘려서
+        오해를 부른다. 원문은 <em>"about 97% of the time"</em>이라는 단서가 붙는다. 나머지 3%, 진짜 핫 코드에서는
+        측정과 변환이 정당한 작업이다.
+      </div>
+    </section>
+
+    <!-- 5.14 -->
+    <section class="section" id="sec-5-14">
+      <h2><span class="anchor-num">5.14</span>성능 병목 식별</h2>
+
+      <h3 id="sec-5-14-1"><span class="anchor-num">5.14.1</span>프로그램 프로파일링</h3>
+
+      <p>
+        프로파일러는 "어디서 시간이 가장 많이 가는가"를 알려준다. 두 가지 방식이 있다.
+      </p>
+
+      <ul>
+        <li><strong>인스트루먼테이션(instrumentation)</strong>: 컴파일 시점에 함수 진입/종료를 측정하는 코드를 끼워 넣는다. 정확하지만 오버헤드가 크다. <code>gcc -pg</code> + <code>gprof</code>가 대표.</li>
+        <li><strong>샘플링(sampling)</strong>: 일정 주기로 프로그램 카운터를 들여다보고, 어느 함수에 있었는지 기록한다. 통계적이지만 오버헤드가 거의 없다. Linux <code>perf</code>가 표준.</li>
+      </ul>
+
+<pre class="with-caption"><span class="caption">gprof 워크플로</span><code># 1) 프로파일링 정보를 포함해 컴파일
+gcc -O2 -pg -o prog prog.c
+
+# 2) 평소처럼 실행 (gmon.out이 생성됨)
+./prog input.txt
+
+# 3) 보고서 보기
+gprof prog gmon.out &gt; report.txt</code></pre>
+
+<pre class="with-caption"><span class="caption">perf로 더 풍부한 정보</span><code># 시간만이 아니라 캐시 미스, 분기 미스 같은 하드웨어 카운터까지
+perf stat -e cycles,instructions,cache-misses,branch-misses ./prog
+
+# 핫 함수 + 핫 라인 식별
+perf record -g ./prog
+perf report</code></pre>
+
+      <h3 id="sec-5-14-2"><span class="anchor-num">5.14.2</span>프로파일러 가이드 최적화</h3>
+
+      <p>
+        프로파일러 결과는 종종 직관과 다르다. "이 함수가 느릴 줄 알았는데 멀쩡하고, 신경 안 쓰던 함수가
+        총 시간의 60%를 먹고 있더라"는 일이 흔하다. 그래서 <strong>측정 → 가설 → 변환 → 재측정</strong>의 루프를 돈다.
+      </p>
+
+      <p>
+        한 단계 더 나아간 기법이 <strong>PGO(Profile-Guided Optimization)</strong>다.
+        프로그램을 한번 평소처럼 돌려서 분기 빈도/호출 빈도를 측정한 뒤, 그 정보를 바탕으로 다시 컴파일한다.
+        컴파일러는 이 데이터를 활용해 인라이닝 결정, 코드 레이아웃, 분기 예측 힌트를 더 잘 골라낸다.
+        대형 프로젝트에서 5~15% 정도 성능 향상이 흔하다.
+      </p>
+
+      <pre><code># gcc PGO 워크플로 (개념)
+gcc -O2 -fprofile-generate -o prog prog.c
+./prog typical-workload.txt        # 프로파일 수집
+gcc -O2 -fprofile-use     -o prog prog.c</code></pre>
+    </section>
+
+    <!-- 5.15 -->
+    <section class="section" id="sec-5-15">
+      <h2><span class="anchor-num">5.15</span>요약</h2>
+
+      <ul>
+        <li>컴파일러는 <strong>안전</strong>을 우선시한다. 메모리 앨리어싱·부수 효과 가능성이 있으면 보수적으로 동작한다. 사람이 그 빈틈을 메운다.</li>
+        <li><strong>CPE</strong>는 머신과 데이터 크기에 비교적 강건한 성능 단위다. 같은 단위로 측정해야 비교가 의미 있다.</li>
+        <li>흔한 베이스라인 함정은 (1) 루프 조건의 비싼 호출, (2) 매 반복의 함수 호출, (3) 누산값의 메모리 왕복 — 셋 다 한 번씩 걷어내면 CPE가 절반에서 1/3로 떨어진다.</li>
+        <li>현대 프로세서는 <strong>슈퍼스칼라 + OoO</strong>다. 코드의 명령 순서가 아니라 <strong>데이터 흐름 그래프의 임계 경로</strong>가 진짜 시간이다.</li>
+        <li><strong>루프 언롤링</strong>은 제어 오버헤드를 줄이지만, 그것만으로는 임계 경로를 줄이지 못한다. <strong>다중 누산기</strong>와 <strong>재결합</strong>이 임계 경로를 끊는 도구.</li>
+        <li>너무 많은 누산기는 <strong>레지스터 스필링</strong>으로 역효과. 4~10개 정도가 보통의 스위트 스폿.</li>
+        <li><strong>분기 예측 미스</strong>는 비싸다(15~20 사이클). 데이터 의존적이고 무작위적인 분기는 cmov, 비트 마스킹, 데이터 정렬로 다스린다.</li>
+        <li>메모리에서는 <strong>로드의 직렬화</strong>(포인터 추적)와 <strong>store-to-load forwarding</strong>이 미시 병목을 만든다.</li>
+        <li>정수 결합법칙은 안전하지만, <strong>부동소수점 재결합은 결과를 바꿀 수 있다</strong>. 정확성이 중요한 코드에서는 <code>-Ofast</code>나 손 재결합을 신중하게.</li>
+        <li>실제 작업 순서는 <strong>알고리즘 → 핫스폿 식별 → 마이크로 최적화</strong>. 프로파일러를 친구로 두자.</li>
+      </ul>
+
+      <div class="problem">
+        <span class="tag">연습 5.A</span>
+        <p>다음 함수에서 컴파일러가 <code>strlen(s)</code>를 루프 밖으로 못 끄집어내는 이유를 설명하라.
+          그리고 안전하게 끄집어낸 버전을 작성하라.</p>
+        <pre><code>void to_upper(char *s) {
+    for (int i = 0; i &lt; strlen(s); i++) {
+        if (s[i] &gt;= 'a' &amp;&amp; s[i] &lt;= 'z')
+            s[i] -= ('a' - 'A');
+    }
+}</code></pre>
+        <p><strong>힌트</strong>: <code>s[i]</code>에 쓰는 동작이 <code>strlen</code> 결과에 영향을 줄 수 있는가?
+        ASCII만 다룬다면? 종료 문자(<code>'\0'</code>)는 어떻게 되는가?</p>
+      </div>
+
+      <div class="problem">
+        <span class="tag">연습 5.B</span>
+        <p>아래 두 누산 함수 중 부동소수점에서 결과가 더 정확할 가능성이 높은 쪽은? 이유는?</p>
+        <pre><code>// (i) 직선 누산
+double sum_i(double *a, long n) {
+    double s = 0.0;
+    for (long i = 0; i &lt; n; i++) s += a[i];
+    return s;
+}
+
+// (ii) 4개의 누산기 + 재결합
+double sum_ii(double *a, long n) {
+    double s0=0, s1=0, s2=0, s3=0;
+    long i;
+    for (i = 0; i &lt; n - 3; i += 4) {
+        s0 += a[i];   s1 += a[i+1];
+        s2 += a[i+2]; s3 += a[i+3];
+    }
+    for (; i &lt; n; i++) s0 += a[i];
+    return (s0 + s1) + (s2 + s3);
+}</code></pre>
+        <p><strong>힌트</strong>: 큰 값에 작은 값을 더할 때 발생하는 캐치-업 손실(catastrophic cancellation의 친척).
+        Kahan summation, pairwise summation 같은 기법이 왜 존재하는지 떠올려 보라.</p>
+      </div>
+
+      <div class="problem">
+        <span class="tag">연습 5.C</span>
+        <p>아래 코드의 CPE를 추정하라. Haswell 기준 정수 곱셈 지연 3, 발행 시간 1, 곱셈 단위 1개라고 가정한다.</p>
+        <pre><code>long product(long *a, long n) {
+    long acc0 = 1, acc1 = 1, acc2 = 1;
+    long i;
+    for (i = 0; i &lt; n - 2; i += 3) {
+        acc0 *= a[i];
+        acc1 *= a[i+1];
+        acc2 *= a[i+2];
+    }
+    for (; i &lt; n; i++) acc0 *= a[i];
+    return (acc0 * acc1) * acc2;
+}</code></pre>
+        <p><strong>힌트</strong>: 누산기는 3개. 곱셈 단위는 1개. 처리율 한계는 사이클당 1번 발행. 임계 경로는?</p>
+      </div>
+
+    </section>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter04.html">
+        <span class="dir">← 이전</span>
+        제4장 · 프로세서 구조
+      </a>
+      <a class="next" href="chapter06.html">
+        <span class="dir">다음 →</span>
+        제6장 · 메모리 계층
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+</body>
+</html>

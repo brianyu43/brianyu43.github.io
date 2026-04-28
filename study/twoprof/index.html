@@ -1,0 +1,2877 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>성효진 · 유민수 연구 세계 입문</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --bg-elev: #ffffff;
+    --bg-side: #f0ede4;
+    --ink: #1c1a16;
+    --ink-soft: #555048;
+    --ink-faint: #8a8378;
+    --line: #e6e1d3;
+    --accent: #b14a26;
+    --accent-2: #2d6a4f;
+    --code-bg: #f4ecd8;
+    --shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 32px rgba(20,16,8,0.05);
+  }
+  html.dark {
+    --bg: #161510;
+    --bg-elev: #1f1d18;
+    --bg-side: #14130f;
+    --ink: #ece6d4;
+    --ink-soft: #b9b1a0;
+    --ink-faint: #7d7666;
+    --line: #2c2a23;
+    --accent: #e98059;
+    --accent-2: #74c69d;
+    --code-bg: #232019;
+    --shadow: 0 1px 0 rgba(0,0,0,0.6), 0 8px 32px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 100vh;
+  }
+  aside.sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 28px 22px 36px;
+    background: var(--bg-side);
+    border-right: 1px solid var(--line);
+  }
+  aside .brand {
+    font-weight: 800;
+    font-size: 17px;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  aside .brand .accent { color: var(--accent); }
+  aside .brand-sub {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-bottom: 20px;
+  }
+  aside .toc-group {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+    margin: 18px 0 6px 4px;
+  }
+  aside ol.toc {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  aside ol.toc li a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 8px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: background 0.15s, color 0.15s;
+  }
+  aside ol.toc li a:hover {
+    background: var(--bg-elev);
+    color: var(--ink);
+  }
+  aside ol.toc li a.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  aside .num {
+    display: inline-block;
+    min-width: 30px;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+    margin-right: 6px;
+  }
+  aside ol.toc li a.active .num { color: rgba(255,255,255,0.75); }
+  aside .controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  aside .controls button {
+    flex: 1;
+    padding: 8px 10px;
+    background: var(--bg-elev);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  aside .controls button:hover { color: var(--ink); }
+  aside .meta {
+    margin-top: 18px;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    line-height: 1.6;
+  }
+
+  main.content {
+    padding: 56px 64px 120px;
+    max-width: 880px;
+  }
+  main .chapter { display: none; }
+  main .chapter.active { display: block; animation: fadein 0.25s ease-out; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .crumb {
+    font-size: 12px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  h1 { font-size: 36px; line-height: 1.25; margin: 0 0 12px; letter-spacing: -0.02em; }
+  h2 { font-size: 24px; line-height: 1.35; margin: 36px 0 10px; letter-spacing: -0.015em; border-top: 1px solid var(--line); padding-top: 28px; }
+  main .chapter > h2:first-of-type { border-top: none; padding-top: 0; margin-top: 24px; }
+  h3 { font-size: 19px; line-height: 1.4; margin: 28px 0 8px; letter-spacing: -0.01em; color: var(--ink); }
+  h4 { font-size: 16px; line-height: 1.4; margin: 22px 0 6px; color: var(--accent); }
+  p { margin: 12px 0; color: var(--ink); }
+  p.lead { font-size: 18px; line-height: 1.7; color: var(--ink-soft); }
+  p.aside { font-size: 14px; color: var(--ink-soft); border-left: 3px solid var(--accent-2); padding: 6px 14px; background: var(--bg-elev); border-radius: 0 8px 8px 0; margin: 16px 0; }
+  ul, ol { padding-left: 22px; margin: 10px 0; }
+  ul li, ol li { margin: 4px 0; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+  a:hover { border-bottom-color: var(--accent); }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.92em; font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  blockquote { border-left: 3px solid var(--accent); padding: 4px 16px; margin: 18px 0; color: var(--ink-soft); font-style: italic; background: var(--bg-elev); border-radius: 0 8px 8px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14.5px; }
+  table th, table td { border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+  table th { background: var(--bg-elev); font-weight: 700; color: var(--ink); }
+  table tr:hover td { background: var(--bg-elev); }
+
+  .card {
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 16px 0;
+    box-shadow: var(--shadow);
+  }
+  .card h3 { margin-top: 0; }
+  .pill {
+    display: inline-block;
+    background: var(--code-bg);
+    color: var(--ink);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    margin: 0 4px 4px 0;
+  }
+  .pill.accent { background: var(--accent); color: #fff; }
+  .pill.green { background: var(--accent-2); color: #fff; }
+
+  .paper {
+    border-left: 3px solid var(--line);
+    padding: 4px 0 4px 14px;
+    margin: 12px 0;
+  }
+  .paper.featured { border-left-color: var(--accent); }
+  .paper .title { font-weight: 700; font-size: 16px; }
+  .paper .meta { font-size: 13px; color: var(--ink-faint); margin: 2px 0 6px; }
+  .paper p { margin: 4px 0; font-size: 14.5px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 260px 1fr; }
+    main.content { padding: 36px 28px 100px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    main.content { padding: 28px 18px 80px; }
+    h1 { font-size: 28px; }
+  }
+
+  .one-line {
+    background: linear-gradient(180deg, transparent 60%, color-mix(in srgb, var(--accent) 25%, transparent) 60%);
+    padding: 0 2px;
+  }
+
+  .nav-ft {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .nav-ft a {
+    display: block;
+    flex: 1;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--ink-soft);
+  }
+  .nav-ft a:hover { color: var(--ink); border-color: var(--accent); }
+  .nav-ft .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+  .nav-ft .ttl { font-size: 14.5px; font-weight: 600; margin-top: 2px; }
+  .nav-ft .next { text-align: right; }
+
+  .timeline { border-left: 2px solid var(--line); padding-left: 18px; margin: 18px 0; }
+  .timeline .dot {
+    position: relative;
+    padding: 6px 0;
+  }
+  .timeline .dot::before {
+    content: "";
+    position: absolute;
+    left: -25px;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .timeline .year {
+    font-size: 12px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .quip {
+    font-style: italic;
+    color: var(--ink-soft);
+    margin: 18px 0;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, var(--bg-elev), color-mix(in srgb, var(--accent-2) 6%, var(--bg-elev)));
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-2);
+  }
+  .quip::before { content: "💡 "; }
+
+  details { margin: 12px 0; padding: 8px 12px; background: var(--bg-elev); border-radius: 8px; border: 1px solid var(--line); }
+  details summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  details[open] summary { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="brand">성효진 · 유민수<br/><span class="accent">연구 세계 입문</span></div>
+  <div class="brand-sub">시스템 · 컴파일러 · 하드웨어-소프트웨어 경계의 두 흐름 · 자료 기준 2026.04.26</div>
+
+  <div class="toc-group">시작</div>
+  <ol class="toc">
+    <li><a data-target="cover" href="#cover"><span class="num">00</span>표지</a></li>
+    <li><a data-target="prologue" href="#prologue"><span class="num">0.0</span>프롤로그</a></li>
+  </ol>
+
+  <div class="toc-group">빅챕터 1 · 성효진</div>
+  <ol class="toc">
+    <li><a data-target="hs-1" href="#hs-1"><span class="num">1.1</span>연구자 프로필</a></li>
+    <li><a data-target="hs-2" href="#hs-2"><span class="num">1.2</span>전체 연구 지도</a></li>
+    <li><a data-target="hs-3" href="#hs-3"><span class="num">1.3</span>연도별 연구 흐름</a></li>
+    <li><a data-target="hs-4" href="#hs-4"><span class="num">1.4</span>대표 프로젝트 해부</a></li>
+    <li><a data-target="hs-5" href="#hs-5"><span class="num">1.5</span>연구 스타일 요약</a></li>
+    <li><a data-target="hs-6" href="#hs-6"><span class="num">1.6</span>앞으로의 방향</a></li>
+  </ol>
+
+  <div class="toc-group">빅챕터 2 · 유민수</div>
+  <ol class="toc">
+    <li><a data-target="mr-1" href="#mr-1"><span class="num">2.1</span>연구자 프로필</a></li>
+    <li><a data-target="mr-2" href="#mr-2"><span class="num">2.2</span>전체 연구 지도</a></li>
+    <li><a data-target="mr-3" href="#mr-3"><span class="num">2.3</span>연도별 연구 흐름</a></li>
+    <li><a data-target="mr-4" href="#mr-4"><span class="num">2.4</span>대표 프로젝트 해부</a></li>
+    <li><a data-target="mr-5" href="#mr-5"><span class="num">2.5</span>연구 스타일 요약</a></li>
+    <li><a data-target="mr-6" href="#mr-6"><span class="num">2.6</span>앞으로의 방향</a></li>
+  </ol>
+
+  <div class="toc-group">빅챕터 3 · 두 세계 비교</div>
+  <ol class="toc">
+    <li><a data-target="cmp-1" href="#cmp-1"><span class="num">3.1</span>공통분모</a></li>
+    <li><a data-target="cmp-2" href="#cmp-2"><span class="num">3.2</span>차이점</a></li>
+    <li><a data-target="cmp-3" href="#cmp-3"><span class="num">3.3</span>읽기 로드맵</a></li>
+    <li><a data-target="cmp-4" href="#cmp-4"><span class="num">3.4</span>구현 프로젝트</a></li>
+  </ol>
+
+  <div class="toc-group">부록</div>
+  <ol class="toc">
+    <li><a data-target="apx-a" href="#apx-a"><span class="num">A</span>전체 논문 목록</a></li>
+    <li><a data-target="apx-b" href="#apx-b"><span class="num">B</span>주요 용어 사전</a></li>
+    <li><a data-target="apx-c" href="#apx-c"><span class="num">C</span>선수 과목 지도</a></li>
+    <li><a data-target="apx-d" href="#apx-d"><span class="num">D</span>출처와 한계</a></li>
+  </ol>
+
+  <div class="controls">
+    <button id="theme-toggle" type="button">🌗 다크</button>
+    <button id="random-pick" type="button">🎲 랜덤</button>
+  </div>
+  <div class="meta">단일 HTML · 웹서버 없이 작동 · 더블클릭으로 열기 · 모든 외부 링크는 새 탭</div>
+</aside>
+
+<main class="content">
+
+<!-- ============== 표지 ============== -->
+<section class="chapter" id="cover">
+  <div class="crumb">표지</div>
+  <h1>성효진 · 유민수 연구 세계 입문</h1>
+  <p class="lead">시스템, 컴파일러, 하드웨어-소프트웨어 경계의 두 연구 흐름.<br/>
+  GPU 위에 AI가 올라간 시대, 그 사이의 “보이지 않는 변환기”를 만드는 두 연구자의 작업을 한 권으로.</p>
+
+  <div class="card">
+    <h3>이 문서는 무엇인가</h3>
+    <p>두 분의 공개 자료(논문·연구실 페이지·GitHub·발표)를 모아, 한 명의 시스템 연구자가 어떻게 자기 문제 영역을 키워왔는지를 두 사례로 보여주는 한국어 교재다. 단순 헌사가 아니라, “이 논문이 어떤 병목을 발견해서 어떤 기계를 만들어 어떤 결과를 냈는가”를 핵심 단위로 쓴다.</p>
+    <p><span class="pill accent">대상 독자</span> CUDA · Triton · GPU 커널 · 컴파일러 · AI 시스템으로 진입하려는 학부 고학년 또는 독학자.</p>
+    <p><span class="pill green">자료 기준일</span> 2026년 4월 26일</p>
+  </div>
+
+  <div class="card">
+    <h3>한눈에 두 분</h3>
+    <table>
+      <thead><tr><th>관점</th><th>성효진 교수</th><th>유민수 교수</th></tr></thead>
+      <tbody>
+        <tr><td>현재 소속</td><td>서울대 데이터사이언스대학원 부교수<br/><small>(이전: POSTECH → IBM TJ Watson → UIUC PhD)</small></td><td>KAIST 전기·전자공학부 정년보장 부교수 <br/><small>(2026 Endowed Chair · 이전: NVIDIA Research → UT Austin PhD)</small></td></tr>
+        <tr><td>출발점</td><td>캐시 코히런스 (DeNovo @ UIUC)</td><td>GPU 마이크로아키텍처 (CAPRI @ UT Austin)</td></tr>
+        <tr><td>현재 무게중심</td><td>컴파일러 + PIM/NDP/CXL</td><td>메모리·가속기 + LLM/추천/AI 에이전트</td></tr>
+        <tr><td>손에 잡는 것</td><td>IR과 컴파일러 패스</td><td>RTL과 사이클 정확 시뮬레이터</td></tr>
+        <tr><td>대표 한 줄</td><td>“위에서 아는 정보를 아래로 흘려보내자”</td><td>“이 워크로드는 메모리 어디에 어떻게 닿는가”</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="aside">이 표가 보여주는 건, 두 분이 “같은 산을 다른 길로 오르고 있다”는 사실이다. 산은 “데이터를 누가 어디서 어떻게 움직일까”라는 거대 질문이고, 길은 한쪽이 IR과 컴파일러, 다른 쪽이 마이크로아키텍처와 시뮬레이터다.</p>
+
+  <div class="nav-ft">
+    <a data-go="prologue" href="#prologue">
+      <div class="label">다음</div>
+      <div class="ttl">프롤로그 →</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============== 프롤로그 ============== -->
+<section class="chapter" id="prologue">
+  <div class="crumb">프롤로그</div>
+  <h1>왜 이 두 분을 한 권에 묶었을까</h1>
+
+  <h2>이야기의 출발</h2>
+  <p>GPU 위에 AI가 올라간 시대, 모델을 보는 사람과 칩을 보는 사람 사이엔 여전히 깊은 골이 있다. 그 골을 메우는 사람들이 시스템 연구자다. 컴파일러를 짜는 사람, 메모리 시스템을 새로 그리는 사람, 가속기 안에서 데이터가 어떻게 흐르는지 시뮬레이션하는 사람. 이들이 바로 모델과 칩 사이의 “보이지 않는 변환기”다.</p>
+
+  <p>성효진 교수님(서울대 데이터사이언스대학원)과 유민수 교수님(KAIST 전기·전자공학부)은 한국에서 이 “하드웨어-소프트웨어 경계”를 가장 적극적으로 다루는 두 연구자다. 출발점은 다르다. 한 분은 캐시 코히런스에서, 다른 한 분은 GPU 마이크로아키텍처에서 시작했다. 그런데 두 분이 어디서 만나는가를 보면, 이 분야가 어디로 가고 있는지가 보인다.</p>
+
+  <p class="quip">스포일러: 두 분 모두 결국 “데이터를 어디 두고 누가 옮길지” 라는 같은 질문을 다른 도구로 풀고 있다.</p>
+
+  <h2>이 문서가 약속하는 것</h2>
+  <ul>
+    <li><strong>시간 순으로만 따라가지 않는다.</strong> 연구 질문 단위로 묶어서 읽기 좋게 만든다.</li>
+    <li><strong>“병목 → 기계 → 결과”가 한 단위다.</strong> 논문 제목 나열은 부록으로 미룬다.</li>
+    <li><strong>출처를 붙인다.</strong> 추측은 “추정”이라고 못 박는다.</li>
+    <li><strong>마지막엔 미니 프로젝트와 읽기 로드맵.</strong> 그냥 읽기만 하고 끝나지 말자는 뜻이다.</li>
+  </ul>
+
+  <h2>두 분을 함께 읽으면 보이는 것</h2>
+  <p>한쪽은 컴파일러를 손에 잡고 있고, 다른 한쪽은 시뮬레이터와 RTL을 손에 잡고 있다. 그런데 두 사람이 잡는 단어는 신기하게도 같다. <code>region</code>, <code>locality</code>, <code>data movement</code>, <code>capacity</code>, <code>bandwidth</code>. 이건 우연이 아니다. AI 시스템이라는 거대한 산이 결국 이 단어들로 정의되어 있기 때문이다.</p>
+
+  <p>그래서 이 책은 두 분을 “비교”하는 책이 아니라 “두 길을 같이 보는” 책이다. 한 길만 본 사람은 자기가 아는 도구로만 생각한다. 두 길을 본 사람은 자기 도구가 무엇을 못 보는지를 안다. 시스템 연구자가 되려는 사람은 후자가 되어야 한다.</p>
+
+  <div class="nav-ft">
+    <a data-go="cover" href="#cover">
+      <div class="label">이전</div>
+      <div class="ttl">← 표지</div>
+    </a>
+    <a class="next" data-go="hs-1" href="#hs-1">
+      <div class="label">다음</div>
+      <div class="ttl">1.1 성효진 — 연구자 프로필 →</div>
+    </a>
+  </div>
+</section>
+
+<!-- 챕터들은 후속 단계에서 채움 -->
+<section class="chapter" id="hs-1">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.1</div>
+  <h1>연구자 프로필</h1>
+  <p class="lead">캐시 코히런스의 “반항아”로 시작해, 컴파일러를 손에 잡은 채 메모리의 가장자리(PIM·NDP·CXL)로 영역을 넓혀온 사람.</p>
+
+  <h2>지금 어디에 계신가</h2>
+  <ul>
+    <li><strong>서울대학교 데이터사이언스대학원(GSDS) 부교수</strong>. 부임 시점은 2024년 전후로 추정. (출처: <a href="https://hsung.snu.ac.kr/" target="_blank" rel="noopener">hsung.snu.ac.kr</a>, <a href="https://codelab.snu.ac.kr/" target="_blank" rel="noopener">SNU CODE Lab</a>)</li>
+    <li>사무실: 서울대 GSDS Building 43, Room 407 / 1 Gwanak-ro, Gwanak-gu, Seoul</li>
+    <li>연구실 이름: <strong>CODE Lab — Computing Optimization and Data-driven Exploration</strong></li>
+    <li>직전 소속: POSTECH 컴퓨터공학과(2019–2024 추정). 같은 약자의 풀네임이 “Compiler Design and Optimization”이었으니, 같은 CODE Lab인데 “재정의된” 셈이다.</li>
+  </ul>
+  <p class="aside">참고로 본 문서를 의뢰받았을 때 “연세대 컴퓨터과학과”로 적혀 있었다. 1차 자료를 다 뒤져본 결과 현재 소속은 <strong>서울대 GSDS</strong>로 일치한다. 본 문서는 SNU를 사실로 채택했다.</p>
+
+  <h2>학력</h2>
+  <table>
+    <thead><tr><th>학위</th><th>기관</th><th>연도</th><th>지도교수 / 비고</th></tr></thead>
+    <tbody>
+      <tr><td>Ph.D. CS</td><td>UIUC</td><td>2015</td><td>Sarita V. Adve / 학위논문 <em>DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism</em> · GPA 4.0/4.0</td></tr>
+      <tr><td>M.S. CSE</td><td>UC San Diego</td><td>2008</td><td>Michael B. Taylor / <em>A Portable MATLAB Front-End for Tiled Microprocessors</em></td></tr>
+      <tr><td>B.S. CSE</td><td>서울대학교</td><td>2004</td><td>민상렬</td></tr>
+      <tr><td>B.A. 영문학</td><td>서울대학교</td><td>2000</td><td>이중전공 (영문학 학사가 따로 있다는 점이 가끔 사람들을 놀라게 한다)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>경력</h2>
+  <div class="timeline">
+    <div class="dot"><div class="year">2004 – 2006</div>삼성전자 연구원 — 수원, 블루레이 디스크 표준화 · 플레이어 개발</div>
+    <div class="dot"><div class="year">2008 – 2014</div>UIUC 박사과정 — DeNovo, DPJ, ParKD</div>
+    <div class="dot"><div class="year">2010 여름</div>Intel Graduate Intern</div>
+    <div class="dot"><div class="year">2015 – 2019</div>IBM T.J. Watson Research Center — Postdoc → Research Staff Member · CORAL/Summit 슈퍼컴 OpenMP-on-GPU · PathForward</div>
+    <div class="dot"><div class="year">2019 – 2024</div>POSTECH 컴퓨터공학과 조교수 (추정)</div>
+    <div class="dot"><div class="year">2024 –</div>SNU 데이터사이언스대학원 부교수</div>
+  </div>
+
+  <h2>학술 프로필</h2>
+  <ul>
+    <li>DBLP: <a href="https://dblp.org/pid/37/7474.html" target="_blank" rel="noopener">dblp.org/pid/37/7474</a></li>
+    <li>Google Scholar: <a href="https://scholar.google.com/citations?user=lxBD94AAAAAJ&hl=en" target="_blank" rel="noopener">scholar.google.com</a> — h-index 8 · 인용 ~997 (2026.04 시점)</li>
+    <li>ACM DL: <a href="https://dl.acm.org/profile/81444596778" target="_blank" rel="noopener">profile/81444596778</a></li>
+    <li>IEEE Xplore: <a href="https://ieeexplore.ieee.org/author/38237507800" target="_blank" rel="noopener">author/38237507800</a></li>
+  </ul>
+
+  <h2>핵심 협업 네트워크</h2>
+  <p>이 분의 논문을 읽다 보면 자연스럽게 같이 보이는 사람들이 있다. 동명이인 검증의 단서이기도 하다.</p>
+  <div class="grid-2">
+    <div class="card">
+      <h3>UIUC (박사 시절)</h3>
+      <p>Sarita V. Adve · Vikram Adve · Rakesh Komuravelli · Robert Bocchino · Byn Choi · Robert Smolinski. DeNovo / DPJ 그래프의 초창기 멤버.</p>
+    </div>
+    <div class="card">
+      <h3>IBM (4년)</h3>
+      <p>Tong Chen · Alexandre E. Eichenberger · Kevin K. O'Brien · Zehra Sura · Carlo Bertolli · Arpith Jacob · Samuel Antao · Gheorghe-Teodor Bercea. Clang/LLVM의 OpenMP-on-GPU 업스트림 작업이 모두 이 사람들과 같이 만든 것.</p>
+    </div>
+    <div class="card">
+      <h3>POSTECH/SNU (현재)</h3>
+      <p>Eunhyeok Park (POSTECH→SNU) · Gwangsun Kim (CXL) · Hyungkyu Ham, Joo-Young Kim (KAIST EE/CS PIM) · Youngjin Kwon (KAIST CS) · Hyungsoo Jung (서울대 데이터). 산업 전공자라면 “PIM 한국팀 콘소시엄”의 윤곽이 보일 것이다.</p>
+    </div>
+    <div class="card">
+      <h3>학생들 (CODE Lab)</h3>
+      <p>Yongwon Shin · Juseong Park · Yoonho Choi · Jungho Lee · Bosuk Kim · Dukyung Kang. 졸업생 중엔 Hyundai Motors와 Rebellions로 간 분들도 있다.</p>
+    </div>
+  </div>
+
+  <h2>산학·커뮤니티</h2>
+  <ul>
+    <li><strong>IBM 내부 시스템</strong>: CORAL Project (Summit/Sierra 슈퍼컴 LLVM OpenMP 4.5 GPU 지원) 업스트림 직접 기여.</li>
+    <li><strong>ETRI/KISTI</strong>: 한국 차세대 슈퍼컴 AB21용 OpenCL 컴파일러·런타임 협력.</li>
+    <li><strong>학회 서비스</strong>: ASPLOS 2014 Submission Co-chair, CGO 2021 SRC Chair, LCTES 2022 PC, ISPASS 2019 PC.</li>
+    <li><strong>수상</strong>: PACT 2011 Best Paper (DeNovo), IEEE Micro Top Picks 2014 (DeNovoND), ACM Doctoral Dissertation Award Nomination (2015), MIT Rising Stars in EECS (2013).</li>
+  </ul>
+
+  <div class="quip">한 줄 요약 — 캐시·OpenMP·TVM·UPMEM·CXL을 한 사람의 이력서 안에 모두 담은 보기 드문 케이스다. 그래서 이 분을 따라가면 “시스템 스택 위아래”를 거의 다 만질 수 있다.</div>
+
+  <h2>이 챕터에서 가져갈 것</h2>
+  <ul>
+    <li>“병렬 프로그램이 가진 특성을 활용하면 시스템 자원을 더 단순하게 만들 수 있지 않나?”라는 질문에서 시작했다.</li>
+    <li>학계 → 산업체(IBM) → 학계로 돌아오면서 <strong>컴파일러를 손에 잡는 사람</strong>으로 정체성이 굳어졌다.</li>
+    <li>박사 시기의 캐시 → IBM의 OpenMP → 한국의 ML/PIM 컴파일러로 <strong>레이어가 위로 올라가는</strong> 모습이 보인다.</li>
+  </ul>
+
+  <div class="nav-ft">
+    <a data-go="prologue" href="#prologue">
+      <div class="label">이전</div><div class="ttl">← 프롤로그</div>
+    </a>
+    <a class="next" data-go="hs-2" href="#hs-2">
+      <div class="label">다음</div><div class="ttl">1.2 전체 연구 지도 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="hs-2">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.2</div>
+  <h1>전체 연구 지도</h1>
+  <p class="lead">한 연구자의 논문을 “시간 순”으로 보면 그 연구자의 “인간”이 보이지만, “질문 단위”로 묶으면 그 연구자의 “생각”이 보인다. 이 절은 후자를 한다.</p>
+  <p>성 교수님의 작업은 6개 축으로 묶인다. 신기한 건 6축이 시간 순으로 나란히 펼쳐져 있고, 각 축이 “위쪽 레이어가 알고 있는 정보를 아래로 흘려보내자”라는 한 문장으로 환원된다는 것.</p>
+
+  <h2>축 A — Disciplined Parallelism과 캐시 코히런스 <span class="pill">UIUC, 2009-2015</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>멀티코어 CPU의 MESI/MOESI 캐시 코히런스 프로토콜은 “언제 어디서나 데이터 레이스가 일어날 수 있다”라는 가정 아래 설계되어 있다. 그래서 directory, broadcast invalidation, transient state가 잔뜩 필요하다. 만약 프로그래머가 “여기서부터 여기까지는 데이터 레이스가 없다”라고 컴파일러/하드웨어에 알려준다면? 캐시 프로토콜은 훨씬 단순해질 수 있지 않을까.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>DeNovo</strong> (PACT 2011, Best Paper) — DPJ의 region/effect 정보를 캐시 프로토콜이 활용.</li>
+      <li><strong>DeNovoND</strong> (ASPLOS 2013, IEEE Micro Top Picks 2014) — 락 같은 비결정 동기화도 disciplined하게 표현.</li>
+      <li><strong>DeNovoSync</strong> (ASPLOS 2015) — lockfree 같은 임의 동기화도 writer-initiated invalidation 없이.</li>
+      <li><strong>PhD Thesis</strong> (UIUC, 2015) — 위 셋을 묶음.</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> PACT 2011 → ASPLOS 2013 → ASPLOS 2015 순서</p>
+  </div>
+
+  <h2>축 B — Deterministic Parallel Programming <span class="pill">UIUC, 2009</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>자바/C++ 같은 일반 언어로 멀티코어 프로그램을 짜면 데이터 레이스가 너무 쉽게 일어난다. 컴파일 시점에 데이터 레이스를 차단할 수는 없을까?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>DPJ — A Type and Effect System for Deterministic Parallel Java</strong> (OOPSLA 2009). 막내 저자 위치이지만 후속 DeNovo가 이 시스템 위에서 굴러간다.</li>
+    </ul>
+  </div>
+
+  <h2>축 C — OpenMP-on-GPU 컴파일러 <span class="pill">IBM, 2015-2019</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>IBM의 슈퍼컴 Summit(POWER9 + Volta)에서 과학 코드들이 OpenMP 4.5의 <code>target</code> 지시문 한 줄로 GPU 가속을 받아야 한다. 그런데 Clang/LLVM의 OpenMP 백엔드는 GPU에서 효율이 매우 떨어졌다.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li>Integrating GPU Support for OpenMP into Clang (LLVM-HPC@SC 2015)</li>
+      <li>Offloading Support for OpenMP in Clang and LLVM (2016)</li>
+      <li>Performance Analysis of Clang's OpenMP 4.5 GPU (2016)</li>
+      <li>Implementing Implicit OpenMP Data Sharing on GPUs (2017)</li>
+      <li><strong>Efficient Fork-Join on GPUs Through Warp Specialization</strong> (HiPC 2017)</li>
+      <li>Leveraging OpenMP 4.5 in CLANG for Fortran (IWOMP 2017) — XLFLANG IR-to-IR.</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> 2017년 두 편 — implicit data sharing + warp specialization. OpenMP의 thread/team 모델을 GPU의 SIMT에 어떻게 떨어뜨릴지가 가장 잘 드러난다.</p>
+  </div>
+
+  <h2>축 D — ML for Compiler Optimization <span class="pill">IBM 후기 + POSTECH, 2019-2022</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>컴파일러는 수많은 휴리스틱(register allocation, autotuning 검색 공간, target/host 결정 등)으로 가득하다. 이걸 ML로 학습시킬 수 없을까?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>CogR</strong> (PACT 2019 poster) — IBM 시기, OpenMP target 영역을 CPU/GPU 어디서 실행할지 ML로 결정.</li>
+      <li><strong>MetaTune</strong> (arXiv 2021) — TVM의 cost model을 meta-learning으로 빠르게 적응.</li>
+      <li><strong>One-Shot Tuner</strong> (CC 2022) — NAS 기반 단일 패스 cost model.</li>
+      <li><strong>Greedy-SO</strong> (LCPC 2021) — LLVM의 RA를 패턴 가이드형으로 하이브리드.</li>
+    </ul>
+  </div>
+
+  <h2>축 E — PIM/NDP 컴파일러와 런타임 <span class="pill">POSTECH, 2021-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>PIM(Processing-in-Memory)과 NDP(Near-Data Processing)는 “데이터를 옮기지 말고 메모리 옆에서 계산하자”라는 발상이다. 그런데 PyTorch나 TVM 같은 ML 프레임워크가 PIM을 어떻게 자동으로 활용할까? PIM과 GPU를 함께 쓰면 누가 무엇을 맡을까?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>NDP in Memory Expander for DNN on GPUs</strong> (IEEE CAL 2021) — Hyungkyu Ham 외와.</li>
+      <li><strong>Runtime Support for CNN on Digital DRAM PIM</strong> (IEEE CAL 2022).</li>
+      <li><strong>PIMFlow</strong> (CGO 2023) — TVM에 PIM-DRAM 백엔드 통합.</li>
+      <li><strong>XLA-NDP</strong> (IEEE CAL 2023) — XLA를 NDP에 맞춰 학습 그래프 분할.</li>
+      <li><strong>PRIMO</strong> (ICCAD 2023) — KAIST 김주영팀과 PIM-DRAM 풀스택 에뮬레이션.</li>
+      <li><strong>IMTP / ATiM</strong> (arXiv 2024 / ISCA 2025) — UPMEM PIM용 search-based 텐서 컴파일러.</li>
+      <li><strong>CXL NDP</strong> (MICRO 2024) — Gwangsun Kim 그룹과 CXL 메모리 확장기 NDP.</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> PIMFlow → ATiM</p>
+  </div>
+
+  <h2>축 F — 가속기 DSE <span class="pill">POSTECH/SNU, 2023-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>신경망 가속기를 새로 설계할 때 타일 크기·레지스터 파일 크기·dataflow 같은 변수가 너무 많다. 자동으로 탐색할 방법은? 그리고 “모델 + 가속기 동시” 검색까지 할 수 있을까?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>Heterogeneous ACiM Search</strong> (ICCAD 2023).</li>
+      <li><strong>NavCim</strong> (PACT 2024) — 아날로그 CiM 종합 DSE.</li>
+    </ul>
+  </div>
+
+  <h2>여섯 축이 한 줄로 모이면</h2>
+  <p class="aside">시간 순으로 보면 <strong>한 칸씩 추상화 레이어가 위로 올라간다</strong>. 캐시 → 동기화 → OpenMP 컴파일러 → ML 컴파일러 → PIM 컴파일러 → DSE. 그러나 모든 축의 공통어는 같다. <strong>“프로그래머·컴파일러가 알고 있는 의미적 정보를 아래쪽 시스템에 흘려보내자.”</strong> RISC가 “하드웨어를 단순하게 하기 위해 컴파일러에 부담을 주자”라고 했던 그 줄에 정확히 서 있다.</p>
+
+  <div class="nav-ft">
+    <a data-go="hs-1" href="#hs-1">
+      <div class="label">이전</div><div class="ttl">← 1.1 연구자 프로필</div>
+    </a>
+    <a class="next" data-go="hs-3" href="#hs-3">
+      <div class="label">다음</div><div class="ttl">1.3 연도별 연구 흐름 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="hs-3">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.3</div>
+  <h1>연도별 연구 흐름</h1>
+  <p class="lead">한 논문을 한 단위로 두고, “어떤 병목을 발견했고, 어떤 기계를 만들었고, 어떤 결과를 냈는가”를 일관된 형식으로 본다.</p>
+  <p class="aside">전체 논문 표는 <a data-go="apx-a" href="#apx-a">부록 A</a>에서 정리·검색용으로 제공한다. 이 절은 “읽고 이해하기”용이다.</p>
+
+  <h2>2009 — DPJ: 결정적 병렬 자바</h2>
+  <div class="paper featured">
+    <div class="title">A Type and Effect System for Deterministic Parallel Java (DPJ)</div>
+    <div class="meta">OOPSLA 2009 · R. Bocchino, V. Adve, D. Dig, S. Adve, S. Heumann, R. Komuravelli, J. Overbey, P. Simmons, <strong>H. Sung</strong>, M. Vakillian</div>
+    <p><strong>한 줄 요약</strong> — 자바에 region·effect 타입을 도입해 컴파일 시점에 데이터 레이스를 차단.</p>
+    <p><strong>문제의식</strong> — 일반 자바 멀티스레드는 데이터 레이스가 너무 쉽게 일어남.</p>
+    <p><strong>핵심 아이디어</strong> — 객체 필드를 region으로 쪼개고, 메서드 effect를 “읽음/쓰기 + 어느 region”으로 명시. 컴파일러가 region 충돌을 정적으로 검사.</p>
+    <p><strong>왜 중요한가</strong> — 이 “region-effect” 표현은 후속 DeNovo의 <strong>하드웨어 캐시 프로토콜이 활용하는 입력</strong>이 된다. PL → 컴파일러 → 하드웨어로 정보가 흘러내려가는 첫 단계.</p>
+    <p><strong>출처</strong> — <a href="https://dl.acm.org/doi/10.1145/1640089.1640097" target="_blank" rel="noopener">ACM DL</a></p>
+  </div>
+
+  <h2>2010 — DeNovo 첫 발표 + ParKD</h2>
+  <ul>
+    <li><strong>DeNovo: Rethinking Hardware for Disciplined Parallelism</strong> (HotPar 2010) — DeNovo의 첫 워크샵 발표.</li>
+    <li><strong>Parallel SAH k-D Tree Construction (ParKD)</strong> (HPG 2010) — DeNovo 평가용 워크로드 중 하나. 코드 <a href="https://github.com/bchoi/ParKD" target="_blank" rel="noopener">github.com/bchoi/ParKD</a>.</li>
+  </ul>
+
+  <h2>2011 — DeNovo 본편 (PACT, Best Paper)</h2>
+  <div class="paper featured">
+    <div class="title">DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism</div>
+    <div class="meta">PACT 2011 · Best Paper · B. Choi, R. Komuravelli, <strong>H. Sung</strong>, R. Smolinski, N. Honarmand, S. Adve, V. Adve, N. Carter, C.-T. Chou</div>
+    <p><strong>한 줄 요약</strong> — DPJ의 region/effect 정보를 활용해 MESI보다 단순하고 트래픽이 적은 캐시 코히런스 프로토콜.</p>
+    <p><strong>문제의식</strong> — MESI/MOESI는 directory · transient state · invalidation broadcast가 잔뜩 필요. 가정이 너무 비관적이라서 그렇다.</p>
+    <p><strong>핵심 아이디어</strong></p>
+    <ol>
+      <li>DPJ region으로 “언제 누구에게 쓰기 권한이 있는가”를 안다.</li>
+      <li>parallel phase 시작 시점에 <strong>self-invalidation</strong>: 캐시는 자기 라인을 직접 무효화하고 새로 읽음. invalidation 메시지가 필요 없음.</li>
+      <li>shared state가 사라지므로 transient state도 사라지고 directory도 작아진다.</li>
+    </ol>
+    <p><strong>실험</strong> — SIMICS+GEMS로 DeNovo 캐시 구현. 32-core에서 MESI 대비 트래픽 30~80% 감소.</p>
+    <p class="aside">DeNovo는 캐시 코히런스의 “MESI에 대한 반항”이다. MESI가 “모두를 의심하라”라면 DeNovo는 “서로 약속한 것만 지키자”다.</p>
+    <p><strong>출처</strong> — <a href="https://dl.acm.org/doi/10.1109/PACT.2011.21" target="_blank" rel="noopener">ACM DL</a></p>
+  </div>
+
+  <h2>2013 — DeNovoND</h2>
+  <div class="paper featured">
+    <div class="title">DeNovoND: Efficient Hardware Support for Disciplined Non-Determinism</div>
+    <div class="meta">ASPLOS 2013 · IEEE Micro Top Picks 2014 · <strong>H. Sung</strong>, R. Komuravelli, S. Adve</div>
+    <p><strong>한 줄 요약</strong> — 락 같은 비결정 동기화도 disciplined하게 다루면 효율적인 코히런스가 가능.</p>
+    <p><strong>문제의식</strong> — PACT 2011은 deterministic 코드만 가정. 현실 시스템 코드는 lock·atomic·CAS를 쓴다.</p>
+    <p><strong>핵심 아이디어</strong> — 락이 데이터 레이스를 “컨테인”한다는 사실을 이용. 락 release 시점에 self-invalidation을 트리거.</p>
+    <p><strong>출처</strong> — <a href="https://dl.acm.org/doi/10.1145/2451116.2451119" target="_blank" rel="noopener">ACM DL</a></p>
+  </div>
+
+  <h2>2015 — DeNovoSync, PhD Thesis, IBM 합류</h2>
+  <div class="paper featured">
+    <div class="title">DeNovoSync: Arbitrary Synchronization without Writer-Initiated Invalidations</div>
+    <div class="meta">ASPLOS 2015 · <strong>H. Sung</strong>, S. Adve</div>
+    <p>임의 lockfree 동기화(Treiber stack, MS-queue 등)도 writer-initiated invalidation 없이 동작 — 더 이상 “writer가 다른 코어 캐시를 비우라고 메시지를 보내지 않아도” 코히런스 유지. self-invalidation의 일반화.</p>
+    <p><strong>출처</strong> — <a href="https://dl.acm.org/doi/10.1145/2694344.2694356" target="_blank" rel="noopener">ACM DL</a></p>
+  </div>
+  <p>같은 해 PhD Thesis <em>DeNovo: Rethinking the Memory Hierarchy for Disciplined Parallelism</em>을 마무리. ACM Doctoral Dissertation Award Nomination, UIUC Kuck Outstanding Thesis Runner-up. 그리고 IBM TJ Watson에 합류해 CORAL 프로젝트(Summit/Sierra)에 투입.</p>
+
+  <h2>2015 – 2017 — IBM CORAL: OpenMP 4.5 GPU 컴파일러</h2>
+  <p class="aside">이 시기 논문은 한 묶음으로 읽어야 의미가 있다. 모두 “OpenMP 4.5 <code>target</code> 지시문을 NVIDIA GPU에서 어떻게 효율적으로 실행할까”라는 단일 질문 아래 쌓여 있다.</p>
+
+  <div class="paper">
+    <div class="title">Integrating GPU Support for OpenMP Offloading Directives into Clang</div>
+    <div class="meta">LLVM-HPC@SC 2015</div>
+    <p>front-end가 <code>target</code> 영역을 별도 함수로 outline하고 NVPTX backend로 보냄. data mapping은 libomptarget이 처리.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Offloading Support for OpenMP in Clang and LLVM</div>
+    <div class="meta">LLVM-HPC@SC 2016</div>
+    <p>data movement, async offloading, OpenMP 4.5 모든 절(map, depend, defaultmap)을 정식 구현.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Performance Analysis and Optimization of Clang's OpenMP 4.5 GPU Support</div>
+    <div class="meta">PMBS@SC 2016</div>
+    <p>가장 큰 병목: OpenMP의 nested parallelism을 GPU의 단순한 SIMT 모델 위에서 어떻게 표현할까.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Implementing Implicit OpenMP Data Sharing on GPUs</div>
+    <div class="meta">LLVM-HPC@SC 2017</div>
+    <p><code>private</code>, <code>firstprivate</code>, implicit shared 변수를 GPU에서 효율적으로 구현. CUDA의 stack 변수와 dynamic shared memory 활용.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">Efficient Fork-Join on GPUs Through Warp Specialization</div>
+    <div class="meta">HiPC 2017</div>
+    <p>OpenMP의 fork-join을 GPU에서 warp specialization으로 구현. master warp · worker warp 분담.</p>
+    <p class="aside">GPU엔 “team”이라는 개념이 없다. OpenMP의 team을 CTA에 매핑하는 단순한 방식은 nested parallelism을 못 다룬다. warp specialization은 SIMT 위에 fork-join을 “얹는” 영리한 방법.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Leveraging OpenMP 4.5 Support in CLANG for Fortran (XLFLANG)</div>
+    <div class="meta">IWOMP 2017</div>
+    <p>IBM XL Fortran 코드를 Clang의 OpenMP-on-GPU 흐름으로 가져오는 IR-to-IR 번역기. HPC의 절반은 여전히 Fortran이다.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Benchmarking and Evaluating Unified Memory for OpenMP GPU Offloading</div>
+    <div class="meta">LLVM-HPC@SC 2017</div>
+    <p>NVIDIA Unified Memory가 OpenMP <code>target</code> 데이터 매핑에 어떻게 영향을 주는지 측정. 컴파일러가 미리 옮길지(<code>map</code>), Unified Memory에 맡길지의 트레이드오프.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Automatic Copying of Pointer-Based Data Structures</div>
+    <div class="meta">LCPC 2016</div>
+    <p>linked list/tree처럼 포인터로 연결된 데이터를 GPU에 자동 복사. data flatten + pointer relocation.</p>
+  </div>
+
+  <h2>2019 — CogR: ML for systems의 시작</h2>
+  <div class="paper">
+    <div class="title">CogR: Exploiting Program Structures for ML-Based Runtime Solutions</div>
+    <div class="meta">PACT 2019 poster</div>
+    <p>OpenMP <code>target</code>을 CPU vs GPU 어디서 실행할지 ML로 결정. 입력은 “프로그램 구조 + 입력 크기”. 이게 향후 MetaTune·One-Shot Tuner로 이어지는 발화 지점.</p>
+  </div>
+
+  <h2>2019 – 2024 — POSTECH 시기: 두 줄거리</h2>
+  <p>POSTECH 5년의 작업은 두 갈래로 흐른다. (1) 컴파일러를 ML 컴파일러로 확장하면서 autotuning과 cost model에 ML을 도입한다. (2) PIM/NDP가 등장하면서, 그 PIM을 ML 프레임워크가 자동으로 쓰도록 컴파일러·런타임을 만든다.</p>
+
+  <div class="paper">
+    <div class="title">MetaTune</div>
+    <div class="meta">arXiv 2021 · J. Ryu, <strong>H. Sung</strong></div>
+    <p>TVM autotuning에 meta-learning cost model. 새 워크로드에서 zero/few-shot 적응.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Hybrid Register Allocation (Greedy-SO)</div>
+    <div class="meta">LCPC 2021 · Y. Shin, <strong>H. Sung</strong></div>
+    <p>LLVM greedy RA의 spill cost와 패턴 기반 ILP를 결합한 하이브리드 RA. 컴파일러를 손에 잡는 사람만 쓸 수 있는 논문.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">One-Shot Tuner for Deep Learning Compilers</div>
+    <div class="meta">CC 2022 · J. Ryu, E. Park, <strong>H. Sung</strong></div>
+    <p>NAS 기반 단일 패스 cost model로 TVM autotuning 시간을 단축. 사용자가 가장 많이 욕하는 “튜닝이 너무 오래 걸린다”를 정조준.</p>
+    <p>코드/아티팩트 — <a href="https://doi.org/10.5281/zenodo.6337971" target="_blank" rel="noopener">Zenodo 6337971</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">NDP in Memory Expander for DNN on GPUs</div>
+    <div class="meta">IEEE CAL 2021 · H. Ham 외</div>
+    <p>GPU 옆에 NDP가 붙은 메모리 확장기로 DNN 가속. PIMFlow·XLA-NDP·CXL NDP로 가는 다리.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Runtime Support for CNN on Digital DRAM PIM</div>
+    <div class="meta">IEEE CAL 2022 · Y. Shin, J. Park, J. Hong, <strong>H. Sung</strong></div>
+    <p>PIM-DRAM에서 CNN을 실행하기 위한 런타임. PIMFlow의 짧은 버전.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">PIMFlow: Compiler and Runtime Support for CNN on PIM-DRAM</div>
+    <div class="meta">CGO 2023 · Y. Shin, J. Park, S. Cho, <strong>H. Sung</strong></div>
+    <p>TVM 안에 PIM-DRAM 백엔드를 통합해 GPU+PIM 협업을 자동화. ONNX/TF → Relay → PIM/GPU 분할 → 각 백엔드 코드 생성. PIM과 GPU가 동시에 실행되는 파이프라인까지 컴파일러가 자동 생성.</p>
+    <p>코드 — <a href="https://github.com/yongwonshin/PIMFlow" target="_blank" rel="noopener">github.com/yongwonshin/PIMFlow</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">XLA-NDP</div>
+    <div class="meta">IEEE CAL 2023 · J. Park, <strong>H. Sung</strong></div>
+    <p>XLA의 학습 그래프를 GPU와 NDP 메모리에 분할 실행. PIMFlow가 추론 중심이라면 이건 backward graph 분할.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Heterogeneous Neuromorphic Architecture Search</div>
+    <div class="meta">ICCAD 2023 · J. Park, Y. Shin, <strong>H. Sung</strong></div>
+    <p>가변 타일 크기 아날로그 CiM 가속기의 다목적 검색. NavCim의 전조. 코드 — <a href="https://github.com/wntjd9805/hetero-neurosim-search" target="_blank" rel="noopener">github</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">PRIMO</div>
+    <div class="meta">ICCAD 2023 · KAIST 김주영팀과 공동</div>
+    <p>PIM-DRAM 풀스택 ML 워크로드 에뮬레이션 프레임워크.</p>
+  </div>
+
+  <h2>2024 — CXL NDP, NavCim, IMTP</h2>
+  <div class="paper featured">
+    <div class="title">Low-Overhead General-Purpose Near-Data Processing in CXL Memory Expanders</div>
+    <div class="meta">MICRO 2024 · H. Ham 외, <strong>H. Sung</strong>, G. Kim</div>
+    <p><strong>한 줄 요약</strong> — CXL 메모리 확장기 안에 NDP를 넣어 “오버헤드 적은 일반 목적 가속”을 제공.</p>
+    <p><strong>문제의식</strong> — PIM은 ASIC을 메모리에 박아 워크로드 종속이 강함. CXL은 일반 목적 메모리 확장. 둘을 결합할 수 없을까.</p>
+    <p><strong>핵심 아이디어</strong> — CXL 트랜잭션 안에 일반 목적 명령(ALU, gather/scatter)을 끼워넣고 host와 capacity-coherent하게 동작.</p>
+    <p>출처 — <a href="https://arxiv.org/abs/2404.19381" target="_blank" rel="noopener">arXiv:2404.19381</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">NavCim</div>
+    <div class="meta">PACT 2024 · J. Park, B. Kim, <strong>H. Sung</strong></div>
+    <p>아날로그 CiM 종합 DSE. 코드 — <a href="https://github.com/wntjd9805/navcim" target="_blank" rel="noopener">github.com/wntjd9805/navcim</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">IMTP</div>
+    <div class="meta">arXiv 2024</div>
+    <p>UPMEM PIM(상용 PIM) 대상 search-based 텐서 컴파일러. 사실상 “TVM-for-PIM”의 발전형.</p>
+  </div>
+
+  <h2>2025 — HYPERF, ATiM</h2>
+  <div class="paper">
+    <div class="title">HYPERF</div>
+    <div class="meta">HPDC 2025</div>
+    <p>TVM 텐서 오토튜닝 + OpenMP C/C++ 프론트엔드 결합 HPC 자동튜너. 박사 시기 HPC 경험 + IBM OpenMP + POSTECH TVM이 한 곳에 모인 작품. ETRI/KISTI의 한국 슈퍼컴 AB21 협업의 산물.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">ATiM: Autotuning Tensor Programs for Processing-in-DRAM</div>
+    <div class="meta">ISCA 2025 · Y. Shin, D. Kang, <strong>H. Sung</strong></div>
+    <p>UPMEM DRAM-PIM 대상 search-based 텐서 컴파일러. IMTP의 정식판.</p>
+    <p>출처 — <a href="https://arxiv.org/abs/2412.19630" target="_blank" rel="noopener">arXiv:2412.19630</a></p>
+    <p class="aside">유 교수님의 uPIMulator(HPCA 2024 Best Paper)와 같은 UPMEM 생태계 위에 컴파일러 측 작업을 놓는 것 — 한국 시스템 연구의 PIM 두 축이 만나는 지점이다.</p>
+  </div>
+
+  <h2>2026 — FORTE</h2>
+  <div class="paper">
+    <div class="title">FORTE: Online DataFrame Query Optimizer</div>
+    <div class="meta">CGO 2026 · Y. Choi 외, <strong>H. Sung</strong></div>
+    <p>pandas/PySpark 같은 DataFrame 쿼리를 온라인으로 최적화. SNU 데이터사이언스대학원의 정체성과 잘 맞는 “데이터프레임 + 컴파일러” 조합. <strong>컴파일러 사람이 데이터 시스템으로 영역을 넓히는 신호</strong>.</p>
+  </div>
+
+  <h2>이 챕터에서 가져갈 것</h2>
+  <ul>
+    <li>성 교수님 논문은 “시간이 지나면서 한 단계씩 위 레이어로 올라가지만 아래 레이어를 잊지 않는” 패턴.</li>
+    <li>박사 시기엔 캐시, IBM에선 컴파일러, 한국에선 ML 컴파일러 + PIM 컴파일러 + DSE.</li>
+    <li>모든 작업이 “데이터를 어디 두고 누가 옮길지를 컴파일러가 결정하게 하자”라는 한 줄로 모인다.</li>
+  </ul>
+
+  <div class="nav-ft">
+    <a data-go="hs-2" href="#hs-2">
+      <div class="label">이전</div><div class="ttl">← 1.2 전체 연구 지도</div>
+    </a>
+    <a class="next" data-go="hs-4" href="#hs-4">
+      <div class="label">다음</div><div class="ttl">1.4 대표 프로젝트 해부 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="hs-4">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.4</div>
+  <h1>대표 프로젝트 해부</h1>
+  <p class="lead">논문은 “주장”이고 시스템은 “물증”이다. 이 절은 다섯 개의 “물증”을 한 단위로 본다.</p>
+
+  <h2>4-1. DeNovo 캐시 코히런스</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>MESI보다 단순한 캐시 코히런스 프로토콜</td></tr>
+      <tr><th>왜</th><td>MESI는 모든 공유접근이 임의라고 가정 → directory + transient state + invalidation broadcast가 필요</td></tr>
+      <tr><th>입력</th><td>DPJ region/effect annotation이 있는 병렬 프로그램</td></tr>
+      <tr><th>출력</th><td>같은 프로그램이 더 적은 코히런스 트래픽으로 실행</td></tr>
+      <tr><th>아키텍처</th><td>캐시는 region tag 보유. read-only는 자유 캐싱, parallel phase 시작 시 self-invalidate. directory 대신 owner table</td></tr>
+      <tr><th>결과</th><td>MESI 대비 트래픽 30~80% 감소, on-chip 면적도 줄어듦</td></tr>
+      <tr><th>코드</th><td><a href="http://rsim.cs.uiuc.edu/denovo/" target="_blank" rel="noopener">UIUC RSim group</a> — 공개 자료가 파편화. 학생이 SIMICS+GEMS로 reimplement해야</td></tr>
+      <tr><th>재현 난이도</th><td>어려움. gem5 ruby 모듈 위에 재구현하면 좋은 학기 프로젝트</td></tr>
+      <tr><th>쪼개면</th><td>(1) MESI를 gem5에 직접 작성 → (2) DeNovo의 self-invalidation 추가 → (3) DPJ 같은 deterministic-region 트레이스 생성기</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-2. PIMFlow</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>TVM에 PIM-DRAM 백엔드를 통합하고 GPU/PIM 분할 실행을 자동 결정</td></tr>
+      <tr><th>왜</th><td>PIM의 가장 큰 약점 — “PyTorch에서 어떻게 쓰지?”. 칩을 만들어도 모델을 매핑 못 시킴</td></tr>
+      <tr><th>입력</th><td>ONNX/TF 모델 → TVM Relay</td></tr>
+      <tr><th>출력</th><td>GPU(CUDA) + PIM 코드, 그리고 두 디바이스 분할/동시 실행 계획</td></tr>
+      <tr><th>아키텍처</th><td>TVM Relay → 분할 결정기(layer별 PIM-suit 판정) → PIM/GPU 코드 생성기 → 런타임이 두 디바이스 협조</td></tr>
+      <tr><th>코드</th><td><a href="https://github.com/yongwonshin/PIMFlow" target="_blank" rel="noopener">github.com/yongwonshin/PIMFlow</a></td></tr>
+      <tr><th>재현 난이도</th><td>중간. TVM 빌드 + PIM 시뮬레이터(Newton/PIMSimulator) 필요</td></tr>
+      <tr><th>쪼개면</th><td>(1) TVM Relay + 자체 dummy 백엔드 → (2) layer 단위 “GPU vs PIM” 결정 휴리스틱 → (3) cost model을 ML로 학습</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-3. One-Shot Tuner</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>NAS 기반 단일 패스 cost model로 TVM autotuning 시간 단축</td></tr>
+      <tr><th>왜</th><td>TVM 사용자가 가장 자주 부딪히는 벽 — 한 모델당 수 시간 ~ 며칠</td></tr>
+      <tr><th>아키텍처</th><td>NAS controller가 schedule transformation 시퀀스 생성 → cost model 점수 → 단일 패스로 최적 후보 선정</td></tr>
+      <tr><th>결과</th><td>AutoTVM/Ansor 대비 튜닝 시간 수배~수십배 단축</td></tr>
+      <tr><th>코드</th><td><a href="https://doi.org/10.5281/zenodo.6337971" target="_blank" rel="noopener">Zenodo 6337971</a></td></tr>
+      <tr><th>쪼개면</th><td>(1) AutoTVM XGBoost cost model 직접 학습 → (2) NAS 기반 single-pass 변형 → (3) MetaTune의 meta-learning 결합</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-4. ATiM (UPMEM PIM 컴파일러)</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>UPMEM PIM 보드 대상 search-based 텐서 컴파일러</td></tr>
+      <tr><th>왜</th><td>UPMEM DPU는 SIMD 없고 코어 단순. PyTorch 모델을 어떻게 매핑할까?</td></tr>
+      <tr><th>아키텍처</th><td>TVM TensorIR → UPMEM-aware schedule space (banking, DPU 분할, host-DPU 통신) → search → DPU 코드</td></tr>
+      <tr><th>결과</th><td>사람 손 코드와 비슷하거나 능가</td></tr>
+      <tr><th>재현 난이도</th><td>중간. UPMEM 시뮬 또는 실제 보드 필요</td></tr>
+      <tr><th>쪼개면</th><td>(1) UPMEM 보드에서 dot product 손코딩 → (2) TVM TensorIR로 표현 → (3) schedule search 도입</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-5. NavCim (Analog CiM DSE)</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>아날로그 CiM(Compute-in-Memory) 종합 DSE 도구</td></tr>
+      <tr><th>왜</th><td>아날로그 CiM은 cell array 크기, ADC 정밀도, 노이즈 마진 등 변수가 너무 많음</td></tr>
+      <tr><th>아키텍처</th><td>모델 → mapping search → NeuroSim 평가 → Pareto front</td></tr>
+      <tr><th>코드</th><td><a href="https://github.com/wntjd9805/navcim" target="_blank" rel="noopener">github.com/wntjd9805/navcim</a></td></tr>
+      <tr><th>쪼개면</th><td>(1) NeuroSim 빌드 + 단일 layer 시뮬 → (2) tile size grid search → (3) NSGA-II multi-objective DSE</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quip">다섯 개를 모두 따라 만들면, 컴파일러 + 가속기 + 메모리 측 가속 + DSE의 “네 모서리”가 손에 들어온다. 그러면 “시스템 연구자”라는 단어가 추상이 아니라 도구 모음으로 보이기 시작할 것이다.</div>
+
+  <div class="nav-ft">
+    <a data-go="hs-3" href="#hs-3">
+      <div class="label">이전</div><div class="ttl">← 1.3 연도별 연구 흐름</div>
+    </a>
+    <a class="next" data-go="hs-5" href="#hs-5">
+      <div class="label">다음</div><div class="ttl">1.5 연구 스타일 요약 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="hs-5">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.5</div>
+  <h1>성효진 교수님의 연구 스타일 요약</h1>
+  <p class="lead">한 연구자의 “스타일”은 어떤 단어를 반복해서 쓰는지, 어떤 도구를 손에 잡는지, 어떤 종류의 병목에 흥분하는지로 드러난다.</p>
+
+  <h2>반복 등장하는 문제의식</h2>
+  <ol>
+    <li><strong>“위에서 알고 있는 정보를 아래로 보내자”</strong> — 언어 → 컴파일러 → 하드웨어로 의미 정보를 전달.</li>
+    <li><strong>“휴리스틱은 ML 모델로 대체할 수 있다”</strong> — register allocator, autotuner, target/host 결정 등.</li>
+    <li><strong>“데이터를 어디서 계산할 것인가”</strong> — GPU / PIM / NDP / CXL 사이의 분할.</li>
+  </ol>
+
+  <h2>선호하는 시스템 레이어</h2>
+  <p>캐시 코히런스(박사) → 컴파일러 백엔드(IBM) → 컴파일러 프런트엔드 + 런타임(POSTECH/SNU) → DSE(2023+).</p>
+  <p>레이어가 위로 올라가면서도 “이 위 레이어가 아래 레이어에 무엇을 알려주면 더 빨라지는가”라는 같은 문제를 반복해서 푼다.</p>
+
+  <h2>자주 쓰는 방법론</h2>
+  <ul>
+    <li><strong>시뮬레이터 + 오픈 컴파일러</strong> — SIMICS/GEMS/gem5, LLVM, TVM. 손에 잡고 직접 수정.</li>
+    <li><strong>벤치마크 정의 → 측정 → 병목 식별 → 컴파일러 패스 추가</strong> — 매우 일관된 워크플로.</li>
+    <li><strong>ML 모델로 휴리스틱 학습</strong> — meta-learning, NAS, RL.</li>
+  </ul>
+
+  <h2>어떤 종류의 병목을 중요하게 보는가</h2>
+  <ul>
+    <li>하드웨어가 알 수 없는 의미적 정보(region, effect, workload structure)가 위에 있는데 못 쓰고 있는 상황.</li>
+    <li>컴파일러가 동일한 일을 매번 처음부터 다시 하는 상황(autotuning).</li>
+    <li>새 하드웨어(PIM/NDP/CXL/Analog CiM)가 등장했지만 ML 프레임워크가 못 쓰는 상황.</li>
+  </ul>
+
+  <h2>논문들이 어떤 스토리로 이어지는가</h2>
+  <div class="grid-2">
+    <div class="card"><h3>박사 (UIUC)</h3><p>DeNovo → DeNovoND → DeNovoSync. 한 그래프로 묶인다.</p></div>
+    <div class="card"><h3>IBM</h3><p>Clang/LLVM OpenMP-on-GPU 시리즈. 한 그래프로 묶인다.</p></div>
+    <div class="card"><h3>한국 (현재)</h3><p>ML 컴파일러 + PIM 컴파일러 + DSE — 세 가닥 그래프.</p></div>
+    <div class="card"><h3>그래프 사이의 다리</h3><p>ML for systems (CogR → MetaTune → One-Shot Tuner)와 “데이터 이동을 컴파일러가 관리한다” (OpenMP <code>target</code> data → PIMFlow → CXL NDP).</p></div>
+  </div>
+
+  <h2>관심 있는 학생이 준비할 것</h2>
+  <ul>
+    <li><strong>컴파일러</strong> — LLVM/TVM 빌드 + IR pass 작성 경험.</li>
+    <li><strong>컴퓨터구조</strong> — 캐시/메모리/MMU/coherence.</li>
+    <li><strong>ML 시스템</strong> — autotuning, cost model, NAS 기초.</li>
+    <li><strong>가속기 시뮬레이션</strong> — gem5, NeuroSim, SystemC 중 하나.</li>
+    <li><strong>언어</strong> — Python + C++ + (가능하면) CUDA.</li>
+  </ul>
+
+  <h2>CUDA / Triton / GPU 커널 지망자에게</h2>
+  <p>성 교수님 작업은 “커널을 짜는 사람”보다 “커널을 자동으로 짜는 시스템을 만드는 사람”의 시각이다. 즉 Triton 자체보다는 “Triton의 schedule space를 어떻게 검색할까”에 가까운 영역. CUDA를 짜고 싶다면 PIMFlow 같은 결과물을 “사용자”로 활용하면서 “이 컴파일러가 만든 코드를 손으로 짠 코드와 비교”하는 방식이 학습에 좋다.</p>
+
+  <div class="quip">컴파일러 사람이 GPU 커널을 사랑하는 방식 — 직접 짜기보다 “자동으로 짜게 만드는 도구를 짠다”. 그 도구가 만들어낸 코드를 거꾸로 읽으면, 사람 손이 잘 가는 패턴이 무엇이었는지 보인다.</div>
+
+  <div class="nav-ft">
+    <a data-go="hs-4" href="#hs-4">
+      <div class="label">이전</div><div class="ttl">← 1.4 대표 프로젝트 해부</div>
+    </a>
+    <a class="next" data-go="hs-6" href="#hs-6">
+      <div class="label">다음</div><div class="ttl">1.6 앞으로의 방향 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="hs-6">
+  <div class="crumb">빅챕터 1 · 성효진 · 1.6</div>
+  <h1>앞으로의 방향 — 명시 자료 + 추정</h1>
+  <p class="lead">한 연구자의 “다음”을 정확히 점치는 사람은 본인뿐이다. 이 절은 공개 자료에서 확인되는 방향과 “흐름상 자연스러운 추정”을 분리한다.</p>
+
+  <h2>명시 자료에서 확인되는 방향</h2>
+  <ul>
+    <li><strong>CXL 메모리 확장기 + NDP 컴파일러</strong> — MICRO 2024 논문이 시작점. CXL 풀(pool)을 ML 프레임워크가 어떻게 자동 활용할지가 다음 단계.</li>
+    <li><strong>상용 PIM 생태계</strong> — ATiM(ISCA 2025)이 UPMEM 대상이므로, SK Hynix HBM-PIM 등 다른 상용 PIM 백엔드로 확장될 가능성이 높음.</li>
+    <li><strong>HPC 자동튜닝</strong> — HYPERF(HPDC 2025) 흐름 연장. 한국 슈퍼컴 AB21용 OpenCL 컴파일러·런타임 후속.</li>
+    <li><strong>ML for Systems · Systems for ML</strong> — SNU 데이터사이언스 세미나의 슬로건이자 향후 연구 라인의 방향타.</li>
+  </ul>
+
+  <h2>최근 흐름상 자연스러운 다음 문제 <span class="pill">추정</span></h2>
+  <ul>
+    <li><strong>LLM serving 컴파일러</strong> — vLLM/SGLang/TensorRT-LLM이 KV cache, paged attention, speculative decoding을 손으로 짠다. 이걸 컴파일러가 자동화할 가능성. IMTP/ATiM이 그 시그널.</li>
+    <li><strong>Analog CiM + DNN training</strong> — NavCim이 inference만 다루는데, training으로 넓힐 가능성.</li>
+    <li><strong>DataFrame + 컴파일러</strong> — FORTE(CGO 2026)는 SNU GSDS 정체성과 강하게 맞물림. 데이터프레임 컴파일 기반 가속이 후속으로.</li>
+  </ul>
+
+  <h2>산업 변화와의 연결 <span class="pill">추정</span></h2>
+  <ul>
+    <li><strong>삼성/SK 하이닉스 PIM 상용화</strong> — 두 회사 모두 HBM-PIM 제품을 갖추고 있음. 컴파일러 측 협력이 거의 확실.</li>
+    <li><strong>CXL 2.0/3.0 풀링</strong> — 데이터센터 표준이 CXL로 옮겨가면서 NDP가 보편 모델이 됨.</li>
+    <li><strong>NVIDIA Grace, AMD MI300, Intel Gaudi</strong> — 메모리 측에 점점 큰 SoC가 붙고 있어, OpenMP <code>target</code> 류의 컴파일러 경험이 다시 중요해짐.</li>
+  </ul>
+
+  <h2>학생이 준비하면 좋은 구현 프로젝트</h2>
+  <ol>
+    <li>TVM Relay + UPMEM 백엔드를 직접 작성해 dot product/conv1d 두 종을 매핑 — <span class="pill">1개월</span></li>
+    <li>DeNovo coherence를 gem5 ruby 위에 reimplement — <span class="pill">3개월</span></li>
+    <li>CXL Type-3 메모리 확장기 시뮬레이터에 NDP 모듈 추가 — <span class="pill">3개월+</span></li>
+  </ol>
+
+  <h2>이 연구자를 이해하는 한 문장</h2>
+  <p class="quip">성효진 교수님은 <span class="one-line">“위쪽 레이어가 알고 있는 의미적 정보를 아래쪽 시스템에 흘려보내, 컴파일러가 직접 데이터의 위치와 흐름을 결정하게 만드는 사람”</span>이다.</p>
+
+  <div class="nav-ft">
+    <a data-go="hs-5" href="#hs-5">
+      <div class="label">이전</div><div class="ttl">← 1.5 연구 스타일 요약</div>
+    </a>
+    <a class="next" data-go="mr-1" href="#mr-1">
+      <div class="label">다음</div><div class="ttl">2.1 유민수 — 연구자 프로필 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-1">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.1</div>
+  <h1>연구자 프로필</h1>
+  <p class="lead">석사 때 JPEG2000 ASIC을 만들던 사람이 박사 때 GPU 분기 마이크로아키텍처를 풀고, NVIDIA에서 vDNN과 SCNN을 만들고, 한국으로 돌아와 추천시스템 가속과 PIM의 한국 학술 라인을 세운 사람.</p>
+
+  <h2>지금 어디에 계신가</h2>
+  <ul>
+    <li><strong>KAIST 전기 및 전자공학부 정년보장 부교수</strong> (2025년 7월 정년보장). 2026년 2월 KAIST <strong>Endowed Chair Professor</strong>(석좌교수) 임명. 출처: <a href="https://ee.kaist.ac.kr/en/professor/16046/" target="_blank" rel="noopener">KAIST EE 프로필</a>.</li>
+    <li>겸임 — KAIST 반도체시스템공학과, AI 대학원, AI 반도체 대학원.</li>
+    <li>연구실 — <strong>VIA · Vertically Integrated Architecture Research Group</strong>. <a href="https://sites.google.com/view/kaist-via" target="_blank" rel="noopener">sites.google.com/view/kaist-via</a></li>
+    <li>사무실 — KAIST N1 Building #809.</li>
+  </ul>
+
+  <h2>학력</h2>
+  <table>
+    <thead><tr><th>학위</th><th>기관</th><th>연도</th><th>지도교수 / 비고</th></tr></thead>
+    <tbody>
+      <tr><td>Ph.D. Computer Engineering</td><td>UT Austin</td><td>2014</td><td><strong>Mattan Erez</strong> / <em>Performance-Efficient Mechanisms for Managing Irregularity in Throughput Processors</em></td></tr>
+      <tr><td>M.S. 전기공학</td><td>KAIST</td><td>2009</td><td><strong>박인철 (In-Cheol Park)</strong> / JPEG2000 비트플레인 코더</td></tr>
+      <tr><td>B.S. 전자공학</td><td>서강대학교</td><td>2007</td><td>Summa Cum Laude · 수석 졸업</td></tr>
+    </tbody>
+  </table>
+
+  <h2>경력</h2>
+  <div class="timeline">
+    <div class="dot"><div class="year">2007 – 2009</div>KAIST 석사 · 박인철 그룹 · JPEG2000 ASIC</div>
+    <div class="dot"><div class="year">2009 – 2014</div>UT Austin 박사 · Mattan Erez 그룹 · GPU 마이크로아키텍처</div>
+    <div class="dot"><div class="year">2014 – 2017</div><strong>NVIDIA Research</strong> · Research Scientist → Senior Research Scientist · Stephen W. Keckler / Bill Dally / Mike O'Connor 그룹과 협업</div>
+    <div class="dot"><div class="year">2017 – 2018</div>POSTECH 컴퓨터공학과 조교수 (1년)</div>
+    <div class="dot"><div class="year">2018 – 2025</div>KAIST EE 조교수 → 부교수</div>
+    <div class="dot"><div class="year">2022 – 2023</div>Meta AI Visiting/Research Scientist · 추천 시스템 협업</div>
+    <div class="dot"><div class="year">2025 –</div>KAIST EE 정년보장 부교수 → 2026 Endowed Chair Professor</div>
+  </div>
+
+  <h2>학술 프로필</h2>
+  <ul>
+    <li>VIA Research Group — <a href="https://sites.google.com/view/kaist-via" target="_blank" rel="noopener">sites.google.com/view/kaist-via</a></li>
+    <li>개인 홈페이지 — <a href="https://minsoorhu.github.io/" target="_blank" rel="noopener">minsoorhu.github.io</a></li>
+    <li>DBLP — <a href="https://dblp.org/pid/02/8105.html" target="_blank" rel="noopener">dblp.org/pid/02/8105</a></li>
+    <li>Google Scholar — <a href="https://scholar.google.com/citations?user=u_3ShigAAAAJ" target="_blank" rel="noopener">h-index 30 · 인용 ~5,833 (2026.04 시점)</a></li>
+    <li>VIA GitHub 조직 — <a href="https://github.com/VIA-Research" target="_blank" rel="noopener">github.com/VIA-Research</a> (uPIMulator, vTrain 등 공개)</li>
+    <li>ORCID 0000-0003-3303-8681</li>
+  </ul>
+
+  <h2>핵심 협업 네트워크</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>UT Austin 박사 시절</h3>
+      <p>Mattan Erez (지도) · Michael Sullivan · Jingwen Leng · Seong-Lyong Gong · Jungrae Kim. GPU 마이크로아키텍처 / DRAM 라인.</p>
+    </div>
+    <div class="card">
+      <h3>NVIDIA Research</h3>
+      <p>Stephen W. Keckler · William J. Dally · Mike O'Connor · Niladrish Chatterjee · Joel Emer · Angshuman Parashar · Jeff Pool. 가속기 라인의 “올스타” 라인업.</p>
+    </div>
+    <div class="card">
+      <h3>KAIST · 서울대 협업</h3>
+      <p>John Kim (KAIST EE NoC) · Jongse Park (KAIST CS) · Youngjin Kwon (KAIST CS) · <strong>안정호 Jung Ho Ahn (서울대)</strong>. FHE 가속기 BTS/ARK 라인은 안정호 그룹과의 합작.</p>
+    </div>
+    <div class="card">
+      <h3>해외 협업</h3>
+      <p><strong>Microsoft Research Asia</strong> (Pre-gated MoE, ZipFlow) · <strong>Meta</strong> (Kiwan Maeng, Edward Suh) · <strong>Harvard</strong> (David Brooks, Gu-Yeon Wei) · <strong>NAVER Cloud / SqueezeBits</strong> (Gaudi 평가).</p>
+    </div>
+  </div>
+
+  <h2>VIA 그룹 학생들</h2>
+  <p>박사과정 12명, 석사과정 11명 규모. 졸업생 행보 — Youngeun Kwon → NVIDIA, Yujeong Choi → Google, Bongjoon Hyun → Samsung Electronics DS, Ranggi Hwang → UNIST 교수, Yunjae Lee → Samsung DS. 한국 시스템 학술의 “송출망” 노드 중 하나로 자리잡았다.</p>
+
+  <h2>수상과 학회 서비스</h2>
+  <ul>
+    <li><strong>HPCA-30 Best Paper Award (2024, Edinburgh)</strong> — uPIMulator. 한국 연구진 최초의 top-tier 컴퓨터 아키텍처 best paper.</li>
+    <li>IEEE Micro Top Picks Honorable Mention 3회 — TensorDIMM (2020) · NeuMMU (2021) · uPIMulator (2025).</li>
+    <li>2024 KAIST 10대 연구성과 (uPIMulator).</li>
+    <li>ISCA / HPCA / MICRO Hall of Fame 모두 입성.</li>
+    <li><strong>MICRO 2025 Program Co-Chair</strong> — 아시아 대학 교수 최초.</li>
+    <li>IEEE Transactions on Computers Associate Editor (2024–).</li>
+    <li>Google Research Scholar Award (2023), Facebook Faculty Research Award (2020).</li>
+    <li>2024 IITP SW Star Lab — “Secure and Private AI System” 8년 지원.</li>
+  </ul>
+
+  <div class="quip">한국 architecture 분야에서 “top-tier에 매년 1~3편씩, 수상 라인업까지 갖춘” 거의 유일한 스타일을 만든 사람. 그래서 이 연구실 자료는 학생들에게 “구체적으로 일이 어떻게 굴러가는가”의 표준이 된다.</div>
+
+  <h2>이 챕터에서 가져갈 것</h2>
+  <ul>
+    <li>유 교수님은 <strong>GPU 마이크로아키텍처에서 출발해 차츰 GPU 위에 얹는 것들(DL 학습·추천·LLM·에이전트)로 영역을 위로 옮긴</strong> 사람.</li>
+    <li>NVIDIA에서 vDNN과 SCNN을 만든 경험이 한국 작업의 톤을 결정한다 — “DL 학습/추론의 메모리 병목”을 본능적으로 본다.</li>
+    <li>그가 만드는 시스템은 거의 항상 <strong>하드웨어 프로토타입 또는 사이클 정확 시뮬레이터가 함께 나온다</strong> — 컴파일러 중심인 성 교수님 그룹과의 결정적 차이.</li>
+  </ul>
+
+  <div class="nav-ft">
+    <a data-go="hs-6" href="#hs-6">
+      <div class="label">이전</div><div class="ttl">← 1.6 성효진 — 앞으로의 방향</div>
+    </a>
+    <a class="next" data-go="mr-2" href="#mr-2">
+      <div class="label">다음</div><div class="ttl">2.2 전체 연구 지도 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-2">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.2</div>
+  <h1>전체 연구 지도</h1>
+  <p class="lead">한 사람이 어떻게 60+편의 논문을 일관된 “이야기”로 묶을 수 있는지 보여주는 좋은 사례.</p>
+  <p>9개 축으로 묶이는데, 첫 축이 GPU 마이크로아키텍처라면 마지막 축은 AI 에이전트 인프라다. 그 사이에 DL 메모리, 추천, NPU 서빙, PIM, 보안, GNN, LLM이 차곡차곡 쌓인다.</p>
+
+  <h2>축 A — GPU 마이크로아키텍처 <span class="pill">UT Austin / NVIDIA, 2012-2018</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>GPU의 SIMT는 “warp 안의 32개 thread가 같은 명령을 실행”. 그런데 if-else로 분기하면 SIMD 자원의 절반이 놀게 된다. 이 “control divergence”와 “memory divergence”가 GPU의 두 큰 비효율.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>CAPRI</strong> (ISCA 2012) — 분기 컴팩션 예측.</li>
+      <li><strong>Dual-Path Execution</strong> (HPCA 2013) — if/else 동시 실행.</li>
+      <li><strong>SIMD Lane Permutation</strong> (ISCA 2013) — warp lane 재배치.</li>
+      <li><strong>Locality-Aware Memory Hierarchy</strong> (MICRO 2013).</li>
+      <li>(NVIDIA 시기) <strong>vDNN</strong> · <strong>SCNN</strong> · <strong>cDMA</strong>.</li>
+    </ul>
+  </div>
+
+  <h2>축 B — DL 학습 메모리 시스템 <span class="pill">NVIDIA + KAIST, 2016-2022</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>DNN 모델이 커지면서 GPU 메모리는 너무 작다. 모델 크기·활성화·gradient를 어떻게 메모리에 다 담을까?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>vDNN</strong> (MICRO 2016) → <strong>cDMA</strong> (HPCA 2018) → <strong>Beyond the Memory Wall</strong> (MICRO 2018) → <strong>Tensor Casting</strong> (HPCA 2021) → <strong>Training from GPU Scratch</strong> (ISCA 2022).</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> vDNN — DeepSpeed ZeRO-Offload, FSDP CPU offload의 학술적 시작점.</p>
+  </div>
+
+  <h2>축 C — 추천시스템 가속 <span class="pill">KAIST 2018-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>Meta/Google의 추천시스템은 테라바이트급 embedding table을 다룬다. embedding은 메모리 바운드, MLP는 compute 바운드 — 두 성격이 한 모델 안에 공존.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>TensorDIMM</strong> (MICRO 2019) — embedding NMP DIMM.</li>
+      <li><strong>Centaur</strong> (ISCA 2020) — chiplet sparse-dense 가속기.</li>
+      <li><strong>Tensor Casting</strong> (HPCA 2021) — embedding 학습 가속.</li>
+      <li><strong>Training from GPU Scratch</strong> (ISCA 2022).</li>
+      <li><strong>PreSto</strong> (ISCA 2024) — SSD 내부 전처리.</li>
+      <li><strong>ElasticRec</strong> (ISCA 2024) — 마이크로서비스 서빙.</li>
+      <li><strong>LazyDP</strong> (ASPLOS 2024) — DP 추천 학습.</li>
+      <li><strong>Hera</strong> (PACT 2025) — 이기종 멀티 테넌트 서빙.</li>
+      <li><strong>HSTU 분석</strong> (IEEE CAL 2025) — Meta 생성형 추천 워크로드.</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> TensorDIMM → Centaur → Tensor Casting</p>
+  </div>
+
+  <h2>축 D — NPU 스케줄링과 서빙 <span class="pill">KAIST 2020-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>클라우드 GPU/NPU에서 여러 추론 요청을 SLA 맞춰 처리. 단순 batch보다 똑똑한 스케줄링. NPU에 preemption은 없거나 느림. 멀티 테넌시는?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>PREMA</strong> (HPCA 2020) — preemptible NPU 다중 태스크.</li>
+      <li><strong>NeuMMU</strong> (ASPLOS 2020) — NPU MMU.</li>
+      <li><strong>LazyBatching</strong> (HPCA 2021) — SLA-aware 배칭.</li>
+      <li><strong>PARIS/ELSA</strong> (DAC 2022) — MIG GPU elastic 스케줄링.</li>
+      <li><strong>ElasticRec</strong> (ISCA 2024).</li>
+      <li><strong>PREBA</strong> (DAC 2026) — MIG 기반 추론 서버 HW/SW 코디자인.</li>
+    </ul>
+  </div>
+
+  <h2>축 E — PIM/NMP 시리즈 <span class="pill">KAIST 2019-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>메모리 대역폭은 “memory wall”의 본질. 데이터를 메모리 옆에서 처리하면 wall을 넘는다. 그런데 상용 PIM(UPMEM)은 어떻게 생겼고, 학술 PIM과는 무엇이 다른가?</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>TensorDIMM</strong> (MICRO 2019).</li>
+      <li><strong>Beyond the Memory Wall</strong> (MICRO 2018) — memory-centric HPC 비전.</li>
+      <li><strong>TRiM</strong> (MICRO 2021) — tensor reduction in memory.</li>
+      <li><strong>uPIMulator / Pathfinding PIM</strong> (HPCA 2024 <strong>Best Paper</strong>) — UPMEM 풀스택 시뮬레이터.</li>
+      <li><strong>PIM-MMU</strong> (MICRO 2024) — host-PIM 데이터 전송 가속.</li>
+      <li><strong>PIM-malloc</strong> (HPCA 2026) — PIM용 동적 메모리 할당자.</li>
+    </ul>
+    <p><span class="pill green">먼저 읽을 것</span> uPIMulator → PIM-MMU</p>
+  </div>
+
+  <h2>축 F — 보안 가속기: FHE / DP <span class="pill">KAIST 2022-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>FHE(완전동형암호)와 DP(차분 프라이버시)는 “계산은 하되 raw 데이터를 보지 않는다”의 두 큰 도구. 둘 다 일반 CPU/GPU에서 100~10,000배 느림.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>BTS</strong> (ISCA 2022) — bootstrappable FHE 가속기.</li>
+      <li><strong>ARK</strong> (MICRO 2022) — FHE 가속기, 키 재사용.</li>
+      <li><strong>DiVa</strong> (MICRO 2022) — DP-SGD 가속기.</li>
+      <li><strong>LazyDP</strong> (ASPLOS 2024).</li>
+      <li><strong>GPU-based PIR</strong> (ASPLOS 2024) — Harvard/Meta 협업, on-device ML 추론.</li>
+    </ul>
+  </div>
+
+  <h2>축 G — GNN과 그래프 <span class="pill">KAIST 2022-</span></h2>
+  <div class="card">
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>SmartSAGE</strong> (ISCA 2022) — in-storage GNN 학습.</li>
+      <li><strong>Understanding NVM for GNN</strong> (IEEE CAL 2021).</li>
+      <li><strong>GROW</strong> (HPCA 2023) — GCN sparse-dense GEMM 가속기.</li>
+    </ul>
+  </div>
+
+  <h2>축 H — LLM과 MoE 추론 <span class="pill">KAIST 2024-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>LLM 추론은 새로운 메모리 병목(KV cache, expert weights)을 만든다. 학습 비용은 천문학적이고, 추론은 throughput 대 latency의 줄다리기.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>Pre-gated MoE</strong> (ISCA 2024) — MoE expert pre-gating, MSRA 협업.</li>
+      <li><strong>vTrain</strong> (MICRO 2024) — LLM 학습 비용 시뮬레이션.</li>
+      <li><strong>Debunking the CUDA Myth</strong> (ISCA 2025) — Intel Gaudi vs NVIDIA GPU.</li>
+      <li><strong>PASCAL</strong> (HPCA 2026) — reasoning LLM phase-aware 스케줄링.</li>
+      <li><strong>SpecMoE</strong> (DAC 2026) — self-assisted speculative decoding for MoE.</li>
+      <li><strong>KV Cache Quantization for Multimodal LLM</strong> (IEEE CAL 2026).</li>
+    </ul>
+  </div>
+
+  <h2>축 I — AI 에이전트 인프라 <span class="pill">KAIST 2026-</span></h2>
+  <div class="card">
+    <h3>풀려는 문제</h3>
+    <p>AI 에이전트는 LLM을 “여러 번 부른다”. test-time scaling, reasoning trace, tool call이 모두 일반 LLM 추론과 다른 워크로드.</p>
+    <h3>대표 논문</h3>
+    <ul>
+      <li><strong>Cost of Dynamic Reasoning</strong> (HPCA 2026) — AI 에이전트 인프라 비용 분석.</li>
+      <li><strong>Agent-X</strong> (MobiSys 2026) — on-device 에이전트 풀파이프라인 가속.</li>
+      <li><strong>PREBA</strong> (DAC 2026).</li>
+    </ul>
+  </div>
+
+  <h2>축 J — 새 워크로드 특성화 <span class="pill">KAIST 2024-, 부속</span></h2>
+  <p>3D Gaussian Splatting, T2I Diffusion, Vision Mamba SSM, HSTU 등 새 모델이 나올 때마다 워크로드 특성을 분석하고 후속 가속기 작업으로 이어진다. 이 “특성화 → 가속기 → 시스템” 사이클이 VIA의 표준 작업 패턴.</p>
+
+  <h2>아홉 축이 한 줄로 모이면</h2>
+  <p class="aside">시간 순으로 “GPU 마이크로아키텍처 → DL 메모리 → 추천 → NPU 서빙 → PIM → 보안 → GNN → LLM → 에이전트”로 펼쳐진다. 각 축은 <strong>구체적 시스템(하드웨어 프로토타입 또는 사이클 정확 시뮬레이터)</strong>으로 마무리된다. 모든 축을 관통하는 단어는 <strong>“데이터의 양과 위치”</strong>다.</p>
+
+  <div class="nav-ft">
+    <a data-go="mr-1" href="#mr-1">
+      <div class="label">이전</div><div class="ttl">← 2.1 연구자 프로필</div>
+    </a>
+    <a class="next" data-go="mr-3" href="#mr-3">
+      <div class="label">다음</div><div class="ttl">2.3 연도별 연구 흐름 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-3">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.3</div>
+  <h1>연도별 연구 흐름</h1>
+  <p class="lead">한 사람이 14년 동안 한 건씩 쌓아 올린 “이야기”를 시간 순으로 따라간다.</p>
+  <p class="aside">전체 표는 <a data-go="apx-a" href="#apx-a">부록 A</a>에서. 이 절은 “읽고 이해하기”용.</p>
+
+  <h2>2009 — JPEG2000 비트플레인 코더 <span class="pill">KAIST 석사 시기</span></h2>
+  <ul>
+    <li>Memory-less Bit-Plane Coder Architecture for JPEG2000 with Concurrent Column-Stripe Coding (ICIP 2009)</li>
+    <li>Architecture Design of a High-Performance Dual-Symbol Binary Arithmetic Coder for JPEG2000 (ICIP 2009)</li>
+    <li>A Novel Trace-Pipelined Binary Arithmetic Coder Architecture (SiPS 2009)</li>
+    <li>Optimization of Arithmetic Coding for JPEG2000 (IEEE TCSVT 2010)</li>
+  </ul>
+  <p>박인철 교수님 지도로 JPEG2000 영상부호화 ASIC 설계. 이 시기 경험이 RTL 감각을 만들고, 박사 시기 GPU 마이크로아키텍처와 자연스럽게 연결된다.</p>
+  <p class="quip">“석사 때 ASIC을 설계한 사람이 박사 때 GPU 아키텍처로 가는 길” — RTL을 손에 잡아본 사람만이 가능한 종류의 박사 연구가 있다는 점이 잘 보이는 사례.</p>
+
+  <h2>2012 — CAPRI: 분기 컴팩션 예측</h2>
+  <div class="paper featured">
+    <div class="title">CAPRI: Prediction of Compaction-Adequacy for Handling Control-Divergence in GPGPU</div>
+    <div class="meta">ISCA 2012 · <strong>M. Rhu</strong>, M. Erez</div>
+    <p><strong>한 줄 요약</strong> — GPU 분기 발생 시 “warp을 다시 묶으면 효율 회복할 수 있을지” 미리 예측.</p>
+    <p><strong>문제의식</strong> — SIMT에서 분기 시 thread들이 갈라지면 SIMD 자원 활용도가 떨어짐.</p>
+    <p><strong>핵심 아이디어</strong> — compaction prediction. 분기 시점에 thread 분포를 보고 “지금 묶으면 효과적일까”를 예측. 비효율적 compaction을 피하므로 오히려 빨라짐.</p>
+    <p><strong>왜 중요한가</strong> — GPU 분기 처리에 “예측”이라는 일반 마이크로아키텍처 기법을 도입한 작업.</p>
+  </div>
+
+  <h2>2013 — Dual-Path · SIMD Permutation · Locality-Aware Memory</h2>
+  <div class="paper">
+    <div class="title">Dual-Path Execution Model for Efficient GPU Control Flow</div>
+    <div class="meta">HPCA 2013</div>
+    <p>분기 발생 시 if/else를 “양쪽 동시에” 실행. stack 기반 reconvergence 대신 dual-path queue.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Maximizing SIMD Resource Utilization in GPGPUs with SIMD Lane Permutation</div>
+    <div class="meta">ISCA 2013</div>
+    <p>warp 내부 lane을 permute해 SIMD 자원 활용 극대화.</p>
+  </div>
+  <div class="paper">
+    <div class="title">A Locality-Aware Memory Hierarchy for Energy-Efficient GPU Architectures</div>
+    <div class="meta">MICRO 2013</div>
+    <p>GPU의 메모리 계층을 locality 인식으로 재설계. 박사 학위논문의 “memory irregularity” 절을 정리한 작품.</p>
+  </div>
+
+  <h2>2014 – 2015 — UT Austin 졸업 + NVIDIA 합류</h2>
+  <ul>
+    <li><strong>GPUVolt</strong> (ISLPED 2014) — GPU 전압 노이즈 특성화/완화. J. Leng / V. Reddi와 공동.</li>
+    <li><strong>Priority-Based Cache Allocation for Throughput Processors</strong> (HPCA 2015) — NVIDIA Research(D.R. Johnson, M. O'Connor, S.W. Keckler)와의 첫 외부 협업.</li>
+    <li><strong>CLEAN-ECC</strong> (MICRO 2015) — adaptive granularity 메모리 ECC.</li>
+  </ul>
+
+  <h2>2016 — vDNN</h2>
+  <div class="paper featured">
+    <div class="title">vDNN: Virtualized Deep Neural Networks for Scalable, Memory-Efficient Neural Network Design</div>
+    <div class="meta">MICRO 2016 · <strong>M. Rhu</strong>, N. Gimelshein, J. Clemons, A. Zulfiqar, S. W. Keckler</div>
+    <p><strong>한 줄 요약</strong> — DNN 학습 시 활성화/가중치를 GPU↔CPU로 자동 swap-in/out.</p>
+    <p><strong>문제의식</strong> — VGG-16 등 큰 모델은 batch 256일 때 28GB 활성화 필요. 당시 Titan X는 12GB. GPU 메모리가 학습의 가장 큰 제약이었다.</p>
+    <p><strong>핵심 아이디어</strong></p>
+    <ol>
+      <li>forward 단계의 layer L 활성화는 backward에 다시 쓸 때까지 GPU에 있을 필요 없음 → CPU로 prefetch out.</li>
+      <li>backward 시점에 다시 prefetch in.</li>
+      <li>cuDNN 알고리즘 선택을 메모리 사용량 기반으로 동적으로.</li>
+    </ol>
+    <p><strong>결과</strong> — AlexNet 89%, VGG-16 95% 메모리 절감. batch 256 28GB를 12GB에서 학습.</p>
+    <p><strong>왜 중요한가</strong> — DeepSpeed ZeRO-Offload, FSDP CPU offload의 학술적 시작점. 인용 600+.</p>
+    <p>출처 — <a href="https://arxiv.org/abs/1602.08124" target="_blank" rel="noopener">arXiv:1602.08124</a></p>
+  </div>
+
+  <h2>2017 — SCNN, Architecting DRAM, GPUpd</h2>
+  <div class="paper featured">
+    <div class="title">SCNN: An Accelerator for Compressed-Sparse Convolutional Neural Networks</div>
+    <div class="meta">ISCA 2017 · A. Parashar, <strong>M. Rhu</strong>, A. Mukkara, A. Puglielli, R. Venkatesan, B. Khailany, J. Emer, S. W. Keckler, W. J. Dally</div>
+    <p><strong>한 줄 요약</strong> — weight + activation sparsity를 모두 활용하는 PT-IS-CP-sparse 데이터플로우 CNN 가속기.</p>
+    <p>인용 1,700+, sparse DNN 가속기 분야의 정전(canonical) 논문. 후속 “sparse accelerator”들이 SCNN의 데이터플로우 이름을 그대로 인용한다.</p>
+    <p>출처 — <a href="https://dl.acm.org/doi/10.1145/3079856.3080254" target="_blank" rel="noopener">ACM DL</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">Architecting an Energy-Efficient DRAM System for GPUs</div>
+    <div class="meta">HPCA 2017</div>
+  </div>
+  <div class="paper">
+    <div class="title">GPUpd: Multi-GPU Architecture Using Cooperative Projection</div>
+    <div class="meta">MICRO 2017 · 김장우 POSTECH 그룹과 공동</div>
+  </div>
+
+  <h2>2018 — cDMA, Beyond the Memory Wall</h2>
+  <div class="paper">
+    <div class="title">Compressing DMA Engine (cDMA): Leveraging Activation Sparsity for Training</div>
+    <div class="meta">HPCA 2018</div>
+    <p>vDNN의 swap traffic을 activation sparsity(주로 ReLU)로 압축. NVIDIA 시기의 마지막 1저자 작품.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">Beyond the Memory Wall: A Case for Memory-centric HPC for Deep Learning</div>
+    <div class="meta">MICRO 2018 · Y. Kwon, <strong>M. Rhu</strong></div>
+    <p>KAIST 부임 후 첫 메이저 논문. DNN이 capacity-bound임을 분석하고 “memory-centric HPC” 비전을 제시. TensorDIMM(MICRO 2019)으로 가는 다리.</p>
+  </div>
+
+  <h2>2019 — TensorDIMM</h2>
+  <div class="paper featured">
+    <div class="title">TensorDIMM: A Practical Near-Memory Processing Architecture for Embeddings and Tensor Operations</div>
+    <div class="meta">MICRO 2019 · IEEE Micro Top Picks Honorable Mention · Y. Kwon, Y. Lee, <strong>M. Rhu</strong></div>
+    <p><strong>한 줄 요약</strong> — 추천시스템 embedding을 위한 NMP DIMM.</p>
+    <p><strong>문제의식</strong> — 추천 모델의 embedding lookup은 큰 테이블에서 임의 행을 읽고 합하는 패턴. GPU의 high-bandwidth random access를 다 잡아먹는다.</p>
+    <p><strong>핵심 아이디어</strong> — DIMM 안에 작은 reduction unit을 넣어 lookup + sum까지 메모리 측에서 끝냄.</p>
+    <p><strong>왜 중요한가</strong> — 한국 PIM/NMP 학술 라인의 출발점.</p>
+  </div>
+
+  <h2>2020 — Centaur, NeuMMU, PREMA</h2>
+  <div class="paper featured">
+    <div class="title">Centaur: Chiplet-based Hybrid Sparse-Dense Accelerator for Personalized Recommendations</div>
+    <div class="meta">ISCA 2020</div>
+    <p>추천 모델의 sparse(embedding)과 dense(MLP)를 chiplet으로 분리. chiplet 통합이 “이종 워크로드를 다른 칩에서 처리”의 자연스러운 방식임을 보임.</p>
+  </div>
+  <div class="paper">
+    <div class="title">NeuMMU: Architectural Support for Efficient Address Translations in NPUs</div>
+    <div class="meta">ASPLOS 2020 · IEEE Micro Top Picks Honorable Mention</div>
+    <p>NPU의 가상-물리 주소 변환 병목. NPU에 “OS 추상화”를 학술적으로 처음 다룬 작업.</p>
+  </div>
+  <div class="paper">
+    <div class="title">PREMA: A Predictive Multi-task Scheduling Algorithm For Preemptible NPUs</div>
+    <div class="meta">HPCA 2020</div>
+    <p>NPU 다중 추론 작업의 SLA-aware 선점형 스케줄링.</p>
+  </div>
+
+  <h2>2021 — TRiM, Tensor Casting, LazyBatching, Trident</h2>
+  <div class="paper">
+    <div class="title">TRiM: Scalable Tensor Reduction in Memory</div>
+    <div class="meta">MICRO 2021 · 서울대 안정호 그룹과 공동</div>
+    <p>DRAM 인터페이스 안에 tensor reduction(예: embedding sum) 통합 NMP.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Tensor Casting: Co-Designing Algorithm-Architecture for Personalized Recommendation Training</div>
+    <div class="meta">HPCA 2021</div>
+    <p>추천 학습에서 sparse embedding 업데이트 가속. 알고리즘-아키텍처 코디자인. 1.9–21배 향상.</p>
+  </div>
+  <div class="paper">
+    <div class="title">LazyBatching: SLA-aware Batching for Cloud ML Inference</div>
+    <div class="meta">HPCA 2021</div>
+    <p>NVIDIA Triton Inference Server의 학술적 토대.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Trident: GPU Cache Timing Attack for AES Key Recovery</div>
+    <div class="meta">HPCA 2021 · Northeastern 공동</div>
+    <p>GPU 캐시 timing attack으로 AES 키 복원. 보안 라인의 시작.</p>
+  </div>
+
+  <h2>2022 — DiVa, ARK, SmartSAGE, GPU Scratch, BTS, PARIS/ELSA</h2>
+  <p>이 해부터 KAIST VIA가 “여러 축이 동시에 굴러가는” 그룹으로 자리 잡는다.</p>
+  <div class="paper">
+    <div class="title">DiVa: An Accelerator for Differentially Private ML</div>
+    <div class="meta">MICRO 2022</div>
+    <p>DP-SGD의 clipping과 노이즈 추가가 가장 비싼 두 단계임을 분석하고 RTL로 가속.</p>
+  </div>
+  <div class="paper">
+    <div class="title">ARK: FHE Accelerator with Inter-Operation Key Reuse</div>
+    <div class="meta">MICRO 2022 · 서울대 안정호 그룹과</div>
+    <p>FHE의 keyswitch와 NTT 가속.</p>
+  </div>
+  <div class="paper">
+    <div class="title">SmartSAGE: Training Large-scale GNN using In-Storage Processing</div>
+    <div class="meta">ISCA 2022</div>
+    <p>SSD 안에서 그래프 샘플링.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Training Personalized Recommendation Systems from (GPU) Scratch</div>
+    <div class="meta">ISCA 2022</div>
+    <p>GPU 메모리에서 training data를 “scratch” 처럼 사용. embedding을 메모리 외부에 두고 training.</p>
+  </div>
+  <div class="paper">
+    <div class="title">BTS: Accelerator for Bootstrappable FHE</div>
+    <div class="meta">ISCA 2022 · 서울대 안정호 그룹과</div>
+    <p>CKKS bootstrapping을 처음으로 가속.</p>
+  </div>
+  <div class="paper">
+    <div class="title">PARIS and ELSA: Elastic Scheduling for Reconfigurable Multi-GPU Inference Servers</div>
+    <div class="meta">DAC 2022</div>
+    <p>NVIDIA Ampere MIG GPU의 elastic 스케줄링.</p>
+  </div>
+
+  <h2>2023 — GROW, HAMMER</h2>
+  <div class="paper">
+    <div class="title">GROW: Row-Stationary Sparse-Dense GEMM Accelerator for GCN</div>
+    <div class="meta">HPCA 2023</div>
+  </div>
+  <div class="paper">
+    <div class="title">HAMMER: Hardware-friendly Approximate Computing for Self-attention</div>
+    <div class="meta">IEEE CAL 2023 · KAIST 박종세 공동</div>
+    <p>self-attention 근사. mean redistribution + linearization.</p>
+  </div>
+
+  <h2>2024 — 전성기 한 해</h2>
+  <p>이 해는 VIA 그룹의 절정 — MICRO/ISCA/HPCA/ASPLOS top-tier 4개에서 동시에 큰 성과.</p>
+
+  <div class="paper featured">
+    <div class="title">Pathfinding Future PIM Architectures by Demystifying a Commercial PIM (uPIMulator)</div>
+    <div class="meta">HPCA 2024 · <strong>Best Paper Award</strong> · IEEE Micro Top Picks Honorable Mention · 2024 KAIST 10대 연구성과</div>
+    <p>UPMEM 상용 PIM의 풀스택 사이클 정확 시뮬레이터. 한국 연구진 최초의 top-tier 컴퓨터 아키텍처 best paper. <strong>국내 architecture 학술의 큰 분기점</strong>.</p>
+    <p>코드 — <a href="https://github.com/VIA-Research/uPIMulator" target="_blank" rel="noopener">github.com/VIA-Research/uPIMulator</a></p>
+  </div>
+  <div class="paper">
+    <div class="title">PIM-MMU</div>
+    <div class="meta">MICRO 2024</div>
+    <p>uPIMulator 후속. host-PIM 데이터 전송 가속 MMU.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">vTrain: Simulation Framework for Cost-effective and Compute-optimal LLM Training</div>
+    <div class="meta">MICRO 2024</div>
+    <p>LLM 학습 비용을 모델/하드웨어/병렬화 전략에 대해 빠르게 평가. GPT-3급 학습을 “모의 실행”으로 추정.</p>
+    <p>코드 — <a href="https://github.com/VIA-Research/vTrain" target="_blank" rel="noopener">github.com/VIA-Research/vTrain</a></p>
+  </div>
+  <div class="paper featured">
+    <div class="title">Pre-gated MoE</div>
+    <div class="meta">ISCA 2024 · MSRA 협업</div>
+    <p>MoE 추론에서 expert 선택을 한 단계 앞에서 미리 결정. 메모리/지연 효율화.</p>
+  </div>
+  <div class="paper">
+    <div class="title">PreSto</div>
+    <div class="meta">ISCA 2024</div>
+    <p>추천 모델 학습 데이터 전처리를 SSD 안에서 수행.</p>
+  </div>
+  <div class="paper">
+    <div class="title">ElasticRec</div>
+    <div class="meta">ISCA 2024</div>
+    <p>마이크로서비스 기반 추천 서빙 — embedding/MLP 분리해 elastic scaling.</p>
+  </div>
+  <div class="paper">
+    <div class="title">LazyDP</div>
+    <div class="meta">ASPLOS 2024 · Cornell/Penn State 공동</div>
+    <p>DP 추천 모델 학습의 알고리즘-소프트웨어 코디자인.</p>
+  </div>
+  <div class="paper">
+    <div class="title">GPU-based Private Information Retrieval for On-Device ML</div>
+    <div class="meta">ASPLOS 2024 · Harvard/Meta 공동</div>
+  </div>
+  <div class="paper">
+    <div class="title">Uncovering Real GPU NoC Characteristics</div>
+    <div class="meta">MICRO 2024 · UBC Tor Aamodt와 공동</div>
+    <p>실제 GPU NoC를 측정해 종래 학술 모델과의 차이를 드러냄.</p>
+  </div>
+
+  <h2>2025 — Debunking the CUDA Myth, Hera, Mamba-X</h2>
+  <div class="paper featured">
+    <div class="title">Debunking the CUDA Myth: Intel Gaudi NPU Evaluation</div>
+    <div class="meta">ISCA 2025 · NAVER Cloud / SqueezeBits 협업</div>
+    <p>Intel Gaudi NPU와 NVIDIA GPU를 LLM 서빙 워크로드에서 정량 비교. “CUDA 만이 답인가?”에 대한 실증적 응답.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Hera</div>
+    <div class="meta">PACT 2025</div>
+    <p>이기종(GPU/CPU) 자원에서 멀티 테넌트 추천 서빙.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Mamba-X</div>
+    <div class="meta">ICCAD 2025</div>
+    <p>Vision Mamba SSM 가속기 for edge.</p>
+  </div>
+  <div class="paper">
+    <div class="title">A Characterization of HSTU</div>
+    <div class="meta">IEEE CAL 2025</div>
+    <p>Meta의 generative 추천 모델 워크로드 분석.</p>
+  </div>
+
+  <h2>2026 — AI 에이전트와 reasoning LLM의 시대</h2>
+  <div class="paper">
+    <div class="title">PIM-malloc</div>
+    <div class="meta">HPCA 2026</div>
+    <p>PIM 동적 메모리 할당. 정적 할당 한계를 넘는 첫 작업.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">PASCAL: Phase-Aware Scheduling for Reasoning LLMs</div>
+    <div class="meta">HPCA 2026</div>
+    <p>reasoning LLM(o1/Claude류)의 prefill / decode / long-think 단계를 인식해 스케줄링.</p>
+  </div>
+  <div class="paper featured">
+    <div class="title">The Cost of Dynamic Reasoning</div>
+    <div class="meta">HPCA 2026</div>
+    <p>AI 에이전트와 test-time scaling의 인프라 비용 분석. 차세대 “AI 인프라”의 대표 워크로드를 학술적으로 처음 다룬 그룹 중 하나.</p>
+  </div>
+  <div class="paper">
+    <div class="title">Agent-X</div>
+    <div class="meta">MobiSys 2026</div>
+    <p>모바일 디바이스에서 AI 에이전트의 풀파이프라인 가속.</p>
+  </div>
+  <div class="paper">
+    <div class="title">SpecMoE</div>
+    <div class="meta">DAC 2026</div>
+    <p>self-assisted speculative decoding으로 MoE 추론 가속.</p>
+  </div>
+  <div class="paper">
+    <div class="title">PREBA</div>
+    <div class="meta">DAC 2026</div>
+    <p>MIG 기반 추론 서버 HW/SW 코디자인.</p>
+  </div>
+  <div class="paper">
+    <div class="title">KV Cache Quantization in Multimodal LLM</div>
+    <div class="meta">IEEE CAL 2026</div>
+  </div>
+  <div class="paper">
+    <div class="title">ZipFlow</div>
+    <div class="meta">arXiv 2026 · Microsoft 협업</div>
+    <p>GPU compressed data movement 컴파일러 프레임워크.</p>
+  </div>
+
+  <h2>이 챕터에서 가져갈 것</h2>
+  <ul>
+    <li>2018 KAIST 부임 이후 매년 ISCA/MICRO/HPCA/ASPLOS top-tier에 1~3편씩 꾸준히.</li>
+    <li>“워크로드 특성화 → 시스템 제안 → 시뮬레이터/프로토타입 → 후속 확장” 사이클이 매우 안정.</li>
+    <li>특히 2024년에 PIM/LLM/추천/보안 4축이 동시에 정점.</li>
+  </ul>
+
+  <div class="nav-ft">
+    <a data-go="mr-2" href="#mr-2">
+      <div class="label">이전</div><div class="ttl">← 2.2 전체 연구 지도</div>
+    </a>
+    <a class="next" data-go="mr-4" href="#mr-4">
+      <div class="label">다음</div><div class="ttl">2.4 대표 프로젝트 해부 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-4">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.4</div>
+  <h1>대표 프로젝트 해부</h1>
+  <p class="lead">VIA 그룹의 시스템들은 “학술 시뮬레이터 + 알고리즘”이라는 한 쌍으로 거의 항상 함께 다닌다. 여기 9개를 한 단위로 본다.</p>
+
+  <h2>4-1. vDNN — DL 학습 메모리 가상화</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>DNN 학습 시 forward 활성화를 GPU↔CPU로 자동 swap</td></tr>
+      <tr><th>왜</th><td>GPU 메모리 &lt; 모델/배치 요구량</td></tr>
+      <tr><th>입력</th><td>DNN 학습 그래프 + cuDNN</td></tr>
+      <tr><th>출력</th><td>더 큰 모델/배치를 같은 GPU에서 학습</td></tr>
+      <tr><th>아키텍처</th><td>offload 결정기(layer 단위) + prefetch 큐 + cuDNN 알고리즘 동적 선택</td></tr>
+      <tr><th>결과</th><td>AlexNet 89%, VGG-16 95% 메모리 절감, batch 256 28GB를 12GB GPU에서</td></tr>
+      <tr><th>코드</th><td>NVIDIA closed (학술 reimpl 필요). PyTorch hook으로 reimpl 가능</td></tr>
+      <tr><th>쪼개면</th><td>(1) PyTorch hook 단순 offload → (2) prefetch overlap → (3) cuDNN algorithm 선택까지</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-2. SCNN — Sparse CNN 가속기</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>weight + activation sparsity를 모두 활용하는 dataflow CNN 가속기</td></tr>
+      <tr><th>왜</th><td>sparse CNN은 GPU에서 효율 떨어짐 (irregular access)</td></tr>
+      <tr><th>아키텍처</th><td>PT-IS-CP-sparse 데이터플로우. PE 어레이 + accumulator buffer</td></tr>
+      <tr><th>재현</th><td>RTL 또는 사이클 정확 시뮬(Timeloop+Accelergy) 필요</td></tr>
+      <tr><th>쪼개면</th><td>(1) Timeloop으로 dataflow 평가 → (2) PT-IS-CP-sparse를 Timeloop에 표현</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-3. TensorDIMM — Embedding NMP</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>embedding lookup + sum을 DIMM 안에서 처리하는 NMP DIMM</td></tr>
+      <tr><th>왜</th><td>추천 embedding의 random access가 GPU/CPU 메모리 대역폭을 잠식</td></tr>
+      <tr><th>아키텍처</th><td>DIMM 컨트롤러 안에 작은 reduction PE + host 측에 NMP 명령 인터페이스</td></tr>
+      <tr><th>재현</th><td>학술 시뮬레이터(DRAMSim3 + custom NMP 모듈)</td></tr>
+      <tr><th>쪼개면</th><td>(1) Ramulator 빌드 → (2) NMP reduction 모듈 추가 → (3) DLRM 워크로드 트레이스 평가</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-4. Centaur — Chiplet Recommendation Accelerator</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>chiplet 기반 sparse(embedding) - dense(MLP) 가속기</td></tr>
+      <tr><th>왜</th><td>sparse와 dense가 한 모델 안에 공존 — 단일 칩으로는 균형이 안 맞음</td></tr>
+      <tr><th>입력</th><td>Facebook DLRM 모델</td></tr>
+      <tr><th>의미</th><td>chiplet integration을 ML 가속기에 처음 본격 적용</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-5. PREMA — Preemptible NPU Scheduling</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>SLA-aware하게 다중 추론 요청을 처리하는 선점형 NPU 스케줄러</td></tr>
+      <tr><th>왜</th><td>NPU는 preemption이 비싸지만 클라우드는 다중 테넌트</td></tr>
+      <tr><th>핵심 아이디어</th><td>짧은 “사이드 잡”과 긴 “메인 잡”을 함께 실행하면서 SLA 위반 최소화</td></tr>
+      <tr><th>의미</th><td>NPU 멀티 테넌시 학술의 출발점. LazyBatching → ElasticRec → Hera → PREBA로 이어짐</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-6. uPIMulator — Commercial PIM Simulator</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>UPMEM 상용 PIM의 풀스택 사이클 정확 시뮬레이터</td></tr>
+      <tr><th>왜</th><td>상용 PIM은 닫힌 박스. 학자가 쓸 수 있는 시뮬레이터가 없었음</td></tr>
+      <tr><th>의미</th><td>HPCA 2024 Best Paper. <strong>한국 architecture 학술의 큰 모멘텀</strong></td></tr>
+      <tr><th>코드</th><td><a href="https://github.com/VIA-Research/uPIMulator" target="_blank" rel="noopener">github.com/VIA-Research/uPIMulator</a></td></tr>
+      <tr><th>쪼개면</th><td>(1) UPMEM dot product DPU 코드 분석 → (2) 시뮬레이터 위에서 다른 워크로드 실행 → (3) 시뮬레이터 internal 수정 (예: 다른 토폴로지)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-7. vTrain — LLM 학습 비용 시뮬레이터</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>LLM 학습의 시간/비용/throughput을 모델·하드웨어·병렬화 전략에 따라 빠르게 추정</td></tr>
+      <tr><th>왜</th><td>GPT-3급 학습은 “실험”이 어렵고, 실패하면 수백억 손실</td></tr>
+      <tr><th>입력</th><td>LLM 구성, GPU 종류, 병렬화(TP/DP/PP/EP) 전략</td></tr>
+      <tr><th>출력</th><td>시간/cost 예측</td></tr>
+      <tr><th>의미</th><td>산업체와 정부 의사결정에 직접 영향</td></tr>
+      <tr><th>코드</th><td><a href="https://github.com/VIA-Research/vTrain" target="_blank" rel="noopener">github.com/VIA-Research/vTrain</a></td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-8. Pre-gated MoE — MoE 추론 코디자인</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>MoE 추론에서 expert 선택을 한 단계 미리 예측</td></tr>
+      <tr><th>왜</th><td>MoE expert weight가 GPU 메모리에 다 안 들어가는 경우, expert 선택을 “지금 알면” fetch가 너무 늦음</td></tr>
+      <tr><th>핵심 아이디어</th><td>알고리즘: 한 layer 앞에서 다음 layer expert 예측. 시스템: 그 예측에 따라 weight prefetch</td></tr>
+      <tr><th>의미</th><td>MoE 메모리/지연 트레이드오프를 알고리즘+시스템으로 푼 대표 사례</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4-9. PASCAL & Cost of Dynamic Reasoning</h2>
+  <table>
+    <tbody>
+      <tr><th style="width:160px">무엇을</th><td>reasoning LLM (o1, Claude reasoning)의 phase(prefill/decode/think)를 구분해 스케줄링하고 인프라 비용을 분석</td></tr>
+      <tr><th>왜</th><td>reasoning은 일반 LLM과 달리 “think” 단계가 매우 길고 KV cache가 몇 배 더 큼</td></tr>
+      <tr><th>의미</th><td>차세대 “AI 인프라”의 대표 워크로드를 학술적으로 처음 다룬 그룹 중 하나</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quip">VIA 그룹을 한 번에 이해하고 싶다면 — uPIMulator(2024)와 vTrain(2024)을 같이 빌드해 봐라. 한쪽은 “메모리 측 가속의 풀스택”을, 다른 한쪽은 “LLM 학습 인프라의 풀스택”을 보여준다.</div>
+
+  <div class="nav-ft">
+    <a data-go="mr-3" href="#mr-3">
+      <div class="label">이전</div><div class="ttl">← 2.3 연도별 연구 흐름</div>
+    </a>
+    <a class="next" data-go="mr-5" href="#mr-5">
+      <div class="label">다음</div><div class="ttl">2.5 연구 스타일 요약 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-5">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.5</div>
+  <h1>유민수 교수님의 연구 스타일 요약</h1>
+  <p class="lead">한 사람이 매년 top-tier에 1~3편씩 8년간 쌓을 수 있다면, 그 사람의 작업 스타일은 “학습 가능한 패턴”이 되어 있을 것이다.</p>
+
+  <h2>반복 등장하는 문제의식</h2>
+  <ol>
+    <li><strong>“이 워크로드는 메모리 어디에 어떻게 닿는가”</strong> — 거의 모든 작업이 워크로드 특성화에서 시작.</li>
+    <li><strong>“데이터 위치를 옮기면 시스템이 빨라진다”</strong> — GPU↔CPU(vDNN) → memory측(NMP) → storage측(SmartSAGE/PreSto) → CXL pool(추후 추정).</li>
+    <li><strong>“알고리즘 + 아키텍처 코디자인”</strong> — Pre-gated MoE, Tensor Casting, LazyDP. 알고리즘 자체를 바꿔 시스템을 더 효율적으로 만든다.</li>
+  </ol>
+
+  <h2>선호하는 시스템 레이어</h2>
+  <p>GPU 마이크로아키텍처(박사) → DL 가속기/메모리(NVIDIA) → NPU/추천/PIM/FHE/DP 가속기(KAIST) → LLM 인프라/AI 에이전트 인프라(2024+).</p>
+
+  <h2>자주 쓰는 방법론</h2>
+  <ul>
+    <li><strong>워크로드 특성화 → 시스템 제안</strong> — 한 작업의 첫 단계가 “핵심 병목이 뭔지” 측정.</li>
+    <li><strong>사이클 정확 시뮬레이터 또는 RTL 프로토타입</strong> — 거의 모든 작업이 정량 평가용 구체 인프라를 동반.</li>
+    <li><strong>알고리즘+시스템 공동 설계</strong> — 알고리즘 자체를 바꿔 시스템을 더 효율적으로.</li>
+  </ul>
+
+  <h2>어떤 종류의 병목을 중요하게 보는가</h2>
+  <ul>
+    <li><strong>메모리 capacity</strong> — 모델이 GPU에 안 들어감.</li>
+    <li><strong>메모리 bandwidth</strong> — embedding/expert lookup이 대역폭 잠식.</li>
+    <li><strong>이종 워크로드의 자원 미스매치</strong> — sparse/dense, prefill/decode가 한 칩에 같이.</li>
+    <li><strong>새로운 워크로드의 인프라 비용</strong> — reasoning LLM, AI 에이전트.</li>
+  </ul>
+
+  <h2>논문들이 어떤 스토리로 이어지는가</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>NVIDIA 메모리 라인</h3>
+      <p>vDNN(2016) → cDMA(2018) → Beyond the Memory Wall(2018). “GPU 메모리 capacity 문제”의 정의와 첫 해결책.</p>
+    </div>
+    <div class="card">
+      <h3>추천시스템 라인</h3>
+      <p>TensorDIMM(2019) → Centaur(2020) → Tensor Casting(2021) → Training from Scratch(2022) → PreSto/ElasticRec/LazyDP(2024) → Hera/HSTU(2025).</p>
+    </div>
+    <div class="card">
+      <h3>NPU/GPU 서빙 라인</h3>
+      <p>PREMA(2020) → LazyBatching(2021) → PARIS/ELSA(2022) → ElasticRec(2024) → Hera(2025) → PREBA(2026).</p>
+    </div>
+    <div class="card">
+      <h3>PIM 라인</h3>
+      <p>uPIMulator(2024) → PIM-MMU(2024) → PIM-malloc(2026). 점점 더 OS 친화적으로.</p>
+    </div>
+    <div class="card">
+      <h3>LLM/MoE/에이전트 라인</h3>
+      <p>vTrain(2024) → Pre-gated MoE(2024) → Debunking CUDA(2025) → PASCAL / Cost of Dynamic Reasoning / Agent-X / SpecMoE(2026).</p>
+    </div>
+    <div class="card">
+      <h3>보안 가속 라인</h3>
+      <p>BTS(2022) → ARK(2022) → DiVa(2022) → LazyDP(2024) → GPU-PIR(2024). FHE와 DP 두 갈래.</p>
+    </div>
+  </div>
+
+  <h2>관심 있는 학생이 준비할 것</h2>
+  <ul>
+    <li><strong>컴퓨터구조</strong> — Hennessy &amp; Patterson 6판, 캐시·메모리·branch predictor 깊이 있게.</li>
+    <li><strong>GPU 아키텍처</strong> — PMPP 책, GPGPU-Sim 사용 경험.</li>
+    <li><strong>디지털 회로 / Verilog</strong> — RTL 설계 경험.</li>
+    <li><strong>시뮬레이터 빌드/수정 경험</strong> — gem5, GPGPU-Sim, Ramulator, NVMain, uPIMulator 중 하나.</li>
+    <li><strong>머신러닝 시스템</strong> — PyTorch internals, vLLM, FlashAttention.</li>
+    <li><strong>언어</strong> — Python + C++/CUDA + (가능하면) SystemVerilog.</li>
+  </ul>
+
+  <h2>CUDA / Triton / GPU 커널 지망자에게</h2>
+  <p>유 교수님 작업은 “커널이 어디에 닿는가”를 묻는 사람의 시각이다. Triton 커널을 짜는 사람도 “이 커널의 메모리 access 패턴이 GPU의 캐시/HBM/CXL과 어떻게 상호작용하는지”를 이해해야 한다. uPIMulator나 vTrain을 사용해 “이 커널이 메모리에 닿을 때 어떤 일이 일어나는가”를 정량적으로 보는 훈련이 효과적.</p>
+
+  <div class="quip">아키텍처 사람이 GPU 커널을 사랑하는 방식 — 직접 짜기보다 “이 커널이 칩 안에서 어떤 흔적을 남기는가”를 본다. 그 흔적이 시뮬레이터 출력에 그래프로 찍힐 때 “모델 → 칩” 사이의 거리가 비로소 보인다.</div>
+
+  <div class="nav-ft">
+    <a data-go="mr-4" href="#mr-4">
+      <div class="label">이전</div><div class="ttl">← 2.4 대표 프로젝트 해부</div>
+    </a>
+    <a class="next" data-go="mr-6" href="#mr-6">
+      <div class="label">다음</div><div class="ttl">2.6 앞으로의 방향 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="mr-6">
+  <div class="crumb">빅챕터 2 · 유민수 · 2.6</div>
+  <h1>앞으로의 방향 — 명시 자료 + 추정</h1>
+  <p class="lead">2026년 한 해 출판물만 봐도 그룹의 다음 큰 그림이 거의 그대로 드러난다 — AI 에이전트, reasoning LLM, 풀스택 PIM, 멀티 인스턴스 GPU 서빙.</p>
+
+  <h2>명시 자료에서 확인되는 방향</h2>
+  <ul>
+    <li><strong>AI 에이전트 인프라</strong> — HPCA 2026의 <em>Cost of Dynamic Reasoning</em>, <em>Agent-X</em>, <em>PASCAL</em>이 동시에 출판. 명시적으로 “AI 에이전트와 reasoning LLM 인프라가 다음 단계”라고 선언하는 셈.</li>
+    <li><strong>PIM 풀스택</strong> — uPIMulator → PIM-MMU → PIM-malloc 순서로 점점 더 OS 친화적인 PIM 인프라.</li>
+    <li><strong>2024 SW Star Lab “Secure and Private AI System”</strong> — 8년 지원. FHE/DP 가속기 라인이 더 깊어짐.</li>
+    <li><strong>MICRO 2025 Program Co-Chair</strong> — 학회 흐름을 본인이 형성할 수 있는 위치.</li>
+  </ul>
+
+  <h2>최근 흐름상 자연스러운 다음 문제 <span class="pill">추정</span></h2>
+  <ul>
+    <li><strong>Reasoning LLM serving 풀스택</strong> — PASCAL은 스케줄링만 다룸. KV cache 관리, expert offloading, speculative decoding을 통합한 reasoning serving 시스템이 다음 단계로 보임.</li>
+    <li><strong>Multi-modal LLM 서빙 가속</strong> — KV Cache Quantization for Multimodal LLM(IEEE CAL 2026) 시그널.</li>
+    <li><strong>CXL + AI 인프라</strong> — CXL이 NVIDIA Grace, AMD MI300X 등에서 주류가 되면 KAIST 그룹의 메모리 라인이 자연스럽게 CXL로 확장.</li>
+    <li><strong>Agentic AI workload + 모바일/엣지 가속</strong> — Agent-X(MobiSys 2026) 시그널.</li>
+  </ul>
+
+  <h2>산업 변화와의 연결 <span class="pill">추정</span></h2>
+  <ul>
+    <li><strong>NVIDIA Blackwell + Rubin 세대 GPU</strong> — vTrain 후속으로 next-gen GPU 학습 시뮬이 자연스러운 확장.</li>
+    <li><strong>Samsung HBM-PIM, SK Hynix AiM</strong> — 한국 PIM 양산이 시작되면 컴파일러/런타임/MMU 측에서 협력이 더 깊어질 것.</li>
+    <li><strong>Reasoning + Tool Use + Agent benchmarks</strong> — 학계가 이제 막 정량화하기 시작했으므로 “SLA-aware agent serving”류 작업이 늘어날 것.</li>
+  </ul>
+
+  <h2>학생이 준비하면 좋은 구현 프로젝트</h2>
+  <ol>
+    <li>uPIMulator를 빌드하고 자기만의 ML 워크로드(예: small transformer)를 UPMEM에 매핑 — <span class="pill">1개월</span></li>
+    <li>vTrain으로 GPT-3급 학습을 다양한 병렬화 전략으로 시뮬해 비용 곡선 그리기 — <span class="pill">2주</span></li>
+    <li>PyTorch 위에 vDNN-like activation offloading을 reimplement — <span class="pill">3주</span></li>
+    <li>NeuMMU의 NPU MMU 시뮬을 gem5에 추가해 NPU 가상메모리 평가 — <span class="pill">3개월</span></li>
+  </ol>
+
+  <h2>이 연구자를 이해하는 한 문장</h2>
+  <p class="quip">유민수 교수님은 <span class="one-line">“새로 등장하는 거대한 ML 워크로드가 메모리·자원·보안 어디서 막히는지를 사이클 정확 시뮬과 RTL 프로토타입으로 측정하고, 알고리즘과 아키텍처를 함께 바꿔 그 막힘을 풀어내는 사람”</span>이다.</p>
+
+  <div class="nav-ft">
+    <a data-go="mr-5" href="#mr-5">
+      <div class="label">이전</div><div class="ttl">← 2.5 연구 스타일 요약</div>
+    </a>
+    <a class="next" data-go="cmp-1" href="#cmp-1">
+      <div class="label">다음</div><div class="ttl">3.1 두 세계 비교 — 공통분모 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="cmp-1">
+  <div class="crumb">빅챕터 3 · 두 세계 비교 · 3.1</div>
+  <h1>두 분의 공통분모</h1>
+  <p class="lead">출발점이 다른데 어떻게 같은 단어를 쓰게 되는가. AI 시스템이라는 산이 두 길의 정상에서 같은 풍경을 만들어내고 있기 때문이다.</p>
+
+  <h2>공통분모 ① — 하드웨어/소프트웨어 경계의 이주민</h2>
+  <p>두 분 모두 “한 레이어 안에 갇혀 있는 사람”이 아니다.</p>
+  <ul>
+    <li><strong>성효진</strong> — PL(DPJ) → 하드웨어(DeNovo) → 컴파일러(IBM/TVM/PIM) → DSE.</li>
+    <li><strong>유민수</strong> — RTL(JPEG2000) → 마이크로아키텍처(GPU) → 가속기/시스템(NMP/PIM/NPU) → 인프라(LLM/에이전트).</li>
+  </ul>
+  <p>두 분 모두 “나는 컴파일러 사람이다”거나 “나는 RTL 사람이다”에 머물지 않는다. 위·아래를 자유롭게 오가는 능력이 두 분의 가장 큰 공통점.</p>
+
+  <h2>공통분모 ② — 시스템 병목을 “정보의 비대칭”으로 본다</h2>
+  <p>두 분이 풀고자 하는 병목은 신기하게도 “위쪽 레이어가 알고 있는 정보를 아래쪽이 모른다”거나, 그 반대로 “아래쪽이 알고 있는 정보를 위쪽이 활용하지 못한다”는 형태가 많다.</p>
+  <ul>
+    <li><strong>성효진</strong>: DPJ region을 캐시가 모른다 → DeNovo가 알려준다. PIM의 능력을 TVM이 모른다 → PIMFlow가 알려준다.</li>
+    <li><strong>유민수</strong>: 활성화의 “언제 다시 쓰는지”를 GPU가 모른다 → vDNN이 알려준다. MoE expert의 “다음 layer 선택”을 시스템이 모른다 → Pre-gated MoE가 미리 알려준다.</li>
+  </ul>
+
+  <h2>공통분모 ③ — 실험과 구현 중심성</h2>
+  <p>두 분 모두 “수학적으로 멋지지만 만들어보지 못한 작업”을 거의 하지 않는다. 거의 모든 논문이 시뮬레이터, RTL, 컴파일러 패스, 또는 프레임워크 통합 같은 “손에 잡히는 산출물”을 동반한다.</p>
+
+  <h2>공통분모 ④ — 컴파일러·런타임·아키텍처를 한 단어로 본다</h2>
+  <p>예를 들어 “데이터 이동”이라는 단어 하나가 두 분 모두에게 — 컴파일러 입장(누가 옮길지 결정), 런타임 입장(언제 옮길지 결정), 아키텍처 입장(어떻게 옮기는 게 효율적일지)으로 동시에 보인다. 그래서 두 분 모두 한 작업의 다음 작업이 자연스럽게 옆 레이어로 이어진다.</p>
+
+  <h2>공통분모 ⑤ — AI 시스템 시대와의 접점</h2>
+  <p>두 분의 최근 작업은 AI 시스템 표면 아래의 “느린 부분”을 똑같이 두드린다.</p>
+  <ul>
+    <li><strong>성효진</strong>: ML 컴파일러 (autotuning), PIM-DRAM, CXL NDP, DataFrame 컴파일.</li>
+    <li><strong>유민수</strong>: LLM serving, MoE 추론, AI agent 인프라, FHE/DP.</li>
+  </ul>
+  <p>두 분 모두 “LLM을 더 빠르게 돌리는 방법”에 직접 일하지만, 한 분은 컴파일러 측에서, 한 분은 시스템/시뮬 측에서 접근한다.</p>
+
+  <div class="quip">두 분이 같은 학회(MICRO/ISCA/HPCA/ASPLOS) 같은 세션에 자주 같이 등장하는 이유 — 같은 산을 다른 길로 오르고 있기 때문이다. 학회는 그 산의 정상이다.</div>
+
+  <div class="nav-ft">
+    <a data-go="mr-6" href="#mr-6">
+      <div class="label">이전</div><div class="ttl">← 2.6 유민수 — 앞으로의 방향</div>
+    </a>
+    <a class="next" data-go="cmp-2" href="#cmp-2">
+      <div class="label">다음</div><div class="ttl">3.2 차이점 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="cmp-2">
+  <div class="crumb">빅챕터 3 · 두 세계 비교 · 3.2</div>
+  <h1>차이점 — 한 표로</h1>
+  <p class="lead">공통점만 보면 두 분이 “같은 사람”처럼 보이지만, 실제로는 “손에 잡는 도구”가 결정적으로 다르다. 같은 산을 다른 길로 오르는 두 사람의 도구함을 정리한다.</p>
+
+  <h2>비교 표</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>비교 항목</th>
+        <th>성효진</th>
+        <th>유민수</th>
+        <th>독학자에게 주는 의미</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>주된 시스템 레이어</td>
+        <td>컴파일러(IR, pass) + 런타임</td>
+        <td>마이크로아키텍처 + 사이클 정확 시뮬</td>
+        <td>한쪽은 IR을, 다른 한쪽은 RTL/시뮬을 손에 잡는다</td>
+      </tr>
+      <tr>
+        <td>주요 문제의식</td>
+        <td>위쪽 정보를 아래로 흘려보내자</td>
+        <td>이 워크로드가 메모리 어디에 닿는가</td>
+        <td>둘은 “정보의 이동”과 “데이터의 이동”에서 만난다</td>
+      </tr>
+      <tr>
+        <td>자주 등장하는 기술</td>
+        <td>LLVM · TVM · OpenMP · NeuroSim · NAS · meta-learning</td>
+        <td>gem5 · GPGPU-Sim · Ramulator · UPMEM SDK · CUDA · RTL</td>
+        <td>커리어 초기엔 한쪽을 잡고 가다가, 결국 둘을 다 다뤄야 한다</td>
+      </tr>
+      <tr>
+        <td>구현 난이도</td>
+        <td>중상 (TVM/LLVM 패스 작성)</td>
+        <td>상 (시뮬레이터 수정, RTL 설계)</td>
+        <td>유 교수님 라인이 진입 장벽이 더 높지만, 학술 영향력의 “표면적”도 더 크다</td>
+      </tr>
+      <tr>
+        <td>필요한 선수지식</td>
+        <td>컴파일러, PL, 런타임, ML 시스템</td>
+        <td>컴퓨터구조, 디지털 회로, GPU 아키텍처, OS</td>
+        <td>학부 과목 분포가 다르다</td>
+      </tr>
+      <tr>
+        <td>GPU 커널 엔지니어 경로와의 관련성</td>
+        <td>“커널을 자동으로 짜는 도구를 짜는 사람”</td>
+        <td>“커널이 칩 안에서 어떻게 움직이는지 측정하는 사람”</td>
+        <td>커널을 짜고 싶다면 두 시각 다 필요</td>
+      </tr>
+      <tr>
+        <td>대학원 연구 주제 확장성</td>
+        <td>컴파일러 → ML 컴파일러 → DataFrame → DSE</td>
+        <td>가속기 → LLM 인프라 → AI 에이전트</td>
+        <td>둘 다 “현재 핫한 영역”에 자연스럽게 닿는다</td>
+      </tr>
+      <tr>
+        <td>산업 적용 가능성</td>
+        <td>컴파일러 회사(Modular, OctoML, NVIDIA), PIM 컴파일러 (UPMEM, SK Hynix)</td>
+        <td>NVIDIA / Samsung / SK Hynix / Rebellions / FuriosaAI / 클라우드 인프라</td>
+        <td>한국 AI 반도체 스타트업 진로는 유 교수님 쪽이 더 직선적</td>
+      </tr>
+      <tr>
+        <td>대표 산출물 형태</td>
+        <td>오픈소스 컴파일러 · 패스 · 시뮬</td>
+        <td>오픈소스 시뮬레이터 · RTL 디자인</td>
+        <td>한쪽은 “코드를 만드는 코드”, 한쪽은 “기계를 묘사하는 기계”</td>
+      </tr>
+      <tr>
+        <td>대표 작품</td>
+        <td>DeNovo · PIMFlow · One-Shot Tuner · ATiM · CXL NDP</td>
+        <td>vDNN · SCNN · TensorDIMM · uPIMulator · vTrain · Pre-gated MoE</td>
+        <td>대표 작품 5개씩 따라 만들면 자연스럽게 “두 도구함”을 손에 들게 된다</td>
+      </tr>
+      <tr>
+        <td>외부 협업 톤</td>
+        <td>같은 한국 PIM/CXL 학자들과의 컨소시엄형</td>
+        <td>NVIDIA · MSRA · Meta · Harvard · NAVER 등 글로벌 매트릭스형</td>
+        <td>현 단계 그룹 규모와 연조의 차이</td>
+      </tr>
+      <tr>
+        <td>한 줄 요약</td>
+        <td>“컴파일러가 데이터를 결정한다”</td>
+        <td>“이 칩이 데이터를 어떻게 다루는가”</td>
+        <td>같은 명사(데이터)를 다른 동사(결정 vs 다룬다)로 잡는다</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>차이가 만들어내는 “스타일” 차이</h2>
+  <ul>
+    <li><strong>성효진 그룹의 논문</strong>은 자주 컴파일러 패스나 IR 변환의 이름이 제목에 붙는다 (PIMFlow, ATiM, NavCim, MetaTune, One-Shot Tuner).</li>
+    <li><strong>유민수 그룹의 논문</strong>은 자주 시스템/시뮬 이름이 제목에 붙는다 (vDNN, TensorDIMM, Centaur, uPIMulator, vTrain, PASCAL, Hera).</li>
+  </ul>
+  <p>이 “이름의 형식”만 봐도 두 사람이 “세상을 어떤 단위로 보는가”가 드러난다.</p>
+
+  <div class="quip">컴파일러 사람은 “이 단계는 몇 줄의 패스로 풀 수 있는가”를 묻는다. 아키텍처 사람은 “이 워크로드는 몇 cycle, 몇 GB/s로 설명되는가”를 묻는다. 둘은 같은 시스템을 다른 좌표로 본다.</div>
+
+  <div class="nav-ft">
+    <a data-go="cmp-1" href="#cmp-1">
+      <div class="label">이전</div><div class="ttl">← 3.1 공통분모</div>
+    </a>
+    <a class="next" data-go="cmp-3" href="#cmp-3">
+      <div class="label">다음</div><div class="ttl">3.3 읽기 로드맵 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="cmp-3">
+  <div class="crumb">빅챕터 3 · 두 세계 비교 · 3.3</div>
+  <h1>읽기 로드맵 — 네 가지 루트</h1>
+  <p class="lead">두 분의 논문 100여 편을 다 읽으려는 사람은 거의 없다. 자기 목적에 맞는 “경로 설계”가 필요하다.</p>
+
+  <h2>루트 ① — 입문 루트</h2>
+  <p>배경 개념을 먼저 잡고 싶은 사람용. 너무 어려운 수식/구현은 피한다.</p>
+  <div class="card">
+    <h3>읽기 순서</h3>
+    <ol>
+      <li><strong>Beyond the Memory Wall</strong> (유민수, MICRO 2018) — “memory-centric HPC” 비전.</li>
+      <li><strong>vDNN</strong> (유민수, MICRO 2016) — DL 학습 메모리 문제의 정의.</li>
+      <li><strong>DeNovo</strong> (성효진, PACT 2011) — 캐시 코히런스의 “재정의”.</li>
+      <li><strong>Implementing Implicit OpenMP Data Sharing on GPUs</strong> (성효진, LLVM-HPC 2017) — OpenMP가 GPU에 어떻게 떨어지는가.</li>
+      <li><strong>uPIMulator (Pathfinding PIM)</strong> (유민수, HPCA 2024) — 상용 PIM이라는 새 영역.</li>
+    </ol>
+    <p>이 5편을 읽으면 “시스템 연구자가 일하는 좌표계”가 거의 보인다.</p>
+  </div>
+
+  <h2>루트 ② — 시스템 구현 루트</h2>
+  <p>실제 코드/프로토타입/벤치마크를 따라가며 읽고 싶은 사람용.</p>
+  <div class="card">
+    <h3>읽기 순서</h3>
+    <ol>
+      <li><strong>vDNN</strong> — PyTorch hook으로 한 번 reimpl.</li>
+      <li><strong>PIMFlow</strong> (성효진, CGO 2023) — TVM 빌드하고 PIM 백엔드 구조 파악.</li>
+      <li><strong>uPIMulator</strong> — 시뮬레이터 빌드해 UPMEM 워크로드 실행.</li>
+      <li><strong>vTrain</strong> — LLM 학습 비용 시뮬 돌려보기.</li>
+      <li><strong>One-Shot Tuner</strong> — Zenodo artifact로 TVM 위에 cost model 학습.</li>
+      <li><strong>NavCim</strong> — NeuroSim 빌드해 아날로그 CiM 평가.</li>
+    </ol>
+    <p>여기까지 다 만져보면 “학술 시뮬레이터 6개 빌드 경험”이라는 이력이 생긴다. 대학원 컨택할 때 가장 강한 무기.</p>
+  </div>
+
+  <h2>루트 ③ — GPU/컴파일러/AI 시스템 루트</h2>
+  <p>CUDA · Triton · vLLM · TensorRT-LLM 쪽으로 진입하려는 사람용.</p>
+  <div class="card">
+    <h3>읽기 순서</h3>
+    <ol>
+      <li><strong>vDNN</strong> + <strong>cDMA</strong> (유민수) — DL 학습 메모리 가상화.</li>
+      <li><strong>SCNN</strong> (유민수) — sparse dataflow.</li>
+      <li><strong>One-Shot Tuner</strong> + <strong>MetaTune</strong> (성효진) — autotuning 자동화.</li>
+      <li><strong>PIMFlow</strong> + <strong>ATiM</strong> (성효진) — 컴파일러가 PIM/UPMEM을 백엔드로 다루는 법.</li>
+      <li><strong>Pre-gated MoE</strong> (유민수) — MoE 추론 알고리즘+시스템 코디자인.</li>
+      <li><strong>vTrain</strong> + <strong>PASCAL</strong> (유민수) — LLM 학습/추론 인프라.</li>
+      <li><strong>Cost of Dynamic Reasoning</strong> + <strong>Agent-X</strong> (유민수) — AI 에이전트 인프라.</li>
+    </ol>
+    <p>이 순서로 읽으면 “학습 메모리 → sparse dataflow → autotuning → PIM 컴파일 → MoE → LLM training/serving → AI agent”까지 한 라인이 그어진다.</p>
+  </div>
+
+  <h2>루트 ④ — 대학원 컨택 준비 루트</h2>
+  <p>두 연구실 중 한 곳에 지원하거나 컨택하려는 사람용.</p>
+  <div class="card">
+    <h3>성효진 교수님 그룹 컨택용</h3>
+    <ol>
+      <li><strong>DeNovo</strong> — 박사 시기의 “이 사람 생각의 원형”.</li>
+      <li><strong>Efficient Fork-Join through Warp Specialization</strong> + <strong>OpenMP Implicit Data Sharing</strong> — IBM 시기 대표작 두 편.</li>
+      <li><strong>One-Shot Tuner</strong> — 한국 시기 컴파일러 대표작.</li>
+      <li><strong>PIMFlow</strong> + <strong>ATiM</strong> — PIM 컴파일러 라인.</li>
+      <li><strong>CXL NDP</strong> + <strong>NavCim</strong> — 가장 최근 라인.</li>
+    </ol>
+    <p>컨택 메일에 “이 5편 중 어느 편의 어느 부분에 끌렸고, 그래서 어떤 follow-up을 생각해 봤다”까지 쓸 수 있으면 거의 무조건 답이 온다.</p>
+  </div>
+  <div class="card">
+    <h3>유민수 교수님 그룹 컨택용</h3>
+    <ol>
+      <li><strong>vDNN</strong> + <strong>SCNN</strong> — NVIDIA 시기 두 대표작.</li>
+      <li><strong>TensorDIMM</strong> + <strong>Centaur</strong> — KAIST 추천 라인 시작점.</li>
+      <li><strong>uPIMulator</strong> — HPCA Best Paper. 이 논문을 안 읽고 컨택하면 안 됨.</li>
+      <li><strong>vTrain</strong> + <strong>Pre-gated MoE</strong> — LLM 라인.</li>
+      <li><strong>Cost of Dynamic Reasoning</strong> + <strong>Agent-X</strong> — 가장 최근 라인.</li>
+    </ol>
+    <p>VIA 그룹은 학생이 많아 경쟁이 치열. 시뮬레이터 빌드 경험(uPIMulator, vTrain)을 컨택 메일에 명시하면 가장 효과적.</p>
+  </div>
+
+  <div class="quip">컨택 메일을 잘 쓰는 한 가지 비결 — “당신이 만든 시스템 X를 직접 빌드해 봤고, Y라는 부분이 흥미로웠다”라고 쓰는 것. 추상적 칭찬 100마디보다 구체적 reimpl 한 번이 강하다.</div>
+
+  <div class="nav-ft">
+    <a data-go="cmp-2" href="#cmp-2">
+      <div class="label">이전</div><div class="ttl">← 3.2 차이점</div>
+    </a>
+    <a class="next" data-go="cmp-4" href="#cmp-4">
+      <div class="label">다음</div><div class="ttl">3.4 구현 프로젝트 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="cmp-4">
+  <div class="crumb">빅챕터 3 · 두 세계 비교 · 3.4</div>
+  <h1>독학자용 미니 프로젝트 8선</h1>
+  <p class="lead">읽고 끝나는 책은 죽은 책이다. 두 분의 작업에서 추출한 8개 미니 프로젝트를 “1주 / 1개월 / 3개월” 세 단계로 펼친다.</p>
+
+  <h2>P1. vDNN 류 활성화 오프로딩 재구현 <span class="pill green">유민수 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — vDNN (MICRO 2016)</li>
+      <li><strong>목표</strong> — PyTorch 위에서 forward activation을 GPU↔CPU로 자동 swap</li>
+      <li><strong>배경</strong> — PyTorch hook, CUDA stream</li>
+      <li><strong>1주</strong> — 모든 layer activation을 무조건 .cpu()/.cuda()로 옮김. 메모리 사용량 측정.</li>
+      <li><strong>1개월</strong> — layer 별 “이걸 옮길지” 휴리스틱(다음 사용까지의 거리, 크기)을 만들어 적용. prefetch overlap.</li>
+      <li><strong>3개월</strong> — cuDNN 알고리즘을 메모리 조건에 따라 동적으로 선택. ResNet/VGG/BERT 학습으로 평가.</li>
+      <li><strong>결과물</strong> — 깃허브 레포 + 블로그 “PyTorch에서 vDNN을 200줄로 짜보기”.</li>
+    </ul>
+  </div>
+
+  <h2>P2. TVM PIM 백엔드 미니 버전 <span class="pill accent">성효진 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — PIMFlow (CGO 2023), ATiM (ISCA 2025)</li>
+      <li><strong>목표</strong> — TVM Relay에 dummy PIM 백엔드를 만들어 conv2d/embedding을 “PIM 코드”(시뮬용)로 출력</li>
+      <li><strong>배경</strong> — TVM TensorIR, Relay, Python 데코레이터</li>
+      <li><strong>1주</strong> — TVM 빌드 + Relay 모델 → 자체 IR 변환 함수.</li>
+      <li><strong>1개월</strong> — embedding lookup을 “PIM-friendly”와 “GPU-friendly”로 분리해 layer 분할 결정.</li>
+      <li><strong>3개월</strong> — UPMEM SDK로 실제 PIM 코드를 출력해 dot product/embedding을 보드에서 실행.</li>
+      <li><strong>결과물</strong> — 미니 PIMFlow + 블로그.</li>
+    </ul>
+  </div>
+
+  <h2>P3. uPIMulator로 small transformer 매핑 <span class="pill green">유민수 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — uPIMulator (HPCA 2024)</li>
+      <li><strong>목표</strong> — UPMEM PIM 위에 작은 transformer block을 매핑하고 시뮬</li>
+      <li><strong>배경</strong> — UPMEM SDK, 사이클 정확 시뮬레이터 사용</li>
+      <li><strong>1주</strong> — 시뮬레이터 빌드 + 예제 워크로드 실행.</li>
+      <li><strong>1개월</strong> — small attention(64-dim, seq 32)을 DPU 코드로 작성, host-DPU 통신 최적화.</li>
+      <li><strong>3개월</strong> — multi-DPU 분할 전략 비교, 시뮬 결과로 “PIM이 transformer에 적합한 부분/부적합한 부분” 보고서.</li>
+      <li><strong>결과물</strong> — 시뮬 결과 그래프 모음 + 블로그.</li>
+    </ul>
+  </div>
+
+  <h2>P4. DeNovo 캐시 코히런스 gem5 reimpl <span class="pill accent">성효진 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — DeNovo (PACT 2011), DeNovoND, DeNovoSync</li>
+      <li><strong>목표</strong> — gem5의 ruby 모듈 위에 self-invalidation 기반 단순 코히런스 프로토콜</li>
+      <li><strong>배경</strong> — gem5, ruby, MESI</li>
+      <li><strong>1주</strong> — gem5 빌드, ruby MESI tutorial.</li>
+      <li><strong>1개월</strong> — region-tag를 캐시에 추가, parallel phase boundary에서 self-invalidate.</li>
+      <li><strong>3개월</strong> — 간단한 deterministic 워크로드(예: stencil)로 트래픽 비교, 결과 그래프.</li>
+      <li><strong>결과물</strong> — gem5 패치 + 학기 프로젝트 보고서.</li>
+    </ul>
+  </div>
+
+  <h2>P5. vTrain로 LLM 학습 cost curve 그리기 <span class="pill green">유민수 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — vTrain (MICRO 2024)</li>
+      <li><strong>목표</strong> — GPT-3급 학습을 다양한 병렬화 전략으로 시뮬해 “비용 곡선”을 그리기</li>
+      <li><strong>1주</strong> — vTrain 빌드, 기본 시뮬 실행.</li>
+      <li><strong>1개월</strong> — TP × DP × PP 격자에서 throughput · cost 그리드 서치.</li>
+      <li><strong>3개월</strong> — 새 모델(예: 100B MoE)에 대한 “GPU H100 vs B200 vs MI300” 비용 비교 보고서.</li>
+      <li><strong>결과물</strong> — 블로그 + 시각화.</li>
+    </ul>
+  </div>
+
+  <h2>P6. One-Shot Tuner reimpl <span class="pill accent">성효진 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — One-Shot Tuner (CC 2022), MetaTune (arXiv 2021)</li>
+      <li><strong>목표</strong> — TVM AutoTVM에 NAS 기반 single-pass cost model을 얹기</li>
+      <li><strong>1주</strong> — AutoTVM의 XGBoost cost model 학습.</li>
+      <li><strong>1개월</strong> — schedule transformation을 NAS controller로 생성.</li>
+      <li><strong>3개월</strong> — meta-learning으로 새 워크로드에 zero-shot 적응.</li>
+      <li><strong>결과물</strong> — 깃허브 레포 + 튜닝 시간 비교 그래프.</li>
+    </ul>
+  </div>
+
+  <h2>P7. Pre-gated MoE 알고리즘만 reimpl <span class="pill green">유민수 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — Pre-gated MoE (ISCA 2024)</li>
+      <li><strong>목표</strong> — Mixtral 같은 작은 MoE 모델로 expert pre-gating 알고리즘 재현</li>
+      <li><strong>1주</strong> — Mixtral 8×7B 모델 로딩, expert routing 결과 측정.</li>
+      <li><strong>1개월</strong> — 한 layer 앞에서 다음 layer expert 예측기를 학습.</li>
+      <li><strong>3개월</strong> — 예측기 → prefetch 시뮬 → 메모리/지연 절감 비교 보고서.</li>
+      <li><strong>결과물</strong> — 깃허브 + 블로그 “MoE serving의 prefetch 패턴”.</li>
+    </ul>
+  </div>
+
+  <h2>P8. CXL NDP 시뮬 모듈 <span class="pill accent">성효진 라인</span></h2>
+  <div class="card">
+    <ul>
+      <li><strong>관련</strong> — Low-Overhead General-Purpose NDP in CXL (MICRO 2024)</li>
+      <li><strong>목표</strong> — CXL Type-3 시뮬레이터에 NDP ALU 모듈을 추가</li>
+      <li><strong>1주</strong> — CXL 시뮬레이터(예: gem5 CXL 모듈) 빌드.</li>
+      <li><strong>1개월</strong> — gather/scatter NDP 명령 추가.</li>
+      <li><strong>3개월</strong> — DLRM embedding 트레이스로 평가, host-only 대비 비교.</li>
+      <li><strong>결과물</strong> — gem5 패치 + 보고서.</li>
+    </ul>
+  </div>
+
+  <h2>프로젝트 고르는 법</h2>
+  <ul>
+    <li><strong>학부생/처음</strong>: P1(vDNN), P5(vTrain) 추천. PyTorch만 있어도 된다.</li>
+    <li><strong>컴파일러 지망자</strong>: P2(TVM PIM), P6(One-Shot Tuner) 추천.</li>
+    <li><strong>아키텍처 지망자</strong>: P3(uPIMulator), P4(gem5 DeNovo), P8(CXL NDP) 추천.</li>
+    <li><strong>LLM 시스템 지망자</strong>: P5(vTrain), P7(Pre-gated MoE) 추천.</li>
+  </ul>
+
+  <div class="quip">8개 다 하지 않아도 된다. 하나를 끝까지 따라가면 “시뮬레이터를 빌드한 사람”이 되고, 그게 이력서에서 가장 강한 한 줄이 된다.</div>
+
+  <div class="nav-ft">
+    <a data-go="cmp-3" href="#cmp-3">
+      <div class="label">이전</div><div class="ttl">← 3.3 읽기 로드맵</div>
+    </a>
+    <a class="next" data-go="apx-a" href="#apx-a">
+      <div class="label">다음</div><div class="ttl">부록 A · 전체 논문 목록 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="apx-a">
+  <div class="crumb">부록 A</div>
+  <h1>전체 논문 목록</h1>
+  <p class="lead">두 분의 검증된 논문을 한 표에 모았다. 표는 검색·정렬·인용 용도. 본문 챕터에서 다룬 “이야기”는 빅챕터 1·2를 보라.</p>
+  <p class="aside">자료 기준일 2026-04-26 · 데이터 원본은 <code>data/papers.csv</code>에도 정리. 원본 링크는 각 행의 “PDF/URL” 열.</p>
+
+  <h2>A.1 성효진 교수님 — 27편</h2>
+  <table>
+    <thead>
+      <tr><th>연도</th><th>제목</th><th>venue</th><th>주제</th><th>우선순위</th><th>링크</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>2009</td><td>DPJ — A Type and Effect System for Deterministic Parallel Java</td><td>OOPSLA</td><td>PL/병렬</td><td>중</td><td><a href="https://dl.acm.org/doi/10.1145/1640089.1640097" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2010</td><td>Parallel SAH k-D Tree Construction</td><td>HPG</td><td>병렬알고리즘</td><td>저</td><td><a href="https://github.com/bchoi/ParKD" target="_blank" rel="noopener">code</a></td></tr>
+      <tr><td>2010</td><td>DeNovo: Rethinking Hardware for Disciplined Parallelism</td><td>HotPar</td><td>HW/캐시</td><td>상</td><td><a href="https://www.usenix.org/legacy/event/hotpar10/tech/full_papers/Choi.pdf" target="_blank" rel="noopener">PDF</a></td></tr>
+      <tr><td>2011</td><td><strong>DeNovo</strong> (Best Paper)</td><td>PACT</td><td>HW/캐시</td><td>최우선</td><td><a href="https://dl.acm.org/doi/10.1109/PACT.2011.21" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2013</td><td><strong>DeNovoND</strong></td><td>ASPLOS</td><td>HW/캐시</td><td>최우선</td><td><a href="https://dl.acm.org/doi/10.1145/2451116.2451119" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2014</td><td>DeNovoND (IEEE Micro Top Picks 재게재)</td><td>IEEE Micro</td><td>HW/캐시</td><td>상</td><td>—</td></tr>
+      <tr><td>2015</td><td><strong>DeNovoSync</strong></td><td>ASPLOS</td><td>HW/동기화</td><td>최우선</td><td><a href="https://dl.acm.org/doi/10.1145/2694344.2694356" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2015</td><td>PhD Thesis — DeNovo</td><td>UIUC</td><td>HW/캐시</td><td>최우선</td><td>—</td></tr>
+      <tr><td>2015</td><td>Integrating GPU Support for OpenMP into Clang</td><td>LLVM-HPC@SC</td><td>컴파일러/GPU</td><td>상</td><td><a href="https://dl.acm.org/doi/10.1145/2833157.2833161" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2015</td><td>Performance Analysis of OpenMP on a GPU (CORAL Proxy)</td><td>PMBS@SC</td><td>컴파일러/GPU</td><td>중</td><td><a href="https://dl.acm.org/doi/10.1145/2832087.2832089" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2016</td><td>Offloading Support for OpenMP in Clang and LLVM</td><td>LLVM-HPC@SC</td><td>컴파일러/GPU</td><td>상</td><td>—</td></tr>
+      <tr><td>2016</td><td>Performance Analysis &amp; Optimization of Clang's OpenMP 4.5 GPU</td><td>PMBS@SC</td><td>컴파일러/GPU</td><td>중</td><td>—</td></tr>
+      <tr><td>2016</td><td>Automatic Copying of Pointer-Based Data Structures</td><td>LCPC</td><td>컴파일러</td><td>중</td><td><a href="https://link.springer.com/chapter/10.1007/978-3-319-52709-3_20" target="_blank" rel="noopener">Springer</a></td></tr>
+      <tr><td>2017</td><td><strong>Efficient Fork-Join on GPUs (Warp Specialization)</strong></td><td>HiPC</td><td>GPU/병렬</td><td>상</td><td>—</td></tr>
+      <tr><td>2017</td><td>Leveraging OpenMP 4.5 in CLANG for Fortran (XLFLANG)</td><td>IWOMP</td><td>컴파일러</td><td>중</td><td><a href="https://link.springer.com/chapter/10.1007/978-3-319-65578-9_3" target="_blank" rel="noopener">Springer</a></td></tr>
+      <tr><td>2017</td><td>Implementing Implicit OpenMP Data Sharing on GPUs</td><td>LLVM-HPC@SC</td><td>컴파일러/GPU</td><td>상</td><td><a href="https://dl.acm.org/doi/10.1145/3148173.3148189" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2017</td><td>Benchmarking Unified Memory for OpenMP GPU</td><td>LLVM-HPC@SC</td><td>컴파일러/GPU</td><td>중</td><td>—</td></tr>
+      <tr><td>2019</td><td><strong>CogR</strong> (poster)</td><td>PACT</td><td>ML/runtime</td><td>상</td><td><a href="https://research.ibm.com/publications/poster-cogr-exploiting-program-structures-for-machine-learning-based-runtime-solutions" target="_blank" rel="noopener">IBM</a></td></tr>
+      <tr><td>2021</td><td>Greedy-SO Hybrid Register Allocation</td><td>LCPC</td><td>컴파일러</td><td>중</td><td><a href="https://link.springer.com/chapter/10.1007/978-3-030-99372-6_3" target="_blank" rel="noopener">Springer</a></td></tr>
+      <tr><td>2021</td><td><strong>MetaTune</strong></td><td>arXiv</td><td>ML/컴파일러</td><td>상</td><td><a href="https://arxiv.org/abs/2102.04199" target="_blank" rel="noopener">arXiv</a></td></tr>
+      <tr><td>2021</td><td>NDP in Memory Expander for DNN on GPUs</td><td>IEEE CAL</td><td>NDP/GPU</td><td>상</td><td>—</td></tr>
+      <tr><td>2022</td><td><strong>One-Shot Tuner</strong></td><td>CC</td><td>ML/컴파일러</td><td>상</td><td><a href="https://dl.acm.org/doi/10.1145/3497776.3517774" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2022</td><td>Runtime Support for CNN on Digital DRAM PIM</td><td>IEEE CAL</td><td>PIM/runtime</td><td>상</td><td>—</td></tr>
+      <tr><td>2023</td><td><strong>PIMFlow</strong></td><td>CGO</td><td>PIM/컴파일러</td><td>최우선</td><td><a href="https://dl.acm.org/doi/10.1145/3579990.3580009" target="_blank" rel="noopener">ACM</a></td></tr>
+      <tr><td>2023</td><td>XLA-NDP</td><td>IEEE CAL</td><td>NDP/컴파일러</td><td>상</td><td>—</td></tr>
+      <tr><td>2023</td><td>Hetero ACiM Search</td><td>ICCAD</td><td>DSE/CIM</td><td>중</td><td>—</td></tr>
+      <tr><td>2023</td><td>PRIMO</td><td>ICCAD</td><td>PIM/시뮬</td><td>중</td><td>—</td></tr>
+      <tr><td>2024</td><td><strong>CXL NDP (MICRO Best Paper Track)</strong></td><td>MICRO</td><td>NDP/CXL</td><td>최우선</td><td><a href="https://arxiv.org/abs/2404.19381" target="_blank" rel="noopener">arXiv</a></td></tr>
+      <tr><td>2024</td><td>NavCim</td><td>PACT</td><td>DSE/CIM</td><td>상</td><td>—</td></tr>
+      <tr><td>2024</td><td>Non-Invasive NDP for DNN Training on GPUs</td><td>IEEE Access</td><td>NDP/GPU</td><td>중</td><td>—</td></tr>
+      <tr><td>2024</td><td>IMTP</td><td>arXiv</td><td>PIM/컴파일러</td><td>상</td><td><a href="https://arxiv.org/abs/2412.19630" target="_blank" rel="noopener">arXiv</a></td></tr>
+      <tr><td>2025</td><td><strong>ATiM</strong></td><td>ISCA</td><td>PIM/컴파일러</td><td>최우선</td><td>—</td></tr>
+      <tr><td>2025</td><td>HYPERF</td><td>HPDC</td><td>HPC/컴파일러</td><td>상</td><td>—</td></tr>
+      <tr><td>2026</td><td>FORTE</td><td>CGO</td><td>데이터/컴파일러</td><td>중</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h2>A.2 유민수 교수님 — 60+편</h2>
+  <details>
+    <summary>JPEG2000 / 박사 시기 — 8편 (2009-2015)</summary>
+    <table>
+      <tbody>
+        <tr><td>2009</td><td>Memory-less Bit-Plane Coder for JPEG2000</td><td>ICIP</td><td>—</td></tr>
+        <tr><td>2009</td><td>Dual-Symbol Binary Arithmetic Coder for JPEG2000</td><td>ICIP</td><td>—</td></tr>
+        <tr><td>2009</td><td>Trace-Pipelined Binary Arithmetic Coder</td><td>SiPS</td><td>—</td></tr>
+        <tr><td>2010</td><td>Optimization of Arithmetic Coding for JPEG2000</td><td>IEEE TCSVT</td><td>—</td></tr>
+        <tr><td>2012</td><td><strong>CAPRI</strong></td><td>ISCA</td><td>GPU/제어</td></tr>
+        <tr><td>2013</td><td><strong>Dual-Path Execution Model</strong></td><td>HPCA</td><td>GPU/제어</td></tr>
+        <tr><td>2013</td><td>SIMD Lane Permutation</td><td>ISCA</td><td>GPU/SIMD</td></tr>
+        <tr><td>2013</td><td><strong>Locality-Aware Memory Hierarchy</strong></td><td>MICRO</td><td>GPU/메모리</td></tr>
+        <tr><td>2014</td><td>GPUVolt</td><td>ISLPED</td><td>GPU/전력</td></tr>
+        <tr><td>2015</td><td>Priority-Based Cache Allocation</td><td>HPCA</td><td>GPU/캐시</td></tr>
+        <tr><td>2015</td><td>CLEAN-ECC</td><td>MICRO</td><td>메모리/ECC</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <details open>
+    <summary>NVIDIA · KAIST 초기 — 8편 (2016-2020)</summary>
+    <table>
+      <tbody>
+        <tr><td>2016</td><td><strong>vDNN</strong></td><td>MICRO</td><td>DL/메모리</td><td><a href="https://arxiv.org/abs/1602.08124" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2017</td><td><strong>SCNN</strong></td><td>ISCA</td><td>DL가속/Sparse</td><td><a href="https://dl.acm.org/doi/10.1145/3079856.3080254" target="_blank" rel="noopener">ACM</a></td></tr>
+        <tr><td>2017</td><td>Energy-Efficient DRAM for GPUs</td><td>HPCA</td><td>GPU/메모리</td><td>—</td></tr>
+        <tr><td>2017</td><td>GPUpd Multi-GPU</td><td>MICRO</td><td>GPU/멀티</td><td>—</td></tr>
+        <tr><td>2018</td><td><strong>cDMA</strong></td><td>HPCA</td><td>DL/메모리</td><td>—</td></tr>
+        <tr><td>2018</td><td><strong>Beyond the Memory Wall</strong></td><td>MICRO</td><td>DL/메모리</td><td>—</td></tr>
+        <tr><td>2018</td><td>Memory-Centric HPC for DNN</td><td>IEEE CAL</td><td>DL/메모리</td><td>—</td></tr>
+        <tr><td>2018</td><td>Accelerator-centric DL Systems</td><td>ASP-DAC</td><td>DL/시스템</td><td>—</td></tr>
+        <tr><td>2019</td><td><strong>TensorDIMM</strong></td><td>MICRO</td><td>NMP/추천</td><td><a href="https://dl.acm.org/doi/10.1145/3352460.3358284" target="_blank" rel="noopener">ACM</a></td></tr>
+        <tr><td>2019</td><td>Disaggregated Memory for DL</td><td>IEEE Micro</td><td>DL/메모리</td><td>—</td></tr>
+        <tr><td>2020</td><td><strong>Centaur</strong></td><td>ISCA</td><td>추천/가속</td><td>—</td></tr>
+        <tr><td>2020</td><td>NeuMMU</td><td>ASPLOS</td><td>NPU/MMU</td><td>—</td></tr>
+        <tr><td>2020</td><td>PREMA</td><td>HPCA</td><td>NPU/스케줄</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <details open>
+    <summary>KAIST 중기 — 14편 (2021-2023)</summary>
+    <table>
+      <tbody>
+        <tr><td>2021</td><td>TRiM</td><td>MICRO</td><td>NMP/Tensor</td></tr>
+        <tr><td>2021</td><td><strong>Tensor Casting</strong></td><td>HPCA</td><td>추천/가속</td></tr>
+        <tr><td>2021</td><td>LazyBatching</td><td>HPCA</td><td>ML서빙</td></tr>
+        <tr><td>2021</td><td>Trident GPU Side-channel</td><td>HPCA</td><td>GPU/보안</td></tr>
+        <tr><td>2021</td><td>3D Point Cloud DL 분석</td><td>IEEE CAL</td><td>DL/특성화</td></tr>
+        <tr><td>2021</td><td>NVM for GNN training</td><td>IEEE CAL</td><td>GNN/메모리</td></tr>
+        <tr><td>2022</td><td>DiVa</td><td>MICRO</td><td>DP/가속</td></tr>
+        <tr><td>2022</td><td>ARK FHE</td><td>MICRO</td><td>FHE/가속</td></tr>
+        <tr><td>2022</td><td>SmartSAGE</td><td>ISCA</td><td>GNN/스토리지</td></tr>
+        <tr><td>2022</td><td>Training from GPU Scratch</td><td>ISCA</td><td>추천/메모리</td></tr>
+        <tr><td>2022</td><td>BTS FHE</td><td>ISCA</td><td>FHE/가속</td></tr>
+        <tr><td>2022</td><td>PARIS/ELSA</td><td>DAC</td><td>ML서빙</td></tr>
+        <tr><td>2023</td><td>GROW</td><td>HPCA</td><td>GNN/가속</td></tr>
+        <tr><td>2023</td><td>HAMMER</td><td>IEEE CAL</td><td>Transformer/근사</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <details open>
+    <summary>2024 — 절정의 한 해 (10편)</summary>
+    <table>
+      <tbody>
+        <tr><td>2024</td><td><strong>uPIMulator (HPCA Best Paper)</strong></td><td>HPCA</td><td>PIM</td><td><a href="https://arxiv.org/abs/2308.00846" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2024</td><td><strong>Pre-gated MoE</strong></td><td>ISCA</td><td>MoE</td><td><a href="https://arxiv.org/abs/2308.12066" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2024</td><td>PreSto</td><td>ISCA</td><td>추천/스토리지</td><td>—</td></tr>
+        <tr><td>2024</td><td>ElasticRec</td><td>ISCA</td><td>추천/서빙</td><td>—</td></tr>
+        <tr><td>2024</td><td>LazyDP</td><td>ASPLOS</td><td>DP/추천</td><td>—</td></tr>
+        <tr><td>2024</td><td>GPU-based PIR</td><td>ASPLOS</td><td>프라이버시</td><td>—</td></tr>
+        <tr><td>2024</td><td><strong>vTrain</strong></td><td>MICRO</td><td>LLM/시뮬</td><td><a href="https://github.com/VIA-Research/vTrain" target="_blank" rel="noopener">code</a></td></tr>
+        <tr><td>2024</td><td>PIM-MMU</td><td>MICRO</td><td>PIM/MMU</td><td>—</td></tr>
+        <tr><td>2024</td><td>GPU NoC Characterization</td><td>MICRO</td><td>GPU/NoC</td><td>—</td></tr>
+        <tr><td>2024</td><td>FPGA Preprocessing for Recsys</td><td>IEEE CAL</td><td>추천/FPGA</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <details open>
+    <summary>2025 — 4편</summary>
+    <table>
+      <tbody>
+        <tr><td>2025</td><td><strong>Debunking the CUDA Myth (Gaudi)</strong></td><td>ISCA</td><td>NPU/평가</td><td><a href="https://arxiv.org/abs/2501.00210" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2025</td><td>Hera</td><td>PACT</td><td>추천/서빙</td><td>—</td></tr>
+        <tr><td>2025</td><td>Mamba-X</td><td>ICCAD</td><td>SSM/가속</td><td>—</td></tr>
+        <tr><td>2025</td><td>HSTU 분석</td><td>IEEE CAL</td><td>추천/특성화</td><td>—</td></tr>
+        <tr><td>2025</td><td>3DGS Pipeline 분석</td><td>IEEE CAL</td><td>3DGS/특성화</td><td>—</td></tr>
+        <tr><td>2024</td><td>Text-to-Image Diffusion 분석</td><td>IEEE CAL</td><td>DL/특성화</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <details open>
+    <summary>2026 — AI 에이전트의 해 (8편)</summary>
+    <table>
+      <tbody>
+        <tr><td>2026</td><td><strong>Cost of Dynamic Reasoning</strong></td><td>HPCA</td><td>AI agent</td><td><a href="https://arxiv.org/abs/2506.04301" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2026</td><td>PASCAL</td><td>HPCA</td><td>LLM/스케줄</td><td><a href="https://arxiv.org/abs/2602.11530" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2026</td><td>PIM-malloc</td><td>HPCA</td><td>PIM/메모리</td><td><a href="https://arxiv.org/abs/2505.13002" target="_blank" rel="noopener">arXiv</a></td></tr>
+        <tr><td>2026</td><td>Agent-X</td><td>MobiSys</td><td>모바일 에이전트</td><td>—</td></tr>
+        <tr><td>2026</td><td>SpecMoE</td><td>DAC</td><td>MoE/추론</td><td>—</td></tr>
+        <tr><td>2026</td><td>PREBA</td><td>DAC</td><td>GPU/MIG</td><td>—</td></tr>
+        <tr><td>2026</td><td>KV Cache Quantization MM-LLM</td><td>IEEE CAL</td><td>LLM/멀티모달</td><td>—</td></tr>
+        <tr><td>2026</td><td>ZipFlow</td><td>arXiv</td><td>GPU/컴파일러</td><td><a href="https://arxiv.org/abs/2602.08190" target="_blank" rel="noopener">arXiv</a></td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <div class="nav-ft">
+    <a data-go="cmp-4" href="#cmp-4">
+      <div class="label">이전</div><div class="ttl">← 3.4 구현 프로젝트</div>
+    </a>
+    <a class="next" data-go="apx-b" href="#apx-b">
+      <div class="label">다음</div><div class="ttl">부록 B · 용어 사전 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="apx-b">
+  <div class="crumb">부록 B</div>
+  <h1>주요 용어 사전</h1>
+  <p class="lead">두 분의 논문을 읽다 보면 만나는 용어들을 “시스템에서 실제로 무슨 일이 일어나는가”로 풀어 적었다.</p>
+
+  <h2>컴파일러 · 런타임</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>compiler pass</strong></td><td>컴파일러가 IR을 한 번 훑어 바꾸는 한 단계. LLVM에선 <code>FunctionPass</code>·<code>ModulePass</code> 등으로 구분. “loop unrolling pass” = loop을 펼치는 한 단계.</td></tr>
+      <tr><td><strong>IR (Intermediate Representation)</strong></td><td>컴파일러 내부에서 쓰는 중간 코드. LLVM IR · TVM Relay/TIR 등.</td></tr>
+      <tr><td><strong>runtime</strong></td><td>프로그램이 실행되는 동안 “옆에서” 도와주는 시스템. CUDA runtime, cuDNN runtime, TVM runtime.</td></tr>
+      <tr><td><strong>scheduler</strong></td><td>여러 작업의 실행 순서를 정하는 소프트웨어. OS scheduler, GPU scheduler, NPU scheduler.</td></tr>
+      <tr><td><strong>autotuning</strong></td><td>가능한 코드 변환 조합을 자동으로 시도해 가장 빠른 것을 찾는 과정. AutoTVM, Ansor.</td></tr>
+      <tr><td><strong>cost model</strong></td><td>“이 코드 변형이 얼마나 빠를지”를 예측하는 함수. ML 기반(MetaTune) 또는 분석 모델 기반.</td></tr>
+      <tr><td><strong>register allocation</strong></td><td>변수에게 CPU 레지스터를 배분하는 컴파일러 단계. 레지스터가 모자라면 “spill”되어 메모리로.</td></tr>
+      <tr><td><strong>OpenMP target</strong></td><td>OpenMP 4.5의 GPU offload 지시문. <code>#pragma omp target</code>으로 표기.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>메모리 · 캐시</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>memory hierarchy</strong></td><td>register → L1 → L2 → L3 → DRAM → SSD로 점점 “느리지만 큰” 메모리들이 쌓인 구조.</td></tr>
+      <tr><td><strong>cache coherence</strong></td><td>여러 코어가 같은 데이터를 자기 캐시에 들고 있을 때, “누가 최신인가”를 맞추는 약속. MESI/MOESI가 대표 프로토콜.</td></tr>
+      <tr><td><strong>self-invalidation</strong></td><td>다른 코어가 “내 캐시를 비우라”고 메시지를 보내는 대신, 자기 캐시를 자발적으로 비우는 방식. DeNovo의 핵심.</td></tr>
+      <tr><td><strong>NUMA</strong></td><td>Non-Uniform Memory Access. CPU에 따라 “가까운 메모리”와 “먼 메모리”가 다른 멀티소켓 구조.</td></tr>
+      <tr><td><strong>HBM</strong></td><td>High Bandwidth Memory. GPU 옆에 적층된 고대역폭 DRAM. 한 stack 당 ~1TB/s.</td></tr>
+      <tr><td><strong>DRAM bank</strong></td><td>DRAM 칩 내부의 분할된 단위. 동시 접근이 가능한 병렬 단위.</td></tr>
+      <tr><td><strong>memory wall</strong></td><td>“CPU 속도는 빠르게 증가하는데 메모리 대역폭은 그만큼 안 따라온다”는 고전 문제.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>GPU</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>SIMT</strong></td><td>Single Instruction Multiple Thread. GPU의 32-thread warp이 한 명령을 동시에 실행.</td></tr>
+      <tr><td><strong>warp</strong></td><td>32 thread 묶음. NVIDIA GPU의 SIMD 단위.</td></tr>
+      <tr><td><strong>CTA / thread block</strong></td><td>warp들의 묶음. 같은 SM 안에서 실행되며 shared memory를 공유.</td></tr>
+      <tr><td><strong>control divergence</strong></td><td>warp 안의 thread들이 if/else로 갈라져 SIMD 자원 일부가 노는 현상.</td></tr>
+      <tr><td><strong>memory divergence</strong></td><td>warp 안 thread들이 메모리 다른 곳을 읽어 coalesce가 안 되는 현상.</td></tr>
+      <tr><td><strong>tensor core</strong></td><td>NVIDIA Volta+ GPU의 행렬곱 전용 유닛. FP16/INT8 행렬곱을 한 cycle에.</td></tr>
+      <tr><td><strong>cuDNN</strong></td><td>NVIDIA의 DNN primitive 라이브러리. conv/relu/batchnorm 같은 layer 단위 GPU 커널 모음.</td></tr>
+      <tr><td><strong>warp specialization</strong></td><td>한 CTA 안의 warp들에게 다른 역할을 부여 (master/worker 등). OpenMP fork-join을 GPU에 떨어뜨릴 때 쓰임.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>가속기 · 시스템 레벨</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>accelerator</strong></td><td>특정 워크로드를 빠르게 처리하기 위한 전용 칩. NPU·TPU·SCNN·TensorDIMM 등.</td></tr>
+      <tr><td><strong>NPU</strong></td><td>Neural Processing Unit. 신경망용 가속기.</td></tr>
+      <tr><td><strong>chiplet</strong></td><td>한 패키지 안에 여러 개의 작은 다이를 묶은 구성. AMD MI300, Centaur가 예.</td></tr>
+      <tr><td><strong>PIM (Processing-in-Memory)</strong></td><td>메모리 칩 안에 작은 연산 유닛을 넣어 “데이터 옆에서” 계산. UPMEM이 대표 상용 사례.</td></tr>
+      <tr><td><strong>NDP (Near-Data Processing)</strong></td><td>PIM과 유사하지만 메모리 “옆”에 더 가까운 가속. NMP·NDP·CXL NDP 등.</td></tr>
+      <tr><td><strong>NMP (Near-Memory Processing)</strong></td><td>메모리 buffer/DIMM 컨트롤러 측에 작은 가속을 넣음. TensorDIMM이 예.</td></tr>
+      <tr><td><strong>CXL (Compute Express Link)</strong></td><td>CPU-가속기-메모리를 잇는 차세대 인터커넥트. 메모리 풀링과 NDP가 가능.</td></tr>
+      <tr><td><strong>co-design</strong></td><td>알고리즘과 하드웨어를 따로 설계하지 않고, 서로의 제약/기회를 보며 같이 설계.</td></tr>
+      <tr><td><strong>dataflow</strong></td><td>가속기에서 데이터가 PE 어레이를 어떻게 흐르는가의 구조. weight-stationary, output-stationary, row-stationary 등.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>측정 · 평가</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>throughput</strong></td><td>단위 시간당 처리량. “초당 몇 개 추론” 같은.</td></tr>
+      <tr><td><strong>latency</strong></td><td>한 요청이 들어와서 응답이 나가기까지의 시간.</td></tr>
+      <tr><td><strong>bandwidth</strong></td><td>단위 시간당 옮길 수 있는 데이터 양. GB/s.</td></tr>
+      <tr><td><strong>profiling</strong></td><td>실행 중에 “어디가 얼마나 시간을 쓰는가”를 측정. nvprof, Nsight, perf 등.</td></tr>
+      <tr><td><strong>benchmark</strong></td><td>비교 가능한 표준 워크로드. SPEC CPU, MLPerf 등.</td></tr>
+      <tr><td><strong>SLA (Service-Level Agreement)</strong></td><td>“이 서비스는 99% 요청이 100ms 안에 응답”이라는 약속. ML 서빙 스케줄링의 제약.</td></tr>
+      <tr><td><strong>cycle accurate simulator</strong></td><td>하드웨어를 cycle 단위까지 정확히 흉내내는 시뮬. gem5, GPGPU-Sim, uPIMulator.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>병렬·동기화·OS·분산</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>data race</strong></td><td>두 thread가 동기화 없이 같은 데이터를 동시에 접근(하나는 쓰기). 결과가 비결정적.</td></tr>
+      <tr><td><strong>synchronization</strong></td><td>thread/process가 “어디까지 진행했는가”를 맞추는 메커니즘. lock, atomic, barrier.</td></tr>
+      <tr><td><strong>consistency model</strong></td><td>“메모리 쓰기가 다른 thread에게 어떤 순서로 보이는가”의 약속. SC, TSO, PSO, Release 등.</td></tr>
+      <tr><td><strong>region / effect</strong></td><td>“이 메서드는 어느 영역(region)을 어떻게 다루는가(effect)”를 명시하는 PL 개념. DPJ의 핵심.</td></tr>
+      <tr><td><strong>virtualization</strong></td><td>하나의 자원을 여러 사용자에게 “각자 전용처럼” 보이게 하는 추상화. vDNN의 “virtualized DNN”도 이 의미.</td></tr>
+      <tr><td><strong>storage stack</strong></td><td>응용 → 파일시스템 → 블록 → SSD 컨트롤러 → flash까지의 레이어 묶음.</td></tr>
+      <tr><td><strong>distributed system</strong></td><td>여러 머신으로 나뉘어 돌아가는 시스템. LLM 학습의 TP/DP/PP/EP가 분산 구성의 예.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>AI 시스템 특화</h2>
+  <table>
+    <thead><tr><th>용어</th><th>풀이</th></tr></thead>
+    <tbody>
+      <tr><td><strong>KV cache</strong></td><td>LLM 추론 시 attention의 Key/Value를 저장해 재사용하는 캐시. 길어질수록 메모리를 많이 먹음.</td></tr>
+      <tr><td><strong>MoE (Mixture of Experts)</strong></td><td>여러 “expert” 네트워크 중 일부만 켜는 구조. 학습/추론 시 expert 선택이 동적.</td></tr>
+      <tr><td><strong>speculative decoding</strong></td><td>작은 모델로 미리 토큰을 “추측”하고, 큰 모델로 검증해 가속.</td></tr>
+      <tr><td><strong>FHE (Fully Homomorphic Encryption)</strong></td><td>암호화된 채로 연산이 가능한 암호. 100~10,000배 느려짐. BTS/ARK가 대표 가속기.</td></tr>
+      <tr><td><strong>DP-SGD</strong></td><td>Differentially Private SGD. 학습 gradient에 노이즈를 더해 프라이버시 보장.</td></tr>
+      <tr><td><strong>embedding</strong></td><td>희소 카테고리(상품 ID, 단어)를 dense 벡터로 표현. 추천시스템의 핵심 자료구조.</td></tr>
+      <tr><td><strong>test-time scaling</strong></td><td>같은 모델로 “생각 시간을 더 들여서” 정확도를 올리는 방식. reasoning LLM의 핵심.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="nav-ft">
+    <a data-go="apx-a" href="#apx-a">
+      <div class="label">이전</div><div class="ttl">← 부록 A · 전체 논문 목록</div>
+    </a>
+    <a class="next" data-go="apx-c" href="#apx-c">
+      <div class="label">다음</div><div class="ttl">부록 C · 선수 과목 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="apx-c">
+  <div class="crumb">부록 C</div>
+  <h1>선수 과목 지도</h1>
+  <p class="lead">두 분의 논문을 따라 읽으려면 어느 과목을 어디까지 알아야 하는지를 “읽고 싶은 논문” 단위로 묶어 정리한다.</p>
+
+  <h2>C.1 컴퓨터구조</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>두 분의 논문 거의 전부에 해당. 캐시·메모리 계층·CPU 파이프라인을 모르면 “병목”이라는 단어 자체가 추상적이다.</p>
+    <h3>최소로 알아야 할 개념</h3>
+    <ul>
+      <li>5단계 파이프라인 · branch prediction</li>
+      <li>L1/L2/L3 캐시 · MESI/MOESI</li>
+      <li>가상 메모리 · TLB · page table</li>
+      <li>DRAM bank · row buffer · refresh</li>
+      <li>Amdahl/Gustafson 법칙</li>
+    </ul>
+    <h3>이 과목이 절실한 논문</h3>
+    <p>DeNovo 시리즈, NeuMMU, Locality-Aware Memory Hierarchy, CLEAN-ECC, GPU NoC Characterization.</p>
+    <h3>추천 교재 / 강의</h3>
+    <ul>
+      <li>Hennessy &amp; Patterson, <em>Computer Architecture: A Quantitative Approach</em> (6판)</li>
+      <li>Patterson &amp; Hennessy, <em>Computer Organization and Design</em></li>
+      <li>CMU 15-740/418 (Onur Mutlu, Carnegie Mellon)</li>
+    </ul>
+  </div>
+
+  <h2>C.2 운영체제</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>NPU MMU, PIM-malloc, 스케줄링 논문은 OS 추상화를 그대로 가져온다. 가상메모리·프로세스·스레드·드라이버를 모르면 못 따라간다.</p>
+    <h3>최소로 알아야 할 개념</h3>
+    <ul>
+      <li>프로세스 vs 스레드, context switch</li>
+      <li>가상메모리 · page fault · COW</li>
+      <li>scheduler — round robin, CFS, priority</li>
+      <li>I/O · DMA · 인터럽트</li>
+    </ul>
+    <h3>이 과목이 절실한 논문</h3>
+    <p>NeuMMU, PREMA, LazyBatching, PIM-MMU, PIM-malloc, ElasticRec, Hera.</p>
+    <h3>추천</h3>
+    <ul>
+      <li>Bryant &amp; O'Hallaron, <em>Computer Systems: A Programmer's Perspective</em> (CSAPP)</li>
+      <li>Operating Systems: Three Easy Pieces (OSTEP) — 무료 PDF</li>
+    </ul>
+  </div>
+
+  <h2>C.3 컴파일러</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>성효진 교수님 작업의 절반 이상이 컴파일러 패스. LLVM/TVM 빌드 경험이 곧 컨택 메일의 강도를 결정한다.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>lexing, parsing, AST, IR</li>
+      <li>SSA · use-def chain</li>
+      <li>data-flow analysis (liveness, available expression)</li>
+      <li>register allocation (graph coloring, linear scan)</li>
+      <li>loop transformations (unroll, tile, fusion)</li>
+    </ul>
+    <h3>이 과목이 절실한 논문</h3>
+    <p>모든 OpenMP-on-GPU 시리즈, PIMFlow, ATiM, One-Shot Tuner, Greedy-SO, MetaTune, ZipFlow, FORTE.</p>
+    <h3>추천</h3>
+    <ul>
+      <li>Aho/Sethi/Ullman, <em>Compilers: Principles, Techniques, and Tools</em> (Dragon Book)</li>
+      <li>LLVM Tutorial — <a href="https://llvm.org/docs/tutorial/" target="_blank" rel="noopener">llvm.org/docs/tutorial</a></li>
+      <li>TVM Documentation — <a href="https://tvm.apache.org/docs/" target="_blank" rel="noopener">tvm.apache.org/docs</a></li>
+    </ul>
+  </div>
+
+  <h2>C.4 프로그래밍 언어 / 타입시스템</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>DPJ 같은 type-and-effect 시스템을 이해하려면 PL의 기초가 필요. 본격적인 PL 연구를 안 하더라도 “region/effect/ownership” 같은 용어가 자유롭게 쓰이는 영역.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>type system 기초 (System F, subtyping)</li>
+      <li>effect system, region-based memory</li>
+      <li>operational semantics</li>
+    </ul>
+    <h3>추천</h3>
+    <ul>
+      <li>Pierce, <em>Types and Programming Languages</em> (TAPL)</li>
+      <li>Cornell CS 4110 / CMU 15-312</li>
+    </ul>
+  </div>
+
+  <h2>C.5 병렬·분산 컴퓨팅</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>OpenMP, MPI, CUDA를 손에 잡지 않으면 두 분의 “병렬” 논문 절반 이상이 흐릿하게 보인다.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>OpenMP <code>parallel for</code>, <code>target</code>, <code>map</code></li>
+      <li>CUDA grid/block/thread, shared memory, warp</li>
+      <li>MPI send/recv, allreduce</li>
+      <li>병렬화 패턴: TP, DP, PP, EP</li>
+    </ul>
+    <h3>이 과목이 절실한 논문</h3>
+    <p>OpenMP-on-GPU 시리즈, GPU 마이크로아키텍처 논문, vTrain, Pre-gated MoE, PASCAL.</p>
+    <h3>추천</h3>
+    <ul>
+      <li>Hwu et al., <em>Programming Massively Parallel Processors (PMPP)</em> 4판</li>
+      <li>CUDA C++ Programming Guide</li>
+    </ul>
+  </div>
+
+  <h2>C.6 데이터베이스 · 스토리지</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>SmartSAGE, PreSto, FORTE처럼 “스토리지 측 처리”와 “DataFrame 컴파일” 라인을 따라가려면.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>B-tree, LSM-tree</li>
+      <li>SSD 내부 (FTL, GC)</li>
+      <li>DataFrame / 관계형 쿼리 옵티마이저</li>
+    </ul>
+    <h3>추천</h3>
+    <ul>
+      <li>Database System Concepts (Korth)</li>
+      <li>CMU 15-721 (Andy Pavlo)</li>
+    </ul>
+  </div>
+
+  <h2>C.7 GPU 프로그래밍</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>두 분 모두 GPU와 관련된 작업이 가장 많다. CUDA 손코딩 경험은 거의 모든 토론에서 “기본기”로 가정된다.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>CUDA C 기본 (커널, 메모리, stream)</li>
+      <li>shared memory, warp shuffle, atomic</li>
+      <li>cuBLAS · cuDNN 호출 경험</li>
+      <li>Triton 또는 CUTLASS</li>
+    </ul>
+    <h3>추천</h3>
+    <ul>
+      <li>NVIDIA CUDA C++ Programming Guide</li>
+      <li>Triton Tutorials — <a href="https://triton-lang.org/" target="_blank" rel="noopener">triton-lang.org</a></li>
+      <li>FlashAttention 논문/코드 (Tri Dao)</li>
+    </ul>
+  </div>
+
+  <h2>C.8 머신러닝 시스템</h2>
+  <div class="card">
+    <h3>왜 필요한가</h3>
+    <p>두 분의 최근 작업은 모두 ML 시스템이다. PyTorch internals, vLLM, FlashAttention, DeepSpeed의 “이름”을 들어본 정도가 아니라 “구조”를 안다는 게 중요하다.</p>
+    <h3>최소</h3>
+    <ul>
+      <li>PyTorch — autograd, hook, custom autograd</li>
+      <li>distributed training (DDP, FSDP, DeepSpeed ZeRO)</li>
+      <li>LLM serving (vLLM, paged attention, continuous batching)</li>
+      <li>quantization (INT8, FP8, AWQ, GPTQ)</li>
+    </ul>
+    <h3>추천</h3>
+    <ul>
+      <li>CMU 15-442 / Stanford CS 229S (ML Systems 강의들)</li>
+      <li>vLLM Documentation — <a href="https://docs.vllm.ai/" target="_blank" rel="noopener">docs.vllm.ai</a></li>
+      <li>DeepSpeed papers (ZeRO, ZeRO-Offload, ZeRO-Infinity)</li>
+    </ul>
+  </div>
+
+  <h2>학습 우선순위 추천</h2>
+  <ol>
+    <li>컴퓨터구조 → CSAPP → CUDA → 컴파일러 (이 순서가 가장 보편)</li>
+    <li>그 다음 ML 시스템과 PIM/CXL을 “현장 이슈”로 따라가며 배움</li>
+    <li>대학원 컨택 직전에 “시뮬레이터 빌드 1회”로 전체 그림을 마무리</li>
+  </ol>
+
+  <div class="nav-ft">
+    <a data-go="apx-b" href="#apx-b">
+      <div class="label">이전</div><div class="ttl">← 부록 B · 용어 사전</div>
+    </a>
+    <a class="next" data-go="apx-d" href="#apx-d">
+      <div class="label">다음</div><div class="ttl">부록 D · 출처와 한계 →</div>
+    </a>
+  </div>
+</section>
+<section class="chapter" id="apx-d">
+  <div class="crumb">부록 D</div>
+  <h1>출처와 한계</h1>
+  <p class="lead">이 문서가 어떤 자료를 어떻게 썼고, 무엇을 못 봤고, 무엇을 추정으로 표시했는지 한 곳에 모은다. 학술 문서의 정직함은 “모르는 걸 모른다고 말하는 곳”에서 나온다.</p>
+
+  <h2>D.1 1차 자료 — 성효진 교수님</h2>
+  <h3>공식 페이지</h3>
+  <ul>
+    <li>SNU 개인 — <a href="https://hsung.snu.ac.kr/" target="_blank" rel="noopener">hsung.snu.ac.kr</a></li>
+    <li>SNU CODE Lab — <a href="https://codelab.snu.ac.kr/" target="_blank" rel="noopener">codelab.snu.ac.kr</a></li>
+    <li>POSTECH 구버전 — <a href="https://hsung.postech.ac.kr/" target="_blank" rel="noopener">hsung.postech.ac.kr</a></li>
+    <li>POSTECH CV (2022.04) — <a href="http://hsung.postech.ac.kr/wp-content/uploads/2022/05/cv_hyojin_sung_apr22.pdf" target="_blank" rel="noopener">PDF</a></li>
+  </ul>
+  <h3>학술 프로필</h3>
+  <ul>
+    <li>DBLP — <a href="https://dblp.org/pid/37/7474.html" target="_blank" rel="noopener">dblp.org/pid/37/7474</a></li>
+    <li>Google Scholar — <a href="https://scholar.google.com/citations?user=lxBD94AAAAAJ" target="_blank" rel="noopener">Scholar</a></li>
+    <li>ACM DL — <a href="https://dl.acm.org/profile/81444596778" target="_blank" rel="noopener">ACM</a></li>
+    <li>IEEE Xplore — <a href="https://ieeexplore.ieee.org/author/38237507800" target="_blank" rel="noopener">IEEE</a></li>
+  </ul>
+  <h3>박사 시기 / DeNovo</h3>
+  <ul>
+    <li>Sarita Adve UIUC — <a href="https://ece.illinois.edu/about/directory/faculty/sadve" target="_blank" rel="noopener">faculty page</a></li>
+    <li>DeNovo 프로젝트 (RSim) — <a href="http://rsim.cs.uiuc.edu/denovo/" target="_blank" rel="noopener">denovo</a></li>
+  </ul>
+  <h3>주요 코드 / 리포지토리</h3>
+  <ul>
+    <li>PIMFlow — <a href="https://github.com/yongwonshin/PIMFlow" target="_blank" rel="noopener">github</a></li>
+    <li>NavCim — <a href="https://github.com/wntjd9805/navcim" target="_blank" rel="noopener">github</a></li>
+    <li>Hetero-NeuroSim — <a href="https://github.com/wntjd9805/hetero-neurosim-search" target="_blank" rel="noopener">github</a></li>
+    <li>One-Shot Tuner artifact — <a href="https://doi.org/10.5281/zenodo.6337971" target="_blank" rel="noopener">Zenodo</a></li>
+    <li>ParKD (UIUC) — <a href="https://github.com/bchoi/ParKD" target="_blank" rel="noopener">github</a></li>
+  </ul>
+
+  <h2>D.2 1차 자료 — 유민수 교수님</h2>
+  <h3>공식 페이지</h3>
+  <ul>
+    <li>VIA Research Group — <a href="https://sites.google.com/view/kaist-via" target="_blank" rel="noopener">sites.google.com/view/kaist-via</a></li>
+    <li>VIA Publications — <a href="https://sites.google.com/view/kaist-via/publications" target="_blank" rel="noopener">publications</a></li>
+    <li>VIA People — <a href="https://sites.google.com/view/kaist-via/people" target="_blank" rel="noopener">people</a></li>
+    <li>개인 홈페이지 — <a href="https://minsoorhu.github.io/" target="_blank" rel="noopener">minsoorhu.github.io</a></li>
+    <li>KAIST EE 프로필 — <a href="https://ee.kaist.ac.kr/en/professor/16046/" target="_blank" rel="noopener">ee.kaist</a></li>
+    <li>KAIST Pure — <a href="https://pure.kaist.ac.kr/en/persons/minsoo-rhu/" target="_blank" rel="noopener">pure.kaist</a></li>
+    <li>NVIDIA Research 구프로필 — <a href="https://research.nvidia.com/person/minsoo-rhu" target="_blank" rel="noopener">research.nvidia.com</a></li>
+  </ul>
+  <h3>학술 프로필</h3>
+  <ul>
+    <li>DBLP — <a href="https://dblp.org/pid/02/8105.html" target="_blank" rel="noopener">dblp.org/pid/02/8105</a></li>
+    <li>Google Scholar — <a href="https://scholar.google.com/citations?user=u_3ShigAAAAJ" target="_blank" rel="noopener">Scholar</a></li>
+    <li>Semantic Scholar — <a href="https://www.semanticscholar.org/author/Minsoo-Rhu/1998820" target="_blank" rel="noopener">Semantic Scholar</a></li>
+  </ul>
+  <h3>코드</h3>
+  <ul>
+    <li>VIA Research GitHub — <a href="https://github.com/VIA-Research" target="_blank" rel="noopener">github.com/VIA-Research</a></li>
+    <li>uPIMulator — <a href="https://github.com/VIA-Research/uPIMulator" target="_blank" rel="noopener">github</a></li>
+    <li>vTrain — <a href="https://github.com/VIA-Research/vTrain" target="_blank" rel="noopener">github</a></li>
+  </ul>
+  <h3>KAIST EE 보도자료</h3>
+  <ul>
+    <li>vTrain — <a href="https://ee.kaist.ac.kr/en/research-achieve/ee-professor-minsoo-rhus-research-team-develops-a-simulation-framework-called-vtrain/" target="_blank" rel="noopener">link</a></li>
+    <li>HPCA Best Paper — <a href="https://ee.kaist.ac.kr/en/research-achieve/professor-rhu-minsoos-team-wins-the-best-paper-award-at-the-international-symposium-on-high-performance-computer-architecture-hpca/" target="_blank" rel="noopener">link</a></li>
+    <li>ISCA Hall of Fame — <a href="https://ee.kaist.ac.kr/en/research-achieve/professor-minsoo-rhu-has-been-inducted-into-the-hall-of-fame-of-the-ieee-acm-international-symposium-on-computer-architecture-isca-2024/" target="_blank" rel="noopener">link</a></li>
+    <li>SW Star Lab — <a href="https://ee.kaist.ac.kr/en/research-achieve/professor-minsoo-rhus-research-lab-has-been-selected-for-the-2024-sw-star-lab-project-under-the-information-and-communication-broadcasting-technology-development-program/" target="_blank" rel="noopener">link</a></li>
+  </ul>
+
+  <h2>D.3 학회 / 데이터베이스</h2>
+  <ul>
+    <li>DBLP — <a href="https://dblp.org/" target="_blank" rel="noopener">dblp.org</a></li>
+    <li>Google Scholar — <a href="https://scholar.google.com/" target="_blank" rel="noopener">scholar.google.com</a></li>
+    <li>arXiv (cs.AR / cs.DC / cs.PL) — <a href="https://arxiv.org/list/cs.AR/recent" target="_blank" rel="noopener">arxiv.org</a></li>
+    <li>ACM DL — <a href="https://dl.acm.org/" target="_blank" rel="noopener">dl.acm.org</a></li>
+    <li>IEEE Xplore — <a href="https://ieeexplore.ieee.org/" target="_blank" rel="noopener">ieeexplore.ieee.org</a></li>
+  </ul>
+
+  <h2>D.4 분야 입문용 외부 자료</h2>
+  <ul>
+    <li>Hennessy &amp; Patterson, <em>Computer Architecture: A Quantitative Approach</em> (6판)</li>
+    <li>Patterson &amp; Hennessy, <em>Computer Organization and Design</em></li>
+    <li>Aho/Sethi/Ullman, <em>Compilers: Principles, Techniques, and Tools</em></li>
+    <li>Bryant &amp; O'Hallaron, <em>Computer Systems: A Programmer's Perspective</em></li>
+    <li>Hwu et al., <em>Programming Massively Parallel Processors</em></li>
+    <li>LLVM Tutorial — <a href="https://llvm.org/docs/tutorial/" target="_blank" rel="noopener">llvm.org/docs/tutorial</a></li>
+    <li>TVM Documentation — <a href="https://tvm.apache.org/docs/" target="_blank" rel="noopener">tvm.apache.org/docs</a></li>
+    <li>CUDA C++ Programming Guide — <a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/" target="_blank" rel="noopener">docs.nvidia.com</a></li>
+    <li>Triton — <a href="https://triton-lang.org/" target="_blank" rel="noopener">triton-lang.org</a></li>
+    <li>vLLM Documentation — <a href="https://docs.vllm.ai/" target="_blank" rel="noopener">docs.vllm.ai</a></li>
+    <li>UPMEM SDK — <a href="https://sdk.upmem.com/" target="_blank" rel="noopener">sdk.upmem.com</a></li>
+  </ul>
+
+  <h2>D.5 자료의 한계 · 주의사항</h2>
+  <div class="card">
+    <h3>1. 성효진 교수님의 현재 소속 정정</h3>
+    <p>이 문서를 의뢰받았을 때 “연세대학교 컴퓨터과학과”로 적혀 있었으나, 1차 자료(개인 홈페이지·DBLP·SNU CODE Lab·2025-2026 논문 affiliation) 모두 <strong>SNU 데이터사이언스대학원 부교수</strong>로 일치한다. 본 문서는 SNU를 사실로 채택했다. POSTECH → SNU 이직 시점은 정확히 명시된 자료가 없어 2024년 전후로 추정.</p>
+  </div>
+  <div class="card">
+    <h3>2. 동명이인 처리</h3>
+    <p>같은 한국어 이름을 가진 다른 분야 연구자(의학·사회학 등)의 논문은 모두 제외했다. 검증 키는 (a) 소속(SNU GSDS / IBM TJ Watson · KAIST EE / NVIDIA Research), (b) 분야(systems/architecture), (c) 공저자 네트워크(Sarita Adve/Mattan Erez 라인).</p>
+  </div>
+  <div class="card">
+    <h3>3. 인용·h-index 수치</h3>
+    <p>Google Scholar 기준 2026-04 캡처. 매월 변동.</p>
+  </div>
+  <div class="card">
+    <h3>4. 2026년 논문</h3>
+    <p>일부는 학회 일정상 venue/date가 변경 가능. 본 문서에선 arXiv·VIA 그룹 페이지에 명시된 venue를 그대로 사용했다.</p>
+  </div>
+  <div class="card">
+    <h3>5. 닫힌 저장소</h3>
+    <p>IBM 내부 도구(XLFLANG, CogR 일부)와 NVIDIA Research 산하 시스템(SCNN, vDNN의 NVIDIA 내부 코드)은 공개되지 않으므로, 학생이 재구현하려면 논문만 보고 reimplement해야 한다.</p>
+  </div>
+  <div class="card">
+    <h3>6. “추정” 표시 원칙</h3>
+    <p>본문에서 향후 연구 방향을 “명시 자료 / 흐름상 자연스러운 추정”으로 분리한 부분은 모두 <span class="pill">추정</span> 라벨을 붙였다. 본인 발언이 아닌 부분은 모두 본 편찬자의 추정.</p>
+  </div>
+  <div class="card">
+    <h3>7. 다른 그룹의 작업과의 혼동 주의</h3>
+    <ul>
+      <li><strong>DeepRecSys (ISCA 2020)</strong> — Harvard/Facebook (Udit Gupta 등). KAIST VIA 작업 아님.</li>
+      <li><strong>RecPipe (MICRO 2021)</strong> — Harvard/Facebook 작업. KAIST 작업 아님.</li>
+      <li><strong>GradPIM (HPCA 2021)</strong> — 서울대 이진호 그룹. KAIST 작업 아님.</li>
+    </ul>
+    <p>유 교수님 그룹의 추천/PIM 라인이 위 작업들과 동일한 문제 영역을 다루므로 혼동 가능. 본 문서에선 모두 명확히 구분했다.</p>
+  </div>
+
+  <h2>D.6 데이터 파일 (별첨)</h2>
+  <ul>
+    <li><code>data/papers.csv</code> — 두 분 논문 메타데이터 표</li>
+    <li><code>data/projects.csv</code> — 시스템/프로젝트 표</li>
+    <li><code>data/sources.md</code> — 1차 자료 URL 모음</li>
+  </ul>
+  <p class="aside">이 HTML이 단일 정적 페이지로 작동하도록 모든 본문 콘텐츠는 페이지 안에 인라인되어 있다. 별첨 파일들은 “표 형식 원본”이 필요할 때 참고용이며, HTML을 보는 데는 필요 없다.</p>
+
+  <h2>맺음말</h2>
+  <p>한 사람의 연구를 잘 읽었다는 것의 가장 정직한 증거는, 그 사람의 “다음 논문 제목”을 미리 짐작할 수 있게 되는 것이다. 이 문서를 다 읽은 사람이 두 분의 다음 논문 제목을 절반쯤 맞출 수 있다면, 이 책의 일은 끝난 것이다.</p>
+  <p>그리고 한 가지 — 이 문서는 두 분에 대한 평가가 아니라 두 분의 작업을 따라가기 위한 지도다. 실제 연구는 이 지도 너머에서 시작된다. 좋은 여행이 되길.</p>
+
+  <div class="nav-ft">
+    <a data-go="apx-c" href="#apx-c">
+      <div class="label">이전</div><div class="ttl">← 부록 C · 선수 과목</div>
+    </a>
+    <a class="next" data-go="cover" href="#cover">
+      <div class="label">처음으로</div><div class="ttl">↑ 표지로</div>
+    </a>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(function(){
+  // 라우팅: hash 기반 단순 토글
+  var links = document.querySelectorAll("aside ol.toc a");
+  var sections = document.querySelectorAll("main .chapter");
+
+  function show(id){
+    if (!id) id = "cover";
+    var found = false;
+    sections.forEach(function(s){
+      if (s.id === id){ s.classList.add("active"); found = true; }
+      else s.classList.remove("active");
+    });
+    if (!found){
+      // 못 찾으면 표지로
+      document.getElementById("cover").classList.add("active");
+      id = "cover";
+    }
+    links.forEach(function(a){
+      if (a.getAttribute("data-target") === id) a.classList.add("active");
+      else a.classList.remove("active");
+    });
+    // 콘텐츠 영역 맨 위로
+    var main = document.querySelector("main.content");
+    if (main) main.scrollTop = 0;
+    window.scrollTo(0,0);
+    document.title = (function(){
+      var current = document.querySelector("aside ol.toc a.active");
+      return (current ? current.textContent.trim() + " · " : "") + "성효진 · 유민수 연구 세계 입문";
+    })();
+  }
+
+  // 사이드바 클릭 처리
+  links.forEach(function(a){
+    a.addEventListener("click", function(e){
+      e.preventDefault();
+      var t = a.getAttribute("data-target");
+      if (history.pushState) history.pushState(null,"","#"+t);
+      show(t);
+    });
+  });
+  // 본문 안의 챕터 이동 버튼 (data-go)
+  document.body.addEventListener("click", function(e){
+    var a = e.target.closest("a[data-go]");
+    if (!a) return;
+    e.preventDefault();
+    var t = a.getAttribute("data-go");
+    if (history.pushState) history.pushState(null,"","#"+t);
+    show(t);
+  });
+  // hash 변경 시
+  window.addEventListener("hashchange", function(){
+    var h = location.hash.replace("#","");
+    show(h);
+  });
+  // 최초 로드
+  var initial = location.hash.replace("#","");
+  show(initial || "cover");
+
+  // 다크 모드 토글
+  var btn = document.getElementById("theme-toggle");
+  var stored = (function(){ try { return localStorage.getItem("twoprof-theme"); } catch(e){ return null; }})();
+  if (stored === "dark") document.documentElement.classList.add("dark");
+  function setBtn(){
+    btn.textContent = document.documentElement.classList.contains("dark") ? "🌞 라이트" : "🌗 다크";
+  }
+  setBtn();
+  btn.addEventListener("click", function(){
+    document.documentElement.classList.toggle("dark");
+    try { localStorage.setItem("twoprof-theme", document.documentElement.classList.contains("dark") ? "dark" : "light"); } catch(e){}
+    setBtn();
+  });
+
+  // 랜덤 챕터
+  document.getElementById("random-pick").addEventListener("click", function(){
+    var ids = Array.from(sections).map(function(s){return s.id;}).filter(function(i){return i!=="cover";});
+    var pick = ids[Math.floor(Math.random()*ids.length)];
+    if (history.pushState) history.pushState(null,"","#"+pick);
+    show(pick);
+  });
+})();
+</script>
+</body>
+</html>

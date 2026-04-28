@@ -1,0 +1,371 @@
+<article id="ch18" class="chapter" data-part="IV">
+  <header class="ch-header">
+    <p class="part-label">PART IV — 확률</p>
+    <h2 class="ch-title">
+      <span class="ch-num">18</span>
+      <span class="ch-kr">조건부 확률</span>
+      <span class="ch-en">Conditional Probability</span>
+    </h2>
+    <p class="ch-intro">
+      정보가 추가되면 확률이 바뀝니다. 어제까지 비올 확률 30%였던 하늘이 먹구름을 보이는 순간 80%가 되는 것처럼요.
+      이 챕터에서는 "어떤 사건이 이미 일어났다는 정보"를 받았을 때 확률이 어떻게 갱신되는지를 다루는 도구,
+      <em>조건부 확률</em>을 배웁니다. 정의는 한 줄이지만 이걸 잘못 다루면 멀쩡한 사람도 몬티홀 문제 앞에서 무너지죠.
+      트리 다이어그램, 전확률 법칙, 베이즈 정리, 그리고 직관을 박살내는 심슨의 역설까지 가봅시다.
+    </p>
+  </header>
+
+  <section id="ch18-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.1</span>
+      <span class="sec-kr">몬티홀의 혼란</span>
+      <span class="sec-en">Monty Hall Confusion</span>
+    </h3>
+    <p>
+      문 셋 중 하나 뒤에는 자동차가, 나머지 둘 뒤에는 염소가 있습니다. 참가자가 한 문을 고르면, 정답을 아는 사회자 몬티가
+      나머지 두 문 중 <em>염소가 있는 문</em> 하나를 열어 보여줍니다. 그리고 묻습니다. "바꾸시겠어요?" 직관은
+      "둘 중 하나니까 50:50, 바꾸나 안 바꾸나 똑같다"고 말합니다. 그런데 이게 틀렸어요. 바꾸면 \( 2/3 \), 안 바꾸면 \( 1/3 \) 입니다.
+    </p>
+    <p>
+      왜 직관이 무너질까요? 몬티가 문을 여는 행동이 <strong>정보</strong>를 뿌리기 때문입니다. 그는 무작위로 문을 열지 않고,
+      "염소가 있고, 참가자가 고르지 않은" 문을 골라서 엽니다. 이 조건이 확률 분포를 비대칭으로 휘게 만들어요.
+      14장에서 이미 이 문제를 한 번 풀었지만, 그땐 표본공간을 직접 펼쳐서 셌습니다. 이번엔 더 강력한 도구로 봅니다.
+    </p>
+    <div class="callout note">
+      <p class="callout-label">노트 18.1.1</p>
+      <p>
+        조건부 확률의 핵심 질문은 "B가 일어났다는 사실을 알았을 때, A의 확률은?"입니다.
+        "그냥 A의 확률"과는 다른 양이에요. 정보가 들어오면 표본공간이 사실상 좁아지고, 그 좁아진 세계 안에서
+        다시 비율을 재는 거예요.
+      </p>
+    </div>
+    <p>
+      몬티홀에서 "바꿨을 때 자동차를 얻을 확률"은 결국 "참가자가 처음에 염소를 골랐을 확률"과 같습니다. 처음 추측이
+      틀릴 확률 \( 2/3 \) 가 그대로 정답률로 돌아오는 거예요. 이 챕터를 마칠 즈음에는 이 한 줄이 자연스럽게
+      들리길 바랍니다.
+    </p>
+  </section>
+
+  <section id="ch18-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.2</span>
+      <span class="sec-kr">정의와 표기</span>
+      <span class="sec-en">Definition and Notation</span>
+    </h3>
+    <p>
+      조건부 확률은 표기법부터 익숙해지면 좋아요. \( P(A \mid B) \) 는 "B가 일어났다는 가정 하에서 A의 확률"이고,
+      읽을 땐 "P of A given B"라고 합니다. 정의는 다음과 같습니다.
+    </p>
+    <div class="callout def">
+      <p class="callout-label">정의 18.2.1 (조건부 확률)</p>
+      <p>
+        표본공간 \( \Omega \) 위의 확률측도 \( P \) 와 \( P(B) &gt; 0 \) 인 사건 \( B \) 가 주어졌을 때,
+      </p>
+      <p>
+        \[ P(A \mid B) \;=\; \frac{P(A \cap B)}{P(B)}. \]
+      </p>
+      <p>
+        \( P(B) = 0 \) 일 때는 정의되지 않습니다.
+      </p>
+    </div>
+    <p>
+      식의 모양을 직관적으로 풀어볼게요. 분모 \( P(B) \) 가 새로운 표본공간(B 안에서 다시 비율을 재겠다는 의미)이고,
+      분자 \( P(A \cap B) \) 가 그 안에서 A도 함께 일어나는 부분의 크기입니다. B를 새 1로 두고 거기서 A가 차지하는
+      비율을 다시 계산하는 셈이에요.
+    </p>
+    <div class="callout example">
+      <p class="callout-label">예제 18.2.2 (주사위 두 개)</p>
+      <p>
+        공정한 주사위 두 개를 굴립니다. \( A \) = "합이 7", \( B \) = "첫 번째가 짝수"라 하면
+        \( P(A) = 6/36 = 1/6 \), \( P(B) = 1/2 \), \( P(A \cap B) = 3/36 = 1/12 \) 입니다.
+        따라서 \( P(A \mid B) = (1/12) / (1/2) = 1/6 \). 신기하게도 정보가 추가됐는데 확률이 안 바뀌었어요.
+        이런 경우 두 사건은 <em>독립</em>이라고 부르는데, 곧 18.7에서 다룹니다.
+      </p>
+    </div>
+    <p>
+      반대로 \( B' \) = "첫 번째가 1"로 바꾸면 \( P(B') = 1/6 \), \( P(A \cap B') = 1/36 \) 이라
+      \( P(A \mid B') = 1/6 \). 어, 또 같네요? 합이 7은 첫 번째 눈이 무엇이든 두 번째가 정확히 한 값으로
+      정해지므로 \( 1/6 \) 이 유지되는 거예요. 이런 부분이 확률의 재미있는 점입니다.
+    </p>
+  </section>
+
+  <section id="ch18-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.3</span>
+      <span class="sec-kr">조건부 확률에서의 4단계 방법</span>
+      <span class="ch-en sec-en">The Four-Step Method for Conditional Probability</span>
+    </h3>
+    <p>
+      복잡한 확률 문제는 다음 4단계를 따라가면 거의 풀립니다.
+      (1) 표본공간을 트리로 펼치기, (2) 각 가지에 결과 적기,
+      (3) 가지마다 <em>조건부</em>확률 적기, (4) 묻는 사건의 확률을 더하기.
+      트리 다이어그램은 이 절차의 시각적 도구예요.
+    </p>
+    <div class="callout example">
+      <p class="callout-label">예제 18.3.1 (몬티홀, 트리로 풀기)</p>
+      <p>
+        자동차의 위치는 1, 2, 3 중 균등(각 \( 1/3 \)). 참가자는 항상 문 1을 고른다고 가정합시다(대칭이므로 일반성 잃지 않음).
+        몬티는 자동차 없는 문 중 하나를 엽니다. 자동차가 1번에 있으면 2번 또는 3번을 동률로 선택, 2번에 있으면 3번만,
+        3번에 있으면 2번만 엽니다. 마지막으로 참가자는 "바꾼다"는 전략을 씁니다.
+      </p>
+      <p>
+        트리의 잎(leaf)에서 "최종적으로 자동차를 얻었나?"를 표시하고, 각 잎의 확률을 가지 확률의 곱으로 계산해
+        잎들의 확률을 더하면 답이에요. 자동차가 처음부터 1번이었던 가지(확률 \( 1/3 \))에서는 바꾸면 무조건 실패,
+        2번 또는 3번이었던 가지(각 \( 1/3 \))에서는 바꾸면 무조건 성공입니다. 따라서 성공 확률은 \( 2/3 \).
+      </p>
+    </div>
+    <p>
+      여기서 핵심은 가지에 적힌 숫자들이 모두 <strong>조건부</strong>확률이라는 사실이에요. "자동차가 1번이라는
+      조건 하에서 몬티가 2번을 열 확률은 \( 1/2 \)" 같은 식. 이 가지들을 곱해야 그 잎이 발생할 확률이 됩니다.
+      왜 곱셈이 맞는지는 다음 절에서 정당화합니다.
+    </p>
+  </section>
+
+  <section id="ch18-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.4</span>
+      <span class="sec-kr">트리 다이어그램이 작동하는 이유</span>
+      <span class="sec-en">Why Tree Diagrams Work</span>
+    </h3>
+    <p>
+      트리에서 가지를 곱해 잎의 확률을 얻는 절차는, 사실 정의 18.2.1을 단순히 변형한 것입니다.
+      양변에 \( P(B) \) 를 곱하면
+    </p>
+    <div class="callout thm">
+      <p class="callout-label">원리 18.4.1 (곱셈 규칙)</p>
+      <p>
+        \( P(B) &gt; 0 \) 인 사건 \( B \) 와 임의의 \( A \) 에 대해
+        \[ P(A \cap B) \;=\; P(B) \cdot P(A \mid B). \]
+        더 일반적으로, 사건 \( A_1, A_2, \dots, A_n \) 에 대해
+        \[ P(A_1 \cap A_2 \cap \dots \cap A_n)
+          \;=\; P(A_1) \cdot P(A_2 \mid A_1) \cdot P(A_3 \mid A_1 \cap A_2) \cdots
+                P(A_n \mid A_1 \cap \dots \cap A_{n-1}). \]
+      </p>
+    </div>
+    <p>
+      트리의 한 경로는 정확히 \( A_1 \cap A_2 \cap \dots \cap A_n \) 의 형태입니다. 첫 가지는 \( P(A_1) \),
+      그 다음 가지는 "\( A_1 \) 이 일어났다는 조건 하에서 \( A_2 \)" 즉 \( P(A_2 \mid A_1) \), 그 다음은
+      \( P(A_3 \mid A_1 \cap A_2) \), 이런 식이에요. 이 가지들을 다 곱하면 정확히 위 공식이 나옵니다.
+    </p>
+    <div class="callout example">
+      <p class="callout-label">예제 18.4.2 (카드 두 장)</p>
+      <p>
+        섞인 카드 52장에서 두 장을 비복원으로 뽑습니다. 둘 다 에이스일 확률은?
+        \( P(\text{1번째 A}) = 4/52 \), \( P(\text{2번째 A} \mid \text{1번째 A}) = 3/51 \).
+        곱하면 \( (4/52)(3/51) = 12/2652 = 1/221 \). 가지가 두 단계인 트리를 그렸다고 보면 됩니다.
+      </p>
+    </div>
+    <p>
+      트리는 그저 직관적인 그림이 아니라, 곱셈 규칙의 시각적 표현이에요. 어떤 복잡한 문제든 결과를 단계로
+      쪼갤 수 있다면 트리로 옮길 수 있고, 옮긴 순간 답은 산수 문제로 바뀝니다.
+    </p>
+  </section>
+
+  <section id="ch18-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.5</span>
+      <span class="sec-kr">전확률 법칙</span>
+      <span class="sec-en">The Law of Total Probability</span>
+    </h3>
+    <p>
+      표본공간을 서로소인 사건들 \( B_1, B_2, \dots, B_n \) 으로 빈틈없이 쪼갤 수 있다면(이를 <em>분할</em>이라 합니다),
+      어떤 사건 \( A \) 의 확률은 각 조각을 통과하는 경로들의 합으로 적을 수 있어요.
+    </p>
+    <div class="callout thm">
+      <p class="callout-label">정리 18.5.1 (전확률 법칙, Law of Total Probability)</p>
+      <p>
+        \( B_1, \dots, B_n \) 이 \( \Omega \) 의 분할이고 모든 \( i \) 에 대해 \( P(B_i) &gt; 0 \) 이면,
+        \[ P(A) \;=\; \sum_{i=1}^{n} P(A \mid B_i) \, P(B_i). \]
+      </p>
+    </div>
+    <p>
+      이 식과 정의 18.2.1을 결합하면 그 유명한 베이즈 정리가 떨어집니다.
+    </p>
+    <div class="callout thm">
+      <p class="callout-label">정리 18.5.2 (베이즈 정리, Bayes' Theorem)</p>
+      <p>
+        \( P(A), P(B) &gt; 0 \) 일 때
+        \[ P(B \mid A) \;=\; \frac{P(A \mid B) \, P(B)}{P(A)}
+           \;=\; \frac{P(A \mid B) \, P(B)}{\sum_i P(A \mid B_i) \, P(B_i)}. \]
+      </p>
+    </div>
+    <div class="callout example">
+      <p class="callout-label">예제 18.5.3 (희귀병 검사)</p>
+      <p>
+        인구의 \( 1\% \) 가 어떤 병에 걸려 있다고 하죠. 검사는 환자에게서 \( 99\% \) 확률로 양성이 나오고,
+        건강한 사람에게서도 \( 5\% \) 확률로 양성이 나옵니다(위양성). 어떤 사람이 양성을 받았을 때 실제로 병에
+        걸렸을 확률은?
+      </p>
+      <p>
+        \( D \) = 병, \( T \) = 양성. \( P(D)=0.01, P(T \mid D)=0.99, P(T \mid D^c)=0.05 \).
+        전확률로 \( P(T) = 0.99 \cdot 0.01 + 0.05 \cdot 0.99 = 0.0099 + 0.0495 = 0.0594 \).
+        베이즈로 \( P(D \mid T) = 0.99 \cdot 0.01 / 0.0594 \approx 0.167 \). <strong>약 17%</strong>예요.
+        검사 정확도가 99%라는데 양성이어도 실제 환자일 확률이 17%밖에 안 된다는 게 충격적이죠.
+        희귀할수록 위양성의 영향이 크다는 교훈입니다.
+      </p>
+    </div>
+  </section>
+
+  <section id="ch18-6" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.6</span>
+      <span class="sec-kr">심슨의 역설</span>
+      <span class="sec-en">Simpson's Paradox</span>
+    </h3>
+    <p>
+      직관에 가장 통쾌한 한 방을 날리는 카드입니다. 두 그룹 각각에서 X가 Y보다 좋은데, 합치면 Y가 X보다 좋다.
+      "어떻게 그럴 수가?" 싶지만, 실제 통계에서 자주 발생합니다.
+    </p>
+    <div class="callout example">
+      <p class="callout-label">예제 18.6.1 (가상의 대학원 입학)</p>
+      <p>
+        한 대학원이 학과 X와 Y에 지원자를 받습니다. 학과별 성별 합격률은 아래와 같다고 하죠.
+      </p>
+      <table class="tbl">
+        <thead><tr><th>학과</th><th>남자 지원/합격</th><th>남자 합격률</th><th>여자 지원/합격</th><th>여자 합격률</th></tr></thead>
+        <tbody>
+          <tr><td>X (인기)</td><td>400 / 80</td><td>20%</td><td>100 / 30</td><td>30%</td></tr>
+          <tr><td>Y (한산)</td><td>100 / 70</td><td>70%</td><td>400 / 320</td><td>80%</td></tr>
+          <tr><td><strong>합계</strong></td><td>500 / 150</td><td><strong>30%</strong></td><td>500 / 350</td><td><strong>70%</strong></td></tr>
+        </tbody>
+      </table>
+      <p>
+        학과별로는 두 곳 모두 여자 합격률이 더 높은데, 합치면? 30% vs 70%. 어, 이건 여자가 훨씬 유리해 보이네요.
+        값을 살짝 바꿔서 정반대 결론도 만들 수 있습니다 — 이게 심슨 역설의 본질이에요. 핵심은 <em>여자들이
+        합격률 높은 학과(Y)에 몰려 지원했다</em>는 점. 그룹 크기의 차이가 평균을 휘게 만들어요.
+      </p>
+    </div>
+    <p>
+      의료 통계에서도 흔합니다. 신약이 모든 연령대에서 위약보다 잘 듣는데 전체로 보면 위약이 이기는 경우가 있어요.
+      연령대별 환자 수가 달라서요. 핵심 교훈: <strong>조건부 확률을 통합할 땐 분할의 가중치를 함께 봐야 한다.</strong>
+      \( P(A \mid B_1) &gt; P(A' \mid B_1) \) 이고 \( P(A \mid B_2) &gt; P(A' \mid B_2) \) 라 해도
+      가중치 \( P(B_i) \) 가 양쪽에서 다르면 \( P(A) \) 와 \( P(A') \) 의 부등호는 뒤집힐 수 있습니다.
+    </p>
+    <div class="callout note">
+      <p class="callout-label">노트 18.6.2</p>
+      <p>
+        실세계에서 데이터가 "전체 평균"으로만 제시될 때 의심해 볼 줄 알아야 합니다. 적절한 분할을 들이대면
+        스토리가 완전히 뒤집히기도 해요. 컴퓨터과학에서 A/B 테스트 결과를 해석할 때도 같은 함정이 있습니다.
+      </p>
+    </div>
+  </section>
+
+  <section id="ch18-7" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.7</span>
+      <span class="sec-kr">독립</span>
+      <span class="sec-en">Independence</span>
+    </h3>
+    <p>
+      "정보를 받아도 확률이 안 바뀌는" 사건들을 독립이라고 합니다. 18.2의 주사위 예제에서 \( P(A \mid B) = P(A) \)
+      가 그런 경우였죠. 정의는 깔끔합니다.
+    </p>
+    <div class="callout def">
+      <p class="callout-label">정의 18.7.1 (두 사건의 독립)</p>
+      <p>
+        사건 \( A, B \) 가 독립이라는 것은
+        \[ P(A \cap B) \;=\; P(A) \, P(B). \]
+        \( P(B) &gt; 0 \) 이면 이는 \( P(A \mid B) = P(A) \) 와 동치입니다.
+      </p>
+    </div>
+    <p>
+      "확률이 0인 사건은 어떻게 되나?" 같은 경계 사례를 깔끔히 처리하려고 곱 형태를 정의로 채택해요.
+      직관적으로 독립은 "한쪽이 일어났다는 사실이 다른 쪽의 분포에 아무 영향을 못 준다"는 의미입니다.
+    </p>
+    <div class="callout example">
+      <p class="callout-label">예제 18.7.2 (동전 두 번)</p>
+      <p>
+        공정한 동전을 두 번 던집니다. \( H_1 \) = "첫 번째가 앞", \( H_2 \) = "두 번째가 앞". 각 \( 1/2 \) 이고
+        \( P(H_1 \cap H_2) = 1/4 \). 곱과 같으니 독립이에요. 반면 같은 실험에서 \( S \) = "둘 다 같은 면",
+        \( H_1 \) 을 비교해 보세요. \( P(S) = 1/2, P(H_1) = 1/2, P(S \cap H_1) = 1/4 \). 신기하게도 이쪽도 독립입니다.
+      </p>
+    </div>
+    <p>
+      주의할 점: <strong>서로소(disjoint)와 독립(independent)은 완전히 다른 개념입니다.</strong> 서로소면
+      \( P(A \cap B) = 0 \) 인데, \( A, B \) 가 둘 다 양의 확률이면 곱은 양수라 정의 18.7.1을 만족할 수 없어요.
+      서로소인 두 양수확률 사건은 절대 독립이 아닙니다.
+    </p>
+  </section>
+
+  <section id="ch18-8" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.8</span>
+      <span class="sec-kr">상호 독립</span>
+      <span class="sec-en">Mutual Independence</span>
+    </h3>
+    <p>
+      여러 사건의 독립은 한 단계 더 까다롭습니다. 단순히 "두 개씩 짝지어 모두 독립"인 것(쌍별 독립, pairwise)과
+      "모든 부분집합이 독립"인 것(상호 독립, mutual)은 다릅니다.
+    </p>
+    <div class="callout def">
+      <p class="callout-label">정의 18.8.1 (상호 독립)</p>
+      <p>
+        사건 \( A_1, A_2, \dots, A_n \) 이 상호 독립이라는 것은, 임의의 부분집합
+        \( \{i_1, i_2, \dots, i_k\} \subseteq \{1, \dots, n\} \) 에 대해
+        \[ P(A_{i_1} \cap A_{i_2} \cap \dots \cap A_{i_k}) \;=\; P(A_{i_1}) \, P(A_{i_2}) \cdots P(A_{i_k}). \]
+      </p>
+    </div>
+    <div class="callout example">
+      <p class="callout-label">예제 18.8.2 (쌍별인데 상호는 아님)</p>
+      <p>
+        공정한 동전 두 개를 던집니다. \( A \) = "첫 번째 앞", \( B \) = "두 번째 앞", \( C \) = "두 결과가 같음".
+        각 확률은 \( 1/2 \) 이고, 어떤 둘을 골라도 교집합 확률은 \( 1/4 \) 라 쌍별 독립입니다.
+        그런데 \( A \cap B \cap C = A \cap B \) 라 \( P(A \cap B \cap C) = 1/4 \neq 1/8 = P(A)P(B)P(C) \).
+        세 개 모두 모이면 독립이 깨지는 거예요.
+      </p>
+    </div>
+    <p>
+      쉽게 말해 쌍별 독립은 "어느 한 사건에 대한 정보로는 다른 한 사건을 못 맞추지만, 두 사건의 정보를 합치면
+      세 번째를 알 수도 있다"는 상황을 허용합니다. 진짜 독립을 원하면 부분집합 모두를 점검해야 해요.
+    </p>
+    <div class="callout note">
+      <p class="callout-label">노트 18.8.3</p>
+      <p>
+        실무에서 \( n \) 개의 사건이 상호 독립이면 결합확률이 \( P(A_1) \cdots P(A_n) \) 으로 깔끔히 분해되어
+        계산이 폭발적으로 단순해집니다. 통신 채널에서의 비트 오류, 네트워크 패킷 손실, 분산 시스템의 노드 장애 같은
+        모델링이 보통 이 가정 위에서 굴러가요. 단, 이 가정이 깨지는 순간(전원 동시 다운, 같은 라우터 의존)
+        시스템이 한꺼번에 무너집니다.
+      </p>
+    </div>
+  </section>
+
+  <section id="ch18-9" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">18.9</span>
+      <span class="sec-kr">확률 vs 신뢰도</span>
+      <span class="sec-en">Probability versus Confidence</span>
+    </h3>
+    <p>
+      마지막으로 철학적인 곁가지 하나. "동전을 던졌을 때 앞이 나올 확률 \( 1/2 \)"라는 말은 무슨 뜻일까요?
+      답이 둘로 갈립니다.
+    </p>
+    <p>
+      <strong>빈도주의(frequentist)</strong> 관점: 확률은 "장기적으로 같은 실험을 무한히 반복했을 때의 빈도"입니다.
+      앞면이 나올 확률이 \( 1/2 \) 라는 건 던지기를 무한히 하면 앞면 비율이 \( 1/2 \) 로 수렴한다는 뜻이에요.
+      이 관점에서 "내일 비올 확률이 30%"는 다소 어색합니다. 내일은 한 번뿐이라 빈도가 정의되지 않으니까요.
+    </p>
+    <p>
+      <strong>베이즈주의(Bayesian)</strong> 관점: 확률은 "관찰자의 신뢰도(degree of belief)"입니다. 30%란
+      "내가 가진 정보로 봤을 때 비가 올 거라는 믿음의 강도가 그 정도"라는 의미예요. 새 정보가 들어오면
+      베이즈 정리로 신뢰도를 업데이트합니다(사전 확률 → 사후 확률).
+    </p>
+    <div class="callout note">
+      <p class="callout-label">노트 18.9.1 (어떤 관점이 맞나?)</p>
+      <p>
+        둘 다 맞습니다. 다만 응용 영역이 달라요. 동전이나 주사위처럼 반복 가능한 현상에는 빈도주의가 자연스럽고,
+        의학 진단·머신러닝·일기예보처럼 "한 번뿐인 사건에 신뢰도를 매기는" 상황에는 베이즈가 강력합니다.
+        흥미롭게도 두 관점 모두 정의 18.2.1과 정리 18.5.2를 그대로 사용해요. 수학은 같고 해석만 다릅니다.
+      </p>
+    </div>
+    <p>
+      베이즈 정리를 다시 봅시다. \( P(B \mid A) = P(A \mid B) P(B) / P(A) \). 베이즈 관점에서 \( P(B) \) 는
+      <em>사전 신뢰도</em>(prior), \( P(B \mid A) \) 는 \( A \) 라는 증거를 본 뒤의 <em>사후 신뢰도</em>(posterior),
+      \( P(A \mid B) \) 는 가설 \( B \) 가 데이터 \( A \) 를 얼마나 잘 설명하는지를 나타내는 <em>가능도</em>(likelihood)입니다.
+      이 세 단어는 통계학·머신러닝의 기본 어휘예요.
+    </p>
+    <p>
+      이 챕터에서 우리는 "정보가 들어오면 확률이 바뀐다"는 한 줄을 정의 18.2.1로 엄밀화하고, 그것이
+      트리·전확률·베이즈·심슨역설·독립 같은 풍성한 결과로 뻗어가는 모습을 봤습니다. 다음 챕터에서는 확률을
+      값으로 다루는 도구, <em>확률변수</em>로 넘어갑니다. 이제 사건 단위가 아니라 숫자 단위로 확률을 보는 거예요.
+    </p>
+  </section>
+</article>

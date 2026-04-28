@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>5장 중간 표현 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html" class="active">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>5장. 중간 표현</h1>
+<p class="lead">트리, 그래프, 3-주소 코드, SSA 폼 — 컴파일러가 머릿속에 그림 그리는 방식들.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 221–268</span>
+<span><strong>키워드:</strong> AST, DAG, CFG, three-address code, SSA, symbol table</span>
+</div>
+
+<h2>5.1 들어가며 — 컴파일러의 모국어</h2>
+
+<p>컴파일러는 보통 여러 패스(pass)로 나뉘어 일한다. 한 패스가 알아낸 사실을 다음 패스에 넘겨야 하는데, 그 매개체가 바로 <strong>중간 표현(Intermediate Representation, IR)</strong>이다. 일단 프론트엔드가 소스 텍스트를 IR로 한 번 바꾸고 나면, 그 뒤로 컴파일러는 원본 소스 코드를 다시는 들춰보지 않는다. IR이 곧 프로그램의 <em>정본</em>이 되는 것이다.</p>
+
+<p>거의 모든 패스가 IR을 만지작거린다. 그래서 IR을 어떻게 설계하느냐 — 어떤 필드를 두느냐, 어떻게 순회하느냐, 어떻게 주석을 다느냐 — 가 컴파일러 전체의 속도와 품질을 좌우한다. IR은 컴파일러 작가가 가장 오래 들여다보는 자료 구조이기도 하므로, "사람이 읽기 쉬워야 한다"는 자기 이익도 무시할 수 없다.</p>
+
+<div class="callout note">
+<div class="callout-title">컨셉 로드맵</div>
+<p>이 장은 IR을 세 축으로 분류해 살펴본다 — <strong>구조(structural organization)</strong>, <strong>추상화 수준(level of abstraction)</strong>, <strong>이름 짓기 규율(naming discipline)</strong>. 그래프형 IR(5.2), 선형 IR(5.3), 값에 이름 붙이기와 SSA 폼(5.4), 그리고 심볼 테이블(5.5)을 차례로 다룬다.</p>
+</div>
+
+<h3>5.1.1 IR의 분류 체계 (Taxonomy)</h3>
+
+<p>구조적으로 IR은 크게 세 갈래로 나뉜다.</p>
+
+<ul>
+<li><strong>그래프형 IR(Graphical IR)</strong> — 노드와 엣지로 코드의 지식을 인코딩한다. 3장에서 본 파스 트리(parse tree)가 대표적이다. 알고리즘은 트리 순회나 그래프 알고리즘 형태가 된다.</li>
+<li><strong>선형 IR(Linear IR)</strong> — 추상 기계의 의사 코드처럼 명령들을 나열한다. 이 책의 ILOC가 그렇다. 알고리즘은 명령들을 순서대로 훑는다.</li>
+<li><strong>혼성 IR(Hybrid IR)</strong> — 두 형태를 섞는다. 가장 흔한 패턴은 "기본 블록 안은 선형, 블록끼리는 그래프"다.</li>
+</ul>
+
+<p><strong>추상화 수준</strong>은 IR이 연산을 얼마나 잘게 쪼개느냐다. 같은 <code>A[i,j]</code> 한 줄도 소스에 가까운 트리에서는 노드 하나로 끝나지만, ILOC 같은 저수준 IR에서는 곱셈·뺄셈·로드 명령 9개로 풀어진다.</p>
+
+<div class="figure">
+<pre>
+       소스 수준 트리                       ILOC 코드 (저수준)
+       ────────────                       ───────────────────
+                                          subI  r_i, 1   ⇒ r1
+        ┌─[subscript]─┐                   multI r1, 10   ⇒ r2
+        │       │     │                   subI  r_j, 1   ⇒ r3
+        A       i     j                   add   r2, r3   ⇒ r4
+                                          multI r4, 4    ⇒ r5
+                                          loadI @A       ⇒ r6
+                                          add   r5, r6   ⇒ r7
+                                          load  r7       ⇒ r_Aij
+</pre>
+<span class="figure-caption">같은 배열 참조 A[i,j], 두 가지 추상화 수준</span>
+</div>
+
+<p>고수준 트리는 "이게 배열 참조다"라는 사실을 그대로 보존하므로 별칭(alias) 분석에 좋다. 저수준 ILOC는 주소 계산의 세부를 드러내므로 곱셈을 시프트로 바꾸거나 명령을 다른 곳으로 옮기는 식의 최적화에 좋다. 어느 쪽도 절대적으로 우월하지는 않다 — <em>무엇을 최적화하고 싶은가</em>에 따라 고른다.</p>
+
+<p><strong>이름 짓기 규율</strong>은 중간 값에 어떤 이름을 붙이느냐다. <code>a - 2 × b</code>를 평가할 때 임시 이름 <code>t1, t2, t3, t4</code>를 만들 수도 있고, <code>t2</code>와 <code>t4</code>를 합쳐 <code>t1</code>로 재사용할 수도 있다. 이름이 적으면 메모리는 아끼지만, "이 식의 값을 이미 계산했다"는 정보는 잃는다. SSA 폼이 등장한 이유가 바로 여기다.</p>
+
+<h2>5.2 그래프형 IR — 트리와 그래프로 그리기</h2>
+
+<h3>5.2.1 구문 관련 트리 (Syntax-Related Trees)</h3>
+
+<h4>파스 트리 (Parse Tree)</h4>
+
+<p>파스 트리는 문법 유도 과정을 그대로 그린 것이다. <code>a×2 + a×2×b</code>를 고전적 표현 문법으로 파싱하면 다음과 같은 거대한 트리가 나온다.</p>
+
+<div class="figure">
+<pre>
+                       Goal
+                        │
+                       Expr
+                      / │ \
+                  Expr  +  Term
+                   │       /│\
+                  Term  Term × Factor
+                   │     │     │
+                  ...   ...  &lt;name,b&gt;
+</pre>
+<span class="figure-caption">파스 트리 — 모든 비단말 기호가 노드를 차지한다</span>
+</div>
+
+<p>문제는 부피다. 모든 문법 기호마다 노드 하나, 엣지 하나가 따라붙어 메모리도 크고 순회도 느리다. 파스 트리는 파싱 자체나 속성 문법 시스템에서나 쓰이고, 그 외엔 더 압축된 형태를 쓴다.</p>
+
+<h4>추상 구문 트리 (Abstract Syntax Tree, AST)</h4>
+
+<p>AST는 파스 트리에서 "쓸데없는 비단말 노드"를 다 걷어낸 버전이다. 연산자 우선순위와 의미는 그대로 보존하지만, <code>Expr → Term → Factor → name</code> 같은 사다리 노드들은 사라진다.</p>
+
+<div class="figure">
+<pre>
+            +
+           ╱ ╲
+          ×   ×
+         ╱╲   ╱╲
+        a  2 ×  b
+            ╱╲
+           a  2
+</pre>
+<span class="figure-caption">a×2 + a×2×b의 AST — 파스 트리보다 훨씬 가볍다</span>
+</div>
+
+<p>AST는 소스에 매우 가까운 표현이라, 소스-투-소스 변환기(syntax-directed editor, 자동 병렬화 도구)에서 자주 쓰인다. Lisp의 S-식이 본질적으로 AST다. 파서가 직접 만들 수도 있다(4.4.2절).</p>
+
+<div class="callout">
+<div class="callout-title">저장 효율성 — Rⁿ 환경의 교훈</div>
+<p>Rice 대학의 Rⁿ 프로그래밍 환경은 AST 노드 하나당 92바이트, FORTRAN 한 줄당 평균 11노드, 결국 줄당 1,000바이트가 넘었다. 1980년대 워크스테이션에선 디스크 I/O가 도구 전체를 느리게 만들었다. 필드를 다시 디자인하고, 리프 노드를 작게 만들고, 디스크엔 선형 형태로 저장하는 식으로 메모리를 75% 줄여낸 사례가 있다.</p>
+</div>
+
+<h4>유향 비순환 그래프 (Directed Acyclic Graph, DAG)</h4>
+
+<p>AST를 더 줄일 방법이 있다. <code>a×2 + a×2×b</code>에는 <code>a×2</code>가 두 번 나오는데, AST는 같은 부분식을 두 번 그려둔다. DAG는 동일한 부분식을 한 번만 만들고 부모를 여러 개 가지게 한다.</p>
+
+<div class="figure">
+<pre>
+            +
+           ╱ ╲
+          │   ×
+          │  ╱
+          ×─╯  ─── b
+         ╱╲
+        a  2
+</pre>
+<span class="figure-caption">a×2 + a×2×b의 DAG — a×2는 한 번만 등장</span>
+</div>
+
+<p>주의: DAG가 의미를 보존하려면 "<code>a</code>의 값이 두 사용 사이에 안 바뀐다"는 게 보장돼야 한다. 대입이나 함수 호출이 끼면 DAG 빌더는 그쪽 부분 트리를 무효화해야 한다. 그래서 DAG는 보통 잠깐 빌리는 IR — 메인 IR에서 DAG를 만들어 중복을 찾아내고는 버린다 — 로 쓰인다.</p>
+
+<h3>5.2.2 그래프들 (Graphs)</h3>
+
+<h4>제어 흐름 그래프 (Control-Flow Graph, CFG)</h4>
+
+<p>제어 흐름의 최소 단위는 <strong>기본 블록(basic block)</strong> — 분기 없이 일직선으로 실행되는 명령 묶음이다. 블록은 첫 명령에 들어와 마지막 명령으로 나간다.</p>
+
+<div class="term-box">
+<span class="term">기본 블록(basic block)</span> <span class="en">basic block</span> — 분기가 없는 최대 길이의 직선 코드. 라벨이 붙은 연산으로 시작하고, 분기·점프·predicated 연산으로 끝난다.
+</div>
+
+<p>CFG는 노드가 기본 블록, 엣지가 "이 블록에서 저 블록으로 제어가 넘어갈 수 있다"는 관계인 유향 그래프 G = (N, E)다. 분석을 단순하게 하려고 보통 진입 노드 n₀와 출구 노드 n_f를 유일하게 둔다.</p>
+
+<div class="figure">
+<pre>
+   원본 코드                        CFG
+   ─────────                       ───
+   while(i &lt; 100)                ┌──────┐
+     begin                       │while │←┐
+       stmt₁          ─→         │i&lt;100 │ │
+     end                         └───┬──┘ │
+   stmt₂                             │    │
+                                  ┌──▼──┐ │
+                                  │stmt₁├─┘
+                                  └──┬──┘
+                                     │
+                                  ┌──▼──┐
+                                  │stmt₂│
+                                  └─────┘
+</pre>
+<span class="figure-caption">while 루프의 CFG — stmt₁에서 헤더로 돌아가는 엣지가 사이클을 만든다</span>
+</div>
+
+<p>AST와 결정적으로 다른 점: CFG의 엣지는 <em>실행 시점</em>의 제어 흐름을 보여준다. AST의 엣지는 문법 구조를 보여줄 뿐이다. CFG는 보통 또 다른 IR(블록 안의 명령들을 표현하는 ILOC, AST, 또는 DAG)과 결합돼 혼성 IR을 이룬다.</p>
+
+<p>일부 저자는 한 노드 = 한 문장(<strong>single-statement block</strong>)을 권한다. 알고리즘이 단순해지지만 CFG가 커진다. 시간·공간 트레이드오프다.</p>
+
+<h4>의존성 그래프 (Dependence Graph)</h4>
+
+<p>같은 값이 어디서 정의(definition)되고 어디서 사용(use)되는지를 따라가는 그래프다. 노드는 연산, 엣지는 "정의 → 사용"의 데이터 흐름을 표현한다.</p>
+
+<div class="figure">
+<pre>
+ILOC 기본 블록                    의존성 그래프
+─────────────                    ─────────────
+1  loadAI r_arp,@a ⇒ r_a               r_arp
+2  loadI  2        ⇒ r2          1 ─── 2
+3  loadAI r_arp,@b ⇒ r_b          ↘  ╲   ↓
+4  loadAI r_arp,@c ⇒ r_c          6   3  4
+5  loadAI r_arp,@d ⇒ r_d          ↓ ╱ │ ╱│
+6  mult   r_a, r2  ⇒ r_a          7   ↓ ↓ │
+7  mult   r_a, r_b ⇒ r_a          ↓   8  5
+8  mult   r_a, r_c ⇒ r_a          ↓   ↓
+9  mult   r_a, r_d ⇒ r_a          ↓   9
+10 storeAI r_a    ⇒ r_arp,@a      └→ 10
+</pre>
+<span class="figure-caption">기본 블록과 그 의존성 그래프 — 그래프는 부분 순서만 강제한다</span>
+</div>
+
+<p>여기서 핵심: 의존성 그래프는 <em>부분 순서(partial order)</em>만 강제한다. ILOC 코드가 1·2·3·... 순으로 나열돼 있더라도, 그래프는 1→6, 2→6, 3→7만 요구할 뿐 1과 2의 순서는 자유다. 이 자유도가 바로 OoO(out-of-order) 프로세서나 명령 스케줄러가 활용하는 여지다.</p>
+
+<p>의존성 그래프는 명령 스케줄링(12장)과 루프 변환에서 핵심 역할을 한다. 보통은 메인 IR에서 잠깐 만들어 쓰고 버리는 파생 IR이다.</p>
+
+<h4>호출 그래프 (Call Graph)</h4>
+
+<p>프로시저 사이의 관계를 표현한다. 노드는 프로시저, 엣지는 호출 사이트(call site)다. <code>p</code>가 <code>q</code>를 세 군데서 호출하면 엣지가 세 개다. 분리 컴파일, 함수 포인터, 객체지향 상속 — 이런 요소들이 호출 그래프 작성을 까다롭게 만든다(자세한 건 9.4절).</p>
+
+<div class="callout note">
+<div class="callout-title">5.2 절 정리</div>
+<ul>
+<li><strong>파스 트리</strong>: 문법 기호가 노드, 유도가 엣지</li>
+<li><strong>AST/DAG</strong>: 소스 프로그램의 구체 항목이 노드, 데이터 흐름이 엣지</li>
+<li><strong>CFG</strong>: 코드 블록이 노드, 제어 이동이 엣지</li>
+<li><strong>의존성 그래프</strong>: 연산이 노드, 값 흐름이 엣지(부분 순서)</li>
+<li><strong>호출 그래프</strong>: 프로시저가 노드, 호출 사이트가 엣지</li>
+</ul>
+</div>
+
+<h2>5.3 선형 IR — 명령들을 줄세우기</h2>
+
+<p>선형 IR은 그래프형 IR의 정반대다. 어셈블리 프로그램처럼 명령들이 일렬로 나열돼 있고, 등장 순서대로(또는 그와 호환되는 순서로) 실행된다. 컴파일러가 받는 입력(소스 코드)과 출력(어셈블리)이 모두 선형이니, 중간을 선형으로 두는 것도 자연스러운 선택이다.</p>
+
+<p>선형 IR은 <em>완전 순서</em>를 강제한다. 의존성 그래프가 부분 순서만 주는 것과 대조된다. 그래서 컴파일러는 어디까지가 한 기본 블록인지를 분기·점프·라벨로 표시해야 한다.</p>
+
+<div class="term-box">
+<span class="term">취해진 분기(taken branch)</span> <span class="en">taken branch</span> — 조건 분기에서 조건이 참일 때 점프하는 라벨. 거짓일 때 떨어지는 경로는 <em>fall-through</em>라 부른다. 이 책의 ILOC는 두 경로 모두에 라벨을 붙여 fall-through를 없앤다 — 블록을 쉽게 재배열하기 위해서다.
+</div>
+
+<p>선형 IR은 사용 주소 개수에 따라 부른다.</p>
+
+<ul>
+<li><strong>1-주소 코드</strong>: 누산기 머신·스택 머신 모델. 암묵적 이름이 많아 코드가 짧다.</li>
+<li><strong>2-주소 코드</strong>: 피연산자 하나가 결과로 덮어써지는 파괴적 연산(destructive operation). 메모리가 비싸던 시절의 산물.</li>
+<li><strong>3-주소 코드</strong>: <code>i ← j op k</code> 형태. 두 피연산자, 한 결과. RISC 명령 집합과 잘 맞는다.</li>
+</ul>
+
+<h3>5.3.1 스택 머신 코드</h3>
+
+<p>1-주소 코드의 한 형태로, 피연산자가 모두 스택에 있다고 가정한다. <code>a - 2×b</code>를 표현하면 이렇게 짧다.</p>
+
+<div class="figure">
+<pre>
+push   2
+push   b
+multiply
+push   a
+subtract
+</pre>
+<span class="figure-caption">스택 머신 코드 — 이름이 거의 등장하지 않는다</span>
+</div>
+
+<p>스택이 암묵적 이름 공간 역할을 하므로 IR이 작아진다. 네트워크로 전송되는 Java 애플릿이나 Smalltalk 80, JVM 바이트코드가 이 모델을 채택한 이유다(저장이 적고 인터프리터가 단순하다).</p>
+
+<h3>5.3.2 3-주소 코드</h3>
+
+<p>대부분의 연산이 <code>op + 두 소스 + 한 목적지</code> = 4개 항목으로 구성된다. 이름은 정수 인덱스로 표현하면 4바이트면 충분하다. 같은 식 <code>a - 2×b</code>를 3-주소 코드로 쓰면:</p>
+
+<div class="figure">
+<pre>
+t1 ← 2
+t2 ← b
+t3 ← t1 × t2
+t4 ← a
+t5 ← t4 - t3
+</pre>
+<span class="figure-caption">3-주소 코드 — ILOC도 이 부류에 속한다</span>
+</div>
+
+<p>3-주소 코드의 매력은 세 가지다. (1) 파괴적 연산이 없어서 컴파일러가 이름 재사용을 자유롭게 결정할 수 있고, (2) 적당히 압축적이며, (3) 현대 RISC 프로세서의 명령 형식과 잘 맞는다. 추상화 수준은 폭이 넓다 — 점프·분기·메모리 연산 같은 저수준 명령부터 <code>max</code>, <code>min</code>, <code>mvcl</code>(IBM 370의 문자열 복사) 같은 고수준 연산까지.</p>
+
+<h3>5.3.3 선형 코드 표현하기</h3>
+
+<p>구현 측면에선 보통 4-튜플(quadruple)로 만든다 — <code>(op, src1, src2, dest)</code>. 블록을 어떻게 묶느냐에 따라 세 방식이 있다.</p>
+
+<div class="figure">
+<pre>
+(a) 단순 배열         (b) 포인터 배열         (c) 연결 리스트
+─────────────         ──────────────         ─────────────
+┌───────────┐         ┌─→┌─────────┐         ┌─┬─────────┐
+│t1 ← 2     │         │  │t1 ← 2   │         │•│t1 ← 2   │
+│t2 ← b     │         │  ├─────────┤         ├─┼─────────┤
+│t3 ← t1×t2 │         •─→│t2 ← b   │         │•│t2 ← b   │
+│t4 ← a     │            ├─────────┤         ├─┼─────────┤
+│t5 ← t4-t3 │         •─→│t3 ← t1×t2│        │•│t3 ← t1×t2│
+└───────────┘            └─────────┘         └─┴─────────┘
+   고정 크기, 빠름      재정렬 쉬움             삽입·삭제 쉬움
+   재정렬에 복사 多     포인터만 바꾸면 OK      순차 순회만 가능
+</pre>
+<span class="figure-caption">3-주소 코드 a-2×b의 세 가지 구현</span>
+</div>
+
+<p>명령 스케줄러가 명령을 한 칸 위로 옮기려 한다고 해보자. 단순 배열이면 네 필드를 모두 복사·덮어쓰기 해야 한다. 포인터 배열이면 포인터만 바꾸면 된다. 연결 리스트면 노드를 빼서 다른 자리에 끼우면 된다. 프론트엔드는 블록 크기를 미리 모르므로 연결 리스트가 편하지만, 스케줄러는 임의 접근이 빠른 배열을 선호한다 — 컴파일러가 단계마다 표현을 바꿔 쓰기도 한다.</p>
+
+<div class="callout">
+<div class="callout-title">실제 컴파일러의 IR</div>
+<p><strong>GCC</strong>는 RTL(Register Transfer Language)이라는 매우 저수준 IR을 오래 썼고, 최근엔 GIMPLE(언어 독립적 트리 + 3-주소 코드, SSA 위에서 동작)과 RTL을 함께 쓴다. <strong>LLVM</strong>은 단일 저수준 IR — 이름 그대로 "Low-Level Virtual Machine" — 의 SSA 기반 3-주소 코드를 쓴다. <strong>Open64</strong>(IA-64용)는 WHIRL이라는 5단계 IR 패밀리를 사용해, 같은 코드를 단계마다 다른 추상화 수준으로 다룬다.</p>
+</div>
+
+<h3>5.3.4 선형 코드에서 CFG 만들기</h3>
+
+<p>ILOC 같은 선형 IR을 받아 CFG를 만드는 표준 알고리즘은 두 패스다.</p>
+
+<p><strong>1차: 리더(leader) 찾기.</strong> 리더는 (a) 프로시저의 첫 명령, 또는 (b) 어떤 분기의 잠재적 타깃이 될 수 있는 라벨이 붙은 명령이다. 코드를 한 번 훑어 라벨이 붙은 명령을 모두 모은다.</p>
+
+<pre>
+next ← 1
+Leader[next++] ← 1
+for i ← 1 to n
+   if op_i has a label l_i then
+      Leader[next++] ← i
+      create a CFG node for l_i
+</pre>
+
+<p><strong>2차: 블록 끝 찾고 엣지 추가.</strong> 각 리더부터 다음 리더 직전까지가 한 블록. 마지막 명령이 분기/점프이면 타깃 블록(들)으로 엣지를 친다.</p>
+
+<pre>
+for i ← 1 to next - 1
+   j ← Leader[i] + 1
+   while (j ≤ n and op_j ∉ Leader)
+      j ← j + 1
+   j ← j - 1
+   Last[i] ← j
+   if op_j is "cbr r_k → l_1, l_2" then
+      add edge from j to node for l_1
+      add edge from j to node for l_2
+   else if op_j is "jumpI → l_1" then
+      add edge from j to node for l_1
+   else if op_j is "jump → r_1" then
+      add edges from j to all labelled statements
+</pre>
+
+<p>마지막 줄이 골치 아픈 부분이다. <code>jump → r_1</code>은 <strong>모호한 점프(ambiguous jump)</strong> — 타깃을 컴파일 타임에 알 수 없다. 보수적으로 모든 라벨로 엣지를 친다. ILOC는 <code>tbl</code> 의사 명령을 두어 잠재적 타깃을 명시하게 함으로써 가짜 엣지를 줄인다.</p>
+
+<div class="callout warn">
+<div class="callout-title">CFG 구성의 함정들</div>
+<p>분기 지연 슬롯(branch delay slot)이 있는 머신에서는 라벨이 붙은 문장이 두 블록에 동시에 속할 수 있다 — 복제로 해결한다. PC 상대 분기, 비지역 점프(<code>setjmp</code>/<code>longjmp</code>)도 비슷한 골칫거리. 객체지향 언어의 가상 호출은 호출 그래프 차원의 모호함을 만든다.</p>
+</div>
+
+<h2>5.4 값에 이름 붙이기 — 명명 규율의 위력</h2>
+
+<p>같은 코드를 표현해도 어떤 이름을 붙이느냐에 따라 컴파일러가 보는 사실이 달라진다. 다음 4줄짜리 소스를 두 가지 방식으로 번역해보자.</p>
+
+<div class="figure">
+<pre>
+(a) 소스 코드        (b) 이름 적게 (소스 이름 따라가기)    (c) 이름 많게 (값마다 이름)
+─────────            ──────────────────                  ──────────────────
+a ← b + c            t1 ← b                              t1 ← b
+b ← a - d            t2 ← c                              t2 ← c
+c ← b + c            t3 ← t1 + t2                        t3 ← t1 + t2
+d ← a - d            a  ← t3                             a  ← t3
+                     t4 ← d                              t4 ← d
+                     t1 ← t3 - t4    ← t1 재사용         t5 ← t3 - t4
+                     b  ← t1                             b  ← t5
+                     t2 ← t1 + t2    ← t2 재사용         t6 ← t5 + t2
+                     c  ← t2                             c  ← t6
+                     t4 ← t3 - t4    ← t4 재사용         t5 ← t3 - t4 (← 같은 식 t5)
+                     d  ← t4                             d  ← t5
+</pre>
+<span class="figure-caption">같은 소스, 다른 명명 규율 — 무엇을 인코딩하는지가 다르다</span>
+</div>
+
+<p>(b)는 이름이 적어 코드가 짧지만, "<code>a</code>와 <code>c</code>가 같은 값일까?"를 한눈에 알 수 없다. (c)는 이름이 많지만, "<code>t3 - t4</code>가 두 번 등장한다 → <code>b</code>와 <code>d</code>는 같은 값이다"가 명백히 드러난다. 후속 최적화는 이런 정보를 먹고 산다.</p>
+
+<h3>5.4.1 임시 값 명명하기</h3>
+
+<p>저수준 IR은 모든 중간 결과에 이름이 붙는다. 이름이 많을수록 분석할 거리도 많지만, 너무 많으면 자료 구조가 부풀어 컴파일이 느려진다. 트레이드오프다.</p>
+
+<div class="callout note">
+<div class="callout-title">FORTRAN 컴파일러에서의 명명 실험 (1980년대 말)</div>
+<p>처음엔 식마다 새 임시 레지스터를 발급 — 985개 이름(SVD 210줄). 레지스터 할당기에서 자료 구조가 폭발. 다음엔 임시 할당/반납 프로토콜로 60개로 줄임 — 단, 이름 하나에 여러 식이 묶여 데이터 흐름이 흐려지면서 최적화 품질이 떨어졌다. 결국 다음 규칙을 도입: ① 텍스트적으로 같은 식엔 같은 이름, ② <code>r_i op r_j ⇒ r_k</code>에서 <code>i, j &lt; k</code>, ③ 스칼라 변수만 <code>r_i ⇒ r_j</code> 가능, ④ 스토어 뒤엔 변수 이름으로 카피. SVD에서 90개 이름으로 첫 방식의 모든 최적화 기회를 잡아냈다. 결국 이걸 SSA 폼이 흡수했다.</p>
+</div>
+
+<h3>5.4.2 SSA 폼 — 모든 대입에 새 이름을</h3>
+
+<div class="term-box">
+<span class="term">정적 단일 대입 폼(Static Single-Assignment Form, SSA)</span> <span class="en">SSA form</span> — 모든 정의에 유일한 이름을 부여하고, 모든 사용은 정확히 한 정의를 가리키게 만든 IR. φ-함수라는 의사 연산으로 제어 흐름의 합류 지점에서 여러 정의를 하나의 새 이름으로 합친다.
+</div>
+
+<p>SSA의 두 가지 규약은 단순하다.</p>
+<ol>
+<li>모든 <em>정의</em>는 유일한 이름을 가진다.</li>
+<li>모든 <em>사용</em>은 정확히 하나의 정의를 가리킨다.</li>
+</ol>
+
+<p>그런데 if-else나 루프에서 같은 변수가 두 경로에서 정의되어 합류하면? 그래서 <strong>φ-함수</strong>가 등장한다. φ는 합류 지점의 시작에 놓이는 의사 연산으로, 어느 경로로 들어왔느냐에 따라 인자 중 하나의 값을 골라 새 이름에 대입한다.</p>
+
+<div class="figure">
+<pre>
+(a) 원본 코드                     (b) SSA 폼
+─────────────                    ─────────────
+x ← ...                          x_0 ← ...
+y ← ...                          y_0 ← ...
+while(x &lt; 100)                   if (x_0 ≥ 100) goto next
+   x ← x + 1                     loop: x_1 ← φ(x_0, x_2)
+   y ← y + x                           y_1 ← φ(y_0, y_2)
+                                       x_2 ← x_1 + 1
+                                       y_2 ← y_1 + x_2
+                                       if (x_2 &lt; 100) goto loop
+                                 next: x_3 ← φ(x_0, x_2)
+                                       y_3 ← φ(y_0, y_2)
+</pre>
+<span class="figure-caption">루프의 SSA 변환 — 모든 대입이 새 첨자를 받고, φ가 합류점을 처리</span>
+</div>
+
+<p>φ 함수의 의미는 "어느 엣지로 들어왔느냐"에 따라 정해진다. 위 예에서 <code>loop:</code>의 <code>x_1 ← φ(x_0, x_2)</code>는 루프 진입(첫 번째 인자)이면 <code>x_0</code>을, 루프 백엣지(두 번째 인자)면 <code>x_2</code>를 받는다. 한 블록의 모든 φ는 어떤 일반 명령보다도 먼저, 동시에 실행된다고 본다 — 그래서 블록 안에서 φ들의 순서는 무의미하다.</p>
+
+<p>SSA가 강력한 이유는 두 가지다. (1) 한 번 정의되면 다시 정의되지 않으니, 어떤 경로를 따라가도 그 이름의 값은 살아있다 — 데이터 흐름 분석이 단순해진다. (2) 정의 지점과 사용 지점이 이름만으로 곧장 연결된다 — use-def 체인이 공짜다. 이 두 성질이 9장 이후 거의 모든 최적화의 토대가 된다.</p>
+
+<div class="callout warn">
+<div class="callout-title">φ는 3-주소 모델에 안 맞는다</div>
+<p>case 문이 16개 분기로 나뉘어 한 블록에서 합류하면 φ는 인자 16개를 받아야 한다. 고정 길이 3-주소 튜플로 표현하기 어렵다. 그래서 SSA를 구현할 땐 (a) 여러 슬롯을 이어 붙이거나, (b) 별도 부속 자료 구조에 인자를 보관하거나, (c) 가변 길이 튜플을 허용해야 한다.</p>
+</div>
+
+<h3>5.4.3 메모리 모델 (Memory Model)</h3>
+
+<p>이름을 짓는 또 다른 차원: "값을 어디에 둘 것인가?" 컴파일러는 두 모델 중 하나로 일한다.</p>
+
+<ol>
+<li><strong>레지스터-투-레지스터 모델</strong>: 가능하면 모든 값을 레지스터에 둔다. 메모리에 쓰는 건 의미상 강제될 때(프로시저 호출, 주소가 새어나간 변수)만. IR은 머신 레지스터 수와 무관한 가상 레지스터(virtual register)를 마음껏 쓰고, 나중에 레지스터 할당기가 실제 레지스터로 매핑한다.</li>
+<li><strong>메모리-투-메모리 모델</strong>: 모든 값이 메모리에 있다고 가정. 사용 직전에 레지스터로 로드, 정의 직후 메모리로 스토어. IR이 명명하는 이름이 적어진다. 일부 IR은 메모리-투-메모리 add 같은 연산까지 가진다.</li>
+</ol>
+
+<p>RISC 머신용 컴파일러는 보통 레지스터-투-레지스터 모델을 선호한다. 이유 하나: RISC ISA가 그렇게 생겼다. 이유 둘: "이 값은 레지스터에 둬도 안전하다"는 사실을 IR에 박아두면, 컴파일러가 그 사실을 매번 다시 증명할 필요가 없다.</p>
+
+<table>
+<thead><tr><th>모델</th><th>이름 공간</th><th>레지스터 할당기 역할</th><th>장점</th></tr></thead>
+<tbody>
+<tr><td>레지스터-투-레지스터</td><td>가상 레지스터 다수</td><td>가상 → 물리 매핑(스필 추가)</td><td>RISC와 자연스럽게 일치, 안전성 정보 보존</td></tr>
+<tr><td>메모리-투-메모리</td><td>메모리 위치</td><td>가능한 값을 레지스터에 끌어올림</td><td>이름 적음, 알로케이터가 코드를 짧게 만듦</td></tr>
+</tbody>
+</table>
+
+<h2>5.5 심볼 테이블 — 이름의 거대한 사전</h2>
+
+<p>컴파일러는 번역하면서 이름들에 대한 사실을 잔뜩 알아낸다 — 변수의 타입, 저장 클래스, 어드레스 오프셋, 배열의 차원과 범위, 레코드의 필드 목록, 함수의 매개변수와 리턴 타입... 이걸 IR 노드에 직접 박아둘 수도 있지만, 정보가 산재해 접근이 비싸다. 그래서 중앙 저장소 — <strong>심볼 테이블(symbol table)</strong> — 를 둔다.</p>
+
+<p>심볼 테이블이 하는 일을 한 줄로: <em>이름 문자열 → 그 이름에 대한 사실들</em>의 매핑이다.</p>
+
+<h3>5.5.1 해시 테이블</h3>
+
+<p>심볼 테이블은 자주 접근되므로 효율이 핵심이다. 해시 테이블이 표준 선택 — 평균 상수 시간 조회. 해시 함수 <code>h</code>가 이름을 작은 정수로 매핑하고, 그 정수로 테이블을 인덱싱한다.</p>
+
+<div class="figure">
+<pre>
+              ┌────┐
+            0 │    │
+            1 │ b  │
+            2 │    │
+   h(d) ─→  3 │ a  │   ← d를 삽입하면 충돌 가능
+            4 │    │
+            5 │    │
+            6 │    │
+            7 │    │
+            8 │    │
+            9 │ c  │
+              └────┘
+</pre>
+<span class="figure-caption">10-슬롯 해시 테이블의 작은 예</span>
+</div>
+
+<p>두 이름이 같은 슬롯에 매핑되는 <em>충돌</em>이 발생할 수 있다 — 적절한 충돌 처리(체이닝, 오픈 어드레싱)가 필요하다. 자세한 건 부록 B.4. 해시 테이블은 희소 그래프나 희소 배열을 표현하는 데도 응용된다.</p>
+
+<div class="callout">
+<div class="callout-title">해싱의 대안: 다중집합 식별(Multiset Discrimination)</div>
+<p>해싱이 최악 케이스에 약하다는 게 싫다면, 스캐닝 단계에서 모든 식별자를 (이름, 위치) 튜플로 모아 사전식 정렬한 후, 같은 이름끼리 그룹지어 인덱스를 부여하는 방식이 있다. 정렬 비용은 들지만 최악 케이스 보장이 있다.</p>
+</div>
+
+<h3>5.5.2 심볼 테이블 만들기</h3>
+
+<p>인터페이스는 두 함수면 충분하다.</p>
+
+<ul>
+<li><code>LookUp(name)</code> — <code>h(name)</code> 위치의 레코드를 반환. 없으면 "없음" 표식.</li>
+<li><code>Insert(name, record)</code> — <code>h(name)</code> 위치에 레코드 저장. 필요하면 테이블 확장.</li>
+</ul>
+
+<p>실제 구현에선 둘을 합쳐 플래그로 "삽입 모드"를 토글하기도 한다. 이 단순한 인터페이스가 4장의 ad hoc 구문 주도 번역 스킴과 직접 맞물린다 — 변수 선언을 만나면 <code>Insert</code>, 사용을 만나면 <code>LookUp</code>.</p>
+
+<h3>5.5.3 중첩 스코프 처리하기</h3>
+
+<p>대부분의 언어는 단일 이름공간을 쓰지 않는다. C, Pascal, Java... 모두 블록·함수·클래스 단위로 스코프가 중첩된다. 같은 이름 <code>b</code>가 바깥에선 매개변수, 안쪽 블록에선 지역 변수일 수 있다.</p>
+
+<div class="figure">
+<pre>
+static int w;       // level 0
+int x;
+
+void example(int a, int b) {     // level 1
+   int c;
+   {
+      int b, z;     // level 2a — b가 매개변수 b를 가린다
+      ...
+   }
+   {
+      int a, x;     // level 2b — a, x가 가려진다
+      ...
+      {
+         int c, x;  // level 3
+         b ← a + b + c + w;   // 어느 b? 어느 a?
+      }
+   }
+}
+</pre>
+<span class="figure-caption">C의 중첩 스코프 예 — 같은 이름이 레벨마다 다른 의미</span>
+</div>
+
+<p>위 대입문을 풀어쓰면 <code>b_1 ← a_2b + b_1 + c_3 + w_0</code>가 된다 — 첨자가 레벨이다. 어떻게 이걸 컴파일러가 자동으로 알아낼까?</p>
+
+<h4>테이블 다발 (Sheaf of Tables)</h4>
+
+<p>해법은 직관적이다. 새 스코프에 진입할 때마다 새 심볼 테이블을 만들고 바깥 테이블에 링크해 둔다. <code>Insert</code>는 항상 현재(가장 안쪽) 테이블에. <code>LookUp</code>은 현재 테이블부터 시작해 못 찾으면 바깥 테이블로 거슬러 올라간다 — 처음 만난 정의가 가장 가까운(가장 안쪽) 정의다.</p>
+
+<div class="figure">
+<pre>
+       Level 3      Level 2b     Level 1      Level 0
+       ┌─────┐      ┌─────┐      ┌─────┐      ┌─────┐
+   ┌──→│  x  │──┬──→│  x  │──┬──→│  b  │──┬──→│  x  │
+   │   │  c  │  │   │  a  │  │   │  c  │  │   │exa..│
+   │   └─────┘  │   └─────┘  │   │  a  │  │   │  w  │
+   │            │             │   └─────┘  │   └─────┘
+   └─ Current ──┘             └────────────┘
+</pre>
+<span class="figure-caption">테이블 다발 — 가장 안쪽 스코프부터 바깥 방향으로 검색</span>
+</div>
+
+<p>인터페이스에 두 함수가 추가된다.</p>
+<ul>
+<li><code>InitializeScope()</code>: 새 레벨에 진입. 새 테이블을 만들고 현재 포인터를 옮긴다.</li>
+<li><code>FinalizeScope()</code>: 현재 레벨을 빠져나온다. 현재 포인터를 부모로 옮기고 레벨 카운터를 줄인다.</li>
+</ul>
+
+<p>찾은 변수는 <strong>정적 좌표(static coordinate)</strong> ⟨l, o⟩로 표현된다 — 어느 레벨 <code>l</code>에 있고, 그 레벨의 데이터 영역에서 오프셋 <code>o</code>가 얼마인지. 이 좌표가 6장의 런타임 메모리 접근에 그대로 쓰인다.</p>
+
+<h3>5.5.4 심볼 테이블의 다양한 용도</h3>
+
+<p>실제 컴파일러는 한 개가 아니라 여러 개의 심볼 테이블을 굴린다.</p>
+
+<ul>
+<li><strong>구조체(레코드) 필드 테이블</strong> — 필드 이름은 변수 이름과 별개의 이름공간이다. C에서 <code>size</code>는 변수일 수도, 어떤 구조체의 필드일 수도 있다. 옵션은 (1) 구조체마다 별도 테이블, (2) 자격 있는 이름(struct.field)으로 한 테이블, (3) 그냥 메인 테이블에 다 때려박기. 보통 (1)이 가장 깔끔하다.</li>
+<li><strong>객체지향 언어의 연결된 테이블</strong> — Java는 컴파일 중인 코드의 테이블, 외부 클래스 테이블, 상속 계층의 슈퍼클래스 테이블 등 여러 테이블을 메서드 안에서 어휘적 스코프 → 클래스 → 슈퍼클래스 → 패키지 순으로 검색한다.</li>
+<li><strong>메모이제이션</strong> — 순수 함수 캐시. 인자로부터 해시 키를 만들어 결과를 저장. Lisp의 <code>cons</code>가 인자를 해시해 동일 객체 공유를 강제하는 것도 같은 아이디어.</li>
+<li><strong>희소 자료구조</strong> — 0이 아닌 값만 키 <code>(i, j)</code>로 저장하는 희소 배열, 엣지 존재만 기록하는 희소 그래프.</li>
+</ul>
+
+<div class="callout note">
+<div class="callout-title">5.5 절 정리</div>
+<p>심볼 테이블은 비정수 키(문자열, 식별자, 좌표)를 정수 인덱스로 효율적으로 매핑하는 컴파일러의 만능 도구다. 핵심 고려사항: 확장성, 공간 효율, 항목과 새 스코프의 생성·삭제 비용. 본문은 "해시 테이블의 다발"이라는 단순한 스킴을 제시했고, 이는 슈퍼로컬 값 넘버링(8.5.1) 같은 최적화에도 그대로 쓰인다.</p>
+</div>
+
+<h2>5.6 요약과 전망</h2>
+
+<p>이 장은 컴파일러가 코드를 어떻게 머릿속에 담느냐를 다뤘다. 정답은 없다 — 파스 트리·AST·DAG·CFG·의존성 그래프(그래프형), 스택 머신·3-주소 코드(선형), SSA 폼(이름 규율)까지 — 어떤 IR이든 잘 어울리는 문제와 어색한 문제가 있다.</p>
+
+<p>현대 컴파일러는 보통 <em>여러 IR을 동시에</em> 굴린다. 메인 IR 위에 잠깐 DAG를 만들어 공통 부분식을 잡고, 의존성 그래프를 만들어 명령 스케줄링을 하고, SSA 폼으로 데이터 흐름 분석을 하고는 다시 일반 형태로 되돌린다. 한 IR로 모든 걸 하려는 시도는 깔끔해 보이지만 실제로는 각 작업에 가장 어울리는 표현을 그때그때 만들어 쓰는 편이 훨씬 효율적이다.</p>
+
+<p>IR 설계는 컴파일러의 성격을 결정한다. 1980년대의 거대한 AST는 분석 가능한 프로그램 크기를 제한했다. GCC의 RTL은 저수준 세부에 강하지만 루프 블로킹 같은 소스 수준 변환엔 약하다. LLVM이 단일 SSA-기반 IR로 갈아치운 게 새로운 트렌드를 열었다.</p>
+
+<div class="callout">
+<div class="callout-title">미들엔드로 들어가기 전에</div>
+<p>5장은 "패스 사이에서 무엇을 주고받는가"의 답이었다. 6장은 "프로시저 호출과 활성 레코드를 어떻게 모델링할 것인가", 7장은 "고수준 구조를 IR로 어떻게 풀어쓸 것인가"를 다룬다. 8장 이후의 최적화는 5장에서 만든 IR — 특히 SSA 폼 — 위에서 춤춘다. 여기서 좋은 IR을 골라두지 못하면 그 다음 장들의 알고리즘이 신음한다.</p>
+</div>
+
+<div class="chapter-nav">
+<a href="chapter-4.html"><span class="label">← 이전</span><span>4장. 문맥 의존 분석</span></a>
+<a href="chapter-6.html" class="next-link"><span class="label">다음 →</span><span>6장. 프로시저 추상화</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

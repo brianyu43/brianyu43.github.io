@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12장. 병합: 동적 입력 식별 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 12</p>
+    <h1>병합: 동적 입력 식별</h1>
+    <p class="subtitle">출력의 위치는 알아도, 입력의 위치는 데이터에게 물어봐야 한다</p>
+  </header>
+
+  <h2>12.1 배경: 두 강물을 합치는 일</h2>
+  <p>병합(merge)은 두 개의 정렬된 시퀀스 A(길이 m)와 B(길이 n)를 받아, 정렬 순서를 유지한 채 길이 m+n의 하나의 시퀀스 C로 합치는 연산이다. 머지 정렬(merge sort)의 핵심 빌딩블록이고, 외부 정렬(external sort), 데이터베이스의 머지 조인, MapReduce의 reduce 단계 — 정렬과 관련된 거의 모든 곳에서 등장한다.</p>
+  <p>지금까지 다룬 패턴들과 결정적으로 다른 점이 하나 있다. 출력 C의 위치 i를 보면 그게 어디서 왔는지를 데이터를 보지 않고는 모른다. C[i]는 A의 어느 원소일 수도, B의 어느 원소일 수도 있다. 즉 한 스레드가 출력의 한 영역을 담당한다고 해도, 그 영역을 채우려면 입력의 어느 부분을 가져와야 하는지를 동적으로 결정해야 한다. 이게 이 챕터의 제목인 <b>동적 입력 식별(dynamic input identification)</b>이다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>두 개의 줄 — 키 순서로 정렬된 — 이 영화관 입구로 들어온다. 검표원은 키 작은 사람부터 한 명씩 통과시킨다. 어느 줄에서 다음 사람이 올지는 두 줄의 맨 앞 사람을 비교해 봐야 안다. 병렬 머지의 본질은 이 검표원 작업을 여러 명이 동시에 하면서도 순서가 깨지지 않게 하는 것이다.</p>
+  </div>
+
+  <h2>12.2 순차 병합 알고리즘</h2>
+  <p>먼저 직렬 알고리즘을 짚자. two-pointer로 O(m+n)에 끝난다.</p>
+  <pre><code>// 직렬 머지
+void merge_sequential(const int* A, int m, const int* B, int n, int* C) {
+    int i = 0, j = 0, k = 0;
+    while (i &lt; m &amp;&amp; j &lt; n) {
+        if (A[i] &lt;= B[j]) C[k++] = A[i++];
+        else              C[k++] = B[j++];
+    }
+    while (i &lt; m) C[k++] = A[i++];
+    while (j &lt; n) C[k++] = B[j++];
+}</code></pre>
+  <p>이 알고리즘의 어떤 점이 병렬화를 방해하는가. C[k]를 결정하려면 그 시점까지의 i와 j를 알아야 한다. i와 j는 이전 단계에 어떤 분기를 탔느냐에 따라 결정된다. 즉 의존성이 출력 인덱스를 따라 길게 사슬처럼 이어진다. 이 사슬을 어떻게 끊을 것인가가 병렬 머지의 출발점이다.</p>
+
+  <h2>12.3 병렬화 접근법: 출력을 먼저 나눈다</h2>
+  <p>핵심 아이디어는 이렇다. 출력 C는 길이 m+n으로 미리 정해져 있다. 이를 P명의 스레드가 각자 [k, k+T) 영역을 분담한다고 하자. T는 코어스닝 단위. 이때 각 스레드가 알아야 하는 것은 단 하나 — "내 영역의 시작 출력 인덱스 k에 대응하는 (i, j)는 무엇인가?" 이걸 알면 스레드 내부에서는 위의 직렬 머지 코드를 그대로 돌리면 된다.</p>
+  <p>그 (i, j)를 구하는 함수가 다음 절의 co-rank 함수다. 이걸 이진 탐색으로 O(log) 시간에 얻을 수 있다는 것이 결정적이다.</p>
+
+  <h2>12.4 co-rank 함수</h2>
+  <p>정의: 출력 인덱스 k가 주어졌을 때, A에서 가져올 원소의 개수 i와 B에서 가져올 원소의 개수 j는 i + j = k를 만족하면서 다음 두 조건이 성립해야 한다.</p>
+  <pre><code>(i &gt; 0  =&gt; A[i-1] &lt;= B[j])     // A의 마지막 가져온 원소가 B의 다음 후보보다 작거나 같다
+(j &gt; 0  =&gt; B[j-1] &lt;  A[i])     // B의 마지막 가져온 원소가 A의 다음 후보보다 엄격히 작다</code></pre>
+  <p>등호 처리는 안정성(stability)을 위해 비대칭으로 둔다 — A의 동률을 먼저 가져오는 관행. 이 두 조건 아래에서 i를 [max(0, k-n), min(k, m)] 범위에서 이진 탐색하면 유일하게 결정된다.</p>
+  <pre><code>// co-rank: 출력 인덱스 k에 대응하는 i를 이진 탐색으로 찾는다
+__device__ int co_rank(int k, const int* A, int m, const int* B, int n) {
+    int i_low = max(0, k - n);
+    int i_high = min(k, m);
+    while (i_low &lt;= i_high) {
+        int i = (i_low + i_high) / 2;
+        int j = k - i;
+        if (i &gt; 0 &amp;&amp; j &lt; n &amp;&amp; A[i-1] &gt; B[j]) {
+            // A를 너무 많이 가져왔다 → i 줄이기
+            i_high = i - 1;
+        } else if (j &gt; 0 &amp;&amp; i &lt; m &amp;&amp; B[j-1] &gt;= A[i]) {
+            // B를 너무 많이 가져왔다 → i 늘리기
+            i_low = i + 1;
+        } else {
+            return i;     // 조건 만족
+        }
+    }
+    return i_low;    // 가장자리
+}</code></pre>
+  <p>탐색 범위가 m 이하니까 비교 횟수는 ⌈log₂(m+1)⌉. 출력의 시작 인덱스만 한 번 정해 두면 그 다음은 직렬 머지로 흐른다. 한 스레드가 T개의 출력을 만든다 치면, 한 스레드의 비용은 O(log m) + O(T) = O(log m + T). T를 충분히 크게 잡으면 log m이 묻혀서 거의 O(T)다.</p>
+
+  <h2>12.5 기본 병렬 머지 커널</h2>
+  <p>이제 모두 합치자. 한 스레드가 출력 영역 [k_start, k_end)을 담당하는 단순 커널이다.</p>
+  <pre><code>// 기본 병렬 머지 커널 (글로벌 메모리만 사용)
+__global__ void merge_basic(const int* A, int m, const int* B, int n, int* C) {
+    int total = m + n;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int nthreads = blockDim.x * gridDim.x;
+
+    int items_per_thread = (total + nthreads - 1) / nthreads;
+    int k_start = min(tid * items_per_thread, total);
+    int k_end   = min(k_start + items_per_thread, total);
+
+    // 내 영역의 시작/끝에 대응하는 (i, j)를 co-rank로 찾는다
+    int i_start = co_rank(k_start, A, m, B, n);
+    int j_start = k_start - i_start;
+    int i_end   = co_rank(k_end,   A, m, B, n);
+    int j_end   = k_end - i_end;
+
+    // 내 영역에서 직렬 머지
+    int i = i_start, j = j_start, k = k_start;
+    while (i &lt; i_end &amp;&amp; j &lt; j_end) {
+        if (A[i] &lt;= B[j]) C[k++] = A[i++];
+        else              C[k++] = B[j++];
+    }
+    while (i &lt; i_end) C[k++] = A[i++];
+    while (j &lt; j_end) C[k++] = B[j++];
+}</code></pre>
+  <p>정합성은 명백하다. co-rank의 정의에 의해 [i_start, i_end), [j_start, j_end)에 대응하는 부분만 머지해도 출력 [k_start, k_end)에 들어갈 정확히 그 원소들이고, 그 안에서의 순서도 유지된다. 인접 스레드가 만든 영역은 정확히 이어 붙는다 — 한 스레드의 i_end는 다음 스레드의 i_start와 같으니까.</p>
+  <p>그런데 이 커널은 메모리 접근 측면에서 그다지 좋지 않다. 한 스레드가 A의 자기 구간을 직렬로 i_start..i_end로 훑는 동안, 옆 스레드는 또 다른 구간을 훑는다. 워프 단위로 보면 32개 lane이 A에서 32개의 연속한 인덱스를 동시에 읽지 않는다 — 코얼레싱이 깨진다. 다음 절에서 고친다.</p>
+
+  <h2>12.6 코얼레싱 향상을 위한 타일드 머지 커널</h2>
+  <p>아이디어는 블록 단위로 입력의 일부분을 shared memory에 미리 협력적으로 로드하고, 거기서 머지를 수행하는 것이다. 블록 단위 영역은 보통 한 블록이 만들어 낼 출력 길이가 T이고, 그러려면 A에서 최대 T개, B에서 최대 T개를 사이클별로 가져와야 한다(둘 중 어느 쪽인지 미리는 모른다 — 그래서 양쪽 다 충분히 로드한다).</p>
+  <pre><code>// 타일드 머지 커널의 골격
+__global__ void merge_tiled(const int* A, int m, const int* B, int n, int* C) {
+    constexpr int TILE = 1024;          // 블록당 출력 길이
+    __shared__ int sA[TILE];
+    __shared__ int sB[TILE];
+
+    int tid = threadIdx.x;
+    int total = m + n;
+    int k_block = blockIdx.x * TILE;
+    int k_block_end = min(k_block + TILE, total);
+
+    // 1) 블록 영역 [k_block, k_block_end)의 (i, j) 끝점 결정
+    int i_block     = co_rank(k_block,     A, m, B, n);
+    int j_block     = k_block - i_block;
+    int i_block_end = co_rank(k_block_end, A, m, B, n);
+    int j_block_end = k_block_end - i_block_end;
+
+    int aLen = i_block_end - i_block;       // 이 블록이 볼 A 구간 길이
+    int bLen = j_block_end - j_block;
+
+    // 2) 협력적 로드 — 워프가 인접 주소를 동시에 읽으니 코얼레싱 OK
+    for (int t = tid; t &lt; aLen; t += blockDim.x)
+        sA[t] = A[i_block + t];
+    for (int t = tid; t &lt; bLen; t += blockDim.x)
+        sB[t] = B[j_block + t];
+    __syncthreads();
+
+    // 3) 블록 내부에서 출력 길이 (k_block_end - k_block)을 스레드들이 분담
+    int items = k_block_end - k_block;
+    int per   = (items + blockDim.x - 1) / blockDim.x;
+    int my_k  = min(tid * per, items);
+    int my_k_end = min(my_k + per, items);
+
+    // 4) 내 출력 영역에 대응하는 (i, j)를 sA, sB에서 co-rank
+    int i = co_rank(my_k,     sA, aLen, sB, bLen);
+    int j = my_k - i;
+    int i_end = co_rank(my_k_end, sA, aLen, sB, bLen);
+    int j_end = my_k_end - i_end;
+
+    // 5) shared memory에서 직렬 머지하여 글로벌 C에 쓰기
+    int k = k_block + my_k;
+    while (i &lt; i_end &amp;&amp; j &lt; j_end) {
+        if (sA[i] &lt;= sB[j]) C[k++] = sA[i++];
+        else                C[k++] = sB[j++];
+    }
+    while (i &lt; i_end) C[k++] = sA[i++];
+    while (j &lt; j_end) C[k++] = sB[j++];
+}</code></pre>
+  <p>이 구조의 장점은 명확하다. 글로벌 메모리에서 A와 B를 읽는 부분이 워프 친화적인 협력 로드다. 머지 자체의 불규칙한 접근은 모두 shared memory 안에서 일어난다. 글로벌 트래픽 = 입력 1회 read + 출력 1회 write라는 이론적 하한에 가깝다.</p>
+
+  <h2>12.7 순환 버퍼 머지 커널</h2>
+  <p>위 타일드 커널에는 숨은 비효율이 하나 있다. 블록의 출력 길이가 TILE인데, 그 출력을 만들기 위해 A에서 가져와야 하는 양과 B에서 가져와야 하는 양은 비대칭일 수 있다. 극단적으로 A 쪽 원소가 모두 B 쪽보다 크면, 출력 TILE개를 만들기 위해 A에서는 0개, B에서는 TILE개를 가져와야 한다. 그런데 우리는 sA와 sB에 각각 TILE개의 공간을 할당해 뒀으니, sA는 텅 비어 있다 — shared memory의 절반이 낭비다.</p>
+  <p>이를 해결하는 방법이 <b>순환 버퍼(circular buffer)</b>다. shared memory에 작은 윈도우 W를 두고, 머지 진행에 따라 소비된 만큼만 다음 청크를 가져와 채운다. 이때 인덱스를 modulo W로 wrap-around하므로 "circular"라는 이름이 붙는다.</p>
+  <pre><code>// 순환 버퍼 머지 커널의 핵심 골격 (개념 중심)
+__global__ void merge_circular(const int* A, int m, const int* B, int n, int* C) {
+    constexpr int W = 512;             // 윈도우 크기
+    __shared__ int sA[W];              // circular buffer
+    __shared__ int sB[W];
+
+    // 블록이 담당할 출력 영역
+    int total = m + n;
+    int k_block = blockIdx.x * (W);
+    int k_end   = min(k_block + W, total);
+
+    // co-rank로 입력에서의 시작점 (i_g, j_g)
+    int i_g = co_rank(k_block, A, m, B, n);
+    int j_g = k_block - i_g;
+    int i_g_end = co_rank(k_end, A, m, B, n);
+    int j_g_end = k_end - i_g_end;
+
+    int aLen = i_g_end - i_g;
+    int bLen = j_g_end - j_g;
+
+    // 초기 로드: 가능한 만큼만 W 한도 내에서 채운다
+    int aHead = 0, aTail = 0;          // 버퍼 내 논리 인덱스
+    int bHead = 0, bTail = 0;
+    int aLoaded = 0, bLoaded = 0;       // 글로벌에서 가져온 누적 개수
+
+    auto refill = [&amp;](int* sBuf, int* head, int* tail, int* loaded,
+                       const int* G, int gBase, int gLen) {
+        int free = W - (*tail - *head);
+        int to_load = min(free, gLen - *loaded);
+        for (int t = threadIdx.x; t &lt; to_load; t += blockDim.x) {
+            sBuf[(*tail + t) % W] = G[gBase + *loaded + t];
+        }
+        __syncthreads();
+        *tail += to_load;
+        *loaded += to_load;
+    };
+
+    refill(sA, &amp;aHead, &amp;aTail, &amp;aLoaded, A, i_g, aLen);
+    refill(sB, &amp;bHead, &amp;bTail, &amp;bLoaded, B, j_g, bLen);
+
+    int produced = 0;
+    int target = k_end - k_block;
+    while (produced &lt; target) {
+        // 한 라운드: 스레드들이 윈도우 안에서 어디까지 머지 가능한지 결정 후 처리.
+        // (실제 구현은 스레드별 영역 결정과 advance 로직이 추가로 필요)
+        // 머지 후 head를 advance하고, 윈도우에 빈 공간이 생기면 refill.
+        // ... (생략 — 핵심은 modulo W 인덱싱)
+        if (aTail - aHead &lt; W/4 &amp;&amp; aLoaded &lt; aLen)
+            refill(sA, &amp;aHead, &amp;aTail, &amp;aLoaded, A, i_g, aLen);
+        if (bTail - bHead &lt; W/4 &amp;&amp; bLoaded &lt; bLen)
+            refill(sB, &amp;bHead, &amp;bTail, &amp;bLoaded, B, j_g, bLen);
+        // produced += merged_in_this_round;
+        break;  // 골격만 — 실제로는 루프
+    }
+}</code></pre>
+  <p>코드의 시각적 단순함은 잃지만, 동일한 shared memory 예산으로 두 배 이상 큰 출력을 처리할 수 있다는 점에서 일반화된 입력 분포에서 더 강건하다. 인덱스 정규화(<code>idx % W</code>)는 W가 2의 거듭제곱이면 비트 마스크로 단축된다.</p>
+
+  <h2>12.8 머지용 스레드 코어스닝</h2>
+  <p>지금까지 한 스레드가 만든 출력 길이는 보통 작게(예: 1) 잡혀 있었지만, 코어스닝(coarsening)을 적용해 한 스레드가 T개의 출력을 만들도록 하면 두 가지 이득이 있다. 첫째, co-rank의 비용 O(log)가 T에 분산되어 amortize된다. 둘째, 같은 입력 데이터를 본 스레드가 인접 출력을 직렬로 만드므로 sA, sB의 캐시 라인 재사용이 늘어난다.</p>
+  <p>다만 너무 큰 T는 점유율을 깎고, T가 크면 한 스레드의 주문이 길어져 부하 불균형도 커질 수 있다. 입력의 분포가 매우 불균형하면 어떤 스레드는 빨리 끝나고 어떤 스레드는 오래 도는데, 그 격차가 T의 크기에 비례한다. 보통 T=4~16에서 출발해 측정으로 정한다.</p>
+
+  <div class="callout good">
+    <div class="label">왜 머지인가</div>
+    <p>머지를 단단히 익혀 두면 머지 정렬, 정렬된 dedup, 두 정렬 셋의 교집합/합집합/차집합, 정렬된 키-밸류의 그룹화 — 이 모든 게 같은 골격으로 풀린다. co-rank 함수와 타일드 + 순환 버퍼 커널은 한 번 짜 두면 평생 쓴다.</p>
+  </div>
+
+  <h2>12.9 정리</h2>
+  <p>병합은 출력 위치는 정해져 있지만 입력 위치는 데이터에 의해 결정되는, 새로운 종류의 의존성을 가진 패턴이었다. co-rank 함수가 이 의존성을 이진 탐색 한 번으로 끊어 주고, 그 다음은 직렬 머지가 영역마다 흐른다. 코얼레싱을 살리려면 타일드 + shared memory가 필수고, 비대칭 소비를 다루려면 순환 버퍼가 필요하며, 코어스닝은 그 위에 양념처럼 얹는다. 이 구조 위에서 머지 정렬을 만들면 다음 챕터의 정렬 이야기가 자연스럽게 이어진다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>병합은 output 위치는 정해져 있지만 input의 출처는 데이터 의존적인 첫 패턴이다 — 동적 입력 식별이 필요하다.</li>
+      <li>co-rank 함수는 출력 인덱스 k에 대응하는 (i, j)를 이진 탐색으로 O(log m)에 찾는다.</li>
+      <li>기본 병렬 머지: 각 스레드가 자기 영역의 (i_start, j_start)를 co-rank로 정한 뒤 직렬 머지.</li>
+      <li>타일드 머지: 블록이 입력을 협력적으로 shared memory에 로드해 글로벌 코얼레싱을 살린다.</li>
+      <li>순환 버퍼 머지: 비대칭 소비로 인한 shared memory 낭비를 modulo W 인덱싱으로 해소한다.</li>
+      <li>스레드 코어스닝(T)은 co-rank 비용을 amortize하고 캐시 재사용을 늘리지만 부하 불균형 위험이 있다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch11.html"><span class="dir">← 이전</span><span>접두사 합 (스캔)</span></a>
+    <a href="ch13.html" class="next"><span class="dir">다음 →</span><span>정렬</span></a>
+  </nav>
+</article>
+</body>
+</html>

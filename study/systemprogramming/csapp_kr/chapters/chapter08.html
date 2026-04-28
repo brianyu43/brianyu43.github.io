@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제8장 · 예외적 제어 흐름 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제8장 · 예외적 제어 흐름</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="chapter07.html">← 이전</a>
+    <a href="../index.html">목차</a>
+    <a href="chapter09.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제8장 · 예외적 제어 흐름</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-8-1">8.1 예외 (Exceptions)</a></li>
+      <li class="sub-li"><a href="#sec-8-1-1">8.1.1 예외 처리</a></li>
+      <li class="sub-li"><a href="#sec-8-1-2">8.1.2 예외의 종류</a></li>
+      <li class="sub-li"><a href="#sec-8-1-3">8.1.3 Linux/x86-64에서의 예외</a></li>
+      <li><a href="#sec-8-2">8.2 프로세스 (Processes)</a></li>
+      <li class="sub-li"><a href="#sec-8-2-1">8.2.1 논리적 제어 흐름</a></li>
+      <li class="sub-li"><a href="#sec-8-2-2">8.2.2 동시 흐름</a></li>
+      <li class="sub-li"><a href="#sec-8-2-3">8.2.3 사적 주소 공간</a></li>
+      <li class="sub-li"><a href="#sec-8-2-4">8.2.4 사용자 모드와 커널 모드</a></li>
+      <li class="sub-li"><a href="#sec-8-2-5">8.2.5 컨텍스트 스위치</a></li>
+      <li><a href="#sec-8-3">8.3 시스템 콜 에러 처리</a></li>
+      <li><a href="#sec-8-4">8.4 프로세스 제어</a></li>
+      <li class="sub-li"><a href="#sec-8-4-1">8.4.1 PID 얻기</a></li>
+      <li class="sub-li"><a href="#sec-8-4-2">8.4.2 프로세스 생성과 종료</a></li>
+      <li class="sub-li"><a href="#sec-8-4-3">8.4.3 자식 프로세스 회수</a></li>
+      <li class="sub-li"><a href="#sec-8-4-4">8.4.4 프로세스 잠재우기</a></li>
+      <li class="sub-li"><a href="#sec-8-4-5">8.4.5 프로그램 로딩과 실행</a></li>
+      <li class="sub-li"><a href="#sec-8-4-6">8.4.6 fork/execve 패턴</a></li>
+      <li><a href="#sec-8-5">8.5 시그널 (Signals)</a></li>
+      <li class="sub-li"><a href="#sec-8-5-1">8.5.1 시그널 용어</a></li>
+      <li class="sub-li"><a href="#sec-8-5-2">8.5.2 시그널 보내기</a></li>
+      <li class="sub-li"><a href="#sec-8-5-3">8.5.3 시그널 받기</a></li>
+      <li class="sub-li"><a href="#sec-8-5-4">8.5.4 시그널 차단/해제</a></li>
+      <li class="sub-li"><a href="#sec-8-5-5">8.5.5 시그널 핸들러 작성</a></li>
+      <li class="sub-li"><a href="#sec-8-5-6">8.5.6 동시성 버그 회피</a></li>
+      <li class="sub-li"><a href="#sec-8-5-7">8.5.7 시그널 명시적으로 기다리기</a></li>
+      <li><a href="#sec-8-6">8.6 비지역 점프</a></li>
+      <li><a href="#sec-8-7">8.7 프로세스 조작 도구</a></li>
+      <li><a href="#sec-8-8">8.8 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 08</span>
+      <h1>예외적 제어 흐름</h1>
+      <div class="en">Exceptional Control Flow</div>
+      <p class="blurb">
+        보통의 프로그램은 한 줄, 한 줄, 또 한 줄, 정해진 순서를 따라 흐른다. 그러나 진짜 시스템은
+        그렇게 정직하지 않다. 키보드를 누르면 인터럽트가 떨어지고, <code>0</code>으로 나누면 트랩이 발동하며,
+        타이머가 똑딱이는 순간 OS가 슬쩍 끼어들어 다른 프로세스로 갈아 끼운다. 이 모든 갑작스런 흐름의 변화를
+        통틀어 <strong>예외적 제어 흐름(ECF, Exceptional Control Flow)</strong>이라 부른다. 이 장은 하드웨어부터
+        OS, 그리고 응용 프로그래머가 만지는 <code>fork</code>/<code>execve</code>/시그널까지 한 줄에 꿰는 여행이다.
+      </p>
+    </header>
+
+    <article class="section" id="sec-8-1">
+      <h2><span class="anchor-num">8.1</span>예외 (Exceptions)</h2>
+
+      <p>
+        예외(exception)는 어떤 사건이 벌어졌을 때 프로세서가 평소 흐름을 중단하고 미리 약속된 핸들러로 점프하는 메커니즘이다.
+        여기서 말하는 "예외"는 C++/자바의 <code>try/catch</code>와는 다른 차원의 이야기 — 하드웨어와 OS가 같이 만드는,
+        프로세서 수준의 갑작스런 흐름 전환이다. 그리고 사실, 우리가 시스템 콜이라 부르는 것 역시 이 예외 메커니즘 위에 얹혀 있다.
+      </p>
+
+      <p>
+        한 줄로 비유하자면, CPU가 도서관에서 책을 한 줄씩 읽고 있는데 누가 어깨를 톡 친다.
+        CPU는 지금 읽던 줄을 표시해 두고, 정해진 카운터에 가서 부탁받은 일을 처리하고, 다시 돌아와 — 또는 영영 안 돌아가고 — 읽기를 잇는다.
+      </p>
+
+      <article class="section" id="sec-8-1-1">
+        <h3><span class="anchor-num">8.1.1</span>예외 처리 (예외 테이블, 핸들러)</h3>
+
+        <p>
+          예외가 발생하면 프로세서는 <strong>예외 번호(exception number)</strong>를 결정한다. 이 번호는
+          <em>예외 테이블(exception table)</em>의 인덱스가 된다. 테이블의 각 칸에는 그 번호에 해당하는
+          핸들러의 시작 주소가 적혀 있다. 프로세서는 해당 주소로 점프해 핸들러를 실행한다. x86-64 리눅스에서는 이 테이블을
+          <strong>IDT(Interrupt Descriptor Table)</strong>이라 부르고, 그 시작 위치는 <code>idtr</code> 레지스터가 가리킨다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.1 · 예외 발생 시 흐름</span><code>사용자 코드 (정상 실행)
+        │
+        │  사건 발생 (인터럽트/트랩/폴트/어보트)
+        ▼
+   예외 번호 k 결정
+        │
+        ▼
+   예외 테이블[k] 의 핸들러 주소 로드
+        │
+        ▼
+   프로세서 상태 저장 (PC, FLAGS, 모드 등)
+        │
+        ▼
+   커널 모드로 전환, 핸들러 실행
+        │
+        ▼
+   상황별 마무리:
+     ① 다음 명령으로 복귀
+     ② 같은 명령부터 재시도
+     ③ 프로그램 강제 종료
+</code></pre>
+
+        <p>
+          핸들러는 항상 <strong>커널 모드</strong>에서 실행된다. 커널 모드에서는 모든 명령어와 메모리에 접근할 수 있으므로,
+          페이지 테이블을 갱신하거나 디스크 컨트롤러에 명령을 내리는 등 위험한 작업도 가능하다. 핸들러가 끝나면 다시 사용자 모드로 돌아간다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            예외와 일반 함수 호출의 차이는 셋이다. (1) 예외 핸들러로 갈 때는 단순한 PC 점프가 아니라 <em>모드 전환</em>까지 일어난다.
+            (2) 사용자/커널 스택이 다를 수 있고, 일부 추가 컨텍스트(예: 에러 코드, 폴트 주소)가 같이 푸시된다.
+            (3) 어떤 예외는 "다시 같은 명령을 시작"하기 위해 PC를 사건 발생 명령의 <em>시작</em>으로 되돌려 둔다(폴트).
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-1-2">
+        <h3><span class="anchor-num">8.1.2</span>예외의 종류 (interrupt, trap, fault, abort)</h3>
+
+        <p>
+          예외는 발생 원인과 처리 방식에 따라 네 가지로 갈린다. 표로 한눈에 정리하자.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>종류</th>
+              <th>유발 주체</th>
+              <th>동기/비동기</th>
+              <th>핸들러 후 복귀 위치</th>
+              <th>대표 예시</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>인터럽트 (interrupt)</strong></td>
+              <td>외부 장치(타이머, NIC, 키보드)</td>
+              <td>비동기</td>
+              <td>다음 명령</td>
+              <td>타이머 인터럽트, 디스크 IRQ</td>
+            </tr>
+            <tr>
+              <td><strong>트랩 (trap)</strong></td>
+              <td>의도적 명령 (<code>syscall</code>, <code>int 0x80</code>)</td>
+              <td>동기</td>
+              <td>다음 명령</td>
+              <td>시스템 콜, 디버그 브레이크포인트</td>
+            </tr>
+            <tr>
+              <td><strong>폴트 (fault)</strong></td>
+              <td>실행 중 오류 (복구 가능)</td>
+              <td>동기</td>
+              <td>같은 명령 재실행</td>
+              <td>페이지 폴트, 보호 위반</td>
+            </tr>
+            <tr>
+              <td><strong>어보트 (abort)</strong></td>
+              <td>하드웨어 치명적 오류</td>
+              <td>동기/비동기</td>
+              <td>복귀 안 함, 종료</td>
+              <td>머신 체크(MCE), 패리티 오류</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>
+          핵심 차이를 한 줄씩 더 풀자.
+        </p>
+
+        <ul>
+          <li><strong>인터럽트는 비동기적</strong> — 프로세서 입장에서 보면 어느 명령을 실행하든 상관없이 "갑자기" 핀 신호가 들어온다. 그래서 처리 후 다음 명령으로 복귀하는 게 자연스럽다.</li>
+          <li><strong>트랩은 의도적 동기</strong> — 사용자 프로그램이 일부러 <code>syscall</code> 명령을 실행해 OS에게 부탁한다. <code>read</code>, <code>write</code>, <code>fork</code>가 모두 트랩의 후예다.</li>
+          <li><strong>폴트는 사고 난 동기</strong> — 가령 페이지가 메모리에 없어서 접근에 실패했다. 핸들러가 디스크에서 페이지를 가져와 매핑해 두면, <em>같은 명령</em>을 다시 실행하면 이번엔 성공한다. 그래서 PC는 사건 명령의 시작 주소로 돌아간다.</li>
+          <li><strong>어보트는 회복 불능</strong> — DRAM 비트가 우주선에 맞아 뒤집혔을 때처럼, 더 이상 컴퓨팅 결과를 신뢰할 수 없을 때 발생한다. 보통 시스템을 통째로 멈춘다.</li>
+        </ul>
+
+        <div class="callout tip">
+          <span class="label">꿀팁</span>
+          <p>
+            폴트 중 가장 흔한 게 <em>페이지 폴트</em>다. <code>malloc</code>으로 잡은 메모리에 처음 접근하면 거의 항상 한 번은 폴트가 떨어진다.
+            대부분 OS는 그 자리에서 물리 페이지를 할당해 매핑을 채워 주고, 사용자 코드는 폴트가 일어난 줄도 모른 채 다음 줄로 넘어간다.
+            이걸 자세히 다루는 것이 9장의 한 축이다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-1-3">
+        <h3><span class="anchor-num">8.1.3</span>Linux/x86-64에서의 예외</h3>
+
+        <p>
+          x86-64에서 예외 번호 0~31은 인텔이 예약한 영역이고, 그 위쪽은 OS가 자유롭게 쓸 수 있다. 자주 보게 되는 번호 몇 개를 알아두면
+          커널 메시지나 디버거 출력이 갑자기 친근해진다.
+        </p>
+
+        <table>
+          <thead>
+            <tr><th>번호</th><th>이름</th><th>분류</th><th>설명</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0</td><td>Divide error</td><td>fault</td><td><code>idiv</code>의 0 나누기 또는 결과 오버플로</td></tr>
+            <tr><td>13</td><td>General protection</td><td>fault</td><td>세그먼트/권한 위반 — 흔히 "segfault"의 일부</td></tr>
+            <tr><td>14</td><td>Page fault</td><td>fault</td><td>가상 주소 → 물리 주소 매핑 실패</td></tr>
+            <tr><td>18</td><td>Machine check</td><td>abort</td><td>하드웨어 치명적 오류</td></tr>
+            <tr><td>32~127</td><td>장치 IRQ</td><td>interrupt</td><td>타이머, 키보드, 디스크 등</td></tr>
+            <tr><td>128 (0x80)</td><td>System call</td><td>trap</td><td>레거시 진입점. 현대는 <code>syscall</code> 명령</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          현대 x86-64 리눅스에서는 시스템 콜을 부를 때 <code>int 0x80</code> 대신 전용 <code>syscall</code> 명령을 쓴다.
+          호출 규약도 따로다 — 시스템 콜 번호는 <code>%rax</code>에 넣고, 인자는 <code>%rdi, %rsi, %rdx, %r10, %r8, %r9</code> 순으로 전달한다.
+          반환값은 <code>%rax</code>로 받는다. <code>%rcx</code>가 아니라 <code>%r10</code>이 네 번째 인자라는 점이 일반 함수 호출 규약과 미묘하게 다르다 — <code>syscall</code> 명령이 <code>%rcx</code>를 자기 용도로 쓰기 때문이다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.2 · write(1, "hi\n", 3) 의 어셈블리 형태</span><code>mov  $1,    %rax    # 시스템 콜 번호: SYS_write = 1
+mov  $1,    %rdi    # arg0: fd = stdout
+lea  msg,   %rsi    # arg1: buf
+mov  $3,    %rdx    # arg2: count
+syscall             # 트랩! 커널로 진입
+                    # 반환값은 %rax (쓴 바이트 수, 에러 시 -errno)
+</code></pre>
+      </article>
+    </article>
+
+    <article class="section" id="sec-8-2">
+      <h2><span class="anchor-num">8.2</span>프로세스 (Processes)</h2>
+
+      <p>
+        프로세스는 OS가 응용에게 제공하는 가장 큰 추상이다. 이 추상은 둘을 약속한다 — <em>전용 CPU</em>와 <em>전용 메모리</em>.
+        실제로는 한 CPU 위에서 여러 프로세스가 빠르게 갈아 끼며 실행되고, 메모리는 페이지 단위로 쪼개 나눠 쓰지만, 프로세스 입장에서는 그게 안 보인다.
+      </p>
+
+      <article class="section" id="sec-8-2-1">
+        <h3><span class="anchor-num">8.2.1</span>논리적 제어 흐름</h3>
+
+        <p>
+          프로세스 P가 실행되는 동안 PC가 그려내는 일련의 주소들 — 이것을 P의 <strong>논리적 제어 흐름(logical flow)</strong>이라 부른다.
+          P 입장에서 자기 흐름은 매 순간 끊김 없이 이어진다. 실제 CPU는 P를 잠시 잠재우고 Q를 깨워 돌리고 있을지 몰라도,
+          P의 시간 축에서는 그 잠재워진 시간이 마치 0초처럼 사라진다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.3 · 두 프로세스의 논리/물리 흐름</span><code>물리 시간 →
+CPU:  P  P  P  Q  Q  P  R  R  Q  P  P  P
+            ↑     ↑     ↑  ↑     ↑
+       (P 잠듦) (Q 잠듦)  (R 시작 후 잠듦)
+
+P의 논리적 흐름:    P  P  P  P  P  P  P    (끊김 없이 이어 보인다)
+Q의 논리적 흐름:    Q  Q  Q                 (자기 차례만 보면 연속)
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-2-2">
+        <h3><span class="anchor-num">8.2.2</span>동시 흐름 (concurrent flows)</h3>
+
+        <p>
+          두 흐름의 시간 구간이 <em>겹쳐</em> 있으면 둘은 <strong>동시(concurrent)</strong> 흐름이다. 코어가 하나뿐인 시스템에서도 두 프로세스가
+          시간을 잘게 쪼개 번갈아 도는 한 — 즉 <em>시간 슬라이싱(time slicing)</em>으로 인터리빙되는 한 — 둘은 동시이다.
+          코어가 여러 개라 진짜로 <em>같은 순간</em>에 도는 건 <strong>병렬(parallel)</strong>이라 부른다. 병렬은 동시의 부분집합이다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            "동시"라는 말은 일상 한국어에서는 "정확히 같은 순간"이라는 뜻이지만, 컴퓨팅에서는 <em>겹친 구간이 존재한다</em> 정도의 느슨한 뜻이다.
+            이 차이를 바로잡지 않으면 12장 병행 프로그래밍이 아주 어려워진다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-2-3">
+        <h3><span class="anchor-num">8.2.3</span>사적 주소 공간 (private address space)</h3>
+
+        <p>
+          각 프로세스는 자기만의 가상 주소 공간을 본다. 64비트 리눅스라면 사용자 영역은 대략 <code>0x0000_0000_0000</code>부터
+          <code>0x7fff_ffff_ffff</code>까지 펼쳐진다. 같은 가상 주소라도 프로세스마다 다른 물리 페이지에 매핑되므로, 한 프로세스가 실수로 다른 프로세스의 메모리를 건드릴 일은 없다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.4 · 리눅스 프로세스의 가상 주소 공간 (64비트, 위가 높은 주소)</span><code>높은 주소  ┌─────────────────────────┐
+          │   커널 영역 (사용자 ✗)     │  모든 프로세스가 공유 매핑
+          ├─────────────────────────┤
+          │     사용자 스택 ↓         │  argv, env, 함수 호출 프레임
+          ├─────────────────────────┤
+          │     매핑 영역 (mmap)       │  공유 라이브러리, 익명 매핑
+          ├─────────────────────────┤
+          │     힙 (heap) ↑           │  malloc 영역
+          ├─────────────────────────┤
+          │   .data / .bss            │  전역 변수
+          ├─────────────────────────┤
+          │   .text / .rodata         │  코드, 상수
+낮은 주소  └─────────────────────────┘
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-2-4">
+        <h3><span class="anchor-num">8.2.4</span>사용자 모드와 커널 모드</h3>
+
+        <p>
+          프로세서는 <strong>모드 비트(mode bit)</strong>를 가지고 있다. 비트가 0이면 커널 모드, 1이면 사용자 모드(혹은 그 반대인 아키텍처도 있다 — 의미가 중요).
+          x86-64의 경우 권한 링은 0~3까지 네 개지만, 리눅스는 사실상 링 0(커널)과 링 3(사용자)만 쓴다. 모드 정보는 <code>CR0</code>의 PE 비트와 코드 세그먼트 디스크립터의 DPL 등에 인코딩된다.
+        </p>
+
+        <p>
+          사용자 모드에서는 특권 명령(예: <code>hlt</code>, <code>cli</code>, 페이지 테이블 조작, I/O 포트 접근)이 막혀 있고, 커널 영역의 메모리에도 접근할 수 없다.
+          모드를 전환하는 방법은 단 하나 — <strong>예외</strong>를 통해 핸들러로 들어가는 것이다. 일단 핸들러로 들어가면 자동으로 커널 모드가 되고, 핸들러가 끝나면(<code>iretq</code>/<code>sysret</code>) 다시 사용자 모드로 내려온다.
+        </p>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            "응용 프로그램이 직접 모드 비트를 1에서 0으로 바꿀 수 있다면 보안이 무너진다." 그래서 모드 전환은 <em>오직 정해진 진입점</em>(예외 테이블)을 통해서만 일어난다.
+            이게 운영체제 보안의 가장 기초적이고 단단한 약속이다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-2-5">
+        <h3><span class="anchor-num">8.2.5</span>컨텍스트 스위치</h3>
+
+        <p>
+          OS가 프로세스 P를 잠재우고 Q를 깨우는 절차를 <strong>컨텍스트 스위치(context switch)</strong>라 부른다.
+          이건 위에서 설명한 예외 메커니즘 위에 얹혀 있는 더 고수준의 동작이다.
+        </p>
+
+        <ol>
+          <li>타이머 인터럽트가 떨어진다(혹은 P가 자발적으로 <code>read</code> 같은 블로킹 시스템 콜을 부른다).</li>
+          <li>예외 핸들러가 커널 모드에서 실행된다. P의 레지스터·PC·플래그·페이지 테이블 베이스(<code>%cr3</code>) 같은 컨텍스트를 저장한다.</li>
+          <li>스케줄러가 다음에 돌릴 프로세스 Q를 고른다.</li>
+          <li>Q의 컨텍스트를 복원한다. <code>%cr3</code>를 Q의 페이지 테이블로 바꾸고, 레지스터를 채우고, PC를 Q의 다음 명령으로 맞춘다.</li>
+          <li>사용자 모드로 복귀한다 — 이제 Q가 마치 자기가 계속 돌고 있던 것처럼 보인다.</li>
+        </ol>
+
+        <p>
+          컨텍스트 스위치 비용은 결코 무시할 수 없다. 레지스터 저장/복원 자체는 빠르지만, TLB와 캐시가 무효화되어 새 프로세스의 첫 몇 백 명령 동안 캐시 미스 폭풍이 분다.
+          그래서 너무 잦은 컨텍스트 스위치는 시스템의 처리량을 크게 깎는다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-8-3">
+      <h2><span class="anchor-num">8.3</span>시스템 콜 에러 처리</h2>
+
+      <p>
+        유닉스 계열의 시스템 콜은 거의 모두 같은 약속을 따른다 — <strong>실패하면 -1을 반환하고, 전역 변수 <code>errno</code>에 에러 코드를 둔다</strong>.
+        그래서 호출 직후 반환값을 검사하지 않으면 버그를 놓치기 쉽다. 보일러플레이트가 늘어나는 게 단점이지만, 빠지면 곤란한 절차다.
+      </p>
+
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;unistd.h&gt;
+
+int main(void) {
+    pid_t pid;
+    if ((pid = fork()) &lt; 0) {
+        fprintf(stderr, "fork failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    /* ... */
+}
+</code></pre>
+
+      <p>
+        같은 패턴을 매번 쓰기엔 지루하니, CS:APP 책에서는 <em>래퍼 함수</em>를 권한다. 함수 이름을 대문자로 시작해(예: <code>Fork</code>) 자기 자신이
+        에러 검사를 해 주는 버전을 만들고, 본문에서는 그 래퍼만 쓰는 방식이다.
+      </p>
+
+<pre><code>void unix_error(const char *msg) {
+    fprintf(stderr, "%s: %s\n", msg, strerror(errno));
+    exit(EXIT_FAILURE);
+}
+
+pid_t Fork(void) {
+    pid_t pid;
+    if ((pid = fork()) &lt; 0)
+        unix_error("Fork error");
+    return pid;
+}
+</code></pre>
+
+      <p>
+        실무에서는 더 부드러운 처리(재시도, 로깅, 우아한 종료)가 필요할 때가 많지만, 학습용 셸이나 데모 코드를 짤 때는 이 래퍼 패턴이 코드를 훨씬 깔끔하게 해 준다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          <code>errno</code>는 스레드별 변수처럼 동작한다(<code>__thread</code> 또는 그에 준하는 메커니즘). 그래서 멀티스레드 프로그램에서도 다른 스레드의 <code>errno</code>가 내 것을 덮어쓰지 않는다.
+          하지만 시그널 핸들러 안에서 <code>errno</code>를 망치는 함수를 부르면 — 가령 <code>printf</code> — 메인 흐름의 <code>errno</code> 검사가 어긋날 수 있으니 핸들러 진입 시 <code>errno</code>를 저장해 두는 습관을 들이자(8.5.5에서 자세히).
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-8-4">
+      <h2><span class="anchor-num">8.4</span>프로세스 제어</h2>
+
+      <p>
+        이 절은 셸 한 줄을 어떻게 짤지에 직접 답한다. <code>fork</code>, <code>exit</code>, <code>wait</code>/<code>waitpid</code>, <code>execve</code>, <code>getpid</code>가 등장하는데,
+        다섯 함수만 잘 쓰면 작은 셸은 충분히 만들 수 있다.
+      </p>
+
+      <article class="section" id="sec-8-4-1">
+        <h3><span class="anchor-num">8.4.1</span>PID 얻기 (getpid, getppid)</h3>
+
+        <p>
+          모든 프로세스에는 양의 정수로 된 고유 ID(PID)가 붙는다. 자기 PID는 <code>getpid()</code>, 부모 PID는 <code>getppid()</code>로 얻는다.
+          타입은 <code>pid_t</code>이고, 32비트 정수로 정의되어 있다.
+        </p>
+
+<pre><code>#include &lt;sys/types.h&gt;
+#include &lt;unistd.h&gt;
+
+pid_t getpid(void);
+pid_t getppid(void);
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-4-2">
+        <h3><span class="anchor-num">8.4.2</span>프로세스 생성과 종료 (fork, exit)</h3>
+
+        <p>
+          <code>fork</code>는 시스템 콜계의 마술사다. <strong>한 번 호출되어 두 번 반환된다</strong>는, 처음 보면 어이없는 의미체계를 가지고 있다.
+          호출한 시점에 부모 프로세스의 거의 모든 상태를 복제한 자식 프로세스가 만들어진다. 둘은 <code>fork</code> 이후의 같은 코드 줄로 동시에 진입하지만, 반환값이 다르다.
+        </p>
+
+        <ul>
+          <li>부모에게는 <strong>자식의 PID</strong>가 반환된다 (양수).</li>
+          <li>자식에게는 <strong>0</strong>이 반환된다.</li>
+          <li>실패하면 부모 쪽에 -1이 반환된다 (자식은 만들어지지도 않음).</li>
+        </ul>
+
+<pre><code>#include &lt;sys/types.h&gt;
+#include &lt;unistd.h&gt;
+
+pid_t fork(void);
+</code></pre>
+
+<pre><code>int main(void) {
+    pid_t pid = fork();
+    if (pid &lt; 0) {
+        perror("fork"); exit(1);
+    } else if (pid == 0) {
+        /* 자식: 여기는 자식만 도달 */
+        printf("child  pid=%d, parent=%d\n", getpid(), getppid());
+        exit(0);
+    } else {
+        /* 부모: 여기는 부모만 도달 */
+        printf("parent pid=%d, child=%d\n", getpid(), pid);
+        wait(NULL);
+    }
+    return 0;
+}
+</code></pre>
+
+        <p>
+          자식은 부모의 코드, 데이터, 힙, 스택을 모두 복제해서 받지만, 그 복제는 실제로는 <strong>COW(Copy-On-Write)</strong>로 구현된다.
+          처음에는 둘이 같은 물리 페이지를 읽기 전용으로 공유하다가, 어느 한쪽이 그 페이지를 쓰려는 순간 페이지 폴트가 떨어지고, 커널이 그제서야 진짜 사본을 만든다.
+          덕분에 <code>fork</code>는 빠르고, 자식이 곧바로 <code>execve</code>를 부를 거라면 사본 비용이 거의 안 든다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.5 · fork 후 두 흐름</span><code>           fork() 호출
+                │
+        ┌───────┴───────┐
+        │               │
+     부모 흐름        자식 흐름
+   pid = (자식 PID)   pid = 0
+        │               │
+       wait            execve("/bin/ls", ...)
+        │               │
+        ▼               ▼
+       SIGCHLD ←────── 종료
+</code></pre>
+
+        <p>
+          종료는 <code>exit(status)</code> 또는 <code>_exit(status)</code>로 한다. <code>exit</code>는 stdio 버퍼를 비우고 <code>atexit</code> 등록 함수를 부른 다음 진짜 종료(<code>_exit</code>)로 들어간다.
+          시그널 핸들러 안에서는 무조건 <code>_exit</code>를 써야 한다(8.5.5 참조).
+        </p>
+
+        <div class="callout tip">
+          <span class="label">꿀팁</span>
+          <p>
+            <code>fork</code> 직후 <code>printf</code>가 두 번 찍히는 걸 본 적 있는가? <code>printf</code>가 stdio 버퍼를 가지고 있어서 <code>fork</code> 시점에 미플러시 데이터가 자식에도 같이 복제됐기 때문이다.
+            <code>fflush(stdout)</code>를 <code>fork</code> 전에 부르거나 <code>setvbuf(stdout, NULL, _IONBF, 0)</code>로 라인 버퍼링을 끄면 깔끔해진다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-4-3">
+        <h3><span class="anchor-num">8.4.3</span>자식 프로세스 회수 (wait, waitpid, 좀비)</h3>
+
+        <p>
+          자식이 <code>exit</code>로 종료해도 그 흔적은 곧바로 사라지지 않는다. 종료 상태(exit status)와 자원 사용량 통계 같은 작은 정보가 커널에 남아 부모가 가져갈 때까지 기다린다.
+          이 상태의 프로세스를 <strong>좀비(zombie)</strong>라 부른다. 좀비는 메모리를 거의 안 차지하지만, PID 하나를 점유하므로 너무 쌓이면 새 프로세스를 못 만들게 된다.
+        </p>
+
+        <p>
+          반대로 부모가 자식보다 먼저 죽으면, 자식은 <strong>고아(orphan)</strong>가 된다. 리눅스는 고아를 PID 1번 프로세스(<code>init</code> 또는 <code>systemd</code>)에게 입양시키고,
+          이 입양 부모는 자식이 죽을 때 자동으로 <code>wait</code>해 준다. 그래서 고아는 좀비로 누적될 일이 없다 — 좀비는 보통 부모가 살아 있는데 게으른 경우에 생긴다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.6 · 좀비 vs 고아</span><code>좀비 (부모가 wait 안 함)
+   부모 ────[살아있음]────┐
+   자식 ──[exit]──[좀비, PID 점유]
+                  └→ 부모가 wait 호출 시 정리됨
+
+고아 (부모 먼저 죽음)
+   부모 ──[exit]
+   자식 ─────[살아있음]
+       └→ init/systemd 가 새 부모로 입양 → 종료 시 자동 wait
+</code></pre>
+
+        <p>
+          좀비를 회수하는 함수가 <code>wait</code>와 <code>waitpid</code>다.
+        </p>
+
+<pre><code>#include &lt;sys/wait.h&gt;
+
+pid_t wait(int *status);
+pid_t waitpid(pid_t pid, int *status, int options);
+</code></pre>
+
+        <p>
+          <code>wait(&amp;s)</code>는 <code>waitpid(-1, &amp;s, 0)</code>과 같다 — "어떤 자식이든 종료할 때까지 블로킹하고, 끝난 자식의 PID를 반환한다."
+          <code>waitpid</code>는 더 세밀하다.
+        </p>
+
+        <table>
+          <thead><tr><th>인자/옵션</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>pid &gt; 0</code></td><td>해당 PID의 자식만 기다림</td></tr>
+            <tr><td><code>pid == -1</code></td><td>모든 자식</td></tr>
+            <tr><td><code>pid == 0</code></td><td>같은 프로세스 그룹의 모든 자식</td></tr>
+            <tr><td><code>WNOHANG</code></td><td>아무도 끝나지 않았으면 블로킹 대신 즉시 0 반환</td></tr>
+            <tr><td><code>WUNTRACED</code></td><td>중단(stop)된 자식도 보고</td></tr>
+            <tr><td><code>WCONTINUED</code></td><td>SIGCONT로 다시 시작한 자식도 보고</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          상태 값을 해석하는 매크로도 같이 외워두자. <code>WIFEXITED(s)</code>가 참이면 <code>WEXITSTATUS(s)</code>로 종료 코드를 얻고, <code>WIFSIGNALED(s)</code>가 참이면 <code>WTERMSIG(s)</code>로 죽음을 부른 시그널 번호를 얻는다.
+        </p>
+
+<pre><code>int status;
+pid_t cpid = waitpid(-1, &amp;status, 0);
+if (WIFEXITED(status))
+    printf("child %d exited normally, code=%d\n", cpid, WEXITSTATUS(status));
+else if (WIFSIGNALED(status))
+    printf("child %d killed by signal %d\n", cpid, WTERMSIG(status));
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-4-4">
+        <h3><span class="anchor-num">8.4.4</span>프로세스 잠재우기 (sleep, pause)</h3>
+
+        <p>
+          <code>sleep(n)</code>은 호출한 프로세스를 n초간 잠재운다. 도중에 시그널을 받으면 일찍 깨어나며, 남은 초를 반환한다.
+          <code>pause()</code>는 시그널이 도착할 때까지 영원히 잔다. 시그널 처리를 디자인할 때 자주 보게 된다.
+        </p>
+
+<pre><code>unsigned int sleep(unsigned int seconds);
+int pause(void);  /* 항상 -1 반환, errno = EINTR */
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-4-5">
+        <h3><span class="anchor-num">8.4.5</span>프로그램 로딩과 실행 (execve)</h3>
+
+        <p>
+          <code>execve</code>는 현재 프로세스의 주소 공간을 새 프로그램으로 통째로 갈아 끼운다. 코드, 데이터, 스택, 힙이 새 프로그램의 것으로 교체되고,
+          PC는 새 프로그램의 진입점(<code>_start</code>)으로 점프한다. <strong>성공하면 절대 반환하지 않는다</strong> — 반환할 곳이 이미 사라졌기 때문이다.
+        </p>
+
+<pre><code>#include &lt;unistd.h&gt;
+
+int execve(const char *filename,
+           char *const argv[],
+           char *const envp[]);
+</code></pre>
+
+        <p>
+          <code>argv</code>는 명령행 인자 배열이고, 마지막 원소는 <code>NULL</code>이다. <code>argv[0]</code>은 보통 실행 파일 이름이다.
+          <code>envp</code>는 <code>"NAME=VALUE"</code> 형식의 환경 변수 문자열 배열이고, 역시 <code>NULL</code>로 끝난다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 8.7 · execve 직후의 사용자 스택 (위가 높은 주소)</span><code>높은 주소 ┌────────────────────────────┐
+         │  환경 변수 문자열들          │  "PATH=/usr/bin", ...
+         ├────────────────────────────┤
+         │  argv 문자열들              │  "ls", "-l", "/"
+         ├────────────────────────────┤
+         │  envp[ ] 포인터 배열, NULL   │
+         ├────────────────────────────┤
+         │  argv[ ] 포인터 배열, NULL   │
+         ├────────────────────────────┤
+         │  argc, argv, envp           │  main 진입 시 받는 값
+낮은 주소 └────────────────────────────┘
+</code></pre>
+
+        <p>
+          <code>execve</code>는 시스템 콜 한 개지만, 파생 함수가 여럿이다 — <code>execl</code>, <code>execlp</code>, <code>execv</code>, <code>execvp</code>, <code>execvpe</code> 등.
+          <code>l</code>은 list(가변 인자), <code>v</code>는 vector(배열), <code>p</code>는 PATH 검색, <code>e</code>는 환경 변수 직접 지정. 셸은 보통 <code>execve</code>나 <code>execvp</code>를 쓴다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-8-4-6">
+        <h3><span class="anchor-num">8.4.6</span>fork/execve 패턴 (셸 구현)</h3>
+
+        <p>
+          유닉스 셸의 핵심 루프는 다섯 단계로 요약된다.
+        </p>
+
+        <ol>
+          <li>프롬프트를 출력하고 한 줄을 읽는다.</li>
+          <li>그 줄을 토큰으로 쪼갠다(파이프, 리다이렉션, 인자).</li>
+          <li>내장 명령(<code>cd</code>, <code>exit</code>)이면 직접 처리한다.</li>
+          <li>그 외는 <code>fork</code> → 자식이 <code>execve</code> → 부모가 <code>waitpid</code>.</li>
+          <li>(백그라운드 작업이라면 <code>&amp;</code>가 붙어 있고, 부모는 <code>wait</code>하지 않고 다음 줄로 넘어간다.)</li>
+        </ol>
+
+<pre class="with-caption"><span class="caption">그림 8.8 · 미니 셸 스켈레톤</span><code>void eval(char *cmdline) {
+    char *argv[MAXARGS];
+    int   bg  = parse_line(cmdline, argv);   /* "&" 가 끝에 있으면 bg=1 */
+    if (argv[0] == NULL) return;             /* 빈 줄 */
+    if (builtin_cmd(argv)) return;           /* cd, exit 등 */
+
+    pid_t pid;
+    if ((pid = fork()) == 0) {
+        /* 자식: 새 프로그램으로 갈아끼움 */
+        if (execvp(argv[0], argv) &lt; 0) {
+            fprintf(stderr, "%s: command not found\n", argv[0]);
+            _exit(0);
+        }
+    }
+    if (!bg) {
+        int status;
+        if (waitpid(pid, &amp;status, 0) &lt; 0)
+            unix_error("waitpid");
+    } else {
+        printf("[bg] %d %s", pid, cmdline);
+    }
+}
+</code></pre>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            진짜 셸은 여기 더해 SIGCHLD 핸들러로 좀비를 거두고, SIGINT/SIGTSTP을 포그라운드 자식에게만 전달하며, 작업 제어(job control)를 위해 프로세스 그룹과 세션을 다룬다.
+            8.5의 시그널 절을 같이 보면 셸이 어떻게 SIGINT를 처리하는지 자연스레 그려진다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-8-5">
+      <h2><span class="anchor-num">8.5</span>시그널 (Signals)</h2>
+
+      <p>
+        시그널은 프로세스끼리(혹은 커널이 프로세스에게) 보내는 작은 메시지다. 1바이트짜리 번호 하나가 전부지만, 그 번호가 의미하는 사건의 종류는 풍부하다.
+        Ctrl+C로 셸이 SIGINT를 보내고, 자식이 끝나면 커널이 부모에게 SIGCHLD를 보내고, 0으로 나누면 자기 자신에게 SIGFPE가 도착한다.
+      </p>
+
+      <article class="section" id="sec-8-5-1">
+        <h3><span class="anchor-num">8.5.1</span>시그널 용어 (전송, 수신, 보류, 차단)</h3>
+
+        <p>
+          시그널 한 건의 일생은 두 단계다.
+        </p>
+
+        <ul>
+          <li><strong>전송(send/deliver to pending)</strong> — 커널이 대상 프로세스의 보류(pending) 비트를 켠다.</li>
+          <li><strong>수신(receive)</strong> — 대상 프로세스가 다음에 사용자 모드로 복귀하는 시점에, 보류 중인 시그널을 보고 디폴트 동작을 하거나 등록된 핸들러를 호출한다.</li>
+        </ul>
+
+        <p>
+          중요한 건 <strong>보류 시그널은 큐잉되지 않는다</strong>는 사실이다. 같은 종류의 시그널이 여러 번 와도, 한 비트만 켜질 뿐이라서 한 번만 전달된다.
+          핸들러 한 번에 여러 건을 한꺼번에 처리해야 하는 상황이 생기는 이유다.
+        </p>
+
+        <p>
+          또한 시그널은 <strong>차단(block)</strong>할 수 있다. 차단된 시그널은 보류 비트만 켜진 채 대기하다가, 차단이 풀리면 그제서야 전달된다.
+          한 종류는 핸들러 진입 시 자동으로 차단되어 같은 시그널이 핸들러 실행 중 또 들어와 재진입하는 사고를 막는다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-8-5-2">
+        <h3><span class="anchor-num">8.5.2</span>시그널 보내기 (kill, /bin/kill, Ctrl+C, raise, alarm)</h3>
+
+        <p>
+          시그널을 보내는 길은 여러 갈래다.
+        </p>
+
+        <ul>
+          <li><code>kill(pid, sig)</code> — 시스템 콜. 특정 PID(또는 음수로 프로세스 그룹 전체)에게 시그널을 보낸다. 같은 사용자거나 루트만 보낼 수 있다.</li>
+          <li><code>/bin/kill</code> — 셸 명령. <code>kill -9 1234</code>처럼 쓴다. 단순히 위 시스템 콜의 래퍼.</li>
+          <li>키보드 단축키 — Ctrl+C는 SIGINT, Ctrl+Z는 SIGTSTP, Ctrl+\는 SIGQUIT를 포그라운드 프로세스 그룹에 보낸다.</li>
+          <li><code>raise(sig)</code> — 자기 자신에게 시그널을 보낸다.</li>
+          <li><code>alarm(sec)</code> — sec초 뒤에 자기 자신에게 SIGALRM이 도착하도록 예약한다. 일종의 셀프 타이머.</li>
+        </ul>
+
+        <p>표준 시그널 중 자주 보는 것들을 모았다.</p>
+
+        <table>
+          <thead><tr><th>이름</th><th>번호</th><th>디폴트 동작</th><th>의미/유발</th></tr></thead>
+          <tbody>
+            <tr><td>SIGINT</td><td>2</td><td>종료</td><td>Ctrl+C, 정중한 인터럽트 요청</td></tr>
+            <tr><td>SIGQUIT</td><td>3</td><td>종료 + 코어덤프</td><td>Ctrl+\</td></tr>
+            <tr><td>SIGILL</td><td>4</td><td>종료 + 코어덤프</td><td>잘못된 명령</td></tr>
+            <tr><td>SIGABRT</td><td>6</td><td>종료 + 코어덤프</td><td><code>abort()</code> 호출</td></tr>
+            <tr><td>SIGFPE</td><td>8</td><td>종료 + 코어덤프</td><td>0 나누기 등 산술 예외</td></tr>
+            <tr><td>SIGKILL</td><td>9</td><td>종료</td><td>차단/무시/포착 불가능. 무조건 죽임</td></tr>
+            <tr><td>SIGUSR1</td><td>10</td><td>종료</td><td>사용자 정의 1</td></tr>
+            <tr><td>SIGSEGV</td><td>11</td><td>종료 + 코어덤프</td><td>잘못된 메모리 접근</td></tr>
+            <tr><td>SIGUSR2</td><td>12</td><td>종료</td><td>사용자 정의 2</td></tr>
+            <tr><td>SIGPIPE</td><td>13</td><td>종료</td><td>닫힌 파이프에 쓰기</td></tr>
+            <tr><td>SIGALRM</td><td>14</td><td>종료</td><td><code>alarm</code> 만료</td></tr>
+            <tr><td>SIGTERM</td><td>15</td><td>종료</td><td>정중한 종료 요청 (포착 가능)</td></tr>
+            <tr><td>SIGCHLD</td><td>17</td><td>무시</td><td>자식이 종료/중단/재개됨</td></tr>
+            <tr><td>SIGCONT</td><td>18</td><td>이어 실행</td><td>중단된 프로세스 재개</td></tr>
+            <tr><td>SIGSTOP</td><td>19</td><td>중단</td><td>차단/무시/포착 불가능</td></tr>
+            <tr><td>SIGTSTP</td><td>20</td><td>중단</td><td>Ctrl+Z</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            SIGKILL(9)과 SIGSTOP(19)은 <em>응용이 손댈 수 없는</em> 두 시그널이다. 차단도, 무시도, 핸들러 등록도 안 된다.
+            "이 프로세스 도저히 안 죽는데?" 싶을 땐 <code>kill -9</code>이 만능 키다. 단, 코드가 한참 중요한 작업 중이라도 그 자리에서 즉시 중단되니, 정중한 SIGTERM을 먼저 보내는 게 매너다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-5-3">
+        <h3><span class="anchor-num">8.5.3</span>시그널 받기 (디폴트 동작, signal/sigaction)</h3>
+
+        <p>
+          각 시그널에는 디폴트 동작이 있다 — 종료, 코어덤프, 무시, 중단, 재개. 응용이 그 동작을 바꾸고 싶다면 핸들러를 등록한다.
+          전통적인 함수는 <code>signal</code>이지만, 동작이 시스템마다 미묘하게 다르므로 실무에서는 <code>sigaction</code>을 쓰는 게 정석이다.
+        </p>
+
+<pre><code>#include &lt;signal.h&gt;
+
+typedef void (*sighandler_t)(int);
+sighandler_t signal(int signum, sighandler_t handler);
+
+struct sigaction {
+    void     (*sa_handler)(int);
+    sigset_t   sa_mask;     /* 핸들러 실행 중 추가로 차단할 시그널 집합 */
+    int        sa_flags;    /* SA_RESTART, SA_NODEFER 등 */
+    /* ... */
+};
+
+int sigaction(int signum,
+              const struct sigaction *act,
+              struct sigaction *oldact);
+</code></pre>
+
+        <p>
+          간단한 예. SIGINT를 가로채서 메시지 한 줄 찍고 정리한 뒤 종료하는 핸들러.
+        </p>
+
+<pre><code>#include &lt;signal.h&gt;
+#include &lt;unistd.h&gt;
+
+void sigint_handler(int sig) {
+    const char msg[] = "caught SIGINT, bye\n";
+    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+    _exit(0);
+}
+
+int main(void) {
+    struct sigaction sa = {0};
+    sa.sa_handler = sigint_handler;
+    sigemptyset(&amp;sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &amp;sa, NULL);
+
+    while (1) pause();
+}
+</code></pre>
+
+        <p>
+          <code>SA_RESTART</code>는 핸들러 복귀 후 시스템 콜을 자동으로 재시작해 달라는 부탁이다(모든 콜이 이 플래그를 존중하지는 않는다).
+          이게 없으면 <code>read</code> 같은 블로킹 콜이 <code>EINTR</code> 에러로 일찍 깨어나서, 호출자가 매번 <code>EINTR</code> 검사를 해야 한다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-8-5-4">
+        <h3><span class="anchor-num">8.5.4</span>시그널 차단/해제 (sigprocmask, sigpending)</h3>
+
+        <p>
+          크리티컬 섹션 동안 특정 시그널을 잠시 막고 싶다면 <code>sigprocmask</code>로 차단 마스크를 갱신한다.
+          시그널 집합은 <code>sigset_t</code>에 비트 벡터로 표현되고, <code>sigemptyset</code>, <code>sigfillset</code>, <code>sigaddset</code>, <code>sigdelset</code>으로 조작한다.
+        </p>
+
+<pre><code>sigset_t mask, prev;
+sigemptyset(&amp;mask);
+sigaddset(&amp;mask, SIGCHLD);
+
+/* SIGCHLD 차단 */
+sigprocmask(SIG_BLOCK, &amp;mask, &amp;prev);
+
+/* ... 임계 영역: SIGCHLD 가 와도 일단 보류만 됨 ... */
+
+/* 이전 마스크로 복귀 → 보류된 SIGCHLD 가 그제서야 전달됨 */
+sigprocmask(SIG_SETMASK, &amp;prev, NULL);
+</code></pre>
+
+        <p>
+          <code>SIG_BLOCK</code>은 합집합, <code>SIG_UNBLOCK</code>은 차집합, <code>SIG_SETMASK</code>는 통째로 교체.
+          현재 보류된 시그널 집합은 <code>sigpending</code>으로 조회한다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-8-5-5">
+        <h3><span class="anchor-num">8.5.5</span>시그널 핸들러 작성 (async-signal-safe 함수만)</h3>
+
+        <p>
+          시그널 핸들러는 보통의 함수처럼 보이지만 그렇지 않다. 메인 흐름이 <em>어떤 줄을 실행하는 도중</em>에든 갑자기 끼어들 수 있기 때문에,
+          핸들러가 부르는 함수는 <strong>async-signal-safe</strong>여야 한다 — 즉 자기 자신이 도중에 끼어들어도 망가지지 않는 함수만 허용된다.
+        </p>
+
+        <p>
+          POSIX가 정한 안전 함수는 일부분이고, 자주 쓰는 표준 라이브러리 함수의 대부분은 <em>안전하지 않다</em>. 특히 <code>printf</code>, <code>malloc</code>/<code>free</code>, <code>exit</code>, <code>stdio</code> 일가는 핸들러에서 절대 부르면 안 된다.
+        </p>
+
+        <table>
+          <thead><tr><th>안전 (예시)</th><th>안전하지 않음</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>
+                <code>write</code>, <code>read</code>, <code>_exit</code>, <code>kill</code>, <code>raise</code>,
+                <code>signal</code>, <code>sigaction</code>, <code>sigprocmask</code>, <code>sigpending</code>,
+                <code>sigemptyset</code>, <code>sigfillset</code>, <code>sigaddset</code>, <code>sigdelset</code>,
+                <code>alarm</code>, <code>pause</code>, <code>fork</code>(주의),
+                <code>open</code>, <code>close</code>, <code>dup</code>, <code>execve</code>
+              </td>
+              <td>
+                <code>printf</code>, <code>fprintf</code>, <code>sprintf</code>(스레드/시그널 안전성 모두 의심), <code>malloc</code>,
+                <code>free</code>, <code>exit</code>(아토믹 X), <code>strerror</code>, <code>localtime</code>(정적 버퍼 사용),
+                <code>rand</code>, 대부분의 <code>stdio</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>
+          그래서 디버그 메시지를 찍을 때도 <code>printf</code> 대신 <code>write(STDOUT_FILENO, ...)</code>로 직접 시스템 콜을 부르는 패턴이 자주 보인다.
+          숫자를 출력하려면 <code>itoa</code> 비슷한 함수를 손수 짜기도 한다.
+        </p>
+
+        <p>
+          핸들러와 메인 흐름이 변수를 공유해야 한다면 타입을 <strong><code>volatile sig_atomic_t</code></strong>로 선언하자. <code>sig_atomic_t</code>는 한 번의 읽기/쓰기가 분리되지 않음을 보장하는 정수 타입이고,
+          <code>volatile</code>은 컴파일러가 핸들러 바깥에서 그 값이 안 바뀐다고 가정해 최적화하는 걸 막는다.
+        </p>
+
+<pre><code>#include &lt;signal.h&gt;
+
+volatile sig_atomic_t sigint_count = 0;
+
+void sigint_handler(int sig) {
+    int saved_errno = errno;     /* 핸들러 진입 시 errno 저장 */
+    sigint_count++;
+    const char msg[] = "interrupt!\n";
+    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+    errno = saved_errno;         /* 복원 */
+}
+</code></pre>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            <code>errno</code> 저장-복원은 빼먹기 쉽지만 매우 중요하다. <code>write</code>가 실패해 <code>errno</code>를 갱신하면,
+            메인 흐름의 직후 <code>errno</code> 검사가 엉뚱한 값을 보고 잘못된 결정을 내릴 수 있다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-8-5-6">
+        <h3><span class="anchor-num">8.5.6</span>동시성 버그 회피 (sigsuspend로 race 회피)</h3>
+
+        <p>
+          시그널이 큐잉되지 않는다는 사실은 멋진 함정을 만든다. 셸이 SIGCHLD 핸들러로 자식들을 거두는 상황을 보자.
+        </p>
+
+<pre><code>void sigchld_handler(int sig) {
+    int saved_errno = errno;
+    while (waitpid(-1, NULL, WNOHANG) &gt; 0)
+        ;   /* 여러 자식이 거의 동시에 죽었어도 한 번에 다 거둠 */
+    errno = saved_errno;
+}
+</code></pre>
+
+        <p>
+          핵심은 <code>WNOHANG</code> 옵션과 <code>while</code> 루프다. 자식 셋이 거의 동시에 죽으면 SIGCHLD가 세 번 와도 보류 비트는 한 개뿐이라 핸들러는 한 번만 호출될 수 있다.
+          그래서 핸들러 안에서 <em>가져갈 수 있는 만큼 다 가져간다</em>는 패턴을 쓴다. <code>waitpid</code>가 0을 반환하면(아직 더 안 죽음) 루프 종료, -1과 ECHILD면(자식 더 없음) 종료.
+        </p>
+
+        <p>
+          또 하나의 고전적 레이스는 "fork → 자식의 리스트 추가" 패턴에서 일어난다.
+        </p>
+
+<pre><code>/* WRONG: 부모가 리스트에 추가하기 전에 자식이 끝나면 SIGCHLD 가
+   먼저 도착해서 핸들러가 빈 리스트만 보고 그냥 돌아간다. */
+pid = fork();
+if (pid == 0) { /* child */ ... exit(0); }
+add_to_jobs(pid);   /* 너무 늦었을 수 있음 */
+</code></pre>
+
+        <p>
+          교과서적 해법은 <code>fork</code> 전에 SIGCHLD를 <em>차단</em>하고, 자식 리스트 갱신이 끝난 뒤 차단을 해제하는 것이다. 그러면 자식이 일찍 죽어도 시그널은 보류 상태로 안전히 대기한다.
+        </p>
+
+<pre><code>sigset_t mask_chld, prev;
+sigemptyset(&amp;mask_chld);
+sigaddset(&amp;mask_chld, SIGCHLD);
+
+sigprocmask(SIG_BLOCK, &amp;mask_chld, &amp;prev);   /* 차단 */
+pid = fork();
+if (pid == 0) {
+    sigprocmask(SIG_SETMASK, &amp;prev, NULL);   /* 자식은 즉시 해제 */
+    /* exec... */
+}
+add_to_jobs(pid);
+sigprocmask(SIG_SETMASK, &amp;prev, NULL);       /* 부모도 해제 */
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-8-5-7">
+        <h3><span class="anchor-num">8.5.7</span>시그널 명시적으로 기다리기 (sigsuspend)</h3>
+
+        <p>
+          위 절의 패턴에서 한 발 더 나아가, "시그널이 올 때까지 잔다"가 필요할 때가 있다. 단순한 <code>pause()</code>는 함정이 있다 — 시그널이 <code>pause</code> 호출 <em>직전</em>에 도착하면 그 시그널은 보류된 채 <code>pause</code>가 영원히 잠들 수 있다.
+        </p>
+
+        <p>
+          이 레이스를 막는 함수가 <code>sigsuspend</code>다. 마스크를 임시로 바꾸고 잠드는 두 동작을 <em>아토믹하게</em> 처리한다.
+        </p>
+
+<pre><code>#include &lt;signal.h&gt;
+
+int sigsuspend(const sigset_t *mask);
+</code></pre>
+
+<pre><code>sigset_t mask, prev, allow;
+sigemptyset(&amp;allow);
+sigemptyset(&amp;mask);
+sigaddset(&amp;mask, SIGCHLD);
+
+sigprocmask(SIG_BLOCK, &amp;mask, &amp;prev);   /* SIGCHLD 차단 */
+while (!ready)
+    sigsuspend(&amp;allow);                  /* SIGCHLD 허용한 채 sleep */
+sigprocmask(SIG_SETMASK, &amp;prev, NULL);
+</code></pre>
+
+        <p>
+          <code>sigsuspend(&amp;allow)</code>는 (1) 마스크를 <code>allow</code>로 잠시 바꾸고 (2) 시그널을 기다리며 잠들다가 (3) 시그널이 와서 핸들러가 끝나면 (4) 원래 마스크로 자동 복귀한다 — 이걸 한 줄로, 중간에 끊기지 않게.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-8-6">
+      <h2><span class="anchor-num">8.6</span>비지역 점프 (setjmp/longjmp)</h2>
+
+      <p>
+        함수의 깊은 내부에서 갑자기 호출 스택을 여러 단계 거슬러 올라간 어떤 지점으로 점프하고 싶을 때 — C에서는 <code>setjmp</code>/<code>longjmp</code>가 답이다. 자바의 <code>try/catch</code> 비슷한 흉내를 낸다.
+      </p>
+
+<pre><code>#include &lt;setjmp.h&gt;
+
+int  setjmp(jmp_buf env);          /* 0 반환: 처음 호출, 다른 값: longjmp 로 돌아옴 */
+void longjmp(jmp_buf env, int val); /* 절대 반환하지 않음, env 가 가리키는 setjmp 가 val 반환하듯 동작 */
+</code></pre>
+
+<pre class="with-caption"><span class="caption">그림 8.9 · setjmp/longjmp 의 스택 되감기</span><code>main
+ ├─ setjmp(env) → 0 반환            ← 여기로 돌아옴
+ ├─ f1()
+ │   └─ f2()
+ │       └─ f3()
+ │           └─ longjmp(env, 7)    ← 여기서 점프
+ │                 │
+ │                 │  스택 프레임 f1, f2, f3 이 통째로 사라짐
+ │                 ▼
+ └─ setjmp(env) → 7 반환            (마치 처음 setjmp 가 7을 반환한 것처럼)
+</code></pre>
+
+      <p>
+        쓰임새는 셋 정도다. (1) 깊은 재귀 도중 즉시 빠져나오기. (2) 시그널 핸들러에서 메인 흐름의 안전한 지점으로 복귀하기 — 이때는 <code>sigsetjmp</code>/<code>siglongjmp</code>가 짝이다.
+        (3) 사용자 정의 예외 시스템 구현. 다만 함수가 자기 활성화 동안 잡은 자원(메모리, 락, 파일)은 <code>longjmp</code>가 자동으로 풀어 주지 않는다 — 사용자가 직접 챙겨야 한다.
+      </p>
+
+      <div class="callout warn">
+        <span class="label">주의</span>
+        <p>
+          <code>setjmp</code>가 호출된 함수가 이미 반환했다면, 그 <code>jmp_buf</code>로 <code>longjmp</code>하는 건 <em>미정의 동작</em>이다. 사라진 스택 프레임으로 점프하는 셈이라, 그 너머에는 정의된 우주가 없다.
+          또 핸들러 안에서 메인의 <code>jmp_buf</code>로 점프할 때는 시그널 마스크가 어떻게 되는지 신경 써야 한다 — 이래서 <code>sigsetjmp</code>가 따로 있다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-8-7">
+      <h2><span class="anchor-num">8.7</span>프로세스 조작 도구</h2>
+
+      <p>
+        실제로 시스템을 다룰 때 자주 쓰는 도구들이다. 외워두면 디버깅 속도가 두 배가 된다.
+      </p>
+
+      <table>
+        <thead><tr><th>도구</th><th>용도</th></tr></thead>
+        <tbody>
+          <tr><td><code>ps aux</code> / <code>ps -ef</code></td><td>현재 모든 프로세스 스냅샷</td></tr>
+          <tr><td><code>pstree</code></td><td>부모-자식 관계를 트리로 표시</td></tr>
+          <tr><td><code>top</code> / <code>htop</code></td><td>실시간으로 CPU/메모리/프로세스 상태</td></tr>
+          <tr><td><code>/proc/&lt;pid&gt;/</code></td><td>프로세스의 모든 정보가 가상 파일로 노출. <code>status</code>, <code>maps</code>, <code>fd/</code> 등</td></tr>
+          <tr><td><code>kill -SIGTERM &lt;pid&gt;</code></td><td>정중한 종료 요청</td></tr>
+          <tr><td><code>kill -9 &lt;pid&gt;</code></td><td>SIGKILL — 최후의 수단</td></tr>
+          <tr><td><code>strace ./prog</code></td><td>프로그램이 부르는 모든 시스템 콜과 시그널을 추적</td></tr>
+          <tr><td><code>ltrace ./prog</code></td><td>라이브러리 함수 호출 추적</td></tr>
+          <tr><td><code>lsof -p &lt;pid&gt;</code></td><td>프로세스가 열고 있는 파일 디스크립터들</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        특히 <code>strace</code>는 이 장 전체를 실시간으로 시각화해 주는 도구다. <code>strace -f ./myshell</code>를 켜 두고 셸이 <code>fork</code>, <code>execve</code>, <code>waitpid</code>, <code>rt_sigaction</code>을
+        어떤 순서로 부르는지 직접 보면 책의 추상이 갑자기 손에 잡힌다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 8.10 · strace 가 보여 주는 fork+execve 의 모습 (요약)</span><code>execve("./prog", ["./prog"], 0x...)     = 0
+clone(child_stack=NULL, ...)            = 12345    # fork 의 실체
+[pid 12345] execve("/bin/ls", ...)      = 0
+wait4(-1, [{WIFEXITED(s) &amp;&amp; WEXITSTATUS(s) == 0}], 0, NULL) = 12345
+exit_group(0)                           = ?
+</code></pre>
+
+      <div class="callout tip">
+        <span class="label">꿀팁</span>
+        <p>
+          현대 리눅스의 <code>fork</code>는 내부적으로 <code>clone</code> 시스템 콜에 특정 플래그를 넘겨 호출되는 형태다. <code>strace</code>가 <code>clone</code>으로 보여 주는 이유다.
+          <code>clone</code>은 더 일반적이고, 자식과 부모가 메모리를 공유할지 여부, 시그널 핸들러를 공유할지 등을 세밀히 고를 수 있다 — 스레드 라이브러리(<code>pthread</code>)도 사실은 <code>clone</code>의 한 형태다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-8-8">
+      <h2><span class="anchor-num">8.8</span>요약</h2>
+
+      <p>
+        이번 장에서 본 것을 한 줄씩 정리한다.
+      </p>
+
+      <ul>
+        <li><strong>예외</strong>는 정상 흐름을 갑자기 바꾸는 모든 사건의 통칭이며, 인터럽트·트랩·폴트·어보트 네 종류로 나뉜다.</li>
+        <li>예외 발생 시 프로세서는 예외 테이블에서 핸들러 주소를 찾아 점프하고, 모드를 커널로 바꿨다가 처리 후 사용자로 돌아온다.</li>
+        <li>시스템 콜은 트랩의 한 종류로, 사용자가 의도해 OS의 도움을 빌리는 진입점이다. x86-64 리눅스는 전용 <code>syscall</code> 명령을 쓴다.</li>
+        <li><strong>프로세스</strong>는 OS가 응용에게 제공하는 "전용 CPU + 전용 메모리" 환상이다. 컨텍스트 스위치가 환상의 비밀이다.</li>
+        <li>시스템 콜은 실패 시 -1을 반환하고 <code>errno</code>에 이유를 남긴다. 래퍼 함수 패턴이 코드를 깔끔하게 한다.</li>
+        <li><code>fork</code>는 한 번 호출되어 두 번 반환한다. 자식은 0, 부모는 자식 PID. 실제 데이터 복사는 COW로 지연된다.</li>
+        <li>자식이 죽으면 좀비가 되고, 부모가 <code>wait</code>/<code>waitpid</code>로 거둬야 사라진다. 부모가 먼저 죽으면 자식은 init/systemd 에 입양된다.</li>
+        <li><code>execve</code>는 현재 주소 공간을 새 프로그램으로 갈아 끼우며, 성공하면 반환하지 않는다. 셸의 핵심 패턴은 <em>fork → execve → waitpid</em>.</li>
+        <li><strong>시그널</strong>은 1바이트 메시지로, 큐잉되지 않으니 핸들러는 한 번에 여러 건을 처리할 준비가 되어 있어야 한다.</li>
+        <li>핸들러에서는 async-signal-safe 함수만 부른다. <code>printf</code>/<code>malloc</code>은 안 된다. 핸들러-메인 통신은 <code>volatile sig_atomic_t</code>로.</li>
+        <li>레이스 회피의 표준 도구는 <code>sigprocmask</code>로 차단하고 <code>sigsuspend</code>로 안전히 기다리는 것.</li>
+        <li><code>setjmp</code>/<code>longjmp</code>는 비지역 점프로, 깊은 곳에서 한 번에 빠져나올 때 쓴다. 자원은 알아서 챙길 것.</li>
+        <li><code>strace</code>·<code>/proc</code>·<code>htop</code> 같은 도구로 추상이 어떻게 실체화되는지 직접 관찰할 수 있다.</li>
+      </ul>
+
+      <p>
+        이 장의 메커니즘 — 예외, 컨텍스트 스위치, 시그널 — 은 다음 장 <em>가상 메모리</em>의 페이지 폴트와 9장 끝부분의 <code>mmap</code>·동적 할당기에서 다시 등장한다.
+        그리고 12장에서 시그널의 동시성 함정이 본격적으로 풀린다. 일단은 <code>fork</code>가 두 번 반환한다는 사실에 익숙해지는 것만으로도 큰 한 걸음이다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          이 장의 모든 함수는 <code>man 2</code>(시스템 콜) 또는 <code>man 3</code>(라이브러리)에서 정확한 시그니처를 확인할 수 있다.
+          <code>man 7 signal</code>, <code>man 7 signal-safety</code>는 한 번씩 쭉 훑어 보길 권한다 — 한 페이지에 책 한 절의 내용이 압축되어 있다.
+        </p>
+      </div>
+
+      <div class="problem">
+        <span class="tag">연습 8.1</span>
+        <p>다음 코드의 출력이 가능한 모든 경우를 나열하라(부모/자식의 스케줄 순서에 따라 달라진다).</p>
+<pre><code>int main(void) {
+    if (fork() == 0) {
+        printf("a");
+    } else {
+        printf("b");
+        wait(NULL);
+    }
+    printf("c");
+    return 0;
+}
+</code></pre>
+      </div>
+
+      <div class="problem">
+        <span class="tag">연습 8.2</span>
+        <p>SIGCHLD 핸들러에서 <code>waitpid(-1, NULL, 0)</code>(블로킹) 대신 <code>waitpid(-1, NULL, WNOHANG)</code>을 <code>while</code> 루프로 부르는 이유는? 두 가지 이상 설명하라.</p>
+      </div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter07.html">
+        <span class="dir">← 이전</span>
+        제7장 · 링킹
+      </a>
+      <a class="next" href="chapter09.html">
+        <span class="dir">다음 →</span>
+        제9장 · 가상 메모리
+      </a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

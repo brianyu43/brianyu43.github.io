@@ -1,0 +1,2352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V15 분산 통신 & 병렬화 단권화 — 20p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL · CONTENT-FIRST · A4 LANDSCAPE · 20p</div>
+    <h1>분산 통신 &amp; 병렬화 <span class="accent">단권화</span></h1>
+    <div class="subtitle">NCCL Internals · 5D Parallelism (DP·TP·PP·EP·CP) · NVLink/NVSwitch · Overlap · α-β Model</div>
+    <div class="meta">
+      <div><b>Volume</b> V15/18</div>
+      <div><b>Tier</b> T5 분산/서빙</div>
+      <div><b>선행</b> V01 (PMPP core)</div>
+      <div><b>용도</b> 다중 GPU·다중 노드 통신 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1. Collective 종류 (allreduce·alltoall 等)</span><span class="p">p.2</span></div>
+        <div class="row star"><span class="t">§2. Allreduce 알고리즘 (ring·tree·DBT·HD)</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3. NCCL 아키텍처 (comm·channel·ring)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">§4. NVLink / NVSwitch topology</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">§5. NVLS (NVLink SHARP)</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6. PXN (PCIe cross-NUMA, rail)</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">§7. TP (column/row parallel, Megatron)</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8. PP (1F1B · interleaved · bubble)</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9. DP &amp; ZeRO-1/2/3 · FSDP</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">§10. EP (MoE · alltoall routing)</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11. SP (Ulysses · norm 상호작용)</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12. CP (long-context · ring attention)</span><span class="p">p.13</span></div>
+        <div class="row star"><span class="t">§13. 5D 조합 매트릭스 (7B/70B/400B)</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">§14. Overlap 전략 (bucket·async)</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">§15. α-β 비용 모델</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">§16. IB · RoCE · RDMA · GPUDirect</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">§17. NCCL 환경변수 (DEBUG·ALGO·PROTO)</span><span class="p">p.18</span></div>
+        <div class="row"><span class="t">§18. MPI vs NCCL (hybrid)</span><span class="p">p.19</span></div>
+        <div class="row star"><span class="t">§19. Cheat Sheet (결정 트리·BW 표)</span><span class="p">p.20</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 · 표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의 / 수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 · 워크드</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의 · 실수 포인트</span></div>
+      <div class="row"><span class="sym">★</span><span>핵심 (페이지당 ≤3)</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>권 간 상호참조 (xref)</span></div>
+      <div class="row"><span class="sym">α·β</span><span>latency·inverse-BW</span></div>
+      <div class="row"><span class="sym">N</span><span>rank(GPU) 수</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">NCCL docs · Megatron-LM · DeepSpeed/ZeRO · FSDP · Ring/Tree allreduce papers · NVIDIA DGX H100 guide</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Collective ============================ -->
+<section class="page" data-screen-label="02 Collective 종류">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Collective 연산 종류 &amp; 의미론</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Collective <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <span class="kw">collective</span>: N rank 전체가 동시에 참여하는 group communication. participant 전원이 동일 op·동일 root 설정으로 호출해야 deadlock 없이 완료된다.
+        </div>
+        <ul>
+          <li>point-to-point (SEND/RECV) 의 상대개념</li>
+          <li>의미론: (1) input set, (2) output set, (3) reduction op (sum/min/max/prod)</li>
+          <li>communicator 단위로 정의 — rank 0..N-1</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> AllReduce <span class="ko">★ 가장 중요</span>
+          <span class="mnemonic">y[i] = Σ x_r[i]</span>
+        </h3>
+        <div class="formula">
+          y<sub>r</sub>[i] = ⊕<sub>r'=0..N-1</sub> x<sub>r'</sub>[i] &nbsp; ∀ r
+          <span class="legend">r : rank &nbsp; ⊕ : reduction (sum·max·min·prod) &nbsp; 모든 rank가 같은 결과 y를 얻음</span>
+        </div>
+        <ul>
+          <li>DP gradient sync · TP row-parallel 뒤 합산</li>
+          <li>= ReduceScatter ∘ AllGather (분해 가능)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Reduce <span class="ko">단일 root</span></h3>
+        <div class="formula">
+          y<sub>root</sub>[i] = ⊕<sub>r'</sub> x<sub>r'</sub>[i] &nbsp; (다른 rank는 x만 기여)
+          <span class="legend">AllReduce의 subset: root 1개만 결과 보유</span>
+        </div>
+        <p class="tiny">실무: 로그·통계 집계. 학습에는 거의 안 씀 (AllReduce 대체).</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Broadcast <span class="ko">↔ Reduce 쌍</span></h3>
+        <div class="formula">
+          y<sub>r</sub>[i] = x<sub>root</sub>[i] &nbsp; ∀ r
+          <span class="legend">root 의 buffer를 전 rank로 복제</span>
+        </div>
+        <ul>
+          <li>initial weight 배포 · random seed 동기화</li>
+          <li>통신량: (N−1)·S · 이론 하한 step = ⌈log₂N⌉ (tree)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> AllGather ★</h3>
+        <div class="formula">
+          y<sub>r</sub>[k, i] = x<sub>k</sub>[i] &nbsp; ∀ r, k∈[0,N)
+          <span class="legend">각 rank의 shard를 전부 concat → 모두가 full tensor 보유</span>
+        </div>
+        <ul>
+          <li>ZeRO-3 / FSDP param unshard &nbsp;<span class="xref">↗ V17 §3</span></li>
+          <li>TP column-parallel 입력 broadcast 대체</li>
+          <li>ring: byte/GPU = (N−1)/N · S</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> ReduceScatter ★</h3>
+        <div class="formula">
+          y<sub>r</sub>[i] = ⊕<sub>r'</sub> x<sub>r'</sub>[r·C + i] &nbsp; i∈[0,C)
+          <span class="legend">reduce 후 chunk로 쪼개 rank별 재분배 &nbsp; C = S/N</span>
+        </div>
+        <ul>
+          <li>ZeRO-2 grad sharding · FSDP backward</li>
+          <li>AllReduce = AllGather ∘ ReduceScatter (분해 등식)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> AllToAll ★ <span class="ko">shuffle</span></h3>
+        <div class="formula">
+          y<sub>r</sub>[s, i] = x<sub>s</sub>[r, i] &nbsp; ∀ r, s
+          <span class="legend">rank×rank 전치 (transpose) &nbsp; r번 rank는 s번 rank로부터 s행의 r열 청크를 받음</span>
+        </div>
+        <ul>
+          <li>EP (MoE) token routing · SP (Ulysses) head↔seq 전치</li>
+          <li>통신량: (N−1)/N · S · ring / Bruck / pairwise 알고리즘</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Collective 의미론 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>input</th><th>output</th><th>reduce</th></tr></thead>
+          <tbody>
+            <tr><td>Broadcast</td><td>root: S</td><td>all: S</td><td>—</td></tr>
+            <tr><td>Reduce</td><td>all: S</td><td>root: S</td><td>⊕</td></tr>
+            <tr><td><mark>AllReduce</mark></td><td>all: S</td><td>all: S</td><td>⊕</td></tr>
+            <tr><td>AllGather</td><td>all: S/N</td><td>all: S</td><td>—</td></tr>
+            <tr><td>ReduceScatter</td><td>all: S</td><td>all: S/N</td><td>⊕</td></tr>
+            <tr><td>AllToAll</td><td>all: S</td><td>all: S</td><td>—</td></tr>
+            <tr><td>Scatter</td><td>root: S</td><td>all: S/N</td><td>—</td></tr>
+            <tr><td>Gather</td><td>all: S/N</td><td>root: S</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">S = total message size in bytes. N = rank 수. NCCL: Scatter/Gather는 AllGather/ReduceScatter 우위라 거의 안 씀.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 분해 등식 <span class="ko">(!)</span>
+          <span class="mnemonic">AR=AG∘RS</span>
+        </h3>
+        <div class="formula">
+          AllReduce = AllGather ∘ ReduceScatter <br/>
+          = ReduceScatter ∘ AllGather
+          <span class="legend">이 등식이 ring allreduce 알고리즘 유도의 핵심</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·2</span>
+    <span class="tiny">NCCL API reference · MPI Standard 4.0 §5 — Collective Communication</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 3: §2 AllReduce 알고리즘 ============================ -->
+<section class="page" data-screen-label="03 AllReduce 알고리즘">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — AllReduce 알고리즘 &amp; N·B 복잡도 ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Ring AllReduce ★ <span class="ko">bandwidth-optimal</span>
+          <span class="mnemonic">RS→AG</span>
+        </h3>
+        <div class="def"><span class="label">구성</span>
+          N rank을 <mark>logical ring</mark> (r → r+1 mod N). 메시지 S를 N chunk로 쪼갠다: C = S/N. 2 phase로 동작:
+        </div>
+        <ol class="bullet-num">
+          <li>Phase A — <mark>ReduceScatter</mark>: N−1 step, 각 step 마다 chunk 1개 전송·수신 후 local reduce 누적. 끝에 각 rank는 chunk 1개를 "완성 형태"로 보유.</li>
+          <li>Phase B — <mark>AllGather</mark>: N−1 step, 완성된 chunk를 링으로 회전. 끝에 모두 동일 전체 결과 S 보유.</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Ring 단계별 도식 (N=4)</h3>
+<pre class="ascii">C=S/4 ; rank r 가 chunk r 의 owner.
+
+Phase A (ReduceScatter, step 0..N-2):
+ step0:  r → r+1  send chunk (r)     recv chunk (r-1)    local += recv
+ step1:  r → r+1  send chunk (r-1)   recv chunk (r-2)    local += recv
+ step2:  r → r+1  send chunk (r-2)   recv chunk (r-3)    local += recv
+ ─ after N-1=3 step:  r0 보유 chunk 1(완성) , r1→2 , r2→3 , r3→0
+
+Phase B (AllGather, step 0..N-2):
+ step0:  r → r+1  send 완성 chunk    recv 상류 완성 chunk
+ step1:  r → r+1  send 방금 받은 것  recv 상류의 상류 것
+ step2:  r → r+1  …
+ ─ after N-1=3 step:  모든 rank = [c0,c1,c2,c3] full S</pre>
+        <p class="tiny">총 step = 2(N−1). 각 step 전송량 = C = S/N. rank당 총 전송 = 2(N−1)·S/N → <span class="kw2">BW-optimal</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Ring 복잡도</h3>
+        <div class="formula">
+          T<sub>ring</sub> = 2(N−1)·α + 2(N−1)/N · S · β<br/>
+          bytes/GPU = 2(N−1)/N · S &nbsp; →<sub>N→∞</sub> 2S
+          <span class="legend">α : per-message latency &nbsp; β : time per byte (1/BW) &nbsp; S : total message size</span>
+        </div>
+        <ul>
+          <li>S 클수록 ring 승 (β-term 우세)</li>
+          <li>N·α 커서 작은 S·큰 N 에선 불리 — tree로 전환</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Tree AllReduce <span class="ko">latency-optimal small</span></h3>
+        <div class="def"><span class="label">구성</span>
+          binary tree: leaf → root 방향 Reduce, root → leaf 방향 Broadcast. step = 2⌈log₂N⌉.
+        </div>
+        <div class="formula">
+          T<sub>tree</sub> = 2⌈log N⌉·α + 2⌈log N⌉·S·β
+          <span class="legend">latency log N 로 줄지만 각 step이 S 전부를 보냄 → β-term 커짐</span>
+        </div>
+        <p>small S / large N 에서 ring 보다 좋음.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Double Binary Tree ★ <span class="ko">NCCL default 종종</span></h3>
+        <div class="def"><span class="label">idea</span>
+          두 개의 binary tree를 serial link 이용 — 각 tree가 BW의 1/2 차지. <mark>leaf 의 upstream 대역폭 낭비</mark> 문제 해결.
+        </div>
+        <ul>
+          <li>link 양방향 full duplex 활용 → intra-tree BW = full</li>
+          <li>NCCL: 2-node+ 에서 자주 선택됨</li>
+          <li>step ≈ 2⌈log N⌉ · bytes/GPU ≈ 2S/ log N 수준 (algo-specific)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Recursive Halving-Doubling</h3>
+        <div class="def"><span class="label">구성</span>
+          N = 2<sup>k</sup> 가정. log N step RS (distance 2<sup>i</sup>, halve) + log N step AG (distance 2<sup>i</sup>, double). Rabenseifner algorithm.
+        </div>
+        <div class="formula">
+          T<sub>HD</sub> = 2 log N · α + 2(N−1)/N · S · β
+          <span class="legend">latency tree 수준 + bandwidth ring 수준 → 양쪽 장점</span>
+        </div>
+        <p>단 N 이 2의 거듭제곱일 때 깔끔. non-power-of-2 는 virtual rank 조정 필요.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 알고리즘 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th>algo</th><th>latency (α)</th><th>bytes/GPU (β)</th><th>선호 조건</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Ring</mark></td><td>2(N−1)</td><td>2(N−1)/N · S</td><td>large S</td></tr>
+            <tr><td>Tree</td><td>2 log N</td><td>2 log N · S</td><td>small S, large N</td></tr>
+            <tr><td><mark>Double BT</mark></td><td>2 log N</td><td>≈ 2S</td><td>inter-node, mixed</td></tr>
+            <tr><td><mark>Halving-Doubling</mark></td><td>2 log N</td><td>2(N−1)/N · S</td><td>N = 2ᵏ</td></tr>
+            <tr><td>NVLS (in-net)</td><td>~ 1</td><td>~ S/N · 1</td><td>intra-switch, H100+</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">bytes/GPU 는 양방향 합. NCCL 은 tuner로 자동 선택 · <code>NCCL_ALGO</code> 로 강제 가능.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 하한 이론 <span class="ko">(!)</span>
+          <span class="mnemonic">2(N-1)/N · S</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          Ring 의 2(N−1)/N·S 는 <span class="red">AllReduce bandwidth 이론 하한</span> — 어떤 알고리즘도 이보다 적게 전송할 수 없다 (Patarasuk &amp; Yuan 2009).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·3</span>
+    <span class="tiny">Patarasuk &amp; Yuan, JPDC 2009 · NCCL source: src/graph/tuning.cc</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 4: §3 NCCL 아키텍처 ============================ -->
+<section class="page" data-screen-label="04 NCCL 아키텍처">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — NCCL 아키텍처: communicator · channel · ring</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> NCCL 계층 <span class="ko">용어</span></h3>
+        <table class="compact">
+          <thead><tr><th>용어</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Communicator</mark></td><td>참여 rank 집합 (<code>ncclComm_t</code>)</td></tr>
+            <tr><td><mark>Rank</mark></td><td>comm 내 GPU 하나 (0..N-1)</td></tr>
+            <tr><td><mark>Channel</mark></td><td>병렬 전송 경로 (= ring/tree 인스턴스)</td></tr>
+            <tr><td>Protocol</td><td>LL · LL128 · Simple</td></tr>
+            <tr><td>Algo</td><td>Ring · Tree · CollNet · NVLS</td></tr>
+            <tr><td>Transport</td><td>P2P(NVLink) · SHM · NET(IB/TCP)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Communicator 생성 흐름</h3>
+        <ol class="bullet-num">
+          <li><code>ncclGetUniqueId</code> (rank 0) → MPI/file 로 전파</li>
+          <li>각 rank가 <code>ncclCommInitRank(id, N, r)</code></li>
+          <li>내부: topology detection · graph search · channel 빌드</li>
+          <li>완료 시 comm handle = 통신 plan 전체를 담고 있음</li>
+        </ol>
+        <p class="tiny">초기화 비용 O(N) ~ 수백 ms. 재사용 필수.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Channel ★ <span class="ko">병렬 ring</span></h3>
+        <div class="def"><span class="label">정의</span>
+          동일 collective를 <mark>여러 개의 논리 ring</mark>으로 쪼개 parallel 실행. SM 점유·링크 BW를 동시 활용.
+        </div>
+        <ul>
+          <li>channel 수 = 기본 4~32 (topology·size에 따라 자동)</li>
+          <li><code>NCCL_NCHANNELS</code> · <code>NCCL_MIN_NCHANNELS</code> 로 조정</li>
+          <li>많을수록 small msg 에선 비싼 초기화 + SM 낭비</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Topology Detection</h3>
+        <div class="def"><span class="label">단계</span>
+          nccl은 시작 시 host graph를 구성: PCIe/NVLink/NVSwitch/NIC 링크를 그래프 edge로 놓고 BW·hop·NUMA를 가중치로 설정. XML cache (<code>NCCL_TOPO_FILE</code>) 가능.
+        </div>
+        <ul>
+          <li>source: <code>/sys/class/nvidia</code>, <code>nvidia-smi topo -m</code> 내부 API, HWLOC</li>
+          <li>NIC 는 PCIe root 기준으로 <mark>CPU affinity·GPU locality</mark> 판단</li>
+          <li>결과로 ring/tree graph 후보 집합 생성</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Ring 구성 알고리즘</h3>
+        <ol class="bullet-num">
+          <li>candidate Hamilton cycle 탐색 (GPU 노드를 한 번씩 방문)</li>
+          <li>edge 가중치 최소화: NVLink 선호 · PCIe 회피 · NIC traversal 최소</li>
+          <li>multi-node: intra-node local ring + inter-node stitch (single NIC per rail)</li>
+          <li>결과: <code>graph->inter/intra</code> 경로 확정</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Protocol 차이 ★</h3>
+        <table class="compact">
+          <thead><tr><th>proto</th><th>size</th><th>방식</th></tr></thead>
+          <tbody>
+            <tr><td><mark>LL</mark></td><td>&lt; 16 KB</td><td>flag bit 끼워 low-latency, BW 절반</td></tr>
+            <tr><td><mark>LL128</mark></td><td>중간</td><td>128B 단위, 120/128 payload</td></tr>
+            <tr><td><mark>Simple</mark></td><td>large</td><td>flag 없음, full BW</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny"><code>NCCL_PROTO=LL,LL128,Simple</code> 조합 지정 가능.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Proxy Thread</h3>
+        <div class="def"><span class="label">정의</span>
+          inter-node 구간에서는 NIC 를 <mark>host CPU proxy</mark> 가 대리: GPU kernel 은 shared mem FIFO 에 쓰고, proxy thread 가 <mark>RDMA WRITE</mark> 로 뽑아내 보낸다.
+        </div>
+        <ul>
+          <li>GPUDirect RDMA 가능 시 GPU 메모리 직접 전송 (proxy는 메타만)&nbsp;<span class="xref">↗ §16</span></li>
+          <li>bottleneck 구간: proxy SM ↔ NIC PCIe lane</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Kernel Launch 경로</h3>
+<pre class="ascii">host API (ncclAllReduce)
+ └─ enqueue (graph+args)
+    └─ kernel launch (stream)
+       ├─ intra-node: P2P load/store NVLink
+       └─ inter-node: FIFO write → proxy → NIC
+                                        └─ NET send/recv
+       └─ reduce (FMA in-kernel) + progress</pre>
+        <p class="tiny">collective 1회 = 1 CUDA kernel launch. CUDA Graph capture 가능.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Graph Mode &amp; Capture</h3>
+        <ul>
+          <li>NCCL 2.11+ CUDA Graph capture 지원 · launch overhead 제거</li>
+          <li>decode path 에 유용 &nbsp;<span class="xref">↗ V16 §10</span></li>
+          <li><code>NCCL_GRAPH_MIXING_SUPPORT=1</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·4</span>
+    <span class="tiny">NCCL 2.x source tree: init.cc · graph/ · proxy.cc · transport/</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 5: §4 NVLink / NVSwitch ============================ -->
+<section class="page" data-screen-label="05 NVLink · NVSwitch">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — NVLink / NVSwitch topology &amp; DGX</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> NVLink 세대별 BW</h3>
+        <table class="compact">
+          <thead><tr><th>gen</th><th>GPU</th><th>링크/GPU</th><th>BW/GPU (양방향)</th></tr></thead>
+          <tbody>
+            <tr><td>NVLink 2</td><td>V100</td><td>6</td><td class="num">300 GB/s</td></tr>
+            <tr><td>NVLink 3</td><td>A100</td><td>12</td><td class="num">600 GB/s</td></tr>
+            <tr><td><mark>NVLink 4</mark></td><td>H100</td><td>18</td><td class="num">900 GB/s</td></tr>
+            <tr><td>NVLink 5</td><td>B200</td><td>18</td><td class="num">1,800 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">공식 스펙 (per-GPU aggregate, both directions). PCIe Gen5 x16 = 128 GB/s 와 비교 시 7× 이상.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> PCIe vs NVLink ★</h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>PCIe Gen5</th><th>NVLink 4</th></tr></thead>
+          <tbody>
+            <tr><td>raw BW</td><td>~128 GB/s</td><td>~900 GB/s</td></tr>
+            <tr><td>latency</td><td>μs 수십</td><td>μs 수 (P2P)</td></tr>
+            <tr><td>topology</td><td>tree (root PCIe)</td><td>mesh / switch</td></tr>
+            <tr><td>NUMA</td><td>socket 경계 비용</td><td>없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> NVSwitch <span class="ko">fabric</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>NVSwitch</mark>: NVLink non-blocking crossbar. DGX A100: 6 switch · DGX H100: 4 3세대 switch. 모든 GPU pair가 <mark>full BW</mark> 로 통신 가능 (n×n bipartite).
+        </div>
+        <ul>
+          <li>H100 NVSwitch: 64 port NVLink4, switch당 aggregate 3.2 TB/s</li>
+          <li>8-GPU DGX 내부: any-to-any non-blocking</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> DGX H100 8-GPU topology</h3>
+<pre class="ascii">              NVSwitch (x4)
+       ╔══════════════════════════╗
+       ║   full mesh crossbar     ║
+       ╚╤═╤═╤═╤═╤═╤═╤═╤══════════╝
+        │ │ │ │ │ │ │ │
+       G0 G1 G2 G3 G4 G5 G6 G7
+        │                    │
+       NIC0 ... (8 CX-7 NIC, 400G IB)
+        │
+       ── ConnectX-7 → 2 rail (rail-optimized)</pre>
+        <p class="tiny">각 GPU → 2 NIC (via PXN). NVLink4 900 GB/s bi-dir intra-node.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Multi-node: IB Fabric</h3>
+        <ul>
+          <li>node 당 8 GPU + 8 CX-7 NIC (각 400 Gb/s = 50 GB/s)</li>
+          <li>rail-optimized: 같은 rail 의 NIC 끼리 leaf switch 공유 → inter-node same-rail 저지연</li>
+          <li>node당 NIC aggregate = 400 GB/s 수준 → NVLink 대비 1/2 이하</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> NVLink BW 이론 활용 <span class="ko">ring</span></h3>
+        <div class="formula">
+          BW<sub>effective</sub> = min(NVLink<sub>GPU</sub>, NIC<sub>GPU</sub>) &nbsp; [layer에 따라]<br/>
+          intra-node AllReduce BW ≈ NVLink · (N-1)/N<br/>
+          inter-node AllReduce BW ≈ min(NIC, NVLink intra) / (hop depth)
+          <span class="legend">hop depth: node 사이 switch 통과 수</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 왜 full-mesh 가 필요한가</h3>
+        <div class="def"><span class="label">이유</span>
+          ring allreduce는 <mark>neighbor-only</mark> 통신이면 충분. 하지만 tree/DBT/AllToAll 은 <mark>임의 pair</mark> 통신 필요 → NVSwitch 없으면 hop 중첩으로 BW 낭비.
+        </div>
+        <ul>
+          <li>TP + EP 조합: alltoall 빈발 → fabric 필수</li>
+          <li>NVSwitch 없는 8-way 보드: ring 만 full BW, 나머지는 절반 이하</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 비(非) DGX 구성 <span class="ko">warning</span></h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">hybrid cube-mesh</span> (NVLink 일부만 연결, 예: 4-GPU 보드): 논리 ring은 가능하지만 AllToAll·Tree 는 PCIe hop 발생. NCCL topology detection 이 자동 대응하지만 peak BW 의 30~50% 수준.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·5</span>
+    <span class="tiny">NVIDIA DGX H100 Whitepaper 2023 · NVLink 4 / NVSwitch 3 product brief</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 6: §5 NVLS ============================ -->
+<section class="page" data-screen-label="06 NVLS (NVLink SHARP)">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — NVLS (NVLink SHARP) in-network reduction</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> NVLS 개념 ★
+          <span class="mnemonic">switch-in reduce</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>NVLink SHARP</mark>: 3세대 NVSwitch (H100+) 내부 ALU 가 스트림 전송 중인 payload 를 <mark>in-network reduce</mark>. 즉 switch 가 단순 라우팅이 아니라 reduction step 자체를 수행.
+        </div>
+        <ul>
+          <li>기존 IB SHARP 의 NVLink fabric 판</li>
+          <li>AllReduce / ReduceScatter / Broadcast 가속</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기존 Ring 과의 차이</h3>
+<pre class="ascii">Ring (no NVLS):
+  GPU0 → GPU1 → GPU2 → ... → GPU_{N-1} (N-1 step)
+   각 GPU 가 부분합을 수행
+
+NVLS (in-switch):
+  GPU_r ──┐
+  GPU_r' ─┼─► switch (ALU: sum) ──► all GPUs
+  GPU_r'' ┘
+   1 shot multicast-reduce</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 하드웨어 요건</h3>
+        <ul>
+          <li>H100 SXM + NVSwitch 3 (DGX H100 / NVL72)</li>
+          <li>CUDA 12.0+ · NCCL 2.17+</li>
+          <li>mmap multicast object (<code>CUmemMulticast</code>) 지원</li>
+          <li>Hopper PTX: <code>multimem.ld_reduce</code>, <code>multimem.st</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Bandwidth 이득 ★</h3>
+        <div class="formula">
+          AllReduce<sub>ring</sub>: bytes/GPU = 2(N−1)/N · S ≈ 2S<br/>
+          AllReduce<sub>NVLS</sub>: bytes/GPU ≈ S · (1/N + 1) ≈ S
+          <span class="legend">한 번 올라가고 한 번 내려오면 끝 — latency step = 2 로 고정</span>
+        </div>
+        <ul>
+          <li>실효 BW 2× 이득 (이론상)</li>
+          <li>실측: large msg 에서 1.5~1.9× 가속</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Multicast Object</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Multicast memory</mark>: 여러 GPU 의 물리 mem slice 가 단일 virtual address 로 매핑됨. NVSwitch 가 해당 VA 접근을 broadcast/reduce 하드웨어로 라우팅.
+        </div>
+        <pre class="ascii">CUmemGenericAllocationHandle h;
+CUmemAllocationProp prop = {...};
+cuMulticastCreate(&amp;mc, &amp;mc_prop);
+cuMulticastAddDevice(mc, dev);
+cuMulticastBindAddr(mc, addr, size, 0);
+// multimem.* PTX 로 접근</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> multimem PTX</h3>
+        <table class="compact">
+          <thead><tr><th>instr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>multimem.ld_reduce</code></td><td>switch ALU 에서 reduce 후 load</td></tr>
+            <tr><td><code>multimem.st</code></td><td>모든 참여 GPU 에 broadcast store</td></tr>
+            <tr><td><code>multimem.red</code></td><td>atomic reduce to multicast mem</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> NCCL 활성화</h3>
+        <ul>
+          <li><code>NCCL_ALGO=NVLS</code> · <code>NCCL_NVLS_ENABLE=1</code></li>
+          <li>comm init 시 자동 감지 — H100 + driver + nvidia-peermem OK 이면 활성</li>
+          <li>제한: intra-node 만 (single NVSwitch fabric)</li>
+          <li>multi-node: CollNet SHARP (IB SHARP) 별도 → <span class="xref">↗ §16</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 용도별 효과</h3>
+        <table class="compact">
+          <thead><tr><th>용도</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td>small AllReduce (grad bucket)</td><td>latency ↓↓ (2 step)</td></tr>
+            <tr><td>large AllReduce</td><td>BW 1.5~2×</td></tr>
+            <tr><td>AllGather</td><td>multicast store 로 가속</td></tr>
+            <tr><td>AllToAll</td><td>적용 X — pairwise 이므로</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Trade-off <span class="ko">주의</span></h3>
+        <div class="warn-box"><span class="label"></span>
+          NVLS 는 <span class="red">mmap 주소 공유</span> 에 의존 — 장애 시 recover 복잡. fine-grained sync 섞이면 효용 하락. FP8 / INT 은 switch ALU 지원 dtype 만 가속 (fp16/bf16/fp32 기본).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·6</span>
+    <span class="tiny">NVIDIA NVSwitch 3 brief · NCCL 2.17 release notes · PTX ISA 8.1 §9.7.13 multimem</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 7: §6 PXN ============================ -->
+<section class="page" data-screen-label="07 PXN cross-NUMA">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — PXN (PCIe cross-NUMA) &amp; rail 활용</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 문제 정의</h3>
+        <div class="def"><span class="label">상황</span>
+          DGX 노드: GPU 8 · NIC 8. 각 GPU 는 "local NIC" 하나 (같은 PCIe root). 하지만 rail-optimized 토폴로지 에서는 <mark>GPU 와 목적지 GPU 가 서로 다른 rail</mark> 이면 local NIC 이 아니라 <b>다른 rail</b> 의 NIC 을 써야 inter-node single-hop.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Rail-optimized 란</h3>
+<pre class="ascii">Leaf switches: L0 L1 L2 ... L7 (rail 별 1개)
+node A : G0→NIC0→L0 · G1→NIC1→L1 · ...
+node B : G0→NIC0→L0 · G1→NIC1→L1 · ...
+ 같은 rank index 끼리는 같은 leaf → 1 hop
+ 다른 rank 끼리는 spine switch 경유 → 2+ hop</pre>
+        <p class="tiny">학습 시 AllReduce 는 ring 구성상 주로 same-rank pair → rail-matched 가 최적.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> PXN 아이디어 ★ <span class="ko">(!)</span>
+          <span class="mnemonic">local P2P then NET</span>
+        </h3>
+        <div class="def"><span class="label">전략</span>
+          GPU_r 이 목적지에 맞는 <mark>다른 GPU</mark>(같은 node, 원하는 rail) 로 NVLink P2P 전송 → 그 GPU 가 자기 NIC 으로 NET send. 결과: NUMA 경계를 우회해 항상 local-rail NIC 사용.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> PXN 흐름도</h3>
+<pre class="ascii">GPU_r (rail i, 목적지 rail j)
+   │ ① NVLink P2P
+   ▼
+GPU_k (같은 node, rail j)
+   │ ② RDMA WRITE via NIC_j
+   ▼
+NET (leaf-L_j 직행)
+   ▼
+GPU_r' (remote node, rail j)
+
+비교 (no-PXN):
+GPU_r → NIC_i → spine → L_j → GPU_r'  (2 hop)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 효과 수치</h3>
+        <table class="compact">
+          <thead><tr><th>scenario</th><th>no-PXN</th><th>PXN</th></tr></thead>
+          <tbody>
+            <tr><td>same rail</td><td>1 hop</td><td>1 hop (의미 無)</td></tr>
+            <tr><td>cross rail</td><td>2+ hop</td><td>1 hop (+ NVLink)</td></tr>
+            <tr><td>BW 활용</td><td>spine BW 나눔</td><td>leaf 만 사용</td></tr>
+            <tr><td>NIC contention</td><td>높음</td><td>분산</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> NCCL 활성화</h3>
+        <ul>
+          <li><code>NCCL_PXN_DISABLE=0</code> (기본값) — auto 활성</li>
+          <li>NVLink P2P 가능 pair 간에만 동작</li>
+          <li>ACS 이슈 없어야 함 (ACS = PCIe Access Control Services, 켜져있으면 P2P 차단)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> NUMA &amp; CPU affinity</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>NUMA node</mark> = CPU socket + 로컬 DRAM + 로컬 PCIe root. GPU·NIC 가 서로 다른 NUMA 에 있으면 QPI/UPI 경유 → CPU proxy thread 가 cross-NUMA 접근 시 latency·BW 모두 하락.
+        </div>
+        <ul>
+          <li>DGX: 2 NUMA · 4 GPU per NUMA</li>
+          <li>PXN 이 cross-NUMA 만큼은 NVLink 로 우회</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Rail 활용 체크리스트</h3>
+        <ol class="bullet-num">
+          <li>GPU ↔ NIC 쌍 확인: <code>nvidia-smi topo -m</code></li>
+          <li>IB 인터페이스 bind: <code>NCCL_IB_HCA</code>, <code>NCCL_IB_GID_INDEX</code></li>
+          <li>rail 인덱스 일치: node 간 같은 rank → 같은 leaf</li>
+          <li>CPU affinity: proxy thread 를 GPU-local NUMA 에 pin</li>
+          <li>ACS off · IOMMU pass-through</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Intra-node 변형</h3>
+        <div class="warn-box"><span class="label"></span>
+          PXN 이 <span class="red">intra-node 병목</span> 에도 쓰인다. 예: NVLink 가 없는 pair 간 (AMD CPU + consumer GPU) 에 PCIe P2P 로 우회. 단 BW 는 PCIe 한계.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·7</span>
+    <span class="tiny">NCCL blog "PXN: optimizing multi-node communication" (2022) · NCCL_PXN_DISABLE doc</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 8: §7 TP ============================ -->
+<section class="page" data-screen-label="08 TP Tensor Parallel">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — TP (Tensor Parallelism) ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> TP 정의 <span class="ko">matmul 분할</span></h3>
+        <div class="def"><span class="label">정의</span>
+          weight matrix 를 <mark>hidden 차원</mark> 으로 쪼개 각 GPU 가 부분곱 수행, collective 로 합산/concat. layer 하나가 여러 GPU 에 걸쳐 존재.
+        </div>
+        <ul>
+          <li>Megatron-LM (Shoeybi 2019) 가 표준</li>
+          <li>TP group = 동일 layer 를 공유하는 rank 집합</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Column-parallel ★</h3>
+        <div class="formula">
+          W ∈ ℝ<sup>K×N</sup> &nbsp;→&nbsp; W<sub>r</sub> ∈ ℝ<sup>K×(N/P)</sup> (열 분할)<br/>
+          y<sub>r</sub> = x · W<sub>r</sub> &nbsp;(각 GPU 가 N/P 열 보유)<br/>
+          y = concat(y<sub>0</sub>,…,y<sub>P−1</sub>) &nbsp;(필요 시 AllGather)
+          <span class="legend">x 는 전 rank 복제 · 입력 통신 無 · 출력 partition</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Row-parallel ★</h3>
+        <div class="formula">
+          W ∈ ℝ<sup>K×N</sup> &nbsp;→&nbsp; W<sub>r</sub> ∈ ℝ<sup>(K/P)×N</sup> (행 분할)<br/>
+          y<sub>r</sub> = x<sub>r</sub> · W<sub>r</sub> &nbsp;(입력 x 도 partition)<br/>
+          y = <mark>AllReduce</mark>(y<sub>0</sub>,…,y<sub>P−1</sub>)
+          <span class="legend">x 는 partition 입력 (앞 단계가 col-parallel 이므로 OK)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Megatron MLP 패턴 ★
+          <span class="mnemonic">col→row→AR</span>
+        </h3>
+<pre class="ascii">MLP(x) = GeLU(x · W₁) · W₂
+
+ W₁ : column-parallel (K×4H split N)
+   y = GeLU(x · W₁ᵣ)     # output partition
+ W₂ : row-parallel (4H×K split K)
+   z = y · W₂ᵣ
+   out = AllReduce(z)      # ← 1 AllReduce / MLP</pre>
+        <p class="tiny">activation (GeLU) 는 element-wise → partition 상태 유지 OK.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Attention 패턴</h3>
+<pre class="ascii">QKV proj   : column-parallel (head 차원 분할)
+ each GPU → head subset 의 Q,K,V
+
+attention  : local (heads 독립)
+
+out proj   : row-parallel + AllReduce
+ ← 1 AllReduce / attention block</pre>
+        <p class="tiny">head 수가 P 의 배수 여야 깔끔. GQA/MQA 에선 KV head 수 제약 &nbsp;<span class="xref">↗ V07 §6</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 통신량 (layer 1회)</h3>
+        <div class="formula">
+          forward: 2× AllReduce (MLP + Attn) &nbsp; @ size B·S·H<br/>
+          backward: 2× AllReduce additional<br/>
+          총 forward+backward = 4× AllReduce(B·S·H)
+          <span class="legend">B : batch · S : seq · H : hidden dim</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> TP 크기 선택</h3>
+        <table class="compact">
+          <thead><tr><th>TP size</th><th>제약</th></tr></thead>
+          <tbody>
+            <tr><td>≤ 8 (intra-node)</td><td><mark>NVLink 필수</mark> — AllReduce BW</td></tr>
+            <tr><td>= 4</td><td>GQA 4-KV-head 에 친화</td></tr>
+            <tr><td>&gt; 8 (cross-node)</td><td>IB AllReduce 병목 — 일반적으로 회피</td></tr>
+            <tr><td>= 1</td><td>TP 없음 (DP 만)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 왜 AllReduce 위치가 그런가</h3>
+        <div class="def"><span class="label">원리</span>
+          <mark>col→row</mark> 조합은 중간에 통신을 피한다. col-output 을 row-input 으로 자연 매치 (같은 partition 축). 마지막에 partial sum 을 AR 하면 full output. 반대 순서 (row→col) 는 중간에 AllGather 필요.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> SP 와의 겹침 <span class="ko">(!)</span>
+          <span class="mnemonic">SP=RS+AG</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          Megatron+SP 에선 TP 의 AllReduce = <span class="red">ReduceScatter + AllGather</span> 로 분해되어 dropout/layernorm 사이에 SP shard 를 끼워 활성 메모리 감소. &nbsp;<span class="xref">↗ §11</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·8</span>
+    <span class="tiny">Megatron-LM (Shoeybi et al. 2019) · Narayanan et al. "Efficient Large-Scale LM Training" SC21</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 9: §8 PP ============================ -->
+<section class="page" data-screen-label="09 PP Pipeline Parallel">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — PP (Pipeline Parallelism): 1F1B · interleaved · bubble</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> PP 정의 <span class="ko">layer 분할</span></h3>
+        <div class="def"><span class="label">정의</span>
+          transformer L 개 layer 를 <mark>P 개 stage</mark> 로 나눠 각 GPU 가 stage 하나 담당. 순차적 데이터 흐름: stage_s 출력 = stage_{s+1} 입력 (P2P send/recv).
+        </div>
+        <ul>
+          <li>micro-batch M 개 로 batch 쪼갬 → pipeline 채움</li>
+          <li>통신 = stage 경계 activation P2P · backward grad P2P</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> GPipe <span class="ko">naive</span></h3>
+<pre class="ascii">stage↓  time →
+ 0 :  F1 F2 F3 F4 ..          B4 B3 B2 B1
+ 1 :     F1 F2 F3 F4 ..      B4 B3 B2 B1
+ 2 :        F1 F2 F3 F4 ..  B4 B3 B2 B1
+ 3 :           F1 F2 F3 F4 .B4 B3 B2 B1
+ forward 전부 → backward 전부 (all-forward-all-backward)</pre>
+        <ul>
+          <li>단순 · 하지만 activation 전부 보관 → 메모리 ↑</li>
+          <li>bubble ratio = (P−1)/M</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 1F1B ★ <span class="ko">PipeDream / Megatron</span></h3>
+<pre class="ascii">stage↓  time →
+ 0: F1 F2 F3 F4 B1 F5 B2 F6 B3 F7 B4 ..
+ 1:    F1 F2 F3 F4 B1 F5 B2 F6 B3 F7 ..
+ ...
+   F 와 B 를 1 micro-batch 씩 교대</pre>
+        <ul>
+          <li>memory: stage 당 보관 activation ≈ P (GPipe 는 M)</li>
+          <li>bubble ratio = (P−1)/M (동일)</li>
+          <li>throughput 유사, <mark>memory 우위</mark></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Interleaved 1F1B ★ <span class="ko">Megatron virtual</span></h3>
+        <div class="def"><span class="label">정의</span>
+          각 GPU 가 <mark>v 개의 virtual stage</mark> 담당 (model chunk). layer 를 stage 순이 아니라 round-robin 배치 → bubble 감소.
+        </div>
+        <div class="formula">
+          bubble<sub>interleaved</sub> = (P−1) / (M · v)
+          <span class="legend">v = virtual stage 수 per GPU · 통신량은 v× 증가</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Zero Bubble <span class="ko">최근</span></h3>
+        <ul>
+          <li>backward 를 B (input grad) + W (weight grad) 로 쪼갬</li>
+          <li>W 는 critical path 밖 → bubble 채움</li>
+          <li>조건 만족 시 bubble = 0 (수식상)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Bubble 공식 비교</h3>
+        <table class="compact">
+          <thead><tr><th>schedule</th><th>bubble ratio</th><th>mem/stage</th></tr></thead>
+          <tbody>
+            <tr><td>GPipe</td><td>(P−1)/M</td><td>M activations</td></tr>
+            <tr><td><mark>1F1B</mark></td><td>(P−1)/M</td><td>P activations</td></tr>
+            <tr><td><mark>interleaved 1F1B</mark></td><td>(P−1)/(Mv)</td><td>v·P activations</td></tr>
+            <tr><td>Zero Bubble</td><td>≈ 0</td><td>similar to 1F1B</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Megatron 기본: v=2~4. throughput 개선 vs 통신 overhead trade.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 통신 패턴</h3>
+        <ul>
+          <li>stage 경계: SEND/RECV activation (forward) + grad (backward)</li>
+          <li>P2P message — NCCL <code>ncclSend/ncclRecv</code></li>
+          <li>size: B · S · H per micro-batch per boundary</li>
+          <li>NVLink intra-node / IB inter-node</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> PP 크기 선택 <span class="ko">(!)</span>
+          <span class="mnemonic">M ≥ 4P</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          PP size P 선택 시 <span class="red">micro-batch 수 M ≥ 4P</span> 를 목표. bubble ratio 가 25% 이하 되어야 유용. M 이 부족하면 1F1B 든 뭐든 throughput 심각.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> PP &amp; 학습 loop</h3>
+        <p class="tiny">학습 loop 통합·FSDP 연동은 <span class="xref">↗ V17 §10</span> 에서 상세. 본 권은 통신 패턴에만 초점.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·9</span>
+    <span class="tiny">Huang et al. "GPipe" NeurIPS19 · Narayanan et al. PipeDream · Qi et al. Zero Bubble 2024</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 10: §9 DP & ZeRO ============================ -->
+<section class="page" data-screen-label="10 DP · ZeRO · FSDP">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — DP &amp; ZeRO / FSDP: param · grad · opt sharding</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Vanilla DP</h3>
+        <div class="def"><span class="label">정의</span>
+          각 GPU 가 <mark>model 전체 복제</mark>. batch 만 쪼개 병렬. backward 후 grad AllReduce 로 sync.
+        </div>
+        <div class="formula">
+          통신 = AllReduce(Σ |param|) per step<br/>
+          mem = |param| + |grad| + |opt state| + activation &nbsp; (per GPU 풀)
+          <span class="legend">PyTorch DDP 의 기본. 큰 모델 불가.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 학습 메모리 구성 <span class="ko">Adam 기준</span></h3>
+        <table class="compact">
+          <thead><tr><th>성분</th><th>bytes/param</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>param (BF16)</td><td class="num">2</td><td>forward weight</td></tr>
+            <tr><td>grad (BF16)</td><td class="num">2</td><td>backward</td></tr>
+            <tr><td>param master (FP32)</td><td class="num">4</td><td>update precision</td></tr>
+            <tr><td>momentum (FP32)</td><td class="num">4</td><td>m</td></tr>
+            <tr><td>variance (FP32)</td><td class="num">4</td><td>v</td></tr>
+            <tr><td><mark>합계</mark></td><td class="num">16</td><td>per param</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">자세한 mixed precision 은 <span class="xref">↗ V09 §2</span> · 학습 loop 통합 <span class="xref">↗ V17 §2</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> ZeRO-1 <span class="ko">optimizer shard</span></h3>
+        <div class="formula">
+          mem/GPU = 2 + 2 + 12/N = 4 + 12/N &nbsp; bytes/param<br/>
+          통신 = AllReduce(grad) + AllGather(param update) 없음<br/>
+          실질 AllReduce 동일 (DDP 와 같음)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> ZeRO-2 <span class="ko">+ grad shard</span></h3>
+        <div class="formula">
+          mem/GPU = 2 + (2 + 12)/N = 2 + 14/N<br/>
+          통신: ReduceScatter(grad) + no AllGather<br/>
+          = AllReduce 와 같은 BW (분해 등식)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> ZeRO-3 / FSDP ★ <span class="ko">+ param shard</span></h3>
+        <div class="formula">
+          mem/GPU = 16/N<br/>
+          통신 = forward AllGather(param) + backward AllGather + ReduceScatter(grad)<br/>
+          총 = 1.5× vanilla DP 통신량
+          <span class="legend">AG+RS = AR 이지만 layer 당 추가 AG (forward) 발생</span>
+        </div>
+        <p class="tiny">PyTorch FSDP = ZeRO-3 native · unit = FlatParameter (여러 param concat).</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> FSDP 한 layer 흐름 ★</h3>
+<pre class="ascii">layer forward:
+  AllGather(param)        ← full W 복원 (N→1)
+  y = layer(x)
+  free param shard-only   ← shard 로 복귀
+
+layer backward:
+  AllGather(param)        ← 다시 필요
+  dx, dw = layer.bwd(...)
+  ReduceScatter(dw)       ← grad shard 로
+  free param</pre>
+        <ul>
+          <li>layer 마다 prefetch 로 AG overlap</li>
+          <li><code>use_orig_params=True</code> (FSDP-2) 로 inference 호환</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Offload 변형</h3>
+        <ul>
+          <li><b>ZeRO-Offload</b>: CPU 로 opt state 내림</li>
+          <li><b>ZeRO-Infinity</b>: NVMe 까지 확장</li>
+          <li>제한: CPU-GPU BW (PCIe Gen4 ~32 GB/s) 가 bottleneck</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 비교 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>단계</th><th>mem (B/param)</th><th>extra comm</th></tr></thead>
+          <tbody>
+            <tr><td>DDP</td><td class="num">16</td><td>0</td></tr>
+            <tr><td>ZeRO-1</td><td class="num">4 + 12/N</td><td>0</td></tr>
+            <tr><td>ZeRO-2</td><td class="num">2 + 14/N</td><td>0 (RS 대체)</td></tr>
+            <tr><td><mark>ZeRO-3/FSDP</mark></td><td class="num">16/N</td><td>+50% (AG forward)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">N = DP rank 수. 상세 수식 유도 <span class="xref">↗ V17 §3</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·10</span>
+    <span class="tiny">Rajbhandari et al. "ZeRO" SC20 · Zhao et al. "PyTorch FSDP" VLDB23</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 11: §10 EP ============================ -->
+<section class="page" data-screen-label="11 EP MoE">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — EP (Expert Parallelism): MoE · alltoall routing</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> MoE 배경</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Mixture of Experts</mark>: MLP layer 를 E 개 expert 로 병렬. router (gate) 가 각 token 을 top-k expert 에 보냄. sparse activation — token 당 k ≪ E.
+        </div>
+        <ul>
+          <li>param ↑↑ (E·MLP_size) · FLOP 는 k/E 배</li>
+          <li>Switch Transformer (k=1) · Mixtral (k=2, E=8) 등</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> EP 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          expert 들을 <mark>rank 에 분산</mark> 저장 (expert_r 들이 rank r 에). token 을 해당 expert 가 있는 rank 로 <b>전송</b> → MLP → 결과 역송.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 핵심 통신 = AllToAll ★</h3>
+<pre class="ascii">MoE forward:
+ x [B·S, H]                       각 rank 보유 token
+   └─ router → assignment [B·S, k]
+   └─ sort by expert
+   └─ AllToAll (dispatch)  ← 1
+   └─ expert.MLP (local)
+   └─ AllToAll (combine)   ← 2
+   └─ scale by gate · sum top-k
+
+1 layer 당 2× AllToAll</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Capacity Factor</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>capacity</mark> c = ⌈(B·S·k / E) · cf⌉ &nbsp; (cf = capacity factor, 일반적으로 1.0~1.5). expert 당 최대 c token 수용 — 초과 시 <b>drop</b>.
+        </div>
+        <ul>
+          <li>cf 높이면 drop ↓, 통신량 ↑</li>
+          <li>cf 낮추면 GPU 활용도 ↑, 성능 손실 위험</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> AllToAll 크기</h3>
+        <div class="formula">
+          dispatch bytes/rank ≈ (B·S·k/E) · H · 2 · (E−1)/E<br/>
+          total per layer = 2 × 위 값
+          <span class="legend">B=batch · S=seq · k=top-k · H=hidden · E=expert 수</span>
+        </div>
+        <p class="tiny">Mixtral 8x7B (k=2, E=8, H=4096): B·S = 8192 · 2·H=16KB/token · bytes ≈ 130 MB/rank/layer.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Token Routing 스키마</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Top-k</mark></td><td>token → k 개 expert</td></tr>
+            <tr><td>Expert-choice</td><td>expert → top-k token 선택</td></tr>
+            <tr><td>Hash routing</td><td>gating 없이 hash</td></tr>
+            <tr><td>BASE layer</td><td>학습 가능한 balance</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> AllToAll 구현 알고리즘</h3>
+        <ul>
+          <li><b>Ring</b>: N−1 step, neighbor 전송. BW-optimal.</li>
+          <li><b>Bruck</b>: log N step, index reorder 필요. latency-optimal small msg.</li>
+          <li><b>Pairwise exchange</b>: N step. NVSwitch 하에서 단순.</li>
+          <li>NCCL 내부 hierarchical: intra-node pairwise + inter-node ring</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> EP + TP 조합</h3>
+        <div class="def"><span class="label">DeepSpeed-MoE</span>
+          EP group (expert 위치) · TP group (expert 내부 MLP sharding) 중첩. comm = AllToAll(EP) + AllReduce(TP).
+        </div>
+        <ul>
+          <li>typical: EP=8, TP=1 (expert 단위로 분할)</li>
+          <li>EP &gt; 8 → inter-node AllToAll 병목</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Load Balance Loss <span class="ko">(!)</span>
+          <span class="mnemonic">uniform→no drop</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          router 학습 시 <span class="red">auxiliary loss</span>(load balance) 없으면 expert 사용 편중 → 특정 GPU 만 로드, 나머지 유휴. DeepSeek-MoE 는 aux-loss-free 변형.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·11</span>
+    <span class="tiny">Switch Transformer (Fedus 2021) · GShard (Lepikhin 2020) · Mixtral (Jiang 2024)</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 12: §11 SP ============================ -->
+<section class="page" data-screen-label="12 SP Sequence Parallel">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — SP (Sequence Parallelism): Ulysses · norm 상호작용</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> SP 동기 <span class="ko">TP 한계</span></h3>
+        <div class="def"><span class="label">문제</span>
+          TP 만 쓰면 <mark>LayerNorm·Dropout·residual</mark> 은 전 rank 복제 → activation 메모리 N 배. sequence 차원 은 TP 로 분할 안 됨.
+        </div>
+        <ul>
+          <li>Megatron-SP: TP 그룹 내부에서 norm/dropout 을 seq 차원 shard</li>
+          <li>Ulysses (DeepSpeed): 독립적 SP — seq 차원 shard, head 차원 AllToAll</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Megatron-SP ★ <span class="ko">TP 보조</span></h3>
+<pre class="ascii">기존 TP:
+ [B,S,H] → AllReduce(TP) → [B,S,H] (전 rank 복제)
+
+Megatron-SP:
+ [B,S,H] → ReduceScatter(S축) → [B,S/P,H]
+         → LayerNorm/Dropout (local)
+         → AllGather(S축) → [B,S,H]
+         → TP attn/MLP
+AR = RS + AG 분해 → 추가 통신 없음, activation ÷P</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Ulysses ★ <span class="ko">독립 SP</span></h3>
+        <div class="def"><span class="label">idea</span>
+          입력: [B, S/P, H] (seq shard). attention 전 AllToAll(S↔Head): [B, S, H/P]. attention 계산 후 AllToAll 역변환.
+        </div>
+<pre class="ascii">[B, S/P, H]
+   │ AllToAll (S ↔ Head)
+   ▼
+[B, S, H/P]   ← head 차원 분할
+ attention (per head 독립)
+   │ AllToAll (Head ↔ S)
+   ▼
+[B, S/P, H]</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Ulysses 통신량</h3>
+        <div class="formula">
+          AllToAll bytes/rank = 2 · (P−1)/P · B·S·H · bytes_per_elt<br/>
+          per layer = 4× (forward 2 + backward 2)
+          <span class="legend">TP 의 AllReduce 와 비슷한 규모지만 head 독립이라 attention 내부 통신 無</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> SP &amp; 활성 메모리</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>activation mem/rank</th></tr></thead>
+          <tbody>
+            <tr><td>TP only</td><td>B·S·H</td></tr>
+            <tr><td>TP + Megatron-SP</td><td>B·S·H / P</td></tr>
+            <tr><td>Ulysses (pure SP)</td><td>B·S·H / P</td></tr>
+            <tr><td>TP · SP 조합</td><td>B·S·H / (P<sub>TP</sub>·P<sub>SP</sub>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 제약 <span class="ko">head 수</span></h3>
+        <div class="warn-box"><span class="label"></span>
+          Ulysses 는 <span class="red">head 수 = P · k</span> 여야 깔끔 분할. GQA 에선 KV head 수 작아 SP 크게 못 키움. Ring attention (CP) 로 보완 &nbsp;<span class="xref">↗ §12</span>.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Norm 과의 상호작용</h3>
+        <ul>
+          <li>LayerNorm/RMSNorm 은 <b>hidden 축 평균</b> → shard 상태에서도 local 계산 가능 (hidden 축 full)</li>
+          <li>Megatron-SP: norm 앞에 RS (S축 shard) · 뒤에 AG (복원)</li>
+          <li>Dropout mask = random → rank 간 <mark>seed 동기화 필수</mark> (같은 shard 는 같은 mask)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> TP + SP 통합 흐름</h3>
+<pre class="ascii">input [B,S/P,H]
+ ├─ AllGather → [B,S,H]
+ ├─ attention QKV (col-TP) → [B,S,H/P]
+ ├─ attention (head 독립)
+ ├─ out proj (row-TP) → ReduceScatter → [B,S/P,H]
+ ├─ dropout (local, seed sync)
+ ├─ layernorm (local)
+ ├─ MLP W1 (col-TP) → AllGather → [B,S,H/P_mlp]
+ ├─ GeLU (local)
+ └─ MLP W2 (row-TP) → ReduceScatter → [B,S/P,H]</pre>
+        <p class="tiny">AR = RS+AG 로 분해해 SP 결합. 총 통신량은 TP-only 와 동일, activation 는 shard.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> SP 크기 가이드</h3>
+        <ul>
+          <li>일반: SP = TP (같은 그룹 재사용)</li>
+          <li>seq 매우 길면: Ulysses SP 독립 확장 · 혹은 CP 결합</li>
+          <li>attention 커널 호환성 확인 (FlashAttn varlen) &nbsp;<span class="xref">↗ V07 §9</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·12</span>
+    <span class="tiny">Korthikanti et al. "Reducing Activation Recomputation" (Megatron-SP) · Jacobs et al. "Ulysses" 2023</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 13: §12 CP ============================ -->
+<section class="page" data-screen-label="13 CP Context Parallel">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — CP (Context Parallelism): long-context · ring attention</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> CP 동기 <span class="ko">long seq</span></h3>
+        <div class="def"><span class="label">문제</span>
+          128K / 1M context 에서 Q·K·V · attention matrix 가 단일 GPU 에 안 들어감. SP (Ulysses) 는 head 수 제약 → CP 가 해법.
+        </div>
+        <ul>
+          <li>Q/K/V 를 seq 축으로 P 등분</li>
+          <li>attention 은 K/V 를 <mark>ring 으로 순환</mark> 시켜 모든 Q 가 모든 K/V 를 만남</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Ring Attention ★ <span class="ko">핵심</span></h3>
+<pre class="ascii">GPU_r 보유: Q_r, K_r, V_r  (seq shard r)
+
+for t in 0..P-1:
+  K_{r-t}, V_{r-t} 로 local attention (Q_r × K_{r-t}·V_{r-t})
+  partial softmax + weighted sum 누적
+  P2P SEND K,V → rank r+1 ; RECV from rank r-1
+
+FlashAttn-style online softmax 로 수치 안정</pre>
+        <p class="tiny">P2P 전송과 attention 연산 <b>overlap</b> 가능 → BW 덜 드러남. FA의 online max/lse 유지가 관건 <span class="xref">↗ V07 §4</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Online Softmax 누적</h3>
+        <div class="formula">
+          m<sup>(t)</sup> = max(m<sup>(t−1)</sup>, m<sub>new</sub>)<br/>
+          l<sup>(t)</sup> = e<sup>m<sup>(t−1)</sup>−m<sup>(t)</sup></sup>·l<sup>(t−1)</sup> + e<sup>m<sub>new</sub>−m<sup>(t)</sup></sup>·l<sub>new</sub><br/>
+          O<sup>(t)</sup> = e<sup>m<sup>(t−1)</sup>−m<sup>(t)</sup></sup>·O<sup>(t−1)</sup> + e<sup>m<sub>new</sub>−m<sup>(t)</sup></sup>·O<sub>new</sub>
+          <span class="legend">m : running max · l : running lse · O : running output</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Causal Load Imbalance ★</h3>
+        <div class="def"><span class="label">문제</span>
+          causal mask 하에서 rank 0 (앞쪽) 은 적은 K/V 만 볼 필요. naive shard 는 rank 간 <mark>workload 불균형</mark>.
+        </div>
+        <ul>
+          <li>rank r 의 일 = Σ<sub>t≤r</sub> |K_t| ∝ r+1</li>
+          <li>max rank 가 min rank 대비 P× 일</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Striped CP <span class="ko">balance</span></h3>
+<pre class="ascii">원래: rank r = [r·S/P, (r+1)·S/P) 연속 블록
+striped: rank r = [r, r+P, r+2P, ...] stride
+ → 어느 block 이든 causal workload ≈ uniform
+ (앞·뒤 mix)</pre>
+        <p class="tiny">Context Parallel (NV), "Striped Attention" (Brandon 2023).</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 통신량</h3>
+        <div class="formula">
+          P2P bytes/rank = 2 · (P−1)·(S/P)·2·d_head·n_head·2 &nbsp; (K,V each)<br/>
+          ≈ 4 · (P−1)·(S/P)·H<br/>
+          forward+backward 총 ≈ 8·(P−1)·(S/P)·H
+          <span class="legend">S=full seq · H=hidden · d_head·n_head = H</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> CP vs Ulysses 비교</h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>Ulysses</th><th>CP (Ring)</th></tr></thead>
+          <tbody>
+            <tr><td>통신</td><td>AllToAll (S↔H)</td><td>P2P ring (K,V)</td></tr>
+            <tr><td>head 제약</td><td>H/P 분할 필요</td><td>없음</td></tr>
+            <tr><td>seq 상한</td><td>보통 ~32K</td><td>~1M+</td></tr>
+            <tr><td>overlap</td><td>어려움</td><td>자연스러움</td></tr>
+            <tr><td>causal</td><td>간단</td><td>striped 필요</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> CP &amp; 다른 축 조합</h3>
+        <ul>
+          <li>CP + TP: attention 내부를 CP, MLP/proj 는 TP (독립 그룹)</li>
+          <li>CP + EP: MoE long-context 학습</li>
+          <li>CP = DP 처럼 data 축으로 보이지만 attention 에선 sync 필요</li>
+        </ul>
+        <p class="tiny">SP/CP attention 상세 알고리즘 <span class="xref">↗ V07 §11</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·13</span>
+    <span class="tiny">Liu et al. "Ring Attention" 2023 · Brandon et al. "Striped Attention" 2023 · NV Megatron CP docs</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 14: §13 5D 조합 ============================ -->
+<section class="page" data-screen-label="14 5D 조합 Matrix">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — 5D Parallelism 조합 ★ (DP × TP × PP × EP × CP)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 전체 조합 수식</h3>
+        <div class="formula">
+          world_size = DP × TP × PP × EP × CP<br/>
+          각 rank 는 5-tuple (dp, tp, pp, ep, cp) 에 속함<br/>
+          process_group = axis 별로 생성 (NCCL comm 5개+)
+          <span class="legend">실무: 각 축은 2차 곱셈 그룹 — 곱이 total GPU 수</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 축별 통신 요약</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>primary collective</th><th>frequency</th></tr></thead>
+          <tbody>
+            <tr><td><mark>DP</mark></td><td>AllReduce / RS (ZeRO)</td><td>step 끝</td></tr>
+            <tr><td><mark>TP</mark></td><td>AllReduce / AG+RS</td><td>layer × 2~4</td></tr>
+            <tr><td><mark>PP</mark></td><td>SEND/RECV (P2P)</td><td>stage 경계</td></tr>
+            <tr><td><mark>EP</mark></td><td>AllToAll</td><td>MoE layer × 2</td></tr>
+            <tr><td><mark>CP</mark></td><td>P2P ring (K,V)</td><td>attention 내부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 축 배치 원칙 <span class="ko">(!)</span>
+          <span class="mnemonic">TP≤8 · PP<rank</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          TP 는 <span class="red">NVLink 내부</span> (≤8, 동일 node). PP 는 node 경계 OK. DP 는 가장 바깥 (ZeRO 시 RS BW 요구). EP 는 TP 와 겹치거나 독립.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 모델 크기별 매트릭스 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>model</th><th>GPU</th><th>TP</th><th>PP</th><th>DP (ZeRO)</th><th>EP</th><th>CP</th></tr></thead>
+          <tbody>
+            <tr><td><mark>7B dense</mark></td><td>8</td><td class="num">1</td><td class="num">1</td><td class="num">8 (Z3)</td><td>—</td><td class="num">1</td></tr>
+            <tr><td>7B long-ctx</td><td>8</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td>—</td><td class="num">4</td></tr>
+            <tr><td><mark>70B dense</mark></td><td>64</td><td class="num">8</td><td class="num">1</td><td class="num">8 (Z3)</td><td>—</td><td class="num">1</td></tr>
+            <tr><td>70B dense</td><td>512</td><td class="num">8</td><td class="num">4</td><td class="num">16</td><td>—</td><td class="num">1</td></tr>
+            <tr><td><mark>400B dense</mark></td><td>2048</td><td class="num">8</td><td class="num">8</td><td class="num">32</td><td>—</td><td class="num">1</td></tr>
+            <tr><td>400B dense long</td><td>4096</td><td class="num">8</td><td class="num">8</td><td class="num">8</td><td>—</td><td class="num">8</td></tr>
+            <tr><td>8×22B MoE</td><td>256</td><td class="num">4</td><td class="num">1</td><td class="num">8</td><td class="num">8</td><td class="num">1</td></tr>
+            <tr><td>DeepSeek V3 (685B)</td><td>2048</td><td class="num">1</td><td class="num">16</td><td class="num">16</td><td class="num">8</td><td class="num">1</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">예시 구성. DP·PP·TP 곱 = GPU. ZeRO-3 는 DP 내에서 ZeRO-1/2/3 중 선택. 숫자는 대표적 점 — 실제 tuning 필요.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 7B 선택 근거</h3>
+        <ul>
+          <li>param·grad·opt 모두 한 node (8 GPU) 에 ZeRO-3 로 적재</li>
+          <li>TP=1: 작은 모델은 TP 통신 overhead 손해 더 큼</li>
+          <li>long-ctx: CP 확장으로 memory 해결</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 70B / 400B 선택 근거</h3>
+        <ul>
+          <li>70B: TP=8 + DP(ZeRO-3) · node 내에 layer 1개가 다 들어가는 상한</li>
+          <li>400B: TP=8 + PP=8 (node 간 layer 쪼갬) + DP 로 scale-out</li>
+          <li>PP 는 bubble&nbsp;(P-1)/M 을 만족할 M 필요 (M ≥ 32 목표)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> MoE 특수</h3>
+        <ul>
+          <li>EP 축 추가 → AllToAll 비용 (node 내 유지가 최선)</li>
+          <li>TP 줄이고 EP 확장 경향 (expert 가 이미 param 분산 역할)</li>
+          <li>DeepSeek V3: TP=1, PP 로 파이프 · EP=8 내부</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Rank 매핑 공식</h3>
+        <div class="formula">
+          rank_global = dp·(TP·PP·EP·CP) + tp·(PP·EP·CP) + pp·(EP·CP) + ep·CP + cp<br/>
+          (혹은 역순; 구현체별)
+          <span class="legend">NCCL subgroup 생성 시 각 축별 stride 로 communicator 5개 만듦</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Node affinity</h3>
+        <p class="tiny">실무 rule of thumb: TP·CP·EP 는 <b>intra-node</b>, DP·PP 는 <b>inter-node</b>. AllToAll 비용을 NVLink 안에 가둔다.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·14</span>
+    <span class="tiny">Megatron-Core docs · DeepSpeed pipeline · DeepSeek V3 tech report 2024</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Overlap ============================ -->
+<section class="page" data-screen-label="15 Overlap 전략">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Overlap: compute-comm · bucketing · async</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Overlap 기본 원리</h3>
+        <div class="def"><span class="label">정의</span>
+          통신 kernel 은 compute kernel 과 <mark>다른 CUDA stream</mark> 에 두고 <b>event</b> 로 의존성만 걸면, 두 kernel 이 HW 레벨에서 동시에 진행된다. HW: NVLink/NIC 는 SM 과 독립 unit.
+        </div>
+        <ul>
+          <li>SM 소비: NCCL kernel 은 channel × SM 을 얕게 잡음 (~2-4 SM)</li>
+          <li>나머지 SM 은 compute 여유 → overlap 성립</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Backward AllReduce Bucketing</h3>
+<pre class="ascii">naive: grad 1개 생성마다 AR → 작은 msg × 많음
+bucket: 연속 param grad 를 buffer 에 쌓아 합치기
+ └─ 25 MB 정도 버킷 권장
+ └─ 첫 bucket ready 시점부터 AR 시작
+ └─ 이후 bucket 은 compute 와 overlap</pre>
+        <p class="tiny">PyTorch DDP <code>bucket_cap_mb=25</code> 기본. bucket 클수록 BW 효율 ↑, latency 시작 ↑.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> FSDP Prefetch ★</h3>
+<pre class="ascii">layer_n forward  :  AG(param_n)   ┐
+                    compute_n      │
+layer_n+1 forward: AG(param_n+1) prefetch (overlap)
+
+layer_n backward : AG(param_n)    │
+                   compute_n      │
+                   RS(grad_n)     │ overlap with next layer's AG
+layer_n-1 backward: AG(param_n-1) prefetch</pre>
+        <ul>
+          <li>PyTorch FSDP <code>backward_prefetch=BACKWARD_PRE</code></li>
+          <li>통신 stream + compute stream 분리 필수</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Async Collective API</h3>
+        <ul>
+          <li>NCCL: kernel launch 후 반환 → CPU 는 다음 작업</li>
+          <li>PyTorch <code>async_op=True</code> → work handle</li>
+          <li>수동 overlap: handle.wait() 를 compute 이후에 배치</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> PP &amp; overlap</h3>
+        <ul>
+          <li>1F1B 의 backward 기간 동안 다음 forward 와 P2P 교차</li>
+          <li>stream 2개: activation P2P · grad P2P 분리</li>
+          <li>NCCL send/recv 를 서로 다른 comm 으로 → 큐 충돌 회피</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> TP &amp; overlap (advanced)</h3>
+        <div class="def"><span class="label">idea</span>
+          TP AllReduce 를 <mark>fine-grained</mark> 하게 tiled matmul 과 interleave — matmul tile 끝날 때마다 부분합 AR.
+        </div>
+        <ul>
+          <li>Megatron "async tensor parallel" — WGMMA 와 interleave &nbsp;<span class="xref">↗ V04 §7</span></li>
+          <li>Ring-allreduce 는 natural pipelining</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Overlap 한계</h3>
+        <table class="compact">
+          <thead><tr><th>증상</th><th>원인</th></tr></thead>
+          <tbody>
+            <tr><td>overlap 0%</td><td>SM 꽉 참 / kernel 너무 짧음</td></tr>
+            <tr><td>overlap 부분</td><td>bucket too small / sync 빈번</td></tr>
+            <tr><td>NIC idle</td><td>bucket too big · 첫 AR 지연</td></tr>
+            <tr><td>div crash</td><td>stream 순서 버그 · event 누락</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> CUDA Graph &amp; overlap</h3>
+        <ul>
+          <li>전체 iteration 을 graph capture → launch overhead 제거</li>
+          <li>decode path 에 효과 극대 &nbsp;<span class="xref">↗ V16 §10</span></li>
+          <li>NCCL 2.11+ 부분 지원 (CUDA_GRAPH_MIXING_SUPPORT)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> SM 사용량 분배</h3>
+        <div class="warn-box"><span class="label"></span>
+          NCCL kernel 이 <span class="red">compute SM 을 너무 많이 잡으면</span> overlap 이 안 된다. <code>NCCL_MAX_NCHANNELS</code> 낮추거나, collective 크기를 bucket 조정으로 짧게 유지.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·15</span>
+    <span class="tiny">PyTorch DDP/FSDP docs · NCCL stream semantics notes · Megatron async-TP blog 2024</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 16: §15 α-β 모델 ============================ -->
+<section class="page" data-screen-label="16 α-β 비용 모델">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Communication 비용 모델 (α-β) &amp; 이론 하한</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> α-β 모델 정의 ★</h3>
+        <div class="formula">
+          T(n) = α + β · n<br/>
+          α : per-message latency (fixed overhead)<br/>
+          β : per-byte cost = 1 / BW
+          <span class="legend">Hockney model (1994). MPI·NCCL 성능 분석의 기본.</span>
+        </div>
+        <ul>
+          <li>α ∝ hop count · driver · NIC 지연</li>
+          <li>β ∝ 1/link_BW</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 확장: α-β-γ</h3>
+        <div class="formula">
+          T(n) = α + β·n + γ·n &nbsp; (γ : reduce compute)
+          <span class="legend">reduction op (sum, max) 의 FLOP 이 무시 못 할 때</span>
+        </div>
+        <p class="tiny">BF16 allreduce 에선 γ ≪ β, 무시해도 됨. FP32 + 큰 tensor 에선 γ 가 드러남.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Typical 값 <span class="ko">H100 DGX</span></h3>
+        <table class="compact">
+          <thead><tr><th>link</th><th>α (μs)</th><th>β (ns/B)</th></tr></thead>
+          <tbody>
+            <tr><td>NVLink 4 P2P</td><td class="num">~3</td><td class="num">~1.1</td></tr>
+            <tr><td>NVSwitch hop</td><td class="num">~3.5</td><td class="num">~1.1</td></tr>
+            <tr><td>IB 400G</td><td class="num">~5</td><td class="num">~20</td></tr>
+            <tr><td>PCIe Gen5 P2P</td><td class="num">~10</td><td class="num">~8</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">대략적 — driver/stack 에 따라 변동. 출처: NCCL-tests nominal 값.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> AllReduce 이론 시간</h3>
+        <div class="formula">
+          T<sub>ring</sub>(N, S) = 2(N−1) α + 2(N−1)/N · S · β<br/>
+          T<sub>tree</sub>(N, S) = 2 log₂ N · (α + S · β)<br/>
+          T<sub>HD</sub>(N, S) = 2 log₂ N · α + 2(N−1)/N · S · β
+          <span class="legend">ring latency ↑ (N−1 linear) · tree/HD latency ↓ (log N)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Switching point ★</h3>
+        <div class="formula">
+          S<sub>*</sub> : T<sub>ring</sub> = T<sub>tree</sub> 조건<br/>
+          2(N−1) α + 2(N−1)/N · S · β = 2 log N · α + 2 log N · S · β<br/>
+          S<sub>*</sub> = α · [N − 1 − log N] / β · [log N − (N−1)/N]
+          <span class="legend">S 이 이보다 크면 ring, 작으면 tree</span>
+        </div>
+        <p class="tiny">실무: N=8, α=5μs, β=1ns/B → S_* ≈ 수 KB 범위.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 이론 하한 — Bandwidth</h3>
+        <div class="formula">
+          min bytes/GPU (AllReduce) = 2(N−1)/N · S<br/>
+          min bytes/GPU (AllGather) = (N−1)/N · S<br/>
+          min bytes/GPU (ReduceScatter) = (N−1)/N · S<br/>
+          min bytes/GPU (AllToAll) = (N−1)/N · S
+          <span class="legend">정보 이론적 하한 — 링크를 1개 썼을 때 기준</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 이론 하한 — Latency</h3>
+        <div class="formula">
+          min steps (AllReduce) = ⌈log₂ N⌉<br/>
+          min steps (AllGather) = ⌈log₂ N⌉<br/>
+          min steps (AllToAll) = ⌈log₂ N⌉ (hypercube)
+          <span class="legend">message-count 하한 — 실제 구현은 algorithm 선택에 따라 더 많음</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Effective BW 식</h3>
+        <div class="formula">
+          BW<sub>eff</sub> = S / T(N, S)<br/>
+          algorithm-adjusted: BW<sub>ring,eff</sub> = S·N / [2(N−1)·(α + S·β/N)]<br/>
+          S→∞ : BW<sub>eff</sub> → N·link_BW / 2(N−1) → link_BW/2 (N 크면)
+          <span class="legend">왜 AllReduce 의 이상 효율이 link_BW 의 약 50% 인가의 근거</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 분해와 α 저감 <span class="ko">(!)</span>
+          <span class="mnemonic">bucket = α↓</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          작은 msg 를 <span class="red">bucket 으로 묶으면</span> α 가 1회로 줄고 β 는 그대로 → 작은 grad 다수 시 critical. DDP bucketing 의 이론 근거.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·16</span>
+    <span class="tiny">Hockney 1994 · Thakur et al. "Optimization of Collective Comm Operations in MPICH" 2005</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 17: §16 IB / RDMA ============================ -->
+<section class="page" data-screen-label="17 IB · RoCE · RDMA">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — InfiniBand / RoCE / RDMA / GPUDirect</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> RDMA 원리</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Remote Direct Memory Access</mark>: NIC 이 원격 메모리에 직접 read/write. <mark>kernel bypass</mark> · CPU 개입 없음 · zero-copy.
+        </div>
+        <ul>
+          <li>registered memory region (MR) 의 rkey 로 원격 접근</li>
+          <li>completion queue (CQ) 로 비동기 신호</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> InfiniBand vs RoCE</h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>InfiniBand</th><th>RoCE v2</th></tr></thead>
+          <tbody>
+            <tr><td>L2</td><td>IB transport</td><td>Ethernet</td></tr>
+            <tr><td>L3</td><td>IB routing</td><td>IP/UDP</td></tr>
+            <tr><td>lossless</td><td>credit-based</td><td>PFC (DCB) 필요</td></tr>
+            <tr><td>latency</td><td>~1 μs</td><td>~2-3 μs</td></tr>
+            <tr><td>생태계</td><td>HPC 정통</td><td>cloud · hyperscale</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">RoCE v2 는 UDP 위에서 돌기 때문에 IP routing 가능 — 대규모 cloud 에 유리.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Queue Pair (QP) ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>QP</mark> = (SendQ, RecvQ) 한 쌍. 두 NIC 이 서로의 QP 를 connected state 로 만들면 통신 가능. 각 rank pair 는 QP 여러 개 가능 (multi-queue).
+        </div>
+        <ul>
+          <li>RC (Reliable Connected) · UD (Unreliable Datagram) · UC (Unreliable Connected)</li>
+          <li>NCCL : RC 주로 사용, DC (Dynamic Connected) 실험</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> SEND/RECV vs RDMA WRITE ★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>sender</th><th>receiver</th></tr></thead>
+          <tbody>
+            <tr><td><mark>SEND/RECV</mark></td><td>post_send</td><td>pre-post recv buf</td></tr>
+            <tr><td>RDMA WRITE</td><td>post_send(addr,rkey)</td><td>passive (mem 준비만)</td></tr>
+            <tr><td>RDMA READ</td><td>post_send(addr,rkey)</td><td>passive</td></tr>
+            <tr><td>ATOMIC</td><td>FA/CAS 64bit</td><td>passive</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NCCL intra-collective 는 주로 RDMA WRITE (receiver 가 어디에 둘지 알고 있음). 큰 msg 에 유리.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Work Request 흐름</h3>
+<pre class="ascii">app → ibv_post_send(wr)   # doorbell PCIe MMIO
+NIC ─ DMA from reg-mem ─→ wire
+wire ─→ remote NIC ─ DMA to reg-mem ─→ remote
+complete → CQ entry → app polls / event</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> GPUDirect RDMA ★ <span class="ko">(!)</span>
+          <span class="mnemonic">NIC ↔ GPU</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          NIC 이 GPU HBM 을 <mark>직접</mark> DMA source/sink 로 사용. CPU bounce buffer 삭제. <code>nvidia-peermem</code> 모듈 필요.
+        </div>
+        <ul>
+          <li>조건: PCIe ACS off · NIC-GPU 같은 root complex 또는 NVLink</li>
+          <li>성능: latency 2-3× 감소, BW 실효 ↑</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> GPUDirect Storage 구분</h3>
+        <p class="tiny">GDR (NIC ↔ GPU) 과 GDS (NVMe ↔ GPU) 는 별개. NCCL 은 GDR 만 사용. GDS 는 I/O 용.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> IB SHARP <span class="ko">in-net</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>SHARP</mark>: IB switch 내부 aggregation tree 가 reduction 수행. inter-node AllReduce 가속. NVLS 의 IB 판 &nbsp;<span class="xref">↗ §5</span>.
+        </div>
+        <ul>
+          <li>ConnectX-6+ 지원 · subnet manager 설정 필요</li>
+          <li>NCCL <code>NCCL_COLLNET_ENABLE=1</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 디바이스 선택 환경</h3>
+        <ul>
+          <li><code>NCCL_IB_HCA=mlx5_0,mlx5_1</code> 명시적 NIC 지정</li>
+          <li><code>NCCL_IB_GID_INDEX</code> RoCE v2 에서 필수</li>
+          <li><code>NCCL_NET_GDR_LEVEL=PXB</code> GDR 레벨 조정</li>
+          <li><code>NCCL_SOCKET_IFNAME</code> bootstrap 용 TCP iface</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·17</span>
+    <span class="tiny">Mellanox/NVIDIA IB HCA manuals · NCCL net plugin interface · GPUDirect RDMA docs</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 18: §17 NCCL 환경변수 ============================ -->
+<section class="page" data-screen-label="18 NCCL Env 변수">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — NCCL 환경변수 (tuning 실마리)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Debug / 진단</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td><code>NCCL_DEBUG</code></td><td>VERSION · WARN · INFO · TRACE</td></tr>
+            <tr><td><code>NCCL_DEBUG_SUBSYS</code></td><td>INIT, COLL, P2P, NET, GRAPH…</td></tr>
+            <tr><td><code>NCCL_DEBUG_FILE</code></td><td>rank-별 로그 파일 경로</td></tr>
+            <tr><td><code>NCCL_TOPO_DUMP_FILE</code></td><td>topology XML dump</td></tr>
+            <tr><td><code>NCCL_GRAPH_DUMP_FILE</code></td><td>ring/tree graph dump</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">첫 실행 시 <code>NCCL_DEBUG=INFO</code> 필수. 어떤 algo/proto 가 쓰이는지 확인.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Algorithm 선택</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td><code>NCCL_ALGO</code></td><td>Ring · Tree · CollNet · NVLS · NVLSTree</td></tr>
+            <tr><td><code>NCCL_PROTO</code></td><td>LL · LL128 · Simple</td></tr>
+            <tr><td><code>NCCL_NVLS_ENABLE</code></td><td>1 / 0</td></tr>
+            <tr><td><code>NCCL_COLLNET_ENABLE</code></td><td>1 / 0 (SHARP)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Channel 수</h3>
+        <ul>
+          <li><code>NCCL_MIN_NCHANNELS</code>, <code>NCCL_MAX_NCHANNELS</code></li>
+          <li>default: topology에 따라 자동</li>
+          <li>너무 크면 small msg 초기화 비용 ↑</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> P2P 제어</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>NCCL_P2P_DISABLE</code></td><td>NVLink P2P 끔 (디버깅)</td></tr>
+            <tr><td><code>NCCL_P2P_LEVEL</code></td><td>NVL · PXB · PHB · SYS</td></tr>
+            <tr><td><code>NCCL_SHM_DISABLE</code></td><td>host shared mem 경로 끔</td></tr>
+            <tr><td><code>NCCL_PXN_DISABLE</code></td><td>PXN 우회 끔</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">level: NVL(NVLink) &lt; PXB(same PCIe switch) &lt; PHB(host bridge) &lt; SYS. 허용 수준 명시.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> IB / 네트워크</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>NCCL_IB_HCA</code></td><td>HCA list (mlx5_0,mlx5_1)</td></tr>
+            <tr><td><code>NCCL_IB_GID_INDEX</code></td><td>RoCE v2 GID</td></tr>
+            <tr><td><code>NCCL_IB_TC</code></td><td>traffic class (QoS)</td></tr>
+            <tr><td><code>NCCL_IB_SL</code></td><td>service level</td></tr>
+            <tr><td><code>NCCL_IB_TIMEOUT</code></td><td>timeout hop</td></tr>
+            <tr><td><code>NCCL_NET_GDR_LEVEL</code></td><td>GPUDirect 허용 level</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Buffer 크기</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>default</th></tr></thead>
+          <tbody>
+            <tr><td><code>NCCL_BUFFSIZE</code></td><td>~4 MB</td></tr>
+            <tr><td><code>NCCL_NTHREADS</code></td><td>256/512 (kernel)</td></tr>
+            <tr><td><code>NCCL_P2P_NET_CHUNKSIZE</code></td><td>~128KB</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">BUFFSIZE ↑ → large msg pipelining ↑, GPU mem 도 ↑.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 동작 모드</h3>
+        <ul>
+          <li><code>NCCL_LAUNCH_MODE=PARALLEL</code> — 모든 rank 동시 launch</li>
+          <li><code>NCCL_ASYNC_ERROR_HANDLING=1</code> — blocking 대신 이벤트로 error</li>
+          <li><code>NCCL_BLOCKING_WAIT=1</code> — wait 시 spin</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Tuning 실마리 ★</h3>
+        <table class="compact">
+          <thead><tr><th>증상</th><th>env 시도</th></tr></thead>
+          <tbody>
+            <tr><td>small AR 느림</td><td>ALGO=NVLS / Tree · PROTO=LL</td></tr>
+            <tr><td>large AR 느림</td><td>ALGO=Ring · PROTO=Simple · channel ↑</td></tr>
+            <tr><td>inter-node 저하</td><td>IB_HCA 명시 · PXN 확인</td></tr>
+            <tr><td>init 오래</td><td>TOPO_FILE 캐시 사용</td></tr>
+            <tr><td>OOM</td><td>BUFFSIZE ↓ · channel ↓</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Reproducibility</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">NCCL reduction 은 연산 순서에 따라 결과가 비결정적</span>. <code>NCCL_ALGO=Tree</code> + 고정 seed + 고정 proto 로 준재현 가능. 완전 bitwise 재현은 어려움.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·18</span>
+    <span class="tiny">NCCL User Guide — Environment Variables (최신 2.x)</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 19: §18 MPI vs NCCL ============================ -->
+<section class="page" data-screen-label="19 MPI vs NCCL">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(19p)</span></div>
+    <div class="chap">§18 — MPI vs NCCL: 역할 분담 &amp; hybrid</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> MPI 위치</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Message Passing Interface</mark>: HPC 의 표준. CPU 기반 다수 프로세스 간 통신. send/recv · collective · one-sided · I/O 까지.
+        </div>
+        <ul>
+          <li>구현체: OpenMPI · MPICH · MVAPICH · Intel MPI</li>
+          <li>GPU-aware MPI: CUDA ptr 을 send 에 직접 전달 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> NCCL 위치</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>NVIDIA Collective Comm Library</mark>: GPU 중심 collective 라이브러리. NVLink/IB 를 직접 통합 · CUDA kernel 로 구현.
+        </div>
+        <ul>
+          <li>GPU-GPU 만 다룸 (CPU 쪽 MPI 보완 관계)</li>
+          <li>collective + P2P 지원 (2.7+)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 기능 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th>기능</th><th>MPI</th><th>NCCL</th></tr></thead>
+          <tbody>
+            <tr><td>프로세스 시작·rank</td><td class="num">O</td><td>—</td></tr>
+            <tr><td>CPU ↔ CPU</td><td class="num">O</td><td>—</td></tr>
+            <tr><td>GPU ↔ GPU P2P</td><td>O (GPU-aware)</td><td class="num">O</td></tr>
+            <tr><td>GPU collective 성능</td><td>중간</td><td class="num">최적</td></tr>
+            <tr><td>NVLink 활용</td><td>부분</td><td class="num">full</td></tr>
+            <tr><td>topology 탐색</td><td>제한</td><td class="num">O</td></tr>
+            <tr><td>one-sided</td><td class="num">O</td><td>—</td></tr>
+            <tr><td>I/O</td><td class="num">O (MPI-IO)</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Hybrid 패턴 ★ <span class="ko">(!)</span>
+          <span class="mnemonic">MPI rank + NCCL comm</span>
+        </h3>
+        <div class="def"><span class="label">표준 패턴</span>
+          MPI 로 rank bootstrap · world_size 관리. 각 MPI rank 가 GPU 1개 담당. NCCL <code>ncclUniqueId</code> 를 MPI_Bcast 로 뿌린 후 <code>ncclCommInitRank</code>.
+        </div>
+<pre class="ascii">MPI_Init → MPI_Comm_rank/size
+if rank==0: ncclGetUniqueId(&amp;id)
+MPI_Bcast(&amp;id, ...)
+cudaSetDevice(local_rank)
+ncclCommInitRank(&amp;comm, size, id, rank)
+// now NCCL for collectives, MPI for orchestration</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> torchrun 대안</h3>
+        <ul>
+          <li>PyTorch: <code>torchrun</code>·<code>torch.distributed.init_process_group("nccl")</code></li>
+          <li>내부적으로 TCPStore (rendezvous) + NCCL</li>
+          <li>MPI 없이 동작 — 많은 학습 스택에서 기본</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Launcher 비교</h3>
+        <table class="compact">
+          <thead><tr><th>launcher</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>mpirun / mpiexec</td><td>slurm 친화 · HPC 표준</td></tr>
+            <tr><td>srun (Slurm)</td><td>plug with PMI/PMIx</td></tr>
+            <tr><td>torchrun</td><td>PyTorch native · elastic</td></tr>
+            <tr><td>accelerate</td><td>HuggingFace wrapper</td></tr>
+            <tr><td>DeepSpeed</td><td>deepspeed launcher</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> MPI 선택 이유</h3>
+        <ul>
+          <li>HPC cluster (Slurm + PMIx) — 기존 infra 재사용</li>
+          <li>CPU 측 complex workflow (preprocessing · simulation)</li>
+          <li>I/O 에 MPI-IO 필요 (large dataset stream)</li>
+          <li>MPI RMA (one-sided) 로 fault handling</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> NCCL 단독 선택</h3>
+        <ul>
+          <li>순수 학습/추론 스택 — overhead ↓</li>
+          <li>cloud k8s 환경 (TCPStore rendezvous 편리)</li>
+          <li>elastic/fault-tolerant 중시 (torch elastic)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 상호 겹침 주의</h3>
+        <div class="warn-box"><span class="label"></span>
+          MPI collective 와 NCCL collective 를 <span class="red">동일 데이터에 혼용 금지</span>. 두 라이브러리의 progress engine 이 서로 다른 stream/thread → deadlock/ordering 위험. rank 관리만 MPI, 실제 collective 는 NCCL 로 분리 유지.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> GLOO · UCC 맥락</h3>
+        <p class="tiny">PyTorch <code>gloo</code> backend: CPU collective. <code>ucc</code>: UCX 기반 hybrid. NCCL 이 안 되는 CPU/TPU 대체용.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·19</span>
+    <span class="tiny">MPI-4.0 standard · NCCL-MPI integration notes · torch.distributed design doc</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 20: §19 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="20 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V15 분산 통신 <span class="mono">(20p)</span></div>
+    <div class="chap">§19 — Cheat Sheet: 결정 트리 · BW 표 ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Parallelism 선택 결정 트리 ★</h3>
+<pre class="ascii">model &amp; batch 한 GPU fit ?
+├─ YES → DP (DDP or ZeRO-1)  · done
+└─ NO
+   │
+   param 한 GPU fit ?
+   ├─ YES → ZeRO-2 / ZeRO-3 (FSDP)
+   └─ NO
+      │
+      layer 1개 한 GPU fit ?
+      ├─ YES → TP + ZeRO-3
+      └─ NO
+         │
+         layer set 하나가 intra-node 들어감 ?
+         ├─ YES → TP + PP + ZeRO
+         └─ NO → TP + PP + EP (if MoE) + DP
+
+seq &gt; 32K ?                 → + SP (Ulysses)
+seq &gt; 128K ?                → + CP (ring attention)
+MoE layer 포함 ?            → + EP</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Collective × topology BW 표 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>algo</th><th>bytes/GPU</th><th>steps</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="4">AllReduce</td><td>Ring</td><td>2(N−1)/N · S</td><td>2(N−1)</td></tr>
+            <tr><td>Tree</td><td>2 log N · S</td><td>2 log N</td></tr>
+            <tr><td>DBT</td><td>~2S</td><td>2 log N</td></tr>
+            <tr><td><mark>NVLS</mark></td><td>~ S</td><td>2</td></tr>
+            <tr><td>ReduceScatter</td><td>Ring</td><td>(N−1)/N · S</td><td>N−1</td></tr>
+            <tr><td>AllGather</td><td>Ring</td><td>(N−1)/N · S</td><td>N−1</td></tr>
+            <tr><td>AllToAll</td><td>Ring</td><td>(N−1)/N · S</td><td>N−1</td></tr>
+            <tr><td>AllToAll</td><td>Bruck</td><td>(N/2) · S</td><td>⌈log N⌉</td></tr>
+            <tr><td>Broadcast</td><td>Tree</td><td>log N · S</td><td>log N</td></tr>
+            <tr><td>Reduce</td><td>Tree</td><td>log N · S</td><td>log N</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">bytes/GPU = 양방향 합. step 은 α 계수. NCCL tuner 가 threshold 로 자동 선택.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 5-축 통신 요약</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>collective</th><th>위치</th></tr></thead>
+          <tbody>
+            <tr><td>DP (ZeRO-3)</td><td>AG + RS</td><td>step + layer</td></tr>
+            <tr><td>TP</td><td>AR (or RS+AG)</td><td>layer × 2~4</td></tr>
+            <tr><td>PP</td><td>SEND/RECV</td><td>stage 경계</td></tr>
+            <tr><td>EP</td><td>AllToAll × 2</td><td>MoE layer</td></tr>
+            <tr><td>SP (Ulysses)</td><td>AllToAll × 2</td><td>attention 경계</td></tr>
+            <tr><td>CP</td><td>P2P ring</td><td>attention 내부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> α-β 빠른 추정</h3>
+        <div class="formula">
+          small (S &lt; α/β 수준): T ≈ α · steps<br/>
+          large (S ≫ α/β): T ≈ bytes · β<br/>
+          crossover: S<sub>*</sub> = α · (steps_tree − steps_ring) / β · (bytes_ring − bytes_tree)
+          <span class="legend">algorithm 선택의 cheat 식</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> NVLink intra vs IB inter BW</h3>
+        <table class="compact">
+          <thead><tr><th>구간</th><th>peak</th><th>typical eff.</th></tr></thead>
+          <tbody>
+            <tr><td>H100 NVLink 4</td><td>900 GB/s</td><td>~400 GB/s</td></tr>
+            <tr><td>NVSwitch 3 fabric</td><td>full bipartite</td><td>non-blocking</td></tr>
+            <tr><td>IB 400G (x8 NIC)</td><td>400 GB/s</td><td>~200 GB/s</td></tr>
+            <tr><td>PCIe Gen5 x16</td><td>128 GB/s</td><td>~100 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">"typical eff" 는 AllReduce busBW 기준 근사. NCCL-tests 결과와 유사.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 디버깅 10대 체크</h3>
+        <ol class="bullet-num">
+          <li><code>NCCL_DEBUG=INFO</code> 로그 확인 — algo/proto</li>
+          <li><code>nvidia-smi topo -m</code> 으로 GPU-NIC affinity</li>
+          <li>rank ↔ GPU 매핑 (<code>CUDA_VISIBLE_DEVICES</code>)</li>
+          <li>IB HCA 명시: <code>NCCL_IB_HCA</code></li>
+          <li>PXN 활성 / ACS off 확인</li>
+          <li>bucket size (DDP) · prefetch (FSDP) 설정</li>
+          <li>stream 분리 — 통신 ↔ 연산</li>
+          <li>TP ≤ 8 (intra-node), PP bubble ratio ≤ 0.25</li>
+          <li>GPUDirect RDMA 동작 (peermem loaded)</li>
+          <li>NCCL version 고정 · 여러 버전 혼재 금지</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 관련 권</h3>
+        <table class="compact">
+          <thead><tr><th>주제</th><th>xref</th></tr></thead>
+          <tbody>
+            <tr><td>학습 loop · FSDP 통합</td><td><span class="xref">↗ V17</span></td></tr>
+            <tr><td>inference 서빙 (vLLM)</td><td><span class="xref">↗ V16</span></td></tr>
+            <tr><td>attention SP/CP kernel</td><td><span class="xref">↗ V07</span></td></tr>
+            <tr><td>Hopper WGMMA · async</td><td><span class="xref">↗ V04</span></td></tr>
+            <tr><td>mixed precision grad</td><td><span class="xref">↗ V09</span></td></tr>
+            <tr><td>profiling · stall</td><td><span class="xref">↗ V18</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 5-축 니모닉 <span class="ko">(!)</span>
+          <span class="mnemonic">DT-PE-C</span>
+        </h3>
+        <div class="mnem"><span class="label"></span>
+          병렬 5축: <span class="key">DT · PE · C</span>
+          (<b>D</b>ata · <b>T</b>ensor · <b>P</b>ipeline · <b>E</b>xpert · <b>C</b>ontext)
+          <br/>SP 는 TP 의 짝 (activation shard)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 한 줄 요약</h3>
+        <p><mark>NVLink 는 TP·SP 안에 가두고, IB 는 DP·PP 사이로만 보낸다.</mark> AllToAll 은 intra-node 우선. ring 은 large-S BW 왕, tree/NVLS 는 small-S latency 왕.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V15·20</span>
+    <span class="tiny">V15 end — 다음: V16 inference serving / V17 training system</span>
+  </div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

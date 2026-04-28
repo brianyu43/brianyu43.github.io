@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V09 Mixed Precision & 수치 안정성 단권화 — 14p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL · TIER 3 수치 · CONTENT-FIRST · A4 LANDSCAPE · 14p</div>
+    <h1>Mixed Precision <span class="accent">&amp; 수치 안정성</span></h1>
+    <div class="subtitle">FP32 · TF32 · BF16 · FP16 · FP8 · FP4 bit semantics · Accumulation · Error propagation</div>
+    <div class="meta">
+      <div><b>Volume</b> V09 / 18</div>
+      <div><b>Tier</b> T3 수치</div>
+      <div><b>선행</b> V01 (PMPP Core), V02 (GPU Arch)</div>
+      <div><b>용도</b> bit-level 포맷 이해 · mixed precision 훈련 설계</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1 IEEE 754 기본</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2 Reduced-precision (FP16/BF16/TF32)</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">§3 FP8 variants (E4M3/E5M2)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">§4 FP4/FP6 variants (MX·NVFP4)</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">§5 Block-scale formats</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6 Rounding modes</span><span class="p">p.7</span></div>
+        <div class="row"><span class="t">§7 Accumulation · associativity</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8 Error 전파 · Kahan</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9 Softmax 수치 안정성</span><span class="p">p.10</span></div>
+        <div class="row star"><span class="t">§10 Mixed precision training</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11 Loss scaling</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12 FP8 training (TE)</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">§13 Cheat Sheet</span><span class="p">p.14</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더 / 매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수</span></div>
+      <div class="row"><span class="sym">★</span><span>시험·실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (첫글자 암기)</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유·결론</span></div>
+      <div class="row"><span class="sym">↗</span><span>타 권 cross-ref</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함</div>
+    <div class="mono">IEEE 754 · H100 WP · OCP MX spec · NVFP4 WP · Higham 수치해석</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 IEEE 754 기본 ============================ -->
+<section class="page" data-screen-label="02 IEEE 754 기본">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — IEEE 754 Floating-Point 기본</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 표현식 <span class="ko">sign · exp · mantissa</span>
+          <span class="mnemonic">(-1)^S · 2^E · 1.M</span>
+        </h3>
+        <div class="formula">
+          x = (−1)<sup>S</sup> · 2<sup>(E − bias)</sup> · (1.M)<sub>2</sub>
+          <span class="legend">S: 1 bit &nbsp; E: exponent field &nbsp; M: mantissa (fraction) &nbsp; 1.M: implicit leading 1 (normalized)</span>
+        </div>
+        <ul>
+          <li><mark>Normalized</mark>: E ∈ [1, 2<sup>e</sup>−2], leading 1 implicit</li>
+          <li><mark>Subnormal</mark>: E = 0, leading 0, gap 균등 채움 <span class="arrow">→</span> underflow 완화</li>
+          <li><mark>Zero</mark>: E = 0, M = 0 (±0 존재)</li>
+          <li><mark>Inf/NaN</mark>: E = 2<sup>e</sup>−1</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Bias <span class="ko">exponent 정규화</span></h3>
+        <div class="def"><span class="label">bias</span>
+          unsigned exponent field <span class="arrow">→</span> signed exponent 변환: bias = 2<sup>e−1</sup> − 1.
+          <br/>FP32: 127 · FP64: 1023 · FP16: 15 · BF16: 127
+        </div>
+        <table class="compact">
+          <thead><tr><th>format</th><th>e</th><th>bias</th><th>E range</th></tr></thead>
+          <tbody>
+            <tr><td>FP64</td><td>11</td><td>1023</td><td>[−1022, +1023]</td></tr>
+            <tr><td>FP32</td><td>8</td><td>127</td><td>[−126, +127]</td></tr>
+            <tr><td>FP16</td><td>5</td><td>15</td><td>[−14, +15]</td></tr>
+            <tr><td>BF16</td><td>8</td><td>127</td><td>[−126, +127]</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Subnormal <span class="ko">gradual underflow</span></h3>
+        <div class="formula">
+          subnormal: x = (−1)<sup>S</sup> · 2<sup>1−bias</sup> · (0.M)<sub>2</sub>
+          <span class="legend">leading 0 · smallest subnormal: 2<sup>1−bias−m</sup> (m = mantissa bits)</span>
+        </div>
+        <ul>
+          <li>FP32 min normal 2<sup>−126</sup> ≈ 1.18e−38 · min subnormal 2<sup>−149</sup> ≈ 1.40e−45</li>
+          <li><span class="red">FTZ (flush-to-zero)</span>: GPU에서 subnormal을 0으로 — 성능↑ 정밀↓</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Special values <span class="ko">Inf · NaN</span>
+          <span class="mnemonic">E=all-1</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>값</th><th>S</th><th>E</th><th>M</th></tr></thead>
+          <tbody>
+            <tr><td>+0</td><td>0</td><td>0</td><td>0</td></tr>
+            <tr><td>−0</td><td>1</td><td>0</td><td>0</td></tr>
+            <tr><td>+Inf</td><td>0</td><td>all-1</td><td>0</td></tr>
+            <tr><td>−Inf</td><td>1</td><td>all-1</td><td>0</td></tr>
+            <tr><td>sNaN</td><td>—</td><td>all-1</td><td>≠0, MSB=0</td></tr>
+            <tr><td>qNaN</td><td>—</td><td>all-1</td><td>≠0, MSB=1</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>NaN 전파: op(x, NaN) = NaN (quiet) <span class="arrow">→</span> 중독 (poison)</li>
+          <li><span class="kw">NaN ≠ NaN</span> — IEEE 비교 규칙</li>
+          <li>±0: 부호 있음, 비교는 같음 (+0 == −0)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> FP32 bit layout ★</h3>
+        <pre class="ascii">31 30        23 22                    0
+ ┌─┬──────────┬───────────────────────┐
+ │S│  E (8)   │      M (23)           │
+ └─┴──────────┴───────────────────────┘
+  sign  exp       mantissa (fraction)
+  bias = 127
+  normalized: x = (-1)^S · 2^(E-127) · 1.M</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> FP64 bit layout</h3>
+        <pre class="ascii">63 62          52 51                    0
+ ┌─┬─────────────┬───────────────────────┐
+ │S│   E (11)    │       M (52)          │
+ └─┴─────────────┴───────────────────────┘
+  bias = 1023
+  precision ≈ 15~17 decimal digit</pre>
+        <p class="tiny">ε<sub>mach</sub>(FP64) = 2<sup>−52</sup> ≈ 2.22e−16 · ↗ V09 §8 Error</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Machine epsilon <span class="ko">정밀도 한계</span></h3>
+        <div class="formula">
+          ε<sub>mach</sub> = 2<sup>−m</sup>
+          <span class="legend">m: mantissa bit 수 (implicit 1 제외) &nbsp; 1 + ε<sub>mach</sub> ≠ 1 인 최소 ε</span>
+        </div>
+        <table class="compact">
+          <thead><tr><th>format</th><th>m</th><th>ε<sub>mach</sub></th></tr></thead>
+          <tbody>
+            <tr><td>FP64</td><td>52</td><td>2<sup>−52</sup> ≈ 2.22e−16</td></tr>
+            <tr><td>FP32</td><td>23</td><td>2<sup>−23</sup> ≈ 1.19e−7</td></tr>
+            <tr><td>FP16</td><td>10</td><td>2<sup>−10</sup> ≈ 9.77e−4</td></tr>
+            <tr><td>BF16</td><td>7</td><td>2<sup>−7</sup> ≈ 7.81e−3</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> FP32 · FP64 dynamic range</h3>
+        <table class="compact">
+          <thead><tr><th></th><th class="num">FP64</th><th class="num">FP32</th></tr></thead>
+          <tbody>
+            <tr><td>max norm</td><td class="num">~1.80e+308</td><td class="num">~3.40e+38</td></tr>
+            <tr><td>min norm</td><td class="num">~2.23e−308</td><td class="num">~1.18e−38</td></tr>
+            <tr><td>min subnorm</td><td class="num">~4.94e−324</td><td class="num">~1.40e−45</td></tr>
+            <tr><td>precision</td><td class="num">15~17 dd</td><td class="num">6~9 dd</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">IEEE 754-2008 · dd = decimal digit</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">혼동</span>: exponent <b>field</b> (bit 값) ≠ exponent <b>E</b> (실제 지수 = field − bias). bit 표현과 수학 표현 분리.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        IEEE 4 category: <span class="key">N·S·Z·I</span>
+        (Normal · Subnormal · Zero · Inf/NaN)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Reduced-precision ============================ -->
+<section class="page" data-screen-label="03 Reduced Precision">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Reduced Precision (FP16 · BF16 · TF32)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FP16 layout <span class="ko">1/5/10</span>
+          <span class="mnemonic">exp=5 narrow</span>
+        </h3>
+        <pre class="ascii">15 14   10 9               0
+ ┌─┬──────┬───────────────┐
+ │S│E (5) │   M (10)      │
+ └─┴──────┴───────────────┘
+ bias=15  range ~[6e-8, 6.5e+4]
+ ε_mach = 2^-10 ≈ 9.77e-4</pre>
+        <ul>
+          <li>IEEE 754-2008 binary16 표준</li>
+          <li><span class="red">range 좁음</span> <span class="arrow">→</span> gradient underflow ∴ loss scaling 필요</li>
+          <li>precision 10 bit <span class="arrow">→</span> BF16보다 정밀</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> BF16 layout <span class="ko">1/8/7</span>
+          <span class="mnemonic">FP32 exp 유지</span>
+        </h3>
+        <pre class="ascii">15 14         7 6             0
+ ┌─┬────────────┬─────────────┐
+ │S│  E (8)     │   M (7)     │
+ └─┴────────────┴─────────────┘
+ bias=127  range ≈ FP32
+ ε_mach = 2^-7 ≈ 7.81e-3</pre>
+        <ul>
+          <li>FP32 상위 16 bit 그대로 = FP32 ↔ BF16 변환 단순 truncate</li>
+          <li><span class="kw">range 넓음</span> <span class="arrow">→</span> loss scaling 불필요</li>
+          <li>precision 낮음 — 7 mantissa bit</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> TF32 layout <span class="ko">1/8/10</span>
+          <span class="mnemonic">TC input only</span>
+        </h3>
+        <pre class="ascii">18 17          10 9             0
+ ┌─┬─────────────┬───────────────┐
+ │S│   E (8)     │    M (10)     │
+ └─┴─────────────┴───────────────┘
+ 19-bit internal · storage 32-bit
+ bias=127  range = FP32</pre>
+        <ul>
+          <li>A100+ Tensor Core 전용 <span class="arrow">→</span> FP32 입력을 silently TF32로 변환</li>
+          <li><mark>FP32 range + FP16 precision</mark></li>
+          <li>accumulation은 FP32 (TF32로 누적 아님)</li>
+          <li><span class="red">주의</span>: 비결정적 — reproducibility 필요시 off</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 3-format 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>FP16</th><th>BF16</th><th>TF32</th></tr></thead>
+          <tbody>
+            <tr><td>S/E/M</td><td>1/5/10</td><td>1/8/7</td><td>1/8/10</td></tr>
+            <tr><td>bias</td><td>15</td><td>127</td><td>127</td></tr>
+            <tr><td>max norm</td><td class="num">65504</td><td class="num">~3.4e38</td><td class="num">~3.4e38</td></tr>
+            <tr><td>min norm</td><td class="num">6.1e−5</td><td class="num">1.2e−38</td><td class="num">1.2e−38</td></tr>
+            <tr><td>ε<sub>mach</sub></td><td class="num">9.8e−4</td><td class="num">7.8e−3</td><td class="num">9.8e−4</td></tr>
+            <tr><td>loss scale</td><td>필요</td><td>불필요</td><td>불필요</td></tr>
+            <tr><td>storage</td><td>16b</td><td>16b</td><td>32b</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Range × Precision trade
+          <span class="ko">정성 2D</span>
+        </h3>
+        <pre class="ascii">precision (mantissa)
+  ↑
+10│ FP16  TF32        FP32
+  │                    │
+ 7│      BF16
+  │
+ 3│ FP8-E4M3
+ 2│ FP8-E5M2 FP6-E3M2
+ 1│ FP4-E2M1
+  └─────────────────────→ range (exp)
+    e=4  e=5  e=8(FP32·BF16·TF32)  e=11(FP64)</pre>
+        <p class="tiny">세로축 mantissa bit = precision · 가로축 exp bit = range · 정성 배치</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Tensor Core 지원 매트릭스 <span class="ko">A100/H100</span></h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th>A100 (3gen)</th><th>H100 (4gen)</th></tr></thead>
+          <tbody>
+            <tr><td>FP16</td><td class="num">312 TF</td><td class="num">989 TF</td></tr>
+            <tr><td>BF16</td><td class="num">312 TF</td><td class="num">989 TF</td></tr>
+            <tr><td>TF32</td><td class="num">156 TF</td><td class="num">495 TF</td></tr>
+            <tr><td>FP8</td><td>—</td><td class="num">1979 TF</td></tr>
+            <tr><td>FP64 TC</td><td class="num">19.5 TF</td><td class="num">67 TF</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVIDIA A100/H100 whitepaper · sparsity 미포함 · TC=Tensor Core</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FP16 vs BF16 선택</span>: gradient underflow 걱정 크면 BF16. precision 민감 (작은 weight update) 하면 FP16 + loss scale.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 3 -</div>
+</section>
+
+<!-- ============================ PAGE 4: §3 FP8 variants ============================ -->
+<section class="page" data-screen-label="04 FP8 Variants">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — FP8 variants (E4M3 · E5M2)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FP8 두 variant ★
+          <span class="mnemonic">inf·grad</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th></th><th>E4M3</th><th>E5M2</th></tr></thead>
+          <tbody>
+            <tr><td>S/E/M</td><td>1/4/3</td><td>1/5/2</td></tr>
+            <tr><td>bias</td><td>7</td><td>15</td></tr>
+            <tr><td>max</td><td class="num">448</td><td class="num">57344</td></tr>
+            <tr><td>min norm</td><td class="num">2<sup>−6</sup></td><td class="num">2<sup>−14</sup></td></tr>
+            <tr><td>min subn</td><td class="num">2<sup>−9</sup></td><td class="num">2<sup>−16</sup></td></tr>
+            <tr><td>ε<sub>mach</sub></td><td class="num">2<sup>−3</sup>=0.125</td><td class="num">2<sup>−2</sup>=0.25</td></tr>
+            <tr><td>Inf/NaN</td><td>NaN only (S.1111.111)</td><td>IEEE 표준</td></tr>
+            <tr><td>용도</td><td>weight · activation</td><td>gradient</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">OCP FP8 spec · H100 whitepaper · E4M3 NaN만 (Inf 없음, range↑)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> FP8 E4M3 bit layout</h3>
+        <pre class="ascii"> 7 6     3 2   0
+ ┌─┬─────┬─────┐
+ │S│E (4)│M (3)│
+ └─┴─────┴─────┘
+ bias=7  max=448  NaN: S.1111.111
+ Inf 없음 → max 표현 확장 (240 vs 224)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> FP8 E5M2 bit layout</h3>
+        <pre class="ascii"> 7 6       2 1 0
+ ┌─┬─────────┬───┐
+ │S│ E (5)   │M 2│
+ └─┴─────────┴───┘
+ bias=15  max=57344  IEEE 표준 (Inf/NaN)
+ → FP16과 exp 공유, mantissa만 다름</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 왜 2가지? <span class="ko">range vs precision</span></h3>
+        <div class="def"><span class="label">원칙</span>
+          forward activation은 <span class="kw">precision</span> 중요 <span class="arrow">→</span> E4M3.
+          backward gradient는 <span class="kw">dynamic range</span> 중요 (극단값) <span class="arrow">→</span> E5M2.
+        </div>
+        <ul>
+          <li>weight: 분포 좁음 <span class="arrow">→</span> E4M3</li>
+          <li>activation (forward): 정규화 후 좁은 분포 <span class="arrow">→</span> E4M3</li>
+          <li>gradient: 극단값 (outlier) 많음 <span class="arrow">→</span> E5M2</li>
+          <li>optimizer state (moment): FP32 유지 (너무 민감)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Per-tensor scaling 공식 ★</h3>
+        <div class="formula">
+          s = amax(x) / FP8<sub>max</sub><br/>
+          x<sub>q</sub> = round(clamp(x / s, −FP8<sub>max</sub>, FP8<sub>max</sub>))<br/>
+          x̂ = x<sub>q</sub> · s
+          <span class="legend">s: scale (scalar) &nbsp; amax: element-wise max |x|</span>
+        </div>
+        <ul>
+          <li><mark>1 scale per tensor</mark> — metadata 최소</li>
+          <li>outlier 1개가 전체 tensor 정밀도 파괴 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Scaling 세분도 비교</h3>
+        <table class="compact">
+          <thead><tr><th>단위</th><th>metadata</th><th>outlier 견딤</th></tr></thead>
+          <tbody>
+            <tr><td>per-tensor</td><td class="num">1</td><td>낮음</td></tr>
+            <tr><td>per-channel</td><td class="num">C</td><td>중</td></tr>
+            <tr><td>per-block G=32</td><td class="num">N/32</td><td>높음</td></tr>
+            <tr><td>per-element</td><td class="num">N</td><td>(=FP32)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">구체 알고리즘 선택은 ↗ V10 §1~§4</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> E4M3 값 분포 예시</h3>
+        <pre class="ascii">E=0001 (2^-6)
+  0.015625, 0.017578, 0.019531, ... 0.029296
+E=0010 (2^-5)
+  0.03125, 0.03515, 0.0390, ...
+E=1111 (2^8, 특수)
+  MSB ≠ 111: normal (up to 448)
+  M = 111: NaN only
+
+→ 지수 간 가격차 2배 · 지수 내 8 레벨 (3 mant)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Accumulator 선택 <span class="ko">acc dtype</span></h3>
+        <div class="def"><span class="label">원칙</span>
+          FP8 × FP8 matmul의 <span class="kw">accumulator는 반드시 FP32</span>.
+          <br/>N (reduction 차원) 수백~수천 원소를 FP8/FP16에 누적 <span class="arrow">→</span> 곧 오버플로·정밀 붕괴.
+        </div>
+        <pre class="ascii">C[m,n] = Σ_k A[m,k] · B[k,n]
+  A,B : FP8
+  product : FP16 중간
+  acc     : FP32  ← 필수
+  output  : BF16/FP16/FP8 dequant</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 실수</span>: E4M3로 gradient 저장 <span class="arrow">→</span> amax ≈ 수만 규모에서 즉시 overflow. gradient는 E5M2 또는 BF16.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        FP8 역할 분담: <span class="key">3·2·f·g</span>
+        (E4M<b>3</b> forward · E5M<b>2</b> gradient)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 4 -</div>
+</section>
+
+<!-- ============================ PAGE 5: §4 FP4/FP6 ============================ -->
+<section class="page" data-screen-label="05 FP4 FP6">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — FP4 · FP6 variants (MX · NVFP4)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 FP4/FP6? <span class="ko">동기</span></h3>
+        <ul>
+          <li>모델 크기 <span class="arrow">→</span> HBM capacity·BW bottleneck</li>
+          <li>FP8 → FP4 <span class="arrow">→</span> 2× 용량, 2× BW, 2× TC throughput</li>
+          <li>precision 격차는 <span class="kw">block scaling</span>으로 복구</li>
+          <li>Blackwell TC에 FP4/FP6 natively 지원 (5세대 TE)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> FP4 variants ★
+          <span class="mnemonic">E2M1</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th></th><th>E2M1</th><th>E3M0</th></tr></thead>
+          <tbody>
+            <tr><td>S/E/M</td><td>1/2/1</td><td>1/3/0</td></tr>
+            <tr><td>bias</td><td>1</td><td>3</td></tr>
+            <tr><td>levels</td><td class="num">16</td><td class="num">16</td></tr>
+            <tr><td>range</td><td class="num">±6</td><td class="num">±128</td></tr>
+            <tr><td>주 용도</td><td>weight block-scale</td><td>(거의 미사용)</td></tr>
+          </tbody>
+        </table>
+        <pre class="ascii">E2M1:  0b SEEM
+  values: 0, ±0.5, ±1, ±1.5, ±2, ±3, ±4, ±6
+  → 16 lattice point (sign + magnitude)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> FP4 E2M1 값 전체 표 <span class="ko">16 레벨</span></h3>
+        <table class="compact">
+          <thead><tr><th>bits</th><th>|x|</th><th>bits</th><th>|x|</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">S000</td><td class="num">0</td><td class="mono">S100</td><td class="num">1.0</td></tr>
+            <tr><td class="mono">S001</td><td class="num">0.5</td><td class="mono">S101</td><td class="num">1.5</td></tr>
+            <tr><td class="mono">S010</td><td class="num">1.0*</td><td class="mono">S110</td><td class="num">2.0</td></tr>
+            <tr><td class="mono">S011</td><td class="num">1.5*</td><td class="mono">S111</td><td class="num">3.0</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">E∈{0,1,2,3}·M∈{0,1} · *subnorm/norm 경계 · MX spec</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> FP6 variants</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>E2M3</th><th>E3M2</th></tr></thead>
+          <tbody>
+            <tr><td>S/E/M</td><td>1/2/3</td><td>1/3/2</td></tr>
+            <tr><td>bias</td><td>1</td><td>3</td></tr>
+            <tr><td>max</td><td class="num">7.5</td><td class="num">28</td></tr>
+            <tr><td>ε<sub>mach</sub></td><td class="num">2<sup>−3</sup></td><td class="num">2<sup>−2</sup></td></tr>
+            <tr><td>특징</td><td>precision↑</td><td>range↑</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>FP8와 FP4 사이의 중간 bit-width</li>
+          <li>Blackwell TC MXFP6 지원</li>
+          <li>storage: 6 bit · 4 원소 = 24 bit (packing 비효율)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> MX (OCP Microscaling) <span class="ko">block-scale family</span></h3>
+        <div class="def"><span class="label">MX</span>
+          Open Compute Project 표준. block size <b>G=32</b> 고정, scale은 <b>E8M0</b> (unsigned, 2의 거듭제곱 only).
+        </div>
+        <table class="compact">
+          <thead><tr><th>name</th><th>elem</th><th>scale</th><th>G</th></tr></thead>
+          <tbody>
+            <tr><td>MXFP8</td><td>FP8 E4M3 / E5M2</td><td>UE8M0</td><td class="num">32</td></tr>
+            <tr><td>MXFP6</td><td>FP6 E2M3 / E3M2</td><td>UE8M0</td><td class="num">32</td></tr>
+            <tr><td>MXFP4</td><td>FP4 E2M1</td><td>UE8M0</td><td class="num">32</td></tr>
+            <tr><td>MXINT8</td><td>INT8</td><td>UE8M0</td><td class="num">32</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">OCP MX spec v1.0 · 2023</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> NVFP4 <span class="ko">NVIDIA 확장</span>
+          <span class="mnemonic">G=16</span>
+        </h3>
+        <div class="def"><span class="label">NVFP4</span>
+          NVIDIA Blackwell 전용. block <b>G=16</b>, scale format <b>FP8 E4M3</b>.
+          <br/>MXFP4 대비 block 작음 + scale에 mantissa 3 bit <span class="arrow">→</span> 정밀도↑.
+        </div>
+        <table class="compact">
+          <thead><tr><th></th><th>MXFP4</th><th>NVFP4</th></tr></thead>
+          <tbody>
+            <tr><td>element</td><td>FP4 E2M1</td><td>FP4 E2M1</td></tr>
+            <tr><td>scale</td><td>UE8M0 (pow-2)</td><td>FP8 E4M3</td></tr>
+            <tr><td>block G</td><td class="num">32</td><td class="num">16</td></tr>
+            <tr><td>scale/elem</td><td>8/32 = 0.25b</td><td>8/16 = 0.5b</td></tr>
+            <tr><td>표준</td><td>OCP open</td><td>NVIDIA only</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVFP4 whitepaper · 같은 FP4 element지만 quantization 오차 ↓</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> E8M0 scale format</h3>
+        <ul>
+          <li>8 bit unsigned exponent only · mantissa 0 bit</li>
+          <li>표현값: 2<sup>k</sup>, k ∈ [−127, +127] · NaN = 0xFF</li>
+          <li>scale 자체가 <span class="kw">정확한 power-of-2</span> <span class="arrow">→</span> multiply = exponent add</li>
+          <li>HW 단순 · scale 곱셈이 bit shift 수준</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: FP4는 16 levels뿐 <span class="arrow">→</span> block scaling 없이는 neural net 거의 쓸모없음. NVFP4/MXFP4 모두 block-scale 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 5 -</div>
+</section>
+
+<!-- ============================ PAGE 6: §5 Block-scale formats ============================ -->
+<section class="page" data-screen-label="06 Block-Scale">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — Block-scale formats (layout · microscale)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Block-scale 원리 ★</h3>
+        <div class="def"><span class="label">핵심</span>
+          tensor를 길이 <b>G</b> block으로 분할. block마다 독립 scale s<sub>g</sub>.
+          <br/>block 내 원소는 shared scale로 dequantize.
+        </div>
+        <div class="formula">
+          x[i] = q[i] · s<sub>⌊i/G⌋</sub>
+          <span class="legend">q[i]: low-precision element · s<sub>g</sub>: scale of block g · G: block size</span>
+        </div>
+        <ul>
+          <li>per-tensor 대비 <span class="kw">outlier 흡수</span></li>
+          <li>per-element (=FP32) 대비 <span class="kw">메모리 효율</span></li>
+          <li>metadata overhead = sizeof(scale) / G</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> MXFP8 (G=32) layout ★
+          <span class="mnemonic">32-pack</span>
+        </h3>
+        <pre class="ascii">block (G=32 elements, MXFP8):
+ ┌─────────────────────────────────────┐
+ │ s₀ (E8M0, 1B) │ e₀ e₁ ... e₃₁ (32B) │
+ └─────────────────────────────────────┘
+   scale            32 FP8 elements
+   → total 33 B per block
+   → overhead 8b / 32 elem = 0.25 b/elem
+
+tensor [N elements] =
+ ┌────────┬────────┬────────┬─── ...
+ │block 0 │block 1 │block 2 │
+ │s₀│data │s₁│data │s₂│data │
+ └────────┴────────┴────────┴─── ...
+   각 block 독립 scale · 순차 배치</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> NVFP4 (G=16) layout ★</h3>
+        <pre class="ascii">block (G=16 elements, NVFP4):
+ ┌──────────────────────────────────────┐
+ │ s₀ (FP8 E4M3, 1B) │ e₀..e₁₅ (packed) │
+ └──────────────────────────────────────┘
+   scale                16 FP4 = 8 B
+   → total 9 B per block
+   → overhead 8b / 16 elem = 0.5 b/elem
+
+FP4 packing (2 elem / byte):
+ byte: [ e₂ᵢ₊₁ | e₂ᵢ ]  ← nibble
+         high     low
+ 16 elements = 8 bytes
+
+scale precision:
+ MXFP4 UE8M0: s ∈ {2^-127, ..., 2^127}  (pow-2 만)
+ NVFP4 FP8:   s = (-1)^S · 2^(E-7) · 1.M (full FP8)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Microscaling matmul 수식</h3>
+        <div class="formula">
+          y = Σ<sub>g</sub> s<sub>A,g</sub>·s<sub>B,g</sub>·Σ<sub>k∈g</sub> A<sub>q,k</sub>·B<sub>q,k</sub>
+          <span class="legend">group 내부: low-precision dot · group 사이: scale 곱 후 FP32 acc</span>
+        </div>
+        <ul>
+          <li>group 내부 dot 결과는 FP32로 확장 후 scale 곱</li>
+          <li>TC 명령이 group dot + scale을 단일 op로 fuse</li>
+          <li>acc는 FP32 (≥ N=수백에서 필수)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Format 효과 bit-rate 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th>format</th><th>elem b</th><th>scale b</th><th>eff b/elem</th></tr></thead>
+          <tbody>
+            <tr><td>FP16</td><td class="num">16</td><td>—</td><td class="num">16</td></tr>
+            <tr><td>BF16</td><td class="num">16</td><td>—</td><td class="num">16</td></tr>
+            <tr><td>FP8 (per-tensor)</td><td class="num">8</td><td>≈0</td><td class="num">8</td></tr>
+            <tr><td>MXFP8 (G=32)</td><td class="num">8</td><td class="num">0.25</td><td class="num">8.25</td></tr>
+            <tr><td>MXFP4 (G=32)</td><td class="num">4</td><td class="num">0.25</td><td class="num">4.25</td></tr>
+            <tr><td>NVFP4 (G=16)</td><td class="num">4</td><td class="num">0.5</td><td class="num">4.5</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Block axis 선택</h3>
+        <ul>
+          <li><mark>weight</mark>: output channel 축 block — dequant이 matmul와 정렬</li>
+          <li><mark>activation</mark>: token 축 (per-token group) — 분포 token별 상이</li>
+          <li><mark>KV cache</mark>: head 또는 token (↗ V10 §8)</li>
+          <li>축 선택 실패 <span class="arrow">→</span> matmul에서 scale broadcast 불일치</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: MXFP4의 E8M0 scale은 pow-2 only. block 내 amax가 2<sup>k</sup>와 2<sup>k+1</sup> 사이일 때 최대 2× 낭비 (scale 올림 vs 내림).
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        Block-scale 3대 조합: <span class="key">MX8·MX4·NV4</span>
+        (MXFP8 G=32 · MXFP4 G=32 · NVFP4 G=16)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 6 -</div>
+</section>
+
+<!-- ============================ PAGE 7: §6 Rounding modes ============================ -->
+<section class="page" data-screen-label="07 Rounding">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Rounding Modes (RN · RZ · RD · RU · Stochastic)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 rounding? <span class="ko">exact 불가능</span></h3>
+        <div class="def"><span class="label">이유</span>
+          실수 연산 결과가 target format의 representable 값 사이에 낙하 <span class="arrow">→</span>
+          두 이웃 중 하나로 rounding 필요.
+        </div>
+        <ul>
+          <li>rounding 선택은 error 분포를 결정</li>
+          <li>IEEE 754는 4개 기본 모드 정의</li>
+          <li>additional: stochastic, round-to-odd</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> IEEE 754 4 modes ★</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>약어</th><th>규칙</th></tr></thead>
+          <tbody>
+            <tr><td>Round Nearest Even</td><td><b>RN</b></td><td>가장 가까운 값, tie는 짝수 mantissa</td></tr>
+            <tr><td>Round toward Zero</td><td>RZ</td><td>magnitude 감소 (truncate)</td></tr>
+            <tr><td>Round toward −∞</td><td>RD</td><td>floor (direction down)</td></tr>
+            <tr><td>Round toward +∞</td><td>RU</td><td>ceil (direction up)</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>RN = IEEE 754 기본 (banker's rounding)</li>
+          <li>RZ = C cast behavior, GPU HW 일부</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> RN-even (banker's) <span class="ko">tie-break</span></h3>
+        <div class="def"><span class="label">정의</span>
+          중간값 (exact halfway) <span class="arrow">→</span> 최종 mantissa의 LSB가 0 (짝수) 되는 쪽으로 rounding.
+        </div>
+        <pre class="ascii">decimal 예 (소수 1자리 → 정수):
+  2.5 → 2  (even)
+  3.5 → 4  (even)
+  4.5 → 4  (even)
+  5.5 → 6  (even)
+→ 긴 합산에서 bias 0 (상·하 round 확률 동일)</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Rounding error bound <span class="ko">공식</span></h3>
+        <div class="formula">
+          |fl(x) − x| ≤ ε<sub>mach</sub> / 2 · |x|  (RN)<br/>
+          |fl(x) − x| ≤ ε<sub>mach</sub> · |x|  (RZ/RD/RU)
+          <span class="legend">fl(x): rounded 결과 &nbsp; RN은 절반, 나머지는 전체</span>
+        </div>
+        <ul>
+          <li>상대 오차 bound = 1/2 ULP (unit in last place) for RN</li>
+          <li>ULP = 2<sup>E−m</sup> · 현재 x의 last bit 단위</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Stochastic Rounding (SR) ★
+          <span class="mnemonic">랜덤 tie</span>
+        </h3>
+        <div class="def"><span class="label">SR</span>
+          두 이웃 중 하나를 <b>확률적</b>으로 선택. 확률은 실제 값과 이웃 간 거리 비율.
+        </div>
+        <div class="formula">
+          P(fl(x) = ⌈x⌉) = (x − ⌊x⌋) / ULP<br/>
+          P(fl(x) = ⌊x⌋) = (⌈x⌉ − x) / ULP
+          <span class="legend">E[fl(x)] = x · 무편향 (unbiased) · 긴 합산에서 drift 없음</span>
+        </div>
+        <ul>
+          <li><span class="kw">unbiased</span> <span class="arrow">→</span> 작은 gradient가 weight에 확률적으로 누적</li>
+          <li>low-bit training (FP16 master 없이) 핵심 기법</li>
+          <li>HW 지원: Hopper/Blackwell FP8 TC 옵션</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> RN vs SR 비교 <span class="ko">작은 업데이트</span></h3>
+        <table class="compact">
+          <thead><tr><th>상황</th><th>RN</th><th>SR</th></tr></thead>
+          <tbody>
+            <tr><td>w += 0.01 (FP16)</td><td>0으로 drop</td><td>1/100 확률로 1 ULP 증가</td></tr>
+            <tr><td>기대값</td><td class="num">0</td><td class="num">0.01</td></tr>
+            <tr><td>long-run drift</td><td>bias 있음</td><td>unbiased</td></tr>
+            <tr><td>determinism</td><td>yes</td><td>no (seed 없으면)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> GPU rounding 기본값</h3>
+        <ul>
+          <li>CUDA FMA (<code>fma.rn.f32</code>): RN 기본</li>
+          <li>type cast <code>__float2half</code>: RN 기본, <code>__float2half_rn/_rz/_rd/_ru</code> variant</li>
+          <li>Tensor Core accumulator: 내부 RN</li>
+          <li>PTX: <code>cvt.{rn|rz|rm|rp|rni|rzi|rmi|rpi}</code> suffix</li>
+        </ul>
+        <p class="tiny">PTX ISA · cvt instruction · ↗ V03 §5</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: RZ는 magnitude 감소 (negative → 0 방향, positive → 0 방향). RD (floor)와 다름. 부호 고려.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        IEEE 4 modes: <span class="key">N·Z·D·U</span>
+        (Nearest · Zero · Down · Up)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 7 -</div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Accumulation & Associativity ============================ -->
+<section class="page" data-screen-label="08 Accumulation">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Accumulation Order · Associativity</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FP 덧셈 non-associative ★</h3>
+        <div class="def"><span class="label">핵심</span>
+          실수에서 (a+b)+c = a+(b+c). 그러나 floating-point에서는
+          <span class="red">일반적으로 성립 안 함</span>.
+        </div>
+        <div class="formula">
+          fl((a ⊕ b) ⊕ c) ≠ fl(a ⊕ (b ⊕ c))
+          <span class="legend">⊕: floating-point add · fl: rounding</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          FP32로 1e20 + (−1e20) + 1 <span class="arrow">→</span> 순서에 따라
+          <b>0</b> 또는 <b>1</b>.
+          <br/>좌결합: (1e20 − 1e20) + 1 = 0 + 1 = <b>1</b>
+          <br/>우결합: 1e20 + (−1e20 + 1) = 1e20 + (−1e20) = <b>0</b>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 이유 <span class="ko">정렬·shift 손실</span></h3>
+        <ul>
+          <li>큰 수 + 작은 수: 작은 수의 mantissa가 shift되어 일부 bit 유실</li>
+          <li>유실된 bit는 되돌아오지 않음</li>
+          <li>subsequent 연산 순서가 어떤 bit를 살리는지 결정</li>
+        </ul>
+        <pre class="ascii">큰 수: 1.00 × 2^20
+작은 수: 1.00 × 2^0
+정렬:  1.00 × 2^20
+     + 0.00...01 × 2^20  (20 bit shift)
+     ─────────────────
+     → mantissa 비트수 넘으면 소실</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Reduction tree 순서 <span class="ko">결과 변동</span></h3>
+        <pre class="ascii">serial (left-to-right):
+  (((a₀ + a₁) + a₂) + a₃)
+  → O(N) step, O(log N) 오차 누적 낮음 if ordered
+
+tree (pairwise):
+   a₀ a₁ a₂ a₃
+    \ /    \ /
+     s₁     s₂
+       \   /
+        S
+  → O(log N) step, 오차 O(√log N)
+
+warp-shuffle:
+  stride 16, 8, 4, 2, 1
+  → HW에 결정된 순서, 일관성 yes</pre>
+        <p class="tiny">Higham "Accuracy and Stability" Ch4 · pairwise가 일반적으로 더 정확</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 결정론 문제 ★</h3>
+        <div class="def"><span class="label">non-deterministic</span>
+          atomicAdd, 다중 block reduce, 비결정적 schedule <span class="arrow">→</span>
+          실행할 때마다 합산 순서 바뀜 <span class="arrow">→</span> 결과 bit-exact 다름.
+        </div>
+        <ul>
+          <li><mark>atomicAdd</mark>: block 도착 순서는 run-by-run 다름 (warp scheduling)</li>
+          <li><mark>cuBLAS</mark>: 일부 split-K 내부 atomic 사용 <span class="arrow">→</span> bit-varying</li>
+          <li>해결책: deterministic 옵션 (cuDNN/cuBLAS), split-K 대신 Stream-K (↗ V05 §8)</li>
+          <li>테스트 재현성·debugging에서 중요</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Reduction 오차 경계</h3>
+        <div class="formula">
+          serial: |err| ≤ (N−1) · ε · |Σ|<br/>
+          pairwise: |err| ≤ log<sub>2</sub>N · ε · |Σ|<br/>
+          Kahan: |err| ≤ 2 · ε · |Σ|
+          <span class="legend">N: 원소 수 · ε: machine eps · 상수 계수 생략</span>
+        </div>
+        <ul>
+          <li>serial O(N) <span class="arrow">→</span> 큰 N에서 위험</li>
+          <li>pairwise O(log N) <span class="arrow">→</span> GPU tree reduce 자연스러움</li>
+          <li>Kahan O(1) <span class="arrow">→</span> 4× FLOP 비용 (↗ §8)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Mixed-dtype 누적 원칙</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>input</th><th>acc</th></tr></thead>
+          <tbody>
+            <tr><td>GEMM</td><td>FP16/BF16/FP8</td><td>FP32</td></tr>
+            <tr><td>reduction</td><td>FP16</td><td>FP32</td></tr>
+            <tr><td>layer norm stat</td><td>BF16</td><td>FP32</td></tr>
+            <tr><td>softmax denom</td><td>FP16</td><td>FP32</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">원칙: 누적 dtype ≥ 입력 dtype · 짧으면 catastrophic</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: 테스트에서 "결과 동일"을 bit-exact로 기대 금지. tolerance (relative/absolute) 기반 비교 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 8 -</div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Error propagation ============================ -->
+<section class="page" data-screen-label="09 Error Propagation">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Error Propagation · Catastrophic Cancellation · Kahan</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Relative error 모델 ★
+          <span class="mnemonic">x·(1+δ)</span>
+        </h3>
+        <div class="formula">
+          fl(x ⊙ y) = (x ⊙ y) · (1 + δ),  |δ| ≤ ε<sub>mach</sub>
+          <span class="legend">⊙: FP 연산 (+ − × /) · δ: relative rounding error</span>
+        </div>
+        <ul>
+          <li>한 연산당 상대 오차 최대 ε</li>
+          <li>연산 N개 연쇄: (1+δ)<sup>N</sup> ≈ 1 + Nε (first-order)</li>
+          <li>일반적 bound: cond · N · ε (condition number 곱)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Condition number <span class="ko">입력 민감도</span></h3>
+        <div class="def"><span class="label">정의</span>
+          cond(f, x) = |x · f'(x) / f(x)|. 입력 상대 변화 대비 출력 상대 변화.
+        </div>
+        <ul>
+          <li>well-conditioned: cond ~ 1</li>
+          <li>ill-conditioned: cond ≫ 1 (이 경우 어떤 알고리즘도 정확 불가)</li>
+          <li>입력 오차 · cond = 출력 오차 하한</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Forward vs backward error</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>forward</td><td>|ŷ − y| / |y|</td></tr>
+            <tr><td>backward</td><td>|x̂ − x| / |x|, ŷ = f(x̂)</td></tr>
+            <tr><td>stability</td><td>backward error 작으면 "stable"</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">stable 알고리즘 + ill-conditioned 문제 = 여전히 부정확</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Catastrophic cancellation ★
+          <span class="mnemonic">비슷한 값 뺄셈</span>
+        </h3>
+        <div class="def"><span class="label">현상</span>
+          비슷한 두 수의 뺄셈 <span class="arrow">→</span> 선행 자릿수가 상쇄 <span class="arrow">→</span>
+          유효 자릿수 대부분 소실.
+        </div>
+        <div class="ex"><span class="label"></span>
+          FP32 표현: 1.0000002 − 1.0000001
+          <br/>= 2 × 10<sup>−7</sup> (유효 1자리)
+          <br/>원래 수는 7자리 유효했는데 결과는 1자리 이하.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Cancellation 회피 패턴</h3>
+        <table class="compact">
+          <thead><tr><th>문제</th><th>대체 공식</th></tr></thead>
+          <tbody>
+            <tr><td>√(1+x) − 1</td><td>x / (√(1+x) + 1)</td></tr>
+            <tr><td>1 − cos(x)</td><td>2·sin²(x/2)</td></tr>
+            <tr><td>log(1+x), x→0</td><td>log1p(x)</td></tr>
+            <tr><td>exp(x)−1</td><td>expm1(x)</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>libm에 전용 함수 제공 (log1p / expm1)</li>
+          <li>GPU: <code>__log1pf</code>, <code>__expm1f</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Kahan summation ★
+          <span class="mnemonic">compensated</span>
+        </h3>
+        <pre class="ascii">s = 0; c = 0   // s: sum, c: lost bit carry
+for x in xs:
+  y = x - c          // undo prev loss
+  t = s + y          // add, may lose LSB
+  c = (t - s) - y    // recover lost bit
+  s = t
+return s</pre>
+        <div class="formula">
+          error<sub>Kahan</sub> ≤ 2ε + O(Nε²)
+          <span class="legend">vs serial O(Nε) · N과 무관한 상수 bound</span>
+        </div>
+        <ul>
+          <li>4× FLOP · extra register 1개</li>
+          <li>GPU 병렬 합산에서는 pairwise tree가 대개 충분</li>
+          <li>long-sequence accumulator (e.g. FP8 training)에서 유용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Neumaier 개선</h3>
+        <ul>
+          <li>Kahan의 변형 — |s| &lt; |x|일 때 역할 교체</li>
+          <li>더 안정적, 비용 동일</li>
+          <li>C++ <code>std::reduce</code>의 일부 impl 채용</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: compiler의 <code>-ffast-math</code>/<code>-O3</code>가 Kahan의 <code>(t − s) − y</code> 를 "0"으로 최적화 <span class="arrow">→</span> 회피. <code>volatile</code> 또는 fast-math off.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 9 -</div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Softmax stability ============================ -->
+<section class="page" data-screen-label="10 Softmax Stability">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Softmax 수치 안정성</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Naive softmax 문제 ★</h3>
+        <div class="formula">
+          softmax(x)<sub>i</sub> = exp(x<sub>i</sub>) / Σ<sub>j</sub> exp(x<sub>j</sub>)
+          <span class="legend">x<sub>i</sub> = 89 이면 exp ≈ 4.5e38 → FP32 overflow · −89에서 exp ≈ 2.3e−39 → subnormal/underflow</span>
+        </div>
+        <ul>
+          <li>FP16 exp 범위: x ∈ [−17, +11]</li>
+          <li>FP32 exp 범위: x ∈ [−87, +88]</li>
+          <li>Transformer logits는 수십~수백 도달 <span class="arrow">→</span> overflow 불가피</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Stable softmax ★
+          <span class="mnemonic">subtract max</span>
+        </h3>
+        <div class="formula">
+          m = max<sub>j</sub>(x<sub>j</sub>)<br/>
+          softmax(x)<sub>i</sub> = exp(x<sub>i</sub> − m) / Σ<sub>j</sub> exp(x<sub>j</sub> − m)
+          <span class="legend">invariant: softmax(x) = softmax(x + c) for scalar c · choose c = −max → exp input ≤ 0</span>
+        </div>
+        <div class="def"><span class="label">이유</span>
+          x<sub>i</sub> − m ≤ 0 <span class="arrow">→</span> exp(·) ≤ 1 <span class="arrow">→</span> overflow 방지.
+          최소 하나의 원소에서 exp(0) = 1 <span class="arrow">→</span> 분모 ≥ 1 <span class="arrow">→</span> underflow 방지.
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 3-pass → 2-pass → 1-pass</h3>
+        <table class="compact">
+          <thead><tr><th>버전</th><th>pass</th><th>메모리</th></tr></thead>
+          <tbody>
+            <tr><td>naive</td><td class="num">2</td><td>logits + denom</td></tr>
+            <tr><td>stable 3-pass</td><td class="num">3</td><td>+max</td></tr>
+            <tr><td>online (Milakov)</td><td class="num">1</td><td>(m, l) state</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">online softmax: (m, l) pair를 streaming update · FlashAttention 핵심 · ↗ V07 §2~§3</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Log-sum-exp (LSE)</h3>
+        <div class="formula">
+          LSE(x) = log(Σ<sub>j</sub> exp(x<sub>j</sub>))<br/>
+          stable: LSE(x) = m + log(Σ<sub>j</sub> exp(x<sub>j</sub> − m))
+          <span class="legend">log softmax = x<sub>i</sub> − LSE(x) · cross-entropy loss에 직접 사용</span>
+        </div>
+        <ul>
+          <li>cross-entropy: loss = −log p<sub>y</sub> = LSE(x) − x<sub>y</sub></li>
+          <li>softmax를 실제로 계산하지 않고도 loss 얻음 <span class="arrow">→</span> 수치 안정</li>
+          <li>PyTorch <code>F.cross_entropy</code> 내부 LSE 사용</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Online softmax 결합 공식 <span class="ko">증명</span></h3>
+        <div class="formula">
+          block A: (m<sub>A</sub>, l<sub>A</sub>) where l<sub>A</sub> = Σ exp(x − m<sub>A</sub>)<br/>
+          block B: (m<sub>B</sub>, l<sub>B</sub>)<br/>
+          merge: m = max(m<sub>A</sub>, m<sub>B</sub>)<br/>
+          l = exp(m<sub>A</sub>−m)·l<sub>A</sub> + exp(m<sub>B</sub>−m)·l<sub>B</sub>
+          <span class="legend">correction factor exp(m_old − m_new) · FlashAttention 핵심 (↗ V07 §3)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Low-precision softmax</h3>
+        <ul>
+          <li>attention logits 저장: BF16 okay, FP16 위험 (범위)</li>
+          <li>exp 내부 누적: FP32 필수</li>
+          <li>P = softmax(S) 출력: FP16/BF16 okay (∈[0,1])</li>
+          <li>FP8 attention: P를 [0, 1]로 clamp 후 E4M3 (FA3 incoherent, ↗ V07 §10)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: "logit subtract max" 생략은 debug mode에서 동작해도 deployment에서 NaN. 반드시 production path에 포함.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        Softmax 안정화: <span class="key">M·E·L</span>
+        (Max subtract · Exp nonneg · LSE for loss)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 10 -</div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Mixed Precision Training ============================ -->
+<section class="page" data-screen-label="11 MP Training">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Mixed Precision Training 원칙</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 <span class="ko">왜 mixed?</span></h3>
+        <ul>
+          <li>TC throughput: FP16/BF16이 FP32 대비 8×+</li>
+          <li>HBM 용량/BW: 16 bit가 32 bit 대비 2×</li>
+          <li>그러나 weight update · optimizer state는 정밀도 민감</li>
+          <li><mark>forward/backward는 low</mark>, <mark>master weight·update는 FP32</mark></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Master weight 개념 ★
+          <span class="mnemonic">FP32 master</span>
+        </h3>
+        <div class="def"><span class="label">원리</span>
+          optimizer는 FP32 master weight W 보유. forward 직전 FP16으로 cast하여 compute.
+          backward gradient (FP16) → FP32 accumulate → master update.
+        </div>
+        <pre class="ascii">master W (FP32) ──┐
+                  ▼ cast
+              W_fp16 ── forward ──► loss
+                                    │
+              ◄── backward ── grad_fp16
+              │
+              ▼ cast to FP32 + scale down
+         Δ (FP32) ──► update master W</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Micikevicius 2017 AMP 공식 ★</h3>
+        <ol class="bullet-num">
+          <li>Master W: FP32</li>
+          <li>Forward: W → FP16, activation FP16</li>
+          <li>Loss: FP32 (또는 FP16 + scale)</li>
+          <li>Backward: gradient FP16</li>
+          <li>Unscale gradient → FP32</li>
+          <li>Optimizer step: FP32 master update</li>
+        </ol>
+        <p class="tiny">Micikevicius et al. "Mixed Precision Training" ICLR 2018</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> BF16 vs FP16 training</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>FP16</th><th>BF16</th></tr></thead>
+          <tbody>
+            <tr><td>range</td><td>좁음</td><td>= FP32</td></tr>
+            <tr><td>precision</td><td class="num">10 bit</td><td class="num">7 bit</td></tr>
+            <tr><td>loss scaling</td><td>필수</td><td>불필요</td></tr>
+            <tr><td>master W</td><td>FP32 필요</td><td>FP32 권장</td></tr>
+            <tr><td>divergence risk</td><td>grad underflow</td><td>update precision</td></tr>
+            <tr><td>HW 지원</td><td>V100+</td><td>A100+</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Optimizer state precision</h3>
+        <ul>
+          <li>Adam m, v: FP32 권장 (second moment가 작은 값 축적)</li>
+          <li>BF16 optimizer: 실험적 (일부 방식 수렴 저하)</li>
+          <li>8-bit optimizer (bitsandbytes): block-wise quant</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Dtype 할당 template ★</h3>
+        <table class="compact">
+          <thead><tr><th>변수</th><th>BF16 path</th><th>FP16 path</th></tr></thead>
+          <tbody>
+            <tr><td>master W</td><td>FP32</td><td>FP32</td></tr>
+            <tr><td>W (compute)</td><td>BF16</td><td>FP16</td></tr>
+            <tr><td>activation</td><td>BF16</td><td>FP16</td></tr>
+            <tr><td>gradient</td><td>BF16</td><td>FP16 (scaled)</td></tr>
+            <tr><td>accumulator</td><td>FP32</td><td>FP32</td></tr>
+            <tr><td>optimizer m/v</td><td>FP32</td><td>FP32</td></tr>
+            <tr><td>loss scale</td><td>—</td><td>dynamic</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> AMP API 구성</h3>
+        <ul>
+          <li>PyTorch: <code>torch.amp.autocast</code> + <code>GradScaler</code></li>
+          <li>JAX: bfloat16 dtype 직접 / <code>jmp</code></li>
+          <li>Megatron/NeMo: FP32 master + FP16/BF16 compute 수동 관리</li>
+          <li>TE: FP8 mixed precision 전담 (↗ §12)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: layer norm / softmax / loss는 "autocast에서 FP32로 유지" — precision 민감 op list 암기. BatchNorm 통계도 FP32.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        Mixed precision 3계층: <span class="key">M·C·S</span>
+        (<b>M</b>aster FP32 · <b>C</b>ompute low · <b>S</b>cale gradient)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 11 -</div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Loss scaling ============================ -->
+<section class="page" data-screen-label="12 Loss Scaling">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Loss Scaling (FP16)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Gradient underflow 문제 ★</h3>
+        <div class="def"><span class="label">문제</span>
+          backward에서 gradient는 종종 &lt; 2<sup>−14</sup> (FP16 min normal).
+          <br/>→ 0으로 flush → weight update 전혀 일어나지 않음.
+        </div>
+        <ul>
+          <li>특히 초반 layer의 gradient는 깊이만큼 축소</li>
+          <li>subnormal 허용해도 정밀도 낮음</li>
+          <li>BF16은 range가 FP32와 같아 이 문제 없음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Loss scaling 원리
+          <span class="mnemonic">scale up · unscale down</span>
+        </h3>
+        <div class="formula">
+          L̃ = L · s  (forward loss scale up)<br/>
+          ∇̃ = ∇L · s  (chain rule로 gradient도 s배)<br/>
+          ∇ = ∇̃ / s  (optimizer 전에 unscale)
+          <span class="legend">s: scalar (일반적 2<sup>k</sup>) · FP16 범위 내로 gradient 이동 → underflow 회피</span>
+        </div>
+        <ul>
+          <li>loss에 단일 상수 곱 = gradient 모두에 동일 배율</li>
+          <li>optimizer step 직전 동일 배율로 나누면 원래 update</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Static vs Dynamic</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>static</th><th>dynamic</th></tr></thead>
+          <tbody>
+            <tr><td>s</td><td>hyperparam fixed</td><td>runtime adapt</td></tr>
+            <tr><td>튜닝</td><td>수동 (2<sup>k</sup>)</td><td>자동</td></tr>
+            <tr><td>overflow</td><td>주기적 점검</td><td>자동 대응</td></tr>
+            <tr><td>장점</td><td>예측 가능</td><td>로버스트</td></tr>
+            <tr><td>단점</td><td>튜닝 필요</td><td>몇 step loss</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Dynamic loss scaling 알고리즘 ★</h3>
+        <pre class="ascii">init: s = 2^15
+for step:
+  scaled_loss = loss * s
+  scaled_loss.backward()
+  # gradient = grad * s
+  if any(isinf(g) or isnan(g)):   # overflow
+    s = s / 2                      # shrink
+    skip optimizer step
+    reset counter
+  else:
+    unscale grad: g = g / s
+    optimizer.step()
+    counter += 1
+    if counter >= N:              # stable window
+      s = s * 2                   # try larger
+      counter = 0</pre>
+        <p class="tiny">PyTorch <code>GradScaler</code> 기본 동작 · N=2000 step default</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Inf/NaN 탐지</h3>
+        <ul>
+          <li>NaN 전파: op(NaN, ·) = NaN · 한 번 발생하면 전체 tensor 감염</li>
+          <li><code>torch.isinf(g).any()</code> / <code>torch.isnan(g).any()</code></li>
+          <li>GPU: <code>__isnanf</code>, <code>__isinff</code> intrinsic</li>
+          <li>batch-level 집계 (AllReduce bool)가 분산 훈련 필수</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 분산 환경 scaling <span class="ko">sync</span></h3>
+        <pre class="ascii">각 rank가 독립 scale 사용 시 weight divergence
+→ scale은 global synchronize
+→ overflow rank 있으면 모든 rank skip
+
+protocol:
+  1. each rank: check Inf/NaN local
+  2. allreduce OR bool
+  3. if any rank overflow: shrink s, skip
+  4. else: proceed optimizer</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Gradient clipping 관계</h3>
+        <ul>
+          <li>clipping은 <span class="kw">unscale 이후</span> 수행</li>
+          <li>clip 전 norm 계산도 FP32</li>
+          <li>overflow detect → clip 무의미 (이미 Inf)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: BF16에 loss scaling 적용 시 overhead만 증가, 이득 없음. BF16은 range 충분 <span class="arrow">→</span> scaling off.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 12 -</div>
+</section>
+
+<!-- ============================ PAGE 13: §12 FP8 Training ============================ -->
+<section class="page" data-screen-label="13 FP8 Training">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — FP8 Training (Transformer Engine)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FP8 training 차이점 ★</h3>
+        <ul>
+          <li>scale이 <span class="kw">tensor마다</span> 필요 (range 극단적으로 좁음)</li>
+          <li>forward/backward/gradient 각각 다른 variant</li>
+          <li>scale 결정이 <span class="red">수렴에 직접 영향</span></li>
+          <li>master weight는 여전히 FP32 (optimizer precision 유지)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Transformer Engine 개요</h3>
+        <div class="def"><span class="label">TE</span>
+          NVIDIA 라이브러리. FP8 tensor + scale 관리 + kernel fusion.
+          Hopper/Blackwell TC FP8 instruction과 통합.
+        </div>
+        <ul>
+          <li><code>te.Linear</code>, <code>te.TransformerLayer</code> drop-in</li>
+          <li>내부: amax history + delayed scaling 자동</li>
+          <li>attention forward/backward FP8</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Per-tensor amax history ★
+          <span class="mnemonic">window</span>
+        </h3>
+        <div class="def"><span class="label">amax history</span>
+          최근 N step 동안의 amax(x)를 큐에 저장.
+          <br/>새 scale = max(history) · 다음 step에서 사용.
+        </div>
+        <pre class="ascii">history[N] (ring buffer):
+  step t    : amax_t
+  step t-1  : amax_{t-1}
+  ...
+  step t-N+1: amax_{t-N+1}
+
+amax_used = max(history)
+s = amax_used / FP8_max</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Delayed scaling ★
+          <span class="mnemonic">1-step 지연</span>
+        </h3>
+        <div class="def"><span class="label">delayed</span>
+          현재 step의 amax를 다음 step scale에 사용.
+          <br/>이유: 현재 step scale을 즉시 적용하면 amax 계산 후 rescale 필요 <span class="arrow">→</span> 추가 pass.
+        </div>
+        <pre class="ascii">step t:
+  x_t 계산
+  amax_t 계산 (현재 tensor)
+  quant(x_t) with s_{t-1}   ← 직전 step scale
+  push amax_t to history
+
+step t+1:
+  s_t = max(history) / FP8_max
+  quant with s_t</pre>
+        <p class="tiny">cost: scale이 1 step lag · 수렴에는 무해 (history size N ≥ 16)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Dtype transition 규칙</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>input</th><th>output</th></tr></thead>
+          <tbody>
+            <tr><td>forward linear</td><td>FP8 E4M3</td><td>BF16</td></tr>
+            <tr><td>activation</td><td>BF16</td><td>BF16</td></tr>
+            <tr><td>backward wgrad</td><td>FP8 E5M2</td><td>BF16</td></tr>
+            <tr><td>backward dgrad</td><td>FP8 E5M2</td><td>BF16</td></tr>
+            <tr><td>master update</td><td>FP32</td><td>FP32</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Forward/Backward FP8 variant 배치</h3>
+        <pre class="ascii">forward:
+  W (E4M3) × X (E4M3) → Y (FP32 acc → BF16)
+
+backward (grad output gY):
+  dgrad: gY (E5M2) × W^T (E4M3) → gX
+  wgrad: X^T (E4M3) × gY (E5M2) → gW
+
+이유:
+  W, X는 정규화된 좁은 분포 → E4M3
+  gY는 outlier 가능 (loss gradient) → E5M2</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Scale factor safety margin</h3>
+        <ul>
+          <li>amax 그대로 사용: outlier에 정확히 맞춤 <span class="arrow">→</span> 노이즈 1개에 0이 되는 risk</li>
+          <li>safety margin: s = amax · m / FP8<sub>max</sub>, m &gt; 1</li>
+          <li>TE default: m ≈ 1.0 (amax history가 smoothing 역할)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Block-scale FP8 training <span class="ko">Blackwell</span></h3>
+        <ul>
+          <li>Blackwell TC: MXFP8 block=32 native</li>
+          <li>per-tensor amax 불필요 (block마다 local amax)</li>
+          <li>outlier 자동 흡수 <span class="arrow">→</span> TE 구조 단순화</li>
+          <li>구체 알고리즘·양자화 선택은 ↗ V10 §11</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: FP8 training 중 scale을 매 step runtime refresh하면 비결정. TE는 history·delayed로 결정론 유지.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 13 -</div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="14 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V09 Mixed Precision <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 전체 포맷 bit layout 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>format</th><th>S</th><th>E</th><th>M</th><th>bias</th><th>max</th></tr></thead>
+          <tbody>
+            <tr><td>FP64</td><td class="num">1</td><td class="num">11</td><td class="num">52</td><td class="num">1023</td><td class="num">1.8e308</td></tr>
+            <tr><td>FP32</td><td class="num">1</td><td class="num">8</td><td class="num">23</td><td class="num">127</td><td class="num">3.4e38</td></tr>
+            <tr><td>TF32</td><td class="num">1</td><td class="num">8</td><td class="num">10</td><td class="num">127</td><td class="num">3.4e38</td></tr>
+            <tr><td>BF16</td><td class="num">1</td><td class="num">8</td><td class="num">7</td><td class="num">127</td><td class="num">3.4e38</td></tr>
+            <tr><td>FP16</td><td class="num">1</td><td class="num">5</td><td class="num">10</td><td class="num">15</td><td class="num">65504</td></tr>
+            <tr><td>FP8 E4M3</td><td class="num">1</td><td class="num">4</td><td class="num">3</td><td class="num">7</td><td class="num">448</td></tr>
+            <tr><td>FP8 E5M2</td><td class="num">1</td><td class="num">5</td><td class="num">2</td><td class="num">15</td><td class="num">57344</td></tr>
+            <tr><td>FP6 E3M2</td><td class="num">1</td><td class="num">3</td><td class="num">2</td><td class="num">3</td><td class="num">28</td></tr>
+            <tr><td>FP6 E2M3</td><td class="num">1</td><td class="num">2</td><td class="num">3</td><td class="num">1</td><td class="num">7.5</td></tr>
+            <tr><td>FP4 E2M1</td><td class="num">1</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num">6</td></tr>
+            <tr><td>FP4 E3M0</td><td class="num">1</td><td class="num">3</td><td class="num">0</td><td class="num">3</td><td class="num">128</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">IEEE 754 · OCP FP8/MX · NVFP4 whitepaper</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> Dtype × use-case 결정 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>대상</th><th>권장 dtype</th></tr></thead>
+          <tbody>
+            <tr><td>master weight</td><td>FP32</td></tr>
+            <tr><td>optimizer m/v</td><td>FP32</td></tr>
+            <tr><td>forward activation</td><td>BF16 (or FP16)</td></tr>
+            <tr><td>forward weight (TC)</td><td>BF16 / FP8 E4M3</td></tr>
+            <tr><td>gradient</td><td>BF16 / FP8 E5M2</td></tr>
+            <tr><td>matmul accumulator</td><td>FP32 항상</td></tr>
+            <tr><td>reduction</td><td>FP32</td></tr>
+            <tr><td>layer norm stat</td><td>FP32</td></tr>
+            <tr><td>softmax denom</td><td>FP32</td></tr>
+            <tr><td>attention P out</td><td>BF16 (or FP8 [0,1] clamp)</td></tr>
+            <tr><td>KV cache</td><td>FP8 / INT8 (↗ V10)</td></tr>
+            <tr><td>loss</td><td>FP32</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 수치 안정성 체크리스트</h3>
+        <ol class="bullet-num">
+          <li>softmax: subtract max 포함 여부</li>
+          <li>log: log1p / logsumexp 사용</li>
+          <li>sqrt·rsqrt ε 가드 (∇sqrt(0) = Inf)</li>
+          <li>NaN 감지 hook (dev mode)</li>
+          <li>accumulator dtype ≥ input dtype</li>
+          <li>reduction tree deterministic 여부</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Training recipe 요약</h3>
+        <table class="compact">
+          <thead><tr><th>전략</th><th>master</th><th>compute</th><th>scale</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 baseline</td><td>FP32</td><td>FP32</td><td>—</td></tr>
+            <tr><td>FP16 AMP</td><td>FP32</td><td>FP16</td><td>dynamic loss scale</td></tr>
+            <tr><td>BF16</td><td>FP32</td><td>BF16</td><td>없음</td></tr>
+            <tr><td>FP8 (TE)</td><td>FP32</td><td>FP8</td><td>per-tensor delayed</td></tr>
+            <tr><td>MXFP8 (Blackwell)</td><td>FP32</td><td>FP8</td><td>per-block G=32</td></tr>
+            <tr><td>NVFP4</td><td>FP32</td><td>FP4</td><td>per-block G=16</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 흔한 함정 10선</h3>
+        <ol>
+          <li>FP16 accumulator 사용 <span class="arrow">→</span> 수백 원소에서 붕괴</li>
+          <li>softmax subtract max 생략</li>
+          <li>BF16에 loss scaling 적용</li>
+          <li>Kahan의 compensated term이 <code>-O3</code>로 제거</li>
+          <li>RZ와 RD 혼동 (부호에서 차이)</li>
+          <li>gradient E4M3 사용 (range 부족)</li>
+          <li>weight E5M2 사용 (precision 부족)</li>
+          <li>비결정 reduction 으로 bit-exact 테스트</li>
+          <li>subnormal FTZ on 상태에서 underflow 무시</li>
+          <li>scale을 매 step runtime 갱신 <span class="arrow">→</span> 비결정</li>
+        </ol>
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        Dtype 선택 5-rule: <span class="key">M·C·A·G·S</span>
+        (<b>M</b>aster=32 · <b>C</b>ompute=low · <b>A</b>cc=32 · <b>G</b>rad range↑ · <b>S</b>tat=32)
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">원칙</span>: "precision은 low, range와 accumulator는 high". 모든 설계가 이 원칙의 응용.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 14 -</div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

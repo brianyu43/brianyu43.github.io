@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17장. 케이스 스터디 — 반복적 MRI 재구성 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 17</p>
+    <h1>케이스 스터디 — 반복적 MRI 재구성</h1>
+    <p class="subtitle">non-Cartesian k-space, F<sup>H</sup>D, 그리고 단계별 최적화의 미학</p>
+  </header>
+
+  <h2>17.1 배경: MRI는 왜 이렇게 시간이 오래 걸리는가</h2>
+  <p>병원에서 MRI(자기공명영상, Magnetic Resonance Imaging)를 찍어본 적이 있다면, 좁은 통 안에 30분 이상 누워 "딱딱딱" 하는 굉음을 견뎌본 기억이 있을 것이다. 이 시간의 정체는 사실 대부분 <strong>k-space 샘플링(k-space sampling)</strong>이다. MRI는 영상 공간(image space)을 직접 찍는 것이 아니라, 그 푸리에 변환 영역인 k-space의 각 점을 하나씩 측정한 뒤 역변환해 영상을 복원한다.</p>
+  <p>k-space를 어떻게 훑느냐, 즉 <strong>trajectory(궤적)</strong>가 스캔 시간과 영상 품질을 결정한다. 가장 단순한 방식은 k-space를 격자(grid)로 잘라 가로/세로 줄을 따라 한 줄씩 채우는 <strong>Cartesian trajectory</strong>다. 격자 위에 데이터가 놓이니 역 FFT(inverse FFT) 한 방으로 영상을 만들 수 있어 빠르고 깔끔하다. 그러나 이 방식은 환자의 호흡, 심박, 작은 움직임에 매우 취약하다. 한 줄을 망치면 그 줄이 통째로 영상에 줄무늬로 박힌다.</p>
+  <p>그래서 임상 현실에서는 <strong>non-Cartesian trajectory</strong> — 나선(spiral), 방사형(radial), 무작위 변형 등 — 이 자주 쓰인다. 중심부를 자주 지나가니 모션에 강하고, 적은 샘플로도 의미 있는 영상을 만들 수 있다. 대신 데이터가 격자 위에 있지 않아 단순 IFFT를 못 쓴다. 이게 우리 케이스 스터디의 출발점이다.</p>
+
+  <p>스캔 시간, 해상도, SNR(신호 대 잡음비, signal-to-noise ratio)은 서로 물고 물리는 <strong>3-way trade-off</strong>를 이룬다. k-space를 더 많이 샘플링하면 해상도와 SNR이 좋아지지만 시간이 늘고, 시간을 줄이려면 샘플 수를 줄여야 한다. 샘플 수가 줄면 정보가 부족해 단순 변환만으로는 깨끗한 영상이 안 나온다. 이 빈자리를 메우는 것이 바로 <strong>반복적 재구성(iterative reconstruction)</strong>이다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>k-space는 영상의 "주파수 카탈로그"다. 저주파 영역(중심부)이 영상의 큰 형체를, 고주파 영역(외곽)이 디테일을 결정한다. non-Cartesian trajectory가 모션에 강한 이유는 중심부를 매번 다시 지나가기 때문이다.</p>
+  </div>
+
+  <h2>17.2 반복적 재구성: 왜 한 방에 안 끝내고 빙빙 도는가</h2>
+  <p>비반복(non-iterative) 방식은 단순하다. Cartesian k-space라면 inverse FFT 한 번이면 끝. non-Cartesian이라면 격자 위로 데이터를 보간(gridding)한 뒤 IFFT를 돌리는 식이다. 빠르지만, 샘플이 부족하거나 노이즈가 큰 상황에서는 영상이 흐릿하거나 줄무늬 아티팩트가 남는다.</p>
+  <p>반복적 재구성은 문제를 다음과 같은 최소화 문제로 본다.</p>
+  <p style="text-align:center;font-style:italic">ρ̂ = argmin<sub>ρ</sub> ‖ Fρ − D ‖<sup>2</sup> + λ R(ρ)</p>
+  <p>여기서 ρ는 우리가 찾는 영상, F는 영상→k-space로 가는 정방향 연산자(non-Cartesian이면 비균일 푸리에 변환), D는 측정된 k-space 데이터, R(ρ)는 정규화 항(regularizer)이다. 노이즈가 있고 샘플이 적어도, 적절한 R(ρ)을 더하면 부드럽고 합리적인 영상으로 수렴한다.</p>
+  <p>가장 흔히 쓰는 풀이법이 <strong>conjugate gradient(CG)</strong>다. CG는 매 반복(iteration)마다 잔차의 방향(direction)으로 ρ를 한 걸음씩 갱신한다. 핵심은 매 반복 안쪽에 <strong>F<sup>H</sup>F ρ</strong> 또는 <strong>F<sup>H</sup>D</strong> 형태의 행렬-벡터 곱이 들어간다는 점이다. 영상 한 장 뽑는 데 이 inner-loop가 수십 번 돌아간다. 단순 IFFT 대비 100~1000배 느릴 수 있다는 뜻이다.</p>
+
+  <div class="callout warn">
+    <div class="label">trade-off</div>
+    <p>반복적 재구성은 영상이 좋아지는 대신 계산 비용이 폭증한다. 임상 현장에서 CT/MRI를 다루는 의사가 "재구성 끝났나요?"라고 묻는 풍경이 흔한 이유다. 이 inner-loop를 GPU로 가속하지 못하면 임상 도입은 사실상 불가능하다.</p>
+  </div>
+
+  <h2>17.3 F<sup>H</sup>D 계산 — 가장 비싼 inner-loop를 분해하기</h2>
+  <p>CG 한 반복에서 가장 무거운 연산이 <strong>F<sup>H</sup>D</strong>다. 식을 풀어 쓰면, 영상 픽셀 n에 대해</p>
+  <p style="text-align:center;font-style:italic">ρ<sub>n</sub> = Σ<sub>m</sub> D<sub>m</sub> · exp( i 2π k<sub>m</sub> · x<sub>n</sub> )</p>
+  <p>k<sub>m</sub>은 m번째 k-space 샘플의 좌표, x<sub>n</sub>은 n번째 픽셀의 좌표, D<sub>m</sub>은 측정값이다. 픽셀 수 N, 샘플 수 M이라면 단순 구현은 O(N·M). 256×256×256 영상에 100k 샘플이라면 1.6조 회 연산이다. CG 50번 돈다면 80조 회. 그냥 죽는다.</p>
+
+  <h3>17.3.1 scatter vs gather — 루프 방향을 뒤집어라</h3>
+  <p>이 합을 어떻게 나눠 GPU에 태울 것인가? 두 가지 자연스러운 매핑이 있다.</p>
+  <ul>
+    <li><strong>scatter 방식(샘플 기준):</strong> 스레드 하나가 샘플 m을 맡는다. 이 스레드는 자기 D<sub>m</sub>을 모든 픽셀 n에 뿌린다(scatter). 여러 스레드가 같은 ρ<sub>n</sub>을 동시에 쓰니 <code>atomicAdd</code>가 필수다.</li>
+    <li><strong>gather 방식(픽셀 기준):</strong> 스레드 하나가 픽셀 n을 맡는다. 이 스레드는 모든 샘플 m을 훑으며 자기 ρ<sub>n</sub>에 누적한다(gather). 출력은 자기 자신만 쓰니 atomic이 필요 없다.</li>
+  </ul>
+  <p>GPU에서 atomic은 대놓고 직렬화 지점이다. M개 스레드가 같은 픽셀에 atomic하면 picel 한 점에 줄을 서야 한다. gather 방식은 atomic을 한 방에 없앤다. 따라서 첫 번째 변환은 <strong>loop interchange</strong> — 바깥 루프를 픽셀 n으로, 안쪽 루프를 샘플 m으로 뒤집는 것이다.</p>
+
+  <pre><code>// 베이스라인: gather 방식, 픽셀당 1 스레드
+__global__ void cmpFhD_naive(
+    const float* __restrict__ kx, const float* __restrict__ ky, const float* __restrict__ kz,
+    const float* __restrict__ Dr, const float* __restrict__ Di,
+    const float* __restrict__ x,  const float* __restrict__ y,  const float* __restrict__ z,
+    float* rho_r, float* rho_i, int M, int N)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n &gt;= N) return;
+
+    float xn = x[n], yn = y[n], zn = z[n];
+    float acc_r = 0.0f, acc_i = 0.0f;
+
+    for (int m = 0; m &lt; M; ++m) {
+        float phi = 2.0f * 3.14159265f *
+                    (kx[m]*xn + ky[m]*yn + kz[m]*zn);
+        float c = cosf(phi);
+        float s = sinf(phi);
+        acc_r += Dr[m]*c - Di[m]*s;
+        acc_i += Dr[m]*s + Di[m]*c;
+    }
+    rho_r[n] = acc_r;
+    rho_i[n] = acc_i;
+}
+</code></pre>
+
+  <p>이 베이스라인이 V100급 GPU에서 대략 <strong>약 6 GFLOPS</strong> 수준에서 동작한다고 하자. 이론 성능의 1% 수준. 왜 이렇게 형편없을까? 그 이유를 하나씩 파헤치며 단계적으로 끌어올리는 것이 이 케이스 스터디의 본론이다.</p>
+
+  <h3>17.3.2 Loop fission — 픽셀 좌표는 한 번만 읽자</h3>
+  <p>위 코드를 보면, <code>x[n], y[n], z[n]</code>는 m 루프 바깥에서 읽고 있어 그건 잘했다. 그러나 누적 변수 <code>acc_r, acc_i</code>는 컴파일러가 레지스터에 잡아주길 기대해야 한다. 더 큰 문제는 <strong>F<sup>H</sup>F ρ</strong>를 계산할 때다. 그건 두 단계 — 영상→k-space, k-space→영상 — 를 한 커널에 욱여넣으면 occupancy도 떨어지고 캐시도 망가진다. 따라서 두 단계로 <strong>loop fission</strong>(루프 분리)한다.</p>
+  <p>또한 m 루프 안에서 미리 계산할 수 있는 양은 분리해 별도 배열로 빼둔다. 예를 들어 <code>2π·kx[m], 2π·ky[m], 2π·kz[m]</code>는 m 루프 시작 전에 한 번에 만들어두면 inner-loop의 곱셈을 줄인다. 이 단계만으로 약 <strong>6 → 9 GFLOPS</strong> 정도의 가벼운 개선이 나온다.</p>
+
+  <h3>17.3.3 Privatization — 누적 변수를 레지스터에</h3>
+  <p>위 코드는 이미 <code>acc_r, acc_i</code>를 지역 변수로 두고 있다. 다만 코드를 살짝 잘못 쓰면 — 예를 들어 <code>rho_r[n] += ...</code>를 m 루프 안에 그대로 두면 — 매 반복마다 글로벌 메모리 왕복이다. 픽셀 1개당 M번의 왕복은 메모리 대역폭을 다 잡아먹는다. <strong>privatization</strong>(레지스터로 끌어올리기)으로 글로벌 메모리 접근을 픽셀당 단 2번(쓰기)으로 줄이면 즉시 큰 효과가 난다. 보통 이 단계에서 <strong>9 → 30 GFLOPS</strong> 수준으로 점프한다. 픽셀당 메모리 트래픽이 거의 사라지고, 연산이 ALU bound로 옮겨간 것이다.</p>
+
+  <h3>17.3.4 Constant memory — 모든 스레드가 같은 m을 본다</h3>
+  <p>핵심 관찰 하나. 같은 워프(warp) 안의 32개 스레드는 같은 시점에 같은 m을 읽는다. 즉 <code>kx[m], ky[m], kz[m], Dr[m], Di[m]</code>를 32 스레드가 동시에, 같은 주소로 요청한다. 이런 broadcast 패턴에 가장 적합한 메모리는 <strong>__constant__ memory</strong>다. 64KB로 작지만, 캐시되어 있고 같은 주소 broadcast가 1 사이클이다.</p>
+  <p>샘플 수 M이 64KB 안에 들어가지 않는 경우에는 <strong>chunking</strong>한다. M을 32K 등 적당한 크기로 쪼개고, 호스트에서 <code>cudaMemcpyToSymbol</code>로 청크별로 갈아끼우며 커널을 여러 번 호출한다. 청크 사이의 누적은 GPU 글로벌 메모리의 ρ에 그대로 쌓이면 된다.</p>
+
+  <pre><code>// 샘플 데이터를 constant memory로
+struct SampleChunk {
+    float kx, ky, kz;   // 사실 SoA로 두는 게 코얼레싱에 유리
+    float Dr, Di;
+};
+__constant__ SampleChunk g_samples[CHUNK];
+
+__global__ void cmpFhD_const(
+    const float* __restrict__ x, const float* __restrict__ y, const float* __restrict__ z,
+    float* rho_r, float* rho_i, int chunk_M, int N)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n &gt;= N) return;
+
+    float xn = x[n], yn = y[n], zn = z[n];
+    float acc_r = rho_r[n], acc_i = rho_i[n];   // 이전 청크 결과 누적
+
+    #pragma unroll 4
+    for (int m = 0; m &lt; chunk_M; ++m) {
+        float phi = 2.0f * 3.14159265f *
+                    (g_samples[m].kx*xn + g_samples[m].ky*yn + g_samples[m].kz*zn);
+        float c, s;
+        __sincosf(phi, &amp;s, &amp;c);
+        acc_r += g_samples[m].Dr*c - g_samples[m].Di*s;
+        acc_i += g_samples[m].Dr*s + g_samples[m].Di*c;
+    }
+    rho_r[n] = acc_r;
+    rho_i[n] = acc_i;
+}
+</code></pre>
+
+  <p>constant memory와 broadcast 캐시 적중이 합쳐지면 메모리 트래픽이 사실상 0에 가까워진다. 이 단계에서 <strong>30 → 80 GFLOPS</strong> 수준으로 또 한 번 점프한다.</p>
+
+  <h3>17.3.5 인트린식 — sin/cos를 하드웨어 SFU로</h3>
+  <p>inner-loop의 진짜 보스는 <code>sinf, cosf</code>다. CUDA의 일반 <code>sinf</code>는 정확도를 위해 다항식 근사 + Cody-Waite 인자 축소(argument reduction)를 거치므로 한 번에 수십 ULP 정확도를 보장하지만 매우 비싸다. 반면 <code>__sinf, __cosf, __sincosf</code>는 GPU의 <strong>SFU(Special Function Unit)</strong>에 직접 매핑되어 1~2 사이클에 끝난다. 정확도는 떨어진다(상대오차 약 2<sup>-21</sup> 수준, π를 너무 큰 값으로 곱한 뒤에는 더 떨어진다).</p>
+  <p>다행히 MRI 재구성에서 phi의 범위는 적절히 제한되고, 이 정도 정밀도면 영상 품질에 유의미한 차이가 생기지 않는 경우가 많다. 단, 진단용 영상이라면 반드시 임상적 검증을 거쳐야 한다는 점은 강조하자.</p>
+  <p><code>__sincosf</code>로 갈아치우면 inner-loop의 dominant 비용이 사라진다. 이 단계에서 다시 <strong>80 → 200 GFLOPS</strong> 부근으로 도약한다.</p>
+
+  <div class="callout warn">
+    <div class="label">정밀도 trade-off</div>
+    <p><code>--use_fast_math</code> 컴파일 옵션을 켜면 모든 transcendental 함수가 인트린식으로 자동 치환된다. 편하지만, 검증 없이 임상에 쓰는 건 절대 금물. "이 데이터셋에서 픽셀별 RMS 오차 X% 이하"가 측정된 뒤에 켜야 한다.</p>
+  </div>
+
+  <h3>17.3.6 단계별 speedup 요약</h3>
+  <div class="figure">
+<pre>
+단계                                    GFLOPS    누적 speedup
+-----------------------------------------------------------
+0. 베이스라인 (gather, naive)              ~6         1.0×
+1. loop fission + 사전 계산                ~9         1.5×
+2. privatization (acc 레지스터화)         ~30         5.0×
+3. __constant__ + broadcast 캐시          ~80        13.3×
+4. __sincosf 인트린식                     ~200       33.3×
+5. (옵션) loop unrolling + 정렬 조정      ~230       38.3×
+-----------------------------------------------------------
+* 숫자는 V100급에서의 대표적 추세를 반영한 예시다.
+</pre>
+  </div>
+  <p class="figure-caption">그림 17.1 — F<sup>H</sup>D 커널의 단계적 최적화 효과. 각 단계에서 어디가 병목이었는지가 도약의 폭으로 드러난다.</p>
+
+  <p>최종적으로 베이스라인 대비 약 30~40배. CPU 멀티스레드 구현 대비로는 100~150배 수준이 흔하다. CG 50회 반복 기준 영상 한 장에 수 시간이 걸리던 것이 분 단위로 떨어진다. 이게 임상 도입 가능 여부를 가르는 차이다.</p>
+
+  <pre><code>// CG 메인 루프 골격 — F^H D는 위 커널, F^H F는 별도 커널
+void recon_cg(GPUBufs&amp; B, const KSpace&amp; D, int max_iter) {
+    cmpFhD&lt;&lt;&lt;..&gt;&gt;&gt;(D, B.rhs);     // b = F^H D
+    cudaMemset(B.rho, 0, ..);
+    copy(B.r, B.rhs); copy(B.p, B.rhs);
+    float rs_old = dot(B.r, B.r);
+
+    for (int it = 0; it &lt; max_iter; ++it) {
+        cmpFhFp&lt;&lt;&lt;..&gt;&gt;&gt;(B.p, B.Ap);            // Ap = F^H F p
+        float alpha = rs_old / dot(B.p, B.Ap);
+        axpy(B.rho, alpha, B.p);
+        axpy(B.r, -alpha, B.Ap);
+        float rs_new = dot(B.r, B.r);
+        if (rs_new &lt; tol) break;
+        scale_add(B.p, rs_new/rs_old, B.r);     // p = r + beta p
+        rs_old = rs_new;
+    }
+}
+</code></pre>
+
+  <h2>17.4 정리</h2>
+  <p>이 케이스 스터디의 진짜 교훈은 "한 방에 30배가 나오는 마법은 없다"는 것이다. 30배는 <strong>5~6단계의 작은 결정</strong>이 누적된 결과다. 매 단계마다 우리는 한 가지 병목을 정확히 진단하고, 그것에 정확히 대응하는 변환을 적용했다.</p>
+  <ul>
+    <li>scatter→gather: atomic 직렬화를 제거.</li>
+    <li>privatization: 글로벌 메모리 트래픽 제거.</li>
+    <li>constant memory: 모든 스레드가 같은 데이터를 broadcast로 받게.</li>
+    <li>인트린식: 가장 비싼 transcendental을 SFU로.</li>
+  </ul>
+  <p>다음 장에서는 같은 사고방식을 분자 시뮬레이션의 정전 포텐셜 맵에 적용한다. 거기서도 scatter vs gather, 코어스닝, 컷오프 비닝 같은 도구가 다시 등장한다. 도구는 같지만, 도메인이 던지는 제약이 다르다는 점을 음미하면 된다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>MRI는 k-space를 측정하고 푸리에 역변환으로 영상을 만든다. non-Cartesian trajectory는 모션에 강하지만 단순 IFFT를 못 쓴다.</li>
+      <li>적은 샘플로도 좋은 영상을 얻으려면 반복적 재구성이 필요하다. 대가는 inner-loop F<sup>H</sup>D의 폭발적 비용.</li>
+      <li>scatter→gather 변환으로 atomic을 제거하는 것이 첫 번째 결정이다.</li>
+      <li>privatization, constant memory broadcast, __sincosf 인트린식이 누적되어 베이스라인 대비 30~40배 성능을 만든다.</li>
+      <li>단계별 speedup 분해는 디버깅 도구이기도 하다. 도약이 안 보이는 단계가 있다면 진단이 틀린 것이다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch16.html"><span class="dir">← 이전</span><span>16장. 딥러닝과 CUDA</span></a>
+    <a href="ch18.html" class="next"><span class="dir">다음 →</span><span>18장. 케이스 스터디 — 정전 포텐셜 맵</span></a>
+  </nav>
+</article>
+</body>
+</html>

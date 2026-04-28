@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대규모 병렬 프로세서 프로그래밍 — 한국어 학습판</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>대규모 병렬 프로세서 프로그래밍</h1>
+      <p>한국어 학습판 · 23 챕터 · GPU/CUDA</p>
+    </div>
+
+    <nav>
+      <div class="part-label">Part I · 기초</div>
+      <ol class="toc" id="toc-1">
+        <li><a href="content/ch01.html" target="content"><span class="num">01</span>들어가며: 왜 병렬인가</a></li>
+        <li><a href="content/ch02.html" target="content"><span class="num">02</span>이질 컴퓨팅과 CUDA 첫걸음</a></li>
+        <li><a href="content/ch03.html" target="content"><span class="num">03</span>다차원 그리드와 데이터 매핑</a></li>
+        <li><a href="content/ch04.html" target="content"><span class="num">04</span>GPU 아키텍처와 워프 스케줄링</a></li>
+        <li><a href="content/ch05.html" target="content"><span class="num">05</span>메모리 계층과 데이터 지역성</a></li>
+        <li><a href="content/ch06.html" target="content"><span class="num">06</span>성능 고려사항: 코얼레싱·레이턴시·코어스닝</a></li>
+      </ol>
+
+      <div class="part-label">Part II · 병렬 패턴</div>
+      <ol class="toc" id="toc-2">
+        <li><a href="content/ch07.html" target="content"><span class="num">07</span>컨볼루션과 상수 메모리</a></li>
+        <li><a href="content/ch08.html" target="content"><span class="num">08</span>스텐실: 미분방정식 풀이의 GPU 처세술</a></li>
+        <li><a href="content/ch09.html" target="content"><span class="num">09</span>히스토그램: 원자 연산과 사유화</a></li>
+        <li><a href="content/ch10.html" target="content"><span class="num">10</span>리덕션: 다이버전스와의 전쟁</a></li>
+        <li><a href="content/ch11.html" target="content"><span class="num">11</span>접두사 합 (스캔)</a></li>
+        <li><a href="content/ch12.html" target="content"><span class="num">12</span>병합: 동적 입력 식별</a></li>
+      </ol>
+
+      <div class="part-label">Part III · 고급 패턴/응용</div>
+      <ol class="toc" id="toc-3">
+        <li><a href="content/ch13.html" target="content"><span class="num">13</span>정렬: 라딕스와 머지소트</a></li>
+        <li><a href="content/ch14.html" target="content"><span class="num">14</span>희소 행렬 연산</a></li>
+        <li><a href="content/ch15.html" target="content"><span class="num">15</span>그래프 탐색</a></li>
+        <li><a href="content/ch16.html" target="content"><span class="num">16</span>딥러닝과 CUDA</a></li>
+        <li><a href="content/ch17.html" target="content"><span class="num">17</span>케이스: 반복적 MRI 재구성</a></li>
+        <li><a href="content/ch18.html" target="content"><span class="num">18</span>케이스: 정전 포텐셜 맵</a></li>
+        <li><a href="content/ch19.html" target="content"><span class="num">19</span>병렬 프로그래밍과 컴퓨테이셔널 씽킹</a></li>
+      </ol>
+
+      <div class="part-label">Part IV · 고급 실전</div>
+      <ol class="toc" id="toc-4">
+        <li><a href="content/ch20.html" target="content"><span class="num">20</span>이질 클러스터: MPI + CUDA</a></li>
+        <li><a href="content/ch21.html" target="content"><span class="num">21</span>CUDA 동적 병렬성</a></li>
+        <li><a href="content/ch22.html" target="content"><span class="num">22</span>고급 실전과 미래</a></li>
+        <li><a href="content/ch23.html" target="content"><span class="num">23</span>마치며: 그래서, 다음은?</a></li>
+      </ol>
+    </nav>
+
+    <p style="margin-top:36px;color:var(--fg-mute);font-size:11.5px;line-height:1.5;">
+      서버 없이도 동작합니다. <code style="font-size:11px;">file://</code>로 열거나 정적 호스팅 어디든 OK.
+    </p>
+  </aside>
+
+  <main class="main">
+    <iframe name="content" src="content/home.html" title="챕터 본문"></iframe>
+  </main>
+
+  <script>
+    (function () {
+      const links = document.querySelectorAll('.toc a');
+      function setActive(href) {
+        links.forEach(a => {
+          if (a.getAttribute('href') === href) a.classList.add('active');
+          else a.classList.remove('active');
+        });
+      }
+      links.forEach(a => {
+        a.addEventListener('click', () => setActive(a.getAttribute('href')));
+      });
+      // Keyboard: ←/→ to navigate
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const all = Array.from(links);
+        const cur = all.findIndex(a => a.classList.contains('active'));
+        if (e.key === 'ArrowDown' || e.key === 'j') {
+          if (cur < all.length - 1) all[cur + 1].click();
+          e.preventDefault();
+        } else if (e.key === 'ArrowUp' || e.key === 'k') {
+          if (cur > 0) all[cur - 1].click();
+          e.preventDefault();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

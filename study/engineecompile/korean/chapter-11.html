@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>11장 명령어 선택 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html" class="active">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>11장. 명령어 선택</h1>
+<p class="lead">트리에 타일을 깐다 — 추상 IR을 진짜 ISA로 사상하는 패턴 매칭의 기술.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 597–638</span>
+<span><strong>키워드:</strong> tree-pattern matching, tiling, peephole optimization, instruction selection</span>
+</div>
+
+<h2>11.1 들어가며: IR과 ISA 사이의 마지막 다리</h2>
+
+<p>프론트엔드와 옵티마이저는 줄곧 <strong>IR(중간 표현)</strong> 위에서 일했다. 그러나 IR은 결국 컴파일러 내부의 자료 구조일 뿐이다. 프로그램이 진짜로 돌아가려면 누군가는 그것을 프로세서가 알아듣는 <strong>ISA(명령어 집합 구조, Instruction Set Architecture)</strong>로 옮겨야 한다. 그 다리 역할을 하는 단계가 <strong>명령어 선택(instruction selection)</strong>이다.</p>
+
+<div class="term-box">
+<span class="term">명령어 선택</span> <span class="en">(instruction selection)</span> — 컴파일러의 IR 연산 하나하나를 타깃 프로세서의 명령어로 번역하는 과정. 단순 대응이 아니라 "이 패턴엔 어떤 명령어 조합이 가장 싼가?"를 따지는 매칭 문제다.</p>
+</div>
+
+<p>"한 줄을 한 줄로 옮기면 되는 일 아닌가?"라고 묻고 싶을 수 있다. 1970년대 DEC PDP-11 시절엔 그게 가능했다. ISA가 작고 콤팩트해서 손으로 짠 단순 패스로도 좋은 코드가 나왔다. 문제는 ISA가 점점 비대해지면서 시작된다. 같은 일을 하는 길이 수십 가지인 명령어 집합 앞에서, 사람이 매번 좋은 선택을 하긴 어렵다.</p>
+
+<h3>같은 결과, 다른 길 — 단순 복사의 25가지 얼굴</h3>
+
+<p>가장 단순해 보이는 연산을 보자. <em>레지스터 <code>r<sub>i</sub></code>의 값을 <code>r<sub>j</sub></code>로 복사</em>하는 것. 자연스러운 답은 <code>i2i r<sub>i</sub> ⇒ r<sub>j</sub></code>다. 그러나 ILOC만 봐도 같은 효과를 내는 다른 길이 잔뜩 있다.</p>
+
+<pre><code>addI    r_i, 0  ⇒ r_j     subI    r_i, 0  ⇒ r_j     multI   r_i, 1  ⇒ r_j
+divI    r_i, 1  ⇒ r_j     lshiftI r_i, 0  ⇒ r_j     rshiftI r_i, 0  ⇒ r_j
+and     r_i,r_i ⇒ r_j     orI     r_i, 0  ⇒ r_j     xorI    r_i, 0  ⇒ r_j</code></pre>
+
+<p>거기에 항상 0인 레지스터가 있다면 <code>add</code>, <code>sub</code>, <code>or</code>, <code>xor</code>의 두-피연산자 형태도 다 가능하다. 메모리에 저장했다가 다시 불러오는 시퀀스도 답이다. 사람이라면 1초 만에 <code>i2i</code>를 골라버리지만, 자동화된 컴파일러는 <em>모든 가능성</em>을 검토해야 한다. 왜냐하면 단순 복사가 아닌 일반 연산에서는, 이 미묘한 선택이 모여서 코드 품질을 좌우하기 때문이다.</p>
+
+<div class="callout note">
+<div class="callout-title">선택 — 스케줄링 — 할당, 백엔드의 삼각관계</div>
+백엔드는 세 가지 일을 한다. <strong>명령어 선택</strong>(어떤 명령어를?), <strong>명령어 스케줄링</strong>(어떤 순서로?), <strong>레지스터 할당</strong>(누가 어느 레지스터에?). 셋 다 그 자체로 NP-완전 또는 그에 준하는 문제다. 더 골치 아픈 점은 셋이 <em>서로의 발목을 잡는다</em>는 거다. 같은 결과를 두 명령어로 낼 수 있고 그 둘이 다른 함수 단위를 쓴다면, 선택만 봐서는 어느 쪽이 좋은지 알 수 없다 — 스케줄까지 같이 봐야 한다. 그래서 책은 셋을 분리해서 다루되, 상호작용을 항상 의식하라고 권한다.
+</div>
+
+<h3>왜 자동화 도구가 필요한가</h3>
+
+<p>현대 ISA는 수백 개의 명령어를 가지고, 각 명령어마다 주소 지정 모드(addressing mode), 피연산자 제약, 비용이 다르다. 200개 연산에 1024개의 라벨 집합을 가진 표를 만들면 <em>2억 개</em>의 항목이 나온다. 손으로 어찌해 볼 규모가 아니다.</p>
+
+<p>그래서 명령어 선택을 자동화하는 두 가지 흐름이 자리 잡았다. 둘 다 "타깃 머신을 기술하면 도구가 매처(matcher)를 만들어준다"는 <strong>기술 기반(description-based)</strong> 접근이다.</p>
+
+<ol>
+<li><strong>트리 패턴 매칭(tree-pattern matching).</strong> IR과 ISA를 모두 트리로 표현하고, IR 트리를 ISA 트리들로 덮는 <em>타일링(tiling)</em>을 찾는다.</li>
+<li><strong>피프홀 최적화(peephole optimization).</strong> 코드 위로 작은 윈도우를 슬라이딩시키며, 그 안의 짧은 시퀀스를 더 나은 시퀀스로 다시 쓴다.</li>
+</ol>
+
+<p>겉모양은 다르지만 둘 다 <em>패턴 매칭으로 좋은 코드 시퀀스를 찾는다</em>는 한 점에 모인다. 어느 쪽이든 잘 만들면, 손으로 짠 어떤 코드 생성기보다 좋은 결과를 안정적으로 뽑아낸다.</p>
+
+<h2>11.2 코드 생성 — 풀어야 할 세 문제</h2>
+
+<p>책은 백엔드의 세 책임을 다시 한 번 정리한다. 명령어 선택, 명령어 스케줄링, 레지스터 할당. 이 세 가지를 묶어 흔히 <em>코드 생성(code generation)</em>이라 부르지만, 이 책은 가장 책임이 큰 명령어 선택만 그렇게 부른다.</p>
+
+<h3>IR의 추상도가 결정한다</h3>
+
+<p>명령어 선택의 까다로움은 <strong>IR과 ISA의 추상도 차이</strong>에서 온다. IR이 ISA보다 추상도가 높으면, 선택기는 가려진 디테일을 채워 넣어야 한다(예: 변수 접근의 주소 계산). IR이 더 낮으면, 선택기는 그냥 그 디테일을 쳐다보면서 자기 결정에 반영하면 된다. 보통 후자가 더 좋은 코드로 이어진다.</p>
+
+<table>
+<thead>
+<tr><th>타깃</th><th>난이도</th><th>한 줄 요약</th></tr>
+</thead>
+<tbody>
+<tr><td>스칼라 RISC</td><td>가장 단순</td><td>IR 연산 1개당 ISA 명령어 1~2개. 거의 직역.</td></tr>
+<tr><td>CISC</td><td>중간</td><td>여러 IR 연산을 묶어 한 명령어로. <em>덩어리 매칭</em> 필요.</td></tr>
+<tr><td>스택 머신</td><td>다른 방식</td><td>3-주소를 스택 기반 1-주소로. 패러다임 자체가 다름.</td></tr>
+</tbody>
+</table>
+
+<p>여기서 한 가지 진실이 드러난다. <strong>ISA가 풍부할수록 선택기의 일이 늘어난다.</strong> 단순 복사 하나에도 25가지 길이 있는데, 200개 연산에 다양한 주소 지정 모드까지 더하면 탐색 공간은 수억 가지가 된다. 사람이 손으로 짠 휴리스틱으로는 감당이 안 된다.</p>
+
+<h3>비용은 단일 숫자가 아니다</h3>
+
+<p>각 명령어 시퀀스에는 <em>비용(cost)</em>이 따르는데, 이게 단순한 사이클 수만은 아니다. 똑같은 더하기 연산이라도 어떤 함수 단위에서 도느냐에 따라 빨라질 수도 있다. 예컨대 다른 단위들이 모두 바쁜데 어떤 곱셈 단위가 한가하다면, 그 한가한 단위에 일을 떠맡기면 사실상 공짜다. 메모리 시스템의 상태에 따라 적재(load)의 비용도 매번 다르다.</p>
+
+<p>여기에 환경 비용도 끼어든다. 배터리 동작 기기라면 <em>에너지</em>가 척도가 되고, 임베디드라면 <em>코드 크기</em>가 가장 비싼 자원이다. 그러니 비용 모델은 타깃 기기마다 다시 짜야 한다.</p>
+
+<h2>11.3 단순 트리워크 방식 확장하기</h2>
+
+<p>가장 소박한 코드 생성기는 7장에서 본 <em>트리워크(treewalk)</em>다. AST의 각 노드 타입마다 하나의 코드 패턴을 정해두고, 트리를 후위 순회하면서 그 패턴을 발사하는 방식이다.</p>
+
+<pre><code>case IDENT:                    case NUM:
+  t1 ← base(node);                result ← NextRegister();
+  t2 ← offset(node);              emit(loadI, val(node), none, result);
+  result ← NextRegister();        break;
+  emit(loadAO, t1, t2, result);
+  break;</code></pre>
+
+<p>이 코드는 모든 변수에 대해 <em>똑같은 코드</em>를 뱉는다. <code>loadAO</code>(레지스터 두 개를 더해서 적재)를 항상 사용한다. 정확하지만, 문맥을 못 보는 게 문제다.</p>
+
+<h3>같은 곱셈, 세 가지 다른 정답</h3>
+
+<div class="figure">
+<pre>
+   e × f          e × 2          g × h
+    ×              ×              ×
+   / \            / \            / \
+ IDT IDT        IDT NUM        IDT IDT
+ (e) (f)        (e) (2)        (g) (h)
+</pre>
+<span class="figure-caption">Figure 11.2 — 같은 모양 트리, 다른 최선의 코드.</span>
+</div>
+
+<p>위 세 곱셈은 트리 모양이 똑같다. 그런데 최선의 코드는 다 다르다.</p>
+
+<ul>
+<li><code>e × f</code>: <code>loadAI</code>(주소 즉시값 적재)를 두 번 쓰면 5줄 → <strong>3줄</strong>로 줄어든다. 단순 트리워크는 이걸 못 본다.</li>
+<li><code>e × 2</code>: 상수 2를 즉시값(immediate) 형태로 곱셈에 직접 넣으면 <code>multI</code>로 처리해 명령어 수가 또 준다.</li>
+<li><code>g × h</code>: 둘 다 라벨 기반 전역 변수다. 라벨 길이에 따라 즉시값 필드에 들어가느냐가 갈린다.</li>
+</ul>
+
+<p>단순 트리워크는 IDENT 노드를 만났을 때 <em>그 부모가 무엇인지</em>를 모른다. 부모가 곱셈인지, 그 형제가 상수인지 — 이 정보가 있어야 더 좋은 명령어를 고를 수 있다. 즉, <strong>비국소 문맥(nonlocal context)</strong>이 필요하다.</p>
+
+<h3>저수준 AST — 디테일을 드러내자</h3>
+
+<p>이 문제를 풀려면 IR 자체를 더 자세히 만들어야 한다. 책은 <code>Val</code>(레지스터에 이미 있는 값), <code>Lab</code>(재배치 가능한 라벨), <code>Num</code>(상수), 그리고 <span style="font-size:1.1em">◆</span>(간접 참조, indirection) 노드를 도입한 <strong>저수준 AST(low-level AST)</strong>를 제안한다. <code>loadAI</code>나 <code>storeAI</code>에 숨어있던 주소 계산이 트리에 명시적으로 드러나는 것이다.</p>
+
+<div class="figure">
+<pre>
+                ←
+              /   \
+           +       -
+          / \     / \
+        Val Num  ◆   ×
+        ARP  4   |   / \
+                +  Num ◆
+               / \  2  |
+             Val Num   +
+             ARP -16  / \
+                    Lab Num
+                    @G  12
+</pre>
+<span class="figure-caption">Figure 11.3 — <code>a ← b - 2 × c</code>의 저수준 AST. 모든 주소 계산이 노출됨.</span>
+</div>
+
+<p>이렇게 디테일을 드러내면 좋은 코드를 뽑아낼 가능성이 열린다. 그런데 동시에 <em>고려할 매칭의 수가 폭증</em>한다. 같은 부분 트리를 구현할 길이 여러 가지가 되기 때문이다. 그래서 도구가 필요해진다.</p>
+
+<div class="callout">
+<div class="callout-title">최적성에 대한 미묘한 약속</div>
+"최적 코드 생성"이라는 말은 매혹적이다. 그러나 명령어 비용을 단일 숫자로 잡고, 스케줄링과 할당을 무시한다는 가정 위에서만 성립한다. 트리 패턴 매칭은 이 가정 아래 <strong>국소 최적(locally optimal)</strong> 코드를 뽑는다 — 각 부분 트리를 최소 비용 시퀀스로 덮는다는 의미다. 실제 실행 시간에 진짜 최적이라는 보장은, 안타깝게도, 없다.
+</div>
+
+<h2>11.4 트리 패턴 매칭으로 명령어 선택하기</h2>
+
+<p>이제 본격적인 도구의 세계다. 핵심 아이디어는 <strong>모든 것을 트리로 보자</strong>는 거다. IR도 트리, 타깃 명령어도 트리. 그러면 명령어 선택은 "큰 트리를 작은 트리들로 덮는 문제"가 된다. 마치 모자이크처럼.</p>
+
+<h3>타일링 — 트리에 타일 깔기</h3>
+
+<div class="term-box">
+<span class="term">타일링</span> <span class="en">(tiling)</span> — AST의 각 노드를 어떤 연산 트리(타일)가 구현할지 짝지어주는 매핑. 타일들이 서로 맞물려 AST 전체를 빈틈없이 덮어야 하며, 인접한 타일끼리는 <em>저장 위치 클래스</em>(레지스터 vs 메모리 vs 즉시값)가 일치해야 한다.</p>
+</div>
+
+<p>비유하자면 이렇다. AST는 욕실 바닥이다. 우리에겐 다양한 모양과 크기의 타일이 있다 — 각각 어셈블리 명령어 하나에 대응한다. 어떤 타일은 한 노드만 덮고(단순 명령), 어떤 타일은 두세 노드를 한꺼번에 덮는다(복합 명령). 타일마다 가격표가 붙어 있다. <strong>가장 싸게 바닥을 덮는 방법을 찾자.</strong> 그게 곧 가장 좋은 코드다.</p>
+
+<div class="figure">
+<pre>
+   AST 부분 트리:           가능한 타일 후보들:
+       ◆                  ┌─◆      ◆ ─┐
+       |                  │ |      |  │  rule 9 + rule 15 + rule 6
+       +                  │ +─┐  ┌─+  │  (load + add + loadI 라벨)
+      / \                 │/ │  │ \  │
+    Lab Num               │Lab│  │Num│  vs.
+    @G  12                └───┘  └───┘
+                          ┌────◆────┐  rule 11 (loadAI 직접)
+                          │   /+\   │
+                          │ Lab Num │  → 한 명령어로 끝
+                          │ @G  12  │
+                          └─────────┘
+</pre>
+<span class="figure-caption">한 부분 트리, 여러 타일링. 11번 규칙을 쓰면 1줄, 9·15·6을 합치면 3줄.</span>
+</div>
+
+<p>핵심은 같은 부분 트리를 덮는 방법이 보통 <strong>여러 가지</strong>라는 점이다. 이 모호함(ambiguity)은 약점이 아니라 자원이다. 그중 가장 싼 걸 고르면 되니까.</p>
+
+<h3>11.4.1 재작성 규칙 — 트리 문법으로 ISA 기술하기</h3>
+
+<p>각 타일을 <strong>재작성 규칙(rewrite rule)</strong>로 적는다. 한 규칙은 세 부분으로 이뤄진다.</p>
+
+<ul>
+<li><strong>생성 규칙</strong>: 트리 문법의 한 프로덕션. 예: <code>Reg → +(Reg<sub>1</sub>, Num<sub>2</sub>)</code></li>
+<li><strong>비용</strong>: 이 규칙을 사용했을 때의 추정 실행 비용. 보통 정수.</li>
+<li><strong>코드 템플릿</strong>: 매치되었을 때 발사할 어셈블리. 예: <code>addI r<sub>1</sub>, n<sub>2</sub> ⇒ r<sub>new</sub></code></li>
+</ul>
+
+<p>책의 Figure 11.4가 25개 규칙을 보여준다. 일부만 보면:</p>
+
+<table>
+<thead>
+<tr><th>#</th><th>프로덕션</th><th>비용</th><th>코드 템플릿</th></tr>
+</thead>
+<tbody>
+<tr><td>6</td><td>Reg → Lab<sub>1</sub></td><td>1</td><td><code>loadI l<sub>1</sub> ⇒ r<sub>new</sub></code></td></tr>
+<tr><td>9</td><td>Reg → ◆(Reg<sub>1</sub>)</td><td>1</td><td><code>load r<sub>1</sub> ⇒ r<sub>new</sub></code></td></tr>
+<tr><td>11</td><td>Reg → ◆(+(Reg<sub>1</sub>, Num<sub>2</sub>))</td><td>1</td><td><code>loadAI r<sub>1</sub>, n<sub>2</sub> ⇒ r<sub>new</sub></code></td></tr>
+<tr><td>15</td><td>Reg → +(Reg<sub>1</sub>, Reg<sub>2</sub>)</td><td>1</td><td><code>add r<sub>1</sub>, r<sub>2</sub> ⇒ r<sub>new</sub></code></td></tr>
+<tr><td>16</td><td>Reg → +(Reg<sub>1</sub>, Num<sub>2</sub>)</td><td>1</td><td><code>addI r<sub>1</sub>, n<sub>2</sub> ⇒ r<sub>new</sub></code></td></tr>
+</tbody>
+</table>
+
+<p>비단말(nonterminal)인 <code>Reg</code>, <code>Val</code>, <code>Num</code>, <code>Lab</code>은 값이 어디에 어떤 형태로 있는지를 인코딩한다. <code>Reg</code>는 "어떤 부분 트리가 계산해서 레지스터에 둔 값"이고, <code>Val</code>은 "이미 레지스터에 있는 값"(예: ARP), <code>Num</code>은 "즉시값으로 표현 가능한 상수"다. 이 분류 덕에 매처는 인접한 타일끼리 저장 위치가 일치하는지를 자동으로 검사할 수 있다.</p>
+
+<p>규칙 11은 특히 흥미롭다. ◆(간접)와 +(덧셈) 두 연산자를 한 번에 잡아서 <code>loadAI</code>(주소 + 즉시값) 한 줄로 처리한다. 단순 매처는 한 번에 한 연산자만 봐서 이런 융합을 놓친다.</p>
+
+<h3>11.4.2 타일링 알고리즘 — 라벨 전파</h3>
+
+<p>좋은 타일링을 어떻게 찾을까? 책의 알고리즘은 <strong>후위 순회로 라벨 집합을 채워 올리는</strong> 식으로 작동한다.</p>
+
+<pre><code>Tile(n)
+  Label(n) ← ∅
+  if n is a binary node then
+    Tile(left(n))
+    Tile(right(n))
+    for each rule r that matches n's operation
+      if left(r)  ∈ Label(left(n)) and
+         right(r) ∈ Label(right(n))
+        then Label(n) ← Label(n) ∪ {r}
+  else if n is a unary node then
+    Tile(left(n))
+    for each rule r that matches n's operation
+      if left(r) ∈ Label(left(n))
+        then Label(n) ← Label(n) ∪ {r}
+  else  /* leaf */
+    Label(n) ← {규칙 중 n의 연산을 매치하는 모든 것}</code></pre>
+
+<p>각 노드 <code>n</code>에 라벨 집합 <code>Label(n)</code>을 붙인다. 거기엔 "이 노드를 루트로 하는 부분 트리를 덮을 수 있는 규칙들의 번호"가 다 들어간다. 자식 노드들의 라벨이 정해진 다음, 그 자식들과 호환되는 규칙만 <code>Label(n)</code>에 추가한다.</p>
+
+<p>한 번의 후위 순회면 끝난다. 그 후 또 한 번 트리를 내려가면서 각 노드에서 가장 싼 매치를 골라 코드를 발사하면 된다.</p>
+
+<div class="callout note">
+<div class="callout-title">매처를 표로 미리 굽기</div>
+이 알고리즘의 안쪽 두 for 루프가 핵심 비용이다. 그래서 실제 도구들은 <em>모든 가능한 매치</em>를 미리 계산해서 3차원 표(연산 × 왼쪽 라벨 × 오른쪽 라벨)에 넣어둔다. 컴파일 시점엔 단순 표 조회만 하면 된다 — 트리 길이에 선형인 비용으로 떨어진다. 200개 연산, 1024개 라벨이면 표가 2억 항목이지만, 실제로는 매우 희소(sparse)해서 압축할 수 있다. 이걸 효율적으로 인코딩하는 기법이 트리 패턴 매처를 실용적으로 만든 결정적 진보였다.
+</div>
+
+<h3>최저 비용 매치 찾기 — 동적 계획법</h3>
+
+<p>모든 매치를 다 모은 다음, 가장 싼 걸 고르면 된다. 그런데 부분 트리의 비용은 그 부분 트리에서 골라낸 자식 부분 트리의 비용에 의존한다. 이건 전형적인 <strong>동적 계획법(dynamic programming)</strong>의 모양이다.</p>
+
+<p>각 노드에서, 각 가능한 <em>저장 위치 클래스</em>(예: Reg, Mem, Imm)별로 <strong>그 클래스로 이 부분 트리를 만드는 최저 비용</strong>을 기록한다. 부모 노드는 자식의 어느 클래스를 사용할 것인가 선택할 때, 미리 계산된 그 비용을 참조하면 된다. 후위 순회 한 번에 모든 부분 트리에 대한 국소 최적 답이 나온다.</p>
+
+<div class="term-box">
+<span class="term">국소 최적성</span> <span class="en">(local optimality)</span> — 코드의 각 지점에서 컴파일러가 더 나은 대안을 갖지 못하는 상태. 트리 패턴 매처는 각 부분 트리를 최소 비용 시퀀스로 덮는다는 의미에서 국소 최적이다. 전체 프로그램의 진정한 최적은 아니지만, 실용적인 척도다.</p>
+</div>
+
+<h3>11.4.3 도구들 — BURS 그리고 그 친구들</h3>
+
+<p>실전에서 쓰이는 자동화 접근은 네 가지다.</p>
+
+<ol>
+<li><strong>손코딩(hand-coded) 매처</strong> — Tile 알고리즘처럼 명시적으로 규칙을 검사하는 코드를 직접 짠다. 표가 작고 컴팩트.</li>
+<li><strong>유한 오토마타 기반</strong> — 트리 매칭을 일종의 트리 오토마타로 보고, 라벨 집합을 상태로 압축한다. 흔히 <strong>BURS(Bottom-Up Rewrite System)</strong>이라 부른다. 매처가 가장 빠르다.</li>
+<li><strong>파서 기반</strong> — 규칙이 결국 모호한 트리 문법이므로 파싱 알고리즘을 확장해 쓴다. 최소 비용 파스를 고르는 추가 메커니즘 필요.</li>
+<li><strong>문자열 매칭 기반</strong> — 트리를 전위(prefix) 문자열로 직선화한 뒤 문자열 매칭 알고리즘을 적용.</li>
+</ol>
+
+<p>도구별로 비용 모델의 표현력이 갈린다. 어떤 도구는 규칙당 고정 비용만 허용한다(대신 표 생성 시점에 동적 계획법을 다 끝낸다). 다른 도구는 매칭 중에 비용이 변하는 동적 비용을 허용한다(대신 컴파일 시간에 동적 계획법을 한다). 둘 다 실전에서 잘 작동한다.</p>
+
+<h2>11.5 피프홀 최적화로 명령어 선택하기</h2>
+
+<p>두 번째 길은 트리가 아닌 <strong>선형 IR</strong>에 직접 일하는 접근이다. 원래는 컴파일러 마지막에 어셈블리 코드를 다듬는 사후 최적화 기법으로 시작했지만, 그 매처 기술 자체가 강력해서 명령어 선택에까지 활용된다.</p>
+
+<h3>11.5.1 피프홀 최적화 — 좁은 창으로 보기</h3>
+
+<p>이름 그대로다. 코드 위로 작은 <strong>창(peephole, 윈도우)</strong>을 슬라이드시키며, 창에 들어온 짧은 명령어 시퀀스에서 개선 패턴을 찾아 다시 쓴다. 보통 창 크기는 2~3개 명령어 정도.</p>
+
+<div class="figure">
+<pre>
+   ┌──────────── 코드 시퀀스 ────────────┐
+   │ ...                                 │
+   │ ┌──────┐                            │
+   │ │ op1  │ ◀── 창(peephole)           │
+   │ │ op2  │     이 안만 본다           │
+   │ │ op3  │                            │
+   │ └──────┘                            │
+   │   ↓ 슬라이드                        │
+   │ ...                                 │
+   └─────────────────────────────────────┘
+</pre>
+<span class="figure-caption">창 안의 명령어 2~3개를 보고, 더 좋은 시퀀스로 다시 쓴다.</span>
+</div>
+
+<p>전형적인 패턴 하나: <em>저장한 다음 같은 위치에서 적재</em>한다면, 적재는 그냥 복사로 바꿀 수 있다.</p>
+
+<pre><code>storeAI r1     ⇒ r_arp.8       storeAI r1     ⇒ r_arp.8
+loadAI  r_arp.8 ⇒ r15      ⇒    i2i      r1     ⇒ r15</code></pre>
+
+<p>또 다른 흔한 패턴들: 항등 연산 제거(<code>addI r2, 0 ⇒ r7</code> → 그냥 <code>r2</code> 사용), 분기의 분기 단축, 죽은 조건 코드 제거, 대수적 단순화(<code>x + 0 ⇒ x</code>).</p>
+
+<h3>현대 피프홀 — 세 단계 파이프라인</h3>
+
+<p>1970년대의 피프홀은 손코딩한 패턴 한 줌으로 시작했다. 현대의 체계적 피프홀은 셋으로 나뉜다.</p>
+
+<div class="figure">
+<pre>
+   IR ──▶ ┌─────────┐ LLIR ┌──────────┐ LLIR ┌─────────┐ ──▶ ASM
+          │Expander │─────▶│Simplifier│─────▶│ Matcher │
+          │IR→LLIR  │      │LLIR→LLIR │      │LLIR→ASM │
+          └─────────┘      └──────────┘      └─────────┘
+</pre>
+<span class="figure-caption">Figure 11.8 — 피프홀 변환기의 표준 구조.</span>
+</div>
+
+<ol>
+<li><strong>확장기(Expander)</strong> — IR을 더 낮은 추상도의 LLIR(Low-Level IR)로 확장한다. 한 IR 연산이 보이지 않게 가지고 있던 <em>모든 부수 효과</em>(주소 계산, 조건 코드 변경 등)를 명시적으로 펼친다. 결정적으로 문맥에 의존하지 않는다 — 각 연산을 독립적으로 확장.</li>
+<li><strong>단순화기(Simplifier)</strong> — LLIR에 작은 창을 슬라이딩시키며 <em>전방 치환(forward substitution)</em>, 대수 단순화, 상수 폴딩, 죽은 코드 제거를 한다. 확장기가 만든 잔해를 청소하는 단계.</li>
+<li><strong>매처(Matcher)</strong> — 단순화된 LLIR을 타깃 ISA 패턴 라이브러리와 매칭해 어셈블리를 발사한다.</li>
+</ol>
+
+<h3>예제 — 13줄에서 8줄로</h3>
+
+<p>같은 식 <code>a ← b - 2 × c</code>를 4-원소 튜플(quadruple) IR에서 시작해보자. 확장기가 LLIR로 펼치면 14줄짜리 시퀀스가 나온다.</p>
+
+<pre><code>r10 ← 2                r17 ← r_arp + r16
+r11 ← @G               r18 ← M(r17)
+r12 ← 12               r19 ← M(r18)
+r13 ← r11 + r12        r20 ← r19 - r15
+r14 ← M(r13)           r21 ← 4
+r15 ← r10 × r14        r22 ← r_arp + r21
+r16 ← -16              M(r22) ← r20</code></pre>
+
+<p>단순화기가 3개 명령어 창을 슬라이드시키며 청소한다. 한 단계씩 보면(Figure 11.10):</p>
+
+<ul>
+<li><strong>창 1~2</strong>: 단순화 불가. 위에서 명령어를 밀어내고 새 명령어를 끌어온다.</li>
+<li><strong>창 3</strong>: <code>r12 ← 12</code>를 <code>r13</code>의 정의에 전방 치환. <code>r12</code>가 죽으니 그 정의도 제거. <code>r14 ← M(r11 + 12)</code>로 융합.</li>
+<li><strong>창 6</strong>: <code>-16</code>을 <code>r17</code>의 덧셈에 치환 → <code>r17 ← r_arp - 16</code>.</li>
+<li>이런 식으로 13단계를 거쳐 14줄이 8줄로 줄어든다. 레지스터 사용도 13개에서 7개로.</li>
+</ul>
+
+<p>마지막으로 매처가 이 8줄짜리 LLIR을 ILOC 8줄로 사상한다 — <code>loadAI</code>나 <code>storeAI</code>처럼 +와 ◆를 한 번에 처리하는 명령어로.</p>
+
+<h3>죽은 값 인식 — 단순화의 심장</h3>
+
+<p>전방 치환을 하려면 "<em>치환 후엔 원래 정의를 지워도 되는가?</em>"를 알아야 한다. 즉 그 값이 <strong>죽었는가(dead)</strong>를 판단해야 한다. 확장기가 LLIR을 만들 때 <strong>마지막 사용(last use)</strong> 정보를 같이 붙여주면 된다.</p>
+
+<div class="term-box">
+<span class="term">마지막 사용</span> <span class="en">(last use)</span> — 어떤 이름이 표현하는 값을 더 이상 참조하지 않는, 마지막 참조 지점. 이후로는 그 값이 죽은 상태(dead). 단순화기가 정의를 안전하게 제거할 수 있는지 판단하는 핵심 정보.</p>
+</div>
+
+<p>9.2장의 LiveOut 분석을 블록 단위로 돌리고, 그 정보를 블록 끝부터 거꾸로 전파하면서 각 명령어 시점의 LiveNow 집합을 만든다. <code>r<sub>j</sub> ← r<sub>i</sub> op r<sub>k</sub></code>를 처리할 때 <code>r<sub>i</sub>, r<sub>k</sub></code>는 LiveNow에 추가하고 <code>r<sub>j</sub></code>는 제거. 각 시점의 LiveNow가 그 시점에서 살아있는 이름들이다.</p>
+
+<h3>제어 흐름과 조건 코드</h3>
+
+<p>분기, 점프, 라벨이 나오면 단순화기는 보수적으로 창을 비운다. 그래야 어떤 효과가 다른 경로로 옮겨가지 않는다. 단, 똑똑한 단순화기는 분기 양쪽 문맥을 봐서 안전한 단순화를 더 할 수 있다.</p>
+
+<p>조건 코드(condition code)도 까다롭다. <code>×</code>와 <code>+</code> 둘 다 조건 코드를 설정한다고 하자. 곱셈-덧셈 융합 명령어가 있다면 두 연산을 합칠 수 있는데, 그러려면 <em>중간의 조건 코드 설정이 죽었어야</em> 한다 — 조건 코드를 두 번 설정하는 융합 명령어는 없으니까. 단순화기는 이걸 추적해야 한다.</p>
+
+<h3>물리적 창 vs 논리적 창</h3>
+
+<p>물리적으로 인접한 명령어만 보는 창은 한계가 있다. 현대 IR은 명령어 수준 병렬성을 위해 독립 연산을 일부러 섞어둔다. 그러면 정작 관련된 연산이 창 안에 같이 들어오지 못한다.</p>
+
+<p>해법은 <strong>논리적 창(logical window)</strong>이다. 물리적 인접이 아니라 <em>값의 흐름</em>으로 연결된 명령어들을 한 창에 모은다. 정의-사용 링크를 따라가며 창을 구성하는 식이다. 같은 블록 안에서는 손쉽고, 슈퍼로컬(superlocal) 영역까지는 무리 없이 확장된다. 글로벌로 가면 분석 비용이 급증한다.</p>
+
+<h3>11.5.2 피프홀 변환기 — 명령어 선택기로</h3>
+
+<p>패턴 라이브러리만 충분히 크면, 위 세 단계 파이프라인 자체가 명령어 선택기가 된다. 입력은 컴파일러 IR, 출력은 어셈블리. 16비트에서 32비트, 64비트로 ISA가 커지면서 패턴 수가 폭발했고, 이를 자동 생성하는 도구들이 나오면서 피프홀 기반 명령어 선택은 트리 매칭과 어깨를 나란히 하는 기술이 되었다.</p>
+
+<p>대표적 사례가 GCC다. GCC는 RTL(Register Transfer Language)이라는 저수준 IR을 쓰고, 백엔드는 RTL을 어셈블리로 번역하는 피프홀 방식이다. 단순화기는 기호 해석(symbolic interpretation)으로 구현되어 있고, 매처는 머신 기술로부터 자동 생성된 트리 패턴 매처다. Davidson의 VPO도 이 계보의 또 다른 명작이다.</p>
+
+<div class="callout note">
+<div class="callout-title">RISC vs CISC, 그리고 명령어 선택</div>
+초기 RISC 옹호자들은 "RISC가 단순하니 컴파일러도 단순할 것"이라고 봤다. 사실 RISC는 명령어 선택을 정말로 단순하게 했다 — 길이 적으니. 그러나 로드-스토어 구조가 레지스터 할당의 중요성을 키웠다. CISC는 정반대다. 한 명령어가 더 큰 일을 하므로 매처는 큰 패턴을 인식해야 한다. 그러니 자동화 도구의 가치는 CISC에서 더 크다. 다만 RISC에서도 같은 도구가 잘 작동한다는 점은 변함없다.
+</div>
+
+<h2>11.6 고급 주제</h2>
+
+<h3>11.6.1 피프홀 패턴 학습</h3>
+
+<p>피프홀 옵티마이저의 패턴 라이브러리를 손으로 만드는 건 끔찍한 일이다. 누군가는 ISA의 거의 모든 단축 패턴을 다 적어줘야 한다. 그래서 <strong>학습</strong> 접근이 등장했다.</p>
+
+<p>아이디어는 이렇다. 한쪽엔 빠르지만 패턴 라이브러리에 의존하는 매처, 다른 쪽엔 느리지만 기호 해석(symbolic simplification)으로 모든 입력을 처리할 수 있는 단순화기를 둔다. 컴파일을 돌릴 때마다 기호 단순화기가 본 입력-출력 쌍을 기록한다. 그 쌍이 곧 새 패턴이 되어 빠른 매처의 표에 추가된다.</p>
+
+<ul>
+<li>훈련 셋(training set) 컴파일을 통해 라이브러리가 풍부해진다.</li>
+<li>컴파일 시점에 매처에 패턴이 없으면, 기호 단순화기를 호출해서 채운다.</li>
+<li>실패한 시도도 기록해서 같은 패턴을 두 번 검색하는 낭비를 막는다.</li>
+</ul>
+
+<p>장점은 분명하다. 손으로 적지 않아도 ISA 커버리지가 자연스럽게 늘어난다. 단점은 패턴 표 업데이트의 신뢰성·동기화 문제다. 보통은 주기적으로 표를 점검하고 갱신하는 식으로 운영한다.</p>
+
+<h3>11.6.2 명령어 시퀀스 생성 — 무차별 탐색</h3>
+
+<p>또 다른 접근은 정직한 무차별 탐색이다. <em>이 짧은 시퀀스를 더 빠르게 할 방법이 있을까?</em>를 묻는다.</p>
+
+<ol>
+<li>비용이 1인 모든 어셈블리 시퀀스를 생성한다.</li>
+<li>각각을 같은 인자에 적용하고 결과를 비교한다.</li>
+<li>일치하면 종료. 아니면 비용 2짜리로 넘어간다.</li>
+<li>찾을 때까지(혹은 외부 시간/비용 한계까지) 반복.</li>
+</ol>
+
+<p>정확성 검사는 형식적 모델보다 <em>실행해서 비교</em>가 더 빠르다. 입력 몇 개를 잘 골라 실행해보면, 대부분의 부적절한 후보는 즉시 걸러진다. 그래도 비용이 매우 크다는 건 변함없다. 그래서 이 접근은 두 가지 시나리오에서만 가성비가 난다.</p>
+
+<ul>
+<li><strong>임베디드 시스템의 핵심 루프</strong> — 한 줌의 코드에 엄청난 정성을 들일 가치가 있을 때.</li>
+<li><strong>새 ISA로 컴파일러 포팅</strong> — 컴파일러가 자주 생성하는 IR 시퀀스에 대해 한 번 비싼 탐색을 하고, 그 결과를 두고두고 재사용.</li>
+</ul>
+
+<h2>11.7 요약 — 패턴 매칭의 기예</h2>
+
+<p>명령어 선택의 본질은 패턴 매칭이다. 어려움의 정도는 IR과 ISA의 추상도 차이, 타깃 머신의 복잡도, 그리고 원하는 코드 품질에 비례한다.</p>
+
+<table>
+<thead>
+<tr><th>접근</th><th>입력</th><th>핵심 무기</th><th>최적성</th><th>사례</th></tr>
+</thead>
+<tbody>
+<tr><td>트리 패턴 매칭</td><td>저수준 AST</td><td>BURS 오토마타, 동적 계획법</td><td>국소 최적 (비용 모델 가정)</td><td>LCC</td></tr>
+<tr><td>피프홀 변환</td><td>저수준 선형 IR</td><td>확장-단순화-매처 파이프라인</td><td>경험적 — 주장 없음</td><td>GCC, VPO</td></tr>
+<tr><td>학습 기반 피프홀</td><td>위와 동일</td><td>기호 단순화 + 패턴 캐시</td><td>커버리지 점진 향상</td><td>일부 연구 시스템</td></tr>
+<tr><td>무차별 시퀀스 탐색</td><td>제한된 IR 단편</td><td>생성-검증 루프</td><td>실험적 최적</td><td>슈퍼옵티마이저</td></tr>
+</tbody>
+</table>
+
+<p>두 주류 접근(트리 매칭, 피프홀)은 겉모습이 매우 다르지만 같은 비전을 공유한다 — <strong>가능한 코드 시퀀스의 거대한 공간을 패턴 매칭으로 영리하게 탐색하자.</strong></p>
+
+<div class="callout">
+<div class="callout-title">백엔드 삼각형의 첫 변</div>
+명령어 선택은 백엔드의 첫 단계다. "어떤 명령어로?"를 정해두면 다음 12장에서 "어떤 순서로?"를, 13장에서 "누가 어느 레지스터에?"를 푼다. 셋이 따로 노는 척하지만 사실 서로의 결과에 영향을 받는다 — 좋은 백엔드 엔지니어는 그 상호작용을 머리에 늘 그리고 있다.
+</div>
+
+<h3>한 줄 요약</h3>
+
+<p><strong>명령어 선택 = 트리에 타일 깔기 또는 코드 위로 작은 창 슬라이드시키기</strong>. 둘 다 잘 작동하고, 둘 다 자동 도구로 만들 수 있으며, 둘 다 좋은 코드를 뽑아낸다. 다음 장은 그 코드의 <em>실행 순서</em>를 결정하는 일 — 명령어 스케줄링이다.</p>
+
+<div class="chapter-nav">
+<a href="chapter-10.html"><span class="label">← 이전</span><span>10장. 스칼라 최적화</span></a>
+<a href="chapter-12.html" class="next-link"><span class="label">다음 →</span><span>12장. 명령어 스케줄링</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

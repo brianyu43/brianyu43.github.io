@@ -1,0 +1,2095 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V13 TorchInductor / torch.compile 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA COMPILER SERIES · CONTENT-FIRST · A4 LANDSCAPE · 18p</div>
+    <h1>TorchInductor / torch.compile <span class="accent">단권화</span></h1>
+    <div class="subtitle">TorchDynamo · AOT Autograd · FX Graph · ATen Decomp · Inductor IR · Triton Codegen</div>
+    <div class="meta">
+      <div><b>Volume</b> V13/18</div>
+      <div><b>Tier</b> T4 Compilers</div>
+      <div><b>선행</b> V11 (Triton 컴파일러)</div>
+      <div><b>용도</b> torch.compile 내부 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row star"><span class="t">§1 torch.compile 전체 흐름</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2 TorchDynamo (frame intercept)</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3 AOT Autograd (fwd+bwd graph)</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">§4 FX Graph (node 종류·변환 API)</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">§5 ATen Decomposition (prims)</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6 Inductor 입력 (FakeTensor)</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">§7 Inductor IR (TensorBox·Loops)</span><span class="p">p.8</span></div>
+        <div class="row star"><span class="t">§8 Scheduling (fusion 조건)</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9 Triton Codegen</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">§10 C++ CPU Codegen 요약</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11 cudagraph 통합</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12 Inductor Config (env)</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">§13 Backend 전환</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">§14 Custom op 통합</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">§15 Guard 시스템 상세</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">§16 디버깅 / 소스 읽기</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">§17 Cheat Sheet</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더 / 매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·개념 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수하기 쉬움</span></div>
+      <div class="row"><span class="sym">★</span><span>필수·자주 참조</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>권 간 cross-ref</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유·결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함</div>
+    <div class="mono">Source: PyTorch 2.x · torch/_inductor · torch/fx · torch/_dynamo · Meta blog</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 torch.compile 전체 흐름 ============================ -->
+<section class="page" data-screen-label="02 Pipeline">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — torch.compile 전체 흐름</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 추상의 정체 <span class="ko">왜 존재</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>torch.compile</mark> = eager PyTorch를 <span class="kw">frame-level</span>에서 가로채 graph로 모은 뒤 backend compiler로 kernel을 생성하는 <span class="kw">just-in-time</span> 경로이다.
+        </div>
+        <ul>
+          <li>eager overhead (Python dispatch, allocator) 제거 → <span class="kw">kernel fusion</span></li>
+          <li>graph 추출은 <span class="kw">partial</span> — graph break 허용이 TF graph와 차별점이다</li>
+          <li>AOT Autograd로 <span class="kw">backward도 같은 IR</span>에서 컴파일된다</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 5단계 Pipeline ★ <span class="mnemonic">Dy·AO·FX·IN·CG</span></h3>
+<pre class="ascii">Python fn (eager)
+      │  ① TorchDynamo
+      │      · CPython frame intercept
+      │      · guard 생성
+      ▼
+  FX Graph  (torch operator level)
+      │  ② AOT Autograd
+      │      · fwd + bwd 분리
+      │      · joint graph → partitioner
+      ▼
+  FX Graph  (aten / prims, 2개: fwd, bwd)
+      │  ③ Decomposition
+      │      · _refs / _decomp 적용
+      ▼
+  Inductor Input IR (lowered aten)
+      │  ④ Inductor
+      │      · Loops/Pointwise/Reduction
+      │      · Scheduler fusion
+      ▼
+  Triton Python  /  C++/OpenMP
+      │  ⑤ Codegen → ptxas / gcc
+      ▼
+  PTX + SASS  /  .so</pre>
+        <p class="tiny">source: torch/_dynamo/convert_frame.py · torch/_functorch/aot_autograd.py · torch/_inductor/compile_fx.py</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 단계별 책임 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>단계</th><th>입력</th><th>출력</th><th>핵심 역할</th></tr></thead>
+          <tbody>
+            <tr><td>Dynamo</td><td>Python bytecode</td><td>FX Graph + guards</td><td>frame capture</td></tr>
+            <tr><td>AOT Autograd</td><td>FX (torch op)</td><td>fwd+bwd FX</td><td>diff graph 생성</td></tr>
+            <tr><td>Decomp</td><td>aten 고수준</td><td>prims/aten 저수준</td><td>canonical form</td></tr>
+            <tr><td>Inductor</td><td>lowered FX</td><td>Inductor IR</td><td>fusion·schedule</td></tr>
+            <tr><td>Codegen</td><td>Inductor IR</td><td>Triton/C++</td><td>kernel source</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Entry API</h3>
+<pre class="code"><span class="kw2">import</span> torch
+<span class="kw2">def</span> <span class="fn">f</span>(x, y):
+    <span class="kw2">return</span> (x + y).relu() * <span class="num2">2</span>
+
+g = torch.compile(f,
+       backend=<span class="str">"inductor"</span>,
+       mode=<span class="str">"reduce-overhead"</span>,
+       fullgraph=<span class="kw2">False</span>,
+       dynamic=<span class="kw2">None</span>)
+g(x, y)   <span class="cmt"># compile on first call</span>
+g(x, y)   <span class="cmt"># guard hit → cached kernel</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> mode preset</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>default</code></td><td>Inductor fusion, no cudagraph</td></tr>
+            <tr><td><code>reduce-overhead</code></td><td>+ cudagraph capture (decode loop)</td></tr>
+            <tr><td><code>max-autotune</code></td><td>+ matmul/conv autotune, coord descent</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Cache 위치 <span class="ko">JIT 산출물</span></h3>
+        <table class="compact">
+          <thead><tr><th>layer</th><th>경로 / key</th></tr></thead>
+          <tbody>
+            <tr><td>Dynamo</td><td><code>torch._dynamo.config.cache_size_limit</code> (per-fn)</td></tr>
+            <tr><td>Inductor FX</td><td><code>TORCHINDUCTOR_CACHE_DIR</code> · default <code>/tmp/torchinductor_$USER</code></td></tr>
+            <tr><td>Triton</td><td><code>~/.triton/cache</code> · key hash <span class="xref">↗ V11 §15</span></td></tr>
+            <tr><td>cubin</td><td>Triton cache 내부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Inductor ↔ 다른 경로</h3>
+        <ul>
+          <li>Triton 컴파일러 내부 <span class="xref">↗ V11</span> — Inductor는 Triton의 <span class="kw">소비자</span>다</li>
+          <li>MLIR lowering 일반 <span class="xref">↗ V12</span></li>
+          <li>XLA / TVM 비교 <span class="xref">↗ V14</span></li>
+          <li>distributed training path <span class="xref">↗ V17</span></li>
+        </ul>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        5단계: <span class="key">Dy · AO · FX · IN · CG</span>
+        (Dynamo → AOT → FX(prims) → Inductor → Codegen)
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">Out of scope</span>: PyTorch 사용법 일반 (model 정의·dataloader·optimizer 선택 등). 이 권은 <mark>컴파일 경로</mark>만 다룬다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 02</span>
+    <span class="tiny">torch.compile pipeline</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 3: §2 TorchDynamo ============================ -->
+<section class="page" data-screen-label="03 Dynamo">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — TorchDynamo</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Frame Evaluation 가로채기 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>TorchDynamo</mark>는 CPython <span class="kw">PEP 523</span> frame-eval 훅을 통해 Python 함수 실행 직전 bytecode를 분석해 <span class="kw">FX Graph</span>로 변환한다.
+        </div>
+        <ul>
+          <li>target: CPython 3.8+ · PEP 523 <code>_PyInterpreterState_SetEvalFrameFunc</code></li>
+          <li>대상: <span class="kw">tensor-producing</span> op만 trace, Python 제어흐름은 유지</li>
+          <li>결과: <span class="kw">FX Graph</span> + <span class="kw">guard set</span> + residual bytecode</li>
+        </ul>
+        <p class="tiny">source: torch/_dynamo/convert_frame.py (v2.x)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Symbolic Evaluator</h3>
+<pre class="ascii">Python frame
+  bytecode = co_code
+  for each op:
+    if op produces Tensor:
+      → trace into FX
+      → record Guard(expr)
+    elif op needs concrete value:
+      → graph break
+      → fallback to eager
+    else:
+      → emit residual bytecode</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> FakeTensor & shape prop</h3>
+        <ul>
+          <li>trace 시 실제 tensor 대신 <mark>FakeTensor</mark> (shape+dtype+device만)</li>
+          <li>실제 compute 0회 · metadata만 흘림</li>
+          <li>dynamic shape은 <span class="kw">SymInt</span>로 상징화 <span class="xref">↗ §15</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Guard 시스템 기본 ★</h3>
+        <table class="compact">
+          <thead><tr><th>guard 종류</th><th>체크 대상</th></tr></thead>
+          <tbody>
+            <tr><td><code>TENSOR_MATCH</code></td><td>dtype · device · stride · size</td></tr>
+            <tr><td><code>CONSTANT_MATCH</code></td><td>Python int/bool/None 상수</td></tr>
+            <tr><td><code>TYPE_MATCH</code></td><td>object type identity</td></tr>
+            <tr><td><code>ID_MATCH</code></td><td>특정 object id (module param)</td></tr>
+            <tr><td><code>DUPLICATE_INPUT</code></td><td>alias 관계 (x is y)</td></tr>
+            <tr><td><code>DICT_KEYS</code></td><td>dict의 key 집합</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">각 guard는 C++로 lowering되어 call 당 ~ns overhead (v2.3+)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Graph break 조건</h3>
+        <ul>
+          <li>Python <span class="red">data-dependent</span> control (<code>if x.item() &gt; 0</code>)</li>
+          <li>지원 안 된 builtin (<code>print</code>, <code>input</code> 등)</li>
+          <li><span class="kw">.numpy()</span> / <span class="kw">CPU scalar</span> 추출</li>
+          <li>unsupported <code>torch.*</code> op (목록 있음)</li>
+          <li>사용자 <code>@torch._dynamo.graph_break()</code></li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <code>fullgraph=True</code>이면 graph break 시 <span class="red">raise</span>. 디버깅용.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> explain API <span class="ko">진단</span></h3>
+<pre class="code"><span class="kw2">from</span> torch._dynamo <span class="kw2">import</span> explain
+exp = explain(f)(x, y)
+<span class="fn">print</span>(exp.graph_count,
+      exp.graph_break_count,
+      exp.break_reasons)</pre>
+        <p class="tiny">반환: graph 수, break 수, 각 break의 (op, reason, stack)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Recompile 트리거</h3>
+        <table class="compact">
+          <thead><tr><th>조건</th><th>재컴파일?</th></tr></thead>
+          <tbody>
+            <tr><td>shape 변화 (static)</td><td>예</td></tr>
+            <tr><td>shape 변화 (dynamic=True)</td><td>대개 아니오</td></tr>
+            <tr><td>dtype 변화</td><td>예</td></tr>
+            <tr><td>device 변화</td><td>예</td></tr>
+            <tr><td>value 변화 (Tensor)</td><td>아니오</td></tr>
+            <tr><td>Python 상수 변화</td><td>예</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> cache_size_limit</h3>
+        <div class="formula">
+          n<sub>recompile</sub> &gt; <code>cache_size_limit</code> → <mark>disable</mark>
+          <span class="legend">default 8. 초과 시 해당 frame은 eager 실행. 많은 shape 변화가 예상되면 <code>dynamic=True</code>를 먼저 시도.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 03</span>
+    <span class="tiny">TorchDynamo frame capture</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 4: §3 AOT Autograd ============================ -->
+<section class="page" data-screen-label="04 AOT Autograd">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — AOT Autograd</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 존재 이유 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>AOT Autograd</mark>는 Dynamo가 추출한 forward graph로부터 <span class="kw">backward graph</span>를 <span class="kw">ahead-of-time</span>에 생성해, Inductor가 fwd/bwd 양쪽을 <span class="kw">같은 IR 수준</span>에서 최적화하도록 한다.
+        </div>
+        <ul>
+          <li>eager autograd: backward는 runtime에 <span class="kw">autograd engine</span>이 구성 → fusion 대상 불가</li>
+          <li>AOT: backward를 FX Graph로 미리 구성 → <span class="kw">fusion · decomp 적용 가능</span></li>
+        </ul>
+        <p class="tiny">source: torch/_functorch/aot_autograd.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Joint Graph</h3>
+<pre class="ascii">inputs:   (x1, x2, ..., xk)          primals
+labels:   (l1, ..., lm)               (loss inputs)
+outputs:  (y1, ..., yn)               forward outputs
+            + (g1, ..., gk)           backward grads
+
+joint_fn(primals, tangents) -> (outs, grad_ins)
+  = torch.autograd.Function.apply
+     but traced into ONE FX graph</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> aot_function API</h3>
+<pre class="code"><span class="kw2">from</span> torch._functorch.aot_autograd <span class="kw2">import</span> aot_function
+compiled = aot_function(
+   fn,
+   fw_compiler=my_fw,   <span class="cmt"># FX -&gt; callable</span>
+   bw_compiler=my_bw,
+   partition_fn=default_partition,
+   decompositions=core_aten)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Partitioner ★</h3>
+        <div class="def"><span class="label">정의</span>
+          joint graph를 <mark>forward subgraph</mark>와 <mark>backward subgraph</mark>로 분할하는 pass. 경계는 <span class="kw">saved tensor</span>로 명시화된다.
+        </div>
+        <ul>
+          <li><code>default_partition</code>: autograd와 동일한 activation 저장</li>
+          <li><code>min_cut_rematerialization_partition</code>: <span class="kw">recompute</span>로 saved tensor 감소 (checkpointing) <span class="xref">↗ V17 §7</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Saved tensor 결정</h3>
+        <div class="formula">
+          saved = {t : t ∈ fwd outputs · required by bwd}
+          <span class="legend">min-cut partitioner는 graph를 directed graph로 보고 fwd-side/bwd-side 사이의 <mark>min cut</mark>을 찾아 전달 tensor를 최소화한다. cut 비용 = tensor memory.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> functionalization</h3>
+        <ul>
+          <li>in-place op (<code>add_</code>, <code>relu_</code>) → <span class="kw">out-of-place</span>로 재작성</li>
+          <li>view는 copy로 구체화되지 않고 <span class="kw">alias info</span>로 전달</li>
+          <li>이유: fusion/decomp가 pure functional IR을 가정</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> aot_module <span class="ko">nn.Module</span></h3>
+<pre class="code">compiled = aot_module(
+   mod,
+   fw_compiler=inductor_fw,
+   bw_compiler=inductor_bw)</pre>
+        <ul>
+          <li>module param/buffer는 <span class="kw">graph input</span>으로 승격</li>
+          <li>state-free functional form으로 compile</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Inference-only 경로</h3>
+        <ul>
+          <li><code>torch.no_grad()</code> 또는 <code>inference_mode</code>이면 AOT가 <span class="kw">forward graph만</span> 생성</li>
+          <li>partitioner 호출 없음, bwd compiler 미사용</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          eager에서 <code>requires_grad=True</code>인 입력은 compile 경로로 들어가면 bwd graph가 항상 생성된다. inference 경로를 원하면 <code>no_grad</code>를 명시.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 세 경로 대조</h3>
+        <table class="compact">
+          <thead><tr><th>경로</th><th>fwd</th><th>bwd</th></tr></thead>
+          <tbody>
+            <tr><td>eager</td><td>immediate</td><td>runtime tape</td></tr>
+            <tr><td>no_grad compile</td><td>FX</td><td>없음</td></tr>
+            <tr><td>train compile</td><td>fwd FX</td><td>bwd FX</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 04</span>
+    <span class="tiny">AOT Autograd / partitioner</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 5: §4 FX Graph ============================ -->
+<section class="page" data-screen-label="05 FX Graph">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — FX Graph</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> torch.fx.Graph ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>FX Graph</mark>는 Python-level의 <span class="kw">static single assignment</span>형 DAG이다. Node는 operation, edge는 tensor value dependency다.
+        </div>
+        <ul>
+          <li>Python 객체 — C++ IR 아님</li>
+          <li>pretty-printable, <code>print(gm.graph)</code>로 즉시 관측</li>
+          <li>transform은 <span class="kw">Python rewriter</span>로 작성</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Node 종류 전체표</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th><th>target</th></tr></thead>
+          <tbody>
+            <tr><td><code>placeholder</code></td><td>graph input</td><td>arg name</td></tr>
+            <tr><td><code>get_attr</code></td><td>module attribute</td><td>attr path</td></tr>
+            <tr><td><code>call_function</code></td><td>free fn</td><td>callable</td></tr>
+            <tr><td><code>call_method</code></td><td>self.method()</td><td>method name</td></tr>
+            <tr><td><code>call_module</code></td><td>sub-module</td><td>module path</td></tr>
+            <tr><td><code>output</code></td><td>graph return</td><td>tuple of nodes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Node 필드</h3>
+        <ul>
+          <li><code>op</code>, <code>target</code>, <code>args</code>, <code>kwargs</code>, <code>name</code></li>
+          <li><code>meta['val']</code> — FakeTensor (shape/dtype/device)</li>
+          <li><code>meta['stack_trace']</code> — 원본 코드 위치</li>
+          <li><code>users</code>, <code>all_input_nodes</code> — DAG edge</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 예시: f(x) = relu(x·W + b)</h3>
+<pre class="code"><span class="kw2">def</span> <span class="fn">f</span>(x, W, b):
+    y = x @ W
+    z = y + b
+    <span class="kw2">return</span> z.relu()
+
+gm = torch.fx.symbolic_trace(f)
+<span class="fn">print</span>(gm.graph)</pre>
+<pre class="ascii">graph():
+  %x : [num_users=1] = placeholder[target=x]
+  %W : [num_users=1] = placeholder[target=W]
+  %b : [num_users=1] = placeholder[target=b]
+  %matmul : call_function[target=torch.matmul](args=(%x, %W))
+  %add    : call_function[target=operator.add](args=(%matmul, %b))
+  %relu   : call_method[target=relu](args=(%add,))
+  return (%relu,)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 변환 API</h3>
+<pre class="code"><span class="cmt"># 1) node-by-node walk</span>
+<span class="kw2">for</span> n <span class="kw2">in</span> gm.graph.nodes:
+    <span class="kw2">if</span> n.op == <span class="str">"call_function"</span> <span class="kw2">and</span> \
+       n.target <span class="kw2">is</span> operator.add:
+        <span class="kw2">with</span> gm.graph.inserting_after(n):
+            new = gm.graph.call_function(
+                torch.add, n.args)
+            n.replace_all_uses_with(new)
+            gm.graph.erase_node(n)
+gm.recompile()</pre>
+        <ul>
+          <li><code>replace_pattern</code> — subgraph rewrite</li>
+          <li><code>Interpreter</code> — 재실행으로 meta 재계산</li>
+          <li><code>Transformer</code> — node 변환 framework</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> GraphModule</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>GraphModule</mark> = Graph + owning nn.Module. <code>.recompile()</code> 호출 시 Graph로부터 <span class="kw">Python source</span>를 생성해 <code>forward()</code>로 저장한다.
+        </div>
+        <p class="tiny">생성된 source는 <code>gm.code</code>로 확인 — eager fallback 및 디버깅의 핵심.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Symbolic Trace vs Dynamo</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>symbolic_trace</th><th>Dynamo</th></tr></thead>
+          <tbody>
+            <tr><td>메커니즘</td><td>Proxy tensor</td><td>bytecode</td></tr>
+            <tr><td>제어흐름</td><td>불가</td><td>graph break</td></tr>
+            <tr><td>dynamic shape</td><td>제한적</td><td>SymInt</td></tr>
+            <tr><td>guard</td><td>없음</td><td>있음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Pass 배치 순서</h3>
+        <ol class="bullet-num">
+          <li>Dynamo → FX (torch op level)</li>
+          <li>AOT Autograd → fwd+bwd FX</li>
+          <li>Decomposition → prims/aten core</li>
+          <li>Inductor lowering → Inductor IR <span class="xref">↗ §7</span></li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <code>symbolic_trace</code>는 <span class="red">data-dependent if</span>·<code>list.append</code> 등에서 trace 불가. torch.compile은 Dynamo만 사용.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 05</span>
+    <span class="tiny">FX Graph · node 종류</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 6: §5 ATen Decomposition ============================ -->
+<section class="page" data-screen-label="06 Decomposition">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — ATen Decomposition</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Op의 두 층위 ★</h3>
+        <table class="compact">
+          <thead><tr><th>층</th><th>예</th><th>개수</th></tr></thead>
+          <tbody>
+            <tr><td><code>aten::*</code></td><td><code>softmax</code>, <code>addmm</code>, <code>layer_norm</code></td><td>~2000+</td></tr>
+            <tr><td><code>prims::*</code></td><td><code>add</code>, <code>mul</code>, <code>broadcast_in_dim</code>, <code>reduction</code></td><td>~100</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">source: torch/_refs · torch/_prims · torch/_decomp</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> canonical form</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>canonical form</mark> = 모든 고수준 aten op을 <span class="kw">core aten</span> 또는 <span class="kw">prims</span> 조합으로 풀어낸 IR. Inductor가 lowering하는 target 형식이다.
+        </div>
+        <ul>
+          <li>Inductor가 케이스 폭발을 피하도록 → 줄어든 op 집합만 처리</li>
+          <li>수학적 동치이되 <span class="kw">수치 비트단위 동일</span>은 보장하지 않음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> _refs · _decomp 역할</h3>
+        <ul>
+          <li><code>torch._refs.*</code> — op의 <span class="kw">reference</span> Python 구현 (prims 기반)</li>
+          <li><code>torch._decomp.*</code> — aten→aten 분해 (derivative-safe)</li>
+          <li><code>core_aten_decompositions()</code> — Inductor가 기본으로 받는 dict</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 예시 before/after ★ <span class="ko">softmax</span></h3>
+<pre class="ascii">BEFORE (torch op level, Dynamo 직후):
+  %a : placeholder[target=x]
+  %sm = call_function[target=aten.softmax](
+          args=(%a, -1))
+  return (%sm,)
+
+AFTER decomp (core/prims level):
+  %a  = placeholder[target=x]
+  %mx = call_function[target=aten.amax](
+          args=(%a, [-1], True))
+  %sub = call_function[target=aten.sub](
+          args=(%a, %mx))
+  %ex  = call_function[target=aten.exp](
+          args=(%sub,))
+  %sm  = call_function[target=aten.sum](
+          args=(%ex, [-1], True))
+  %div = call_function[target=aten.div](
+          args=(%ex, %sm))
+  return (%div,)</pre>
+        <p class="tiny">stable softmax: subtract amax for overflow safety <span class="xref">↗ V09 §9</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Decomp 전후 장단점</h3>
+        <table class="compact">
+          <thead><tr><th>관점</th><th>before</th><th>after</th></tr></thead>
+          <tbody>
+            <tr><td>Node 수</td><td>적음</td><td>많음</td></tr>
+            <tr><td>fusion 기회</td><td>없음</td><td>많음</td></tr>
+            <tr><td>의미 명확성</td><td>고수준</td><td>저수준</td></tr>
+            <tr><td>backward 생성</td><td>custom rule</td><td>auto</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Decomp 등록</h3>
+<pre class="code"><span class="kw2">from</span> torch._decomp <span class="kw2">import</span> register_decomposition
+<span class="kw2">from</span> torch <span class="kw2">import</span> Tensor
+
+<span class="kw2">@register_decomposition</span>(aten.mse_loss)
+<span class="kw2">def</span> <span class="fn">mse_loss</span>(x: Tensor, t: Tensor,
+             reduction: <span class="ty">int</span> = <span class="num2">1</span>):
+    d = (x - t)
+    loss = d * d
+    <span class="kw2">if</span> reduction == <span class="num2">1</span>:
+        <span class="kw2">return</span> loss.mean()
+    <span class="kw2">return</span> loss</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Decomp 우선순위</h3>
+        <ol class="bullet-num">
+          <li>user custom decomp</li>
+          <li><code>_refs</code> (prims 기반)</li>
+          <li><code>_decomp</code> (aten→aten)</li>
+          <li>decomp 없음 → Inductor fallback (extern kernel)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Opaque op 유지</h3>
+        <ul>
+          <li><code>aten::mm</code>, <code>aten::convolution</code> — decomp 대신 <span class="kw">extern kernel</span> (cuBLAS/cuDNN) 호출로 남김</li>
+          <li>Inductor <code>max-autotune</code> 모드는 Triton matmul 후보도 생성</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: 사용자 정의 op에 decomp 미등록 시 Inductor가 <span class="red">fallback</span>으로 eager 호출 → fusion 기회 소실.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 06</span>
+    <span class="tiny">aten · prims · canonical form</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 7: §6 Inductor 입력 ============================ -->
+<section class="page" data-screen-label="07 Inductor Input">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Inductor 입력 · Shape Propagation</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Entry point ★</h3>
+        <div class="def"><span class="label">정의</span>
+          Inductor는 <code>compile_fx(gm, example_inputs)</code>로 진입한다. <span class="kw">gm</span>은 이미 decomp가 적용된 FX GraphModule, <span class="kw">example_inputs</span>는 FakeTensor 목록이다.
+        </div>
+        <p class="tiny">source: torch/_inductor/compile_fx.py :: compile_fx_inner</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 입력 불변조건</h3>
+        <ul>
+          <li>graph는 <mark>functional</mark> (in-place 없음)</li>
+          <li>모든 node에 <code>meta['val']</code> (FakeTensor) 존재</li>
+          <li>op은 core aten + prims + 약간의 허용 set</li>
+          <li>dynamic shape은 <span class="kw">SymInt</span>로 표현</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> FakeTensor</h3>
+        <table class="compact">
+          <thead><tr><th>필드</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>shape</code></td><td>(s0, 64, 64)</td></tr>
+            <tr><td><code>stride</code></td><td>layout inference</td></tr>
+            <tr><td><code>dtype</code></td><td>fusion 호환성</td></tr>
+            <tr><td><code>device</code></td><td>codegen 분기</td></tr>
+            <tr><td><code>storage_offset</code></td><td>view 추적</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Shape Propagation</h3>
+<pre class="ascii">for node in graph:
+  fake_args = [a.meta['val'] for a in node.inputs]
+  out_fake  = node.target(*fake_args)     # FakeTensor op
+  node.meta['val'] = out_fake             # shape/dtype 기록</pre>
+        <ul>
+          <li>FakeTensor 연산은 <span class="kw">meta kernel</span> 호출 — 실제 memory 0</li>
+          <li>dispatch는 <code>Meta</code> key로 라우팅</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Symbolic Shape <span class="ko">dynamic</span></h3>
+        <div class="formula">
+          s<sub>i</sub> ∈ SymInt · constraint set C
+          <span class="legend">Inductor는 shape을 C의 모순이 없을 때까지 symbolic로 유지. 예: s0·s1 ≥ 1, s0 mod 8 == 0 등. guard로 방출 <span class="xref">↗ §15</span>.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Layout Inference</h3>
+        <ul>
+          <li>input stride 관측 → <span class="kw">contiguous</span>/<span class="kw">channels_last</span>/custom 분기</li>
+          <li>출력 layout은 <code>make_contiguous_strides_for(shape)</code> 기본</li>
+          <li>layout 결정은 fusion 가능성에 영향</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Lowering 개요</h3>
+<pre class="ascii">for node in gm.graph.nodes:
+  lower = LOWERINGS[node.target]
+  ir_out = lower(*input_ir_tensors,
+                 **kwargs)
+  env[node] = ir_out                # TensorBox</pre>
+        <ul>
+          <li>op별 lowering 함수는 dict에 등록</li>
+          <li>결과는 <span class="kw">TensorBox</span> (wrap Loops IR) <span class="xref">↗ §7</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Fallback 정책</h3>
+        <table class="compact">
+          <thead><tr><th>op 유형</th><th>Inductor 처리</th></tr></thead>
+          <tbody>
+            <tr><td>pointwise</td><td>Pointwise IR</td></tr>
+            <tr><td>reduction</td><td>Reduction IR</td></tr>
+            <tr><td>matmul/conv</td><td>extern (cuBLAS/cuDNN) 또는 Triton template</td></tr>
+            <tr><td>복잡 custom</td><td>eager fallback</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> backend 라우팅 분기</h3>
+        <ul>
+          <li>FakeTensor.device == "cuda" → Triton codegen</li>
+          <li>== "cpu" → C++/OpenMP codegen <span class="xref">↗ §10</span></li>
+          <li>mixed device → split subgraph</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        shape propagation이 <span class="red">실패</span>하면 guard 추가 후 재컴파일. 잦은 실패는 dynamic shape가 너무 공격적이라는 신호.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 07</span>
+    <span class="tiny">FakeTensor · shape propagation</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Inductor IR ============================ -->
+<section class="page" data-screen-label="08 Inductor IR">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Inductor IR</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> IR 계층 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          Inductor IR은 <mark>index expression</mark>으로 정의된 tensor 생산 규칙이다. 각 node는 output shape과 <span class="kw">inner function</span> <code>f(idx) → value</code>로 서술된다.
+        </div>
+        <p class="tiny">source: torch/_inductor/ir.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 클래스 전체표</h3>
+        <table class="compact">
+          <thead><tr><th>class</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><code>TensorBox</code></td><td>lowering 결과 wrapper</td></tr>
+            <tr><td><code>Loops</code></td><td>iteration 공간을 가진 base</td></tr>
+            <tr><td><code>Pointwise</code></td><td>f(idx) → v (no reduction)</td></tr>
+            <tr><td><code>Reduction</code></td><td>reduction axes + combine</td></tr>
+            <tr><td><code>Scatter</code></td><td>indirect store</td></tr>
+            <tr><td><code>MatMul</code></td><td>extern / Triton template</td></tr>
+            <tr><td><code>Buffer</code></td><td>realized storage</td></tr>
+            <tr><td><code>ComputedBuffer</code></td><td>Loops + Buffer pair</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Pointwise 예시</h3>
+<pre class="code"><span class="kw2">def</span> <span class="fn">relu_add</span>(a, b):
+    <span class="kw2">def</span> <span class="fn">inner</span>(idx):
+        x = a.load(idx)
+        y = b.load(idx)
+        <span class="kw2">return</span> ops.maximum(x + y, <span class="num2">0</span>)
+    <span class="kw2">return</span> Pointwise(
+       device=a.device,
+       dtype=a.dtype,
+       inner_fn=inner,
+       ranges=a.size)</pre>
+        <ul>
+          <li><code>inner_fn(idx)</code>는 symbolic index → value</li>
+          <li>compose는 함수 합성으로 이루어짐 (== vertical fusion 기반) <span class="xref">↗ §8</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Reduction 예시</h3>
+<pre class="code">Reduction(
+   device=x.device,
+   dst_dtype=torch.float32,
+   src_dtype=x.dtype,
+   inner_fn=<span class="kw2">lambda</span> idx, ridx:
+       x.load(idx + ridx),
+   ranges=[M],
+   reduction_ranges=[N],
+   reduction_type=<span class="str">"sum"</span>)</pre>
+        <ul>
+          <li>non-reduced axis = <code>ranges</code></li>
+          <li>reduced axis = <code>reduction_ranges</code></li>
+          <li>type: <code>sum · prod · max · min · argmax · argmin · welford</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> ops namespace</h3>
+        <table class="compact">
+          <thead><tr><th>그룹</th><th>op</th></tr></thead>
+          <tbody>
+            <tr><td>arith</td><td><code>add · sub · mul · div</code></td></tr>
+            <tr><td>math</td><td><code>exp · log · sqrt · sin · cos</code></td></tr>
+            <tr><td>relu-like</td><td><code>maximum · minimum · where</code></td></tr>
+            <tr><td>compare</td><td><code>eq · lt · le · gt · ge</code></td></tr>
+            <tr><td>cast</td><td><code>to_dtype · to_dtype_bitcast</code></td></tr>
+            <tr><td>memory</td><td><code>load · store · index_expr</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">ops는 backend에 의해 재해석 (Triton ops vs C++ ops)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Buffer 두 종류</h3>
+        <ul>
+          <li><code>InputBuffer</code> — graph input / placeholder</li>
+          <li><code>ComputedBuffer</code> — Inductor가 생성할 tensor</li>
+          <li><code>ExternKernel</code> — cuBLAS/cuDNN 호출 node</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Realization 시점</h3>
+        <div class="formula">
+          realize(node) = ∃ multiple consumers ∨ reduction boundary
+          <span class="legend">여러 소비자가 있거나 reduction을 넘어서는 tensor는 <mark>realize</mark>되어 실제 buffer가 할당된다. 그렇지 않으면 inner_fn으로 소비자에 <span class="kw">inline</span>된다 — 이것이 pointwise fusion의 메커니즘.</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        IR은 <span class="red">side-effect-free</span>. inplace는 허용되지 않으며, store는 backend codegen 단계에서만 등장한다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 08</span>
+    <span class="tiny">Inductor IR · Loops</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Scheduling ============================ -->
+<section class="page" data-screen-label="09 Scheduling">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Scheduling · Fusion</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Scheduler 역할 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Scheduler</mark>는 IR node를 <span class="kw">SchedulerNode</span>로 감싸 의존성 그래프를 구성한 뒤 <span class="kw">FusedSchedulerNode</span>로 묶어 kernel 경계를 결정한다.
+        </div>
+        <p class="tiny">source: torch/_inductor/scheduler.py :: Scheduler</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Fusion 종류</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>vertical</td><td>producer→consumer 합치기 (inner_fn 합성)</td></tr>
+            <tr><td>horizontal</td><td>동일 iteration space의 독립 node 합치기</td></tr>
+            <tr><td>reduction+pointwise</td><td>reduction 뒤 elementwise 병합</td></tr>
+            <tr><td>epilogue</td><td>matmul 뒤 pointwise 합치기 (Triton template)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Fusion의 이득</h3>
+        <ul>
+          <li>kernel launch 1회 → overhead ↓</li>
+          <li>intermediate buffer 제거 → memory BW ↓</li>
+          <li>register에서 값 재사용 → <span class="kw">L2/HBM</span> traffic ↓</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 가능/불가능 조건표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>producer</th><th>consumer</th><th>fuse?</th><th>조건</th></tr></thead>
+          <tbody>
+            <tr><td>pointwise</td><td>pointwise</td><td>예</td><td>동일 shape · elementwise index</td></tr>
+            <tr><td>pointwise</td><td>reduction</td><td>예</td><td>pointwise가 reduction 입력</td></tr>
+            <tr><td>reduction</td><td>pointwise</td><td>조건부</td><td>reduction 출력이 broadcast 없이 사용</td></tr>
+            <tr><td>reduction</td><td>reduction</td><td>조건부</td><td>axis 호환 · persistent 가능</td></tr>
+            <tr><td>pointwise</td><td>matmul</td><td>예(prologue)</td><td>Triton matmul template 한정</td></tr>
+            <tr><td>matmul</td><td>pointwise</td><td>예(epilogue)</td><td>Triton matmul template 한정</td></tr>
+            <tr><td>scatter</td><td>any</td><td>아니오</td><td>indirect store → realize</td></tr>
+            <tr><td>any</td><td>mutation</td><td>아니오</td><td>inplace 경계</td></tr>
+            <tr><td>dtype A</td><td>dtype B</td><td>예</td><td>cast op 자동 삽입</td></tr>
+            <tr><td>device A</td><td>device B</td><td>아니오</td><td>kernel 경계</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Fusion 제한 요인</h3>
+        <ol class="bullet-num">
+          <li><span class="kw">shared memory</span> 용량 (persistent reduction)</li>
+          <li><span class="kw">register</span> 압박 — 너무 많이 합치면 spill</li>
+          <li><span class="kw">iteration space</span> 불일치</li>
+          <li><span class="kw">dtype</span>·<span class="kw">device</span> 경계</li>
+          <li>명시적 <code>realize()</code> hint</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 알고리즘 개요</h3>
+<pre class="ascii">nodes = topo_sort(IR graph)
+for n in nodes:
+  for pred in n.deps:
+    if can_fuse(pred, n):
+      fuse(pred, n)            # vertical
+for n in nodes:
+  for sibling in same_range(n):
+    if can_fuse_h(n, sibling):
+      fuse_h(n, sibling)       # horizontal</pre>
+        <ul>
+          <li>cost model은 <span class="kw">memory bytes</span> 기반 heuristic</li>
+          <li>loop-order-aware (<code>loop_ordering_after_fusion</code>)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 반복 합침</h3>
+        <div class="formula">
+          합친 뒤 다시 fusion 시도 · fixed point까지 반복
+          <span class="legend">한 번의 fusion이 새로운 기회를 만들 수 있음 (예: pointwise 합침 후 reduction 경계 사라짐). 상한은 config로 설정.</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: graph break가 많으면 각 subgraph가 독립이라 <span class="red">fusion 기회 소실</span>. 먼저 graph break를 줄여라 <span class="xref">↗ §2</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 09</span>
+    <span class="tiny">Scheduler · fusion matrix</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Triton Codegen ============================ -->
+<section class="page" data-screen-label="10 Triton Codegen">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Triton Codegen</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Triton Backend 진입 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          Inductor의 CUDA codegen은 <span class="kw">TritonKernel</span> 클래스가 FusedSchedulerNode로부터 <mark>Triton Python source</mark>를 합성하여 파일로 기록한 뒤 <code>@triton.jit</code>을 통해 컴파일한다.
+        </div>
+        <p class="tiny">source: torch/_inductor/codegen/triton.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 생성 코드 skeleton</h3>
+<pre class="code"><span class="kw2">@triton.jit</span>
+<span class="kw2">def</span> <span class="fn">triton_poi_fused_add_relu_0</span>(
+    in_ptr0, in_ptr1, out_ptr0,
+    xnumel, XBLOCK: tl.constexpr):
+  xoffset = tl.program_id(<span class="num2">0</span>) * XBLOCK
+  xindex = xoffset + tl.arange(<span class="num2">0</span>, XBLOCK)
+  xmask = xindex &lt; xnumel
+  x0 = tl.load(in_ptr0 + xindex, xmask)
+  x1 = tl.load(in_ptr1 + xindex, xmask)
+  r  = tl.maximum(x0 + x1, <span class="num2">0.0</span>)
+  tl.store(out_ptr0 + xindex, r, xmask)</pre>
+        <ul>
+          <li>kernel name: <code>triton_{kind}_fused_{ops}_{hash}</code></li>
+          <li><code>kind</code>: <code>poi</code> pointwise · <code>red</code> reduction · <code>per</code> persistent</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Block Size 결정</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>심볼</th><th>기본</th></tr></thead>
+          <tbody>
+            <tr><td>x (linearized)</td><td>XBLOCK</td><td>256 / 1024</td></tr>
+            <tr><td>y (2D)</td><td>YBLOCK</td><td>16 / 32</td></tr>
+            <tr><td>r (reduction)</td><td>RBLOCK</td><td>8 / 16 / 32 ..</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">autotune config는 <code>triton_heuristics.py</code>에서 후보 생성. size_hint에 따라 분기.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Reduction 형태</h3>
+        <ul>
+          <li><mark>persistent</mark>: reduction 차원을 한 번에 register에 → no-loop · R ≤ ~2048</li>
+          <li><mark>looped</mark>: reduction loop + accumulator · R 제한 없음</li>
+          <li><mark>split</mark>: 두 kernel (partial + final)</li>
+          <li>선택 기준: reduction numel, shared memory 용량</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 출력 코드 구성</h3>
+<pre class="ascii">call_fn:
+  args: input ptr, output ptr, shape
+  grid: launch config
+  stream: current CUDA stream
+  triton_kernel[grid](... , XBLOCK=256)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Horizontal fusion in codegen</h3>
+        <ul>
+          <li>동일 grid로 여러 output을 한 kernel에 작성</li>
+          <li>서로 다른 output buffer에 <code>tl.store</code> 반복</li>
+          <li>launch overhead 상각, I/O 재사용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Matmul Template</h3>
+        <div class="def"><span class="label">정의</span>
+          <code>max-autotune</code>은 <mark>Triton mm template</mark>(<code>kernel/mm.py</code>)을 사용해 tile 크기 후보를 brute-force로 autotune하고 최적 config를 cache한다.
+        </div>
+        <ul>
+          <li>prologue: <code>load_scale · cast</code> 등 fuse</li>
+          <li>epilogue: <code>bias · gelu · layernorm</code> 등 fuse</li>
+          <li>후보는 MI300/A100/H100별로 다름</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Kernel 이름 규칙</h3>
+        <table class="compact">
+          <thead><tr><th>prefix</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>triton_poi_*</code></td><td>pointwise</td></tr>
+            <tr><td><code>triton_red_*</code></td><td>looped reduction</td></tr>
+            <tr><td><code>triton_per_*</code></td><td>persistent reduction</td></tr>
+            <tr><td><code>triton_tem_*</code></td><td>template kernel (mm/conv)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">이름으로 Inductor가 만든 어떤 kind인지 바로 읽힘.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        생성 kernel은 <span class="xref">↗ V11 §2</span> Triton pipeline으로 들어간다. num_warps·num_stages는 Inductor의 <span class="kw">autotune config</span>가 결정.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 10</span>
+    <span class="tiny">Triton kernel synthesis</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 11: §10 C++ CPU Codegen ============================ -->
+<section class="page" data-screen-label="11 CPU Codegen">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — C++ CPU Codegen (요약)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 존재 이유</h3>
+        <div class="def"><span class="label">정의</span>
+          Inductor는 CPU device에 대해 <mark>C++ source</mark>를 합성해 <code>gcc/clang</code>으로 <code>.so</code>를 빌드한 뒤 <code>dlopen</code>으로 로드한다.
+        </div>
+        <p class="tiny">source: torch/_inductor/codegen/cpp.py · cpp_wrapper.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 출력 코드 skeleton</h3>
+<pre class="code"><span class="kw2">extern</span> <span class="str">"C"</span> <span class="ty">void</span> <span class="fn">kernel</span>(
+    <span class="ty">const float</span>* in0,
+    <span class="ty">const float</span>* in1,
+    <span class="ty">float</span>* out,
+    <span class="ty">long</span> N) {
+  <span class="cmt">#pragma omp parallel for</span>
+  <span class="kw2">for</span>(<span class="ty">long</span> i=<span class="num2">0</span>; i&lt;N; i+=<span class="num2">16</span>){
+    <span class="ty">auto</span> a = at::vec::Vectorized&lt;<span class="ty">float</span>&gt;
+                ::loadu(in0+i);
+    <span class="ty">auto</span> b = at::vec::Vectorized&lt;<span class="ty">float</span>&gt;
+                ::loadu(in1+i);
+    (a + b).relu().store(out+i);
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Vectorization 경로</h3>
+        <table class="compact">
+          <thead><tr><th>ISA</th><th>width</th><th>type</th></tr></thead>
+          <tbody>
+            <tr><td>AVX2</td><td>8 × float32</td><td><code>__m256</code></td></tr>
+            <tr><td>AVX-512</td><td>16 × float32</td><td><code>__m512</code></td></tr>
+            <tr><td>NEON (ARM)</td><td>4 × float32</td><td><code>float32x4_t</code></td></tr>
+            <tr><td>SVE</td><td>scalable</td><td><code>svfloat32_t</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny"><code>at::vec::Vectorized&lt;T&gt;</code>가 ISA 추상화.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> OpenMP 병렬화</h3>
+        <ul>
+          <li>outer loop에 <code>#pragma omp parallel for</code></li>
+          <li>thread 수 = <code>torch.get_num_threads()</code></li>
+          <li>reduction은 <code>omp parallel reduction(+:acc)</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Reduction scheme</h3>
+        <div class="formula">
+          split → parallel partial → serial final
+          <span class="legend">N 큰 경우 thread별 partial accumulator를 쓴 뒤 마지막에 합친다. 숫자 결과는 thread 수에 <mark>약간</mark> 영향을 받음 (비결합성).</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Build path</h3>
+<pre class="ascii">.py source
+  → write /tmp/torchinductor_*/xx.cpp
+  → compile (gcc/clang) -&gt; .so
+  → dlopen -&gt; ctypes fn ptr
+  → call via cpp_wrapper</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> cpp_wrapper 모드</h3>
+        <ul>
+          <li><code>config.cpp_wrapper = True</code> → Python wrapper까지 C++로</li>
+          <li>dispatch overhead 제거 → deployment에 유리</li>
+          <li>AOT export 경로 (<code>torch.export</code> + AOTInductor)의 기반</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Inductor CPU 한계</h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>CPU</th><th>CUDA</th></tr></thead>
+          <tbody>
+            <tr><td>matmul</td><td>MKL/oneDNN extern</td><td>Triton/cuBLAS</td></tr>
+            <tr><td>fusion 깊이</td><td>얕음</td><td>깊음</td></tr>
+            <tr><td>dynamic shape</td><td>지원</td><td>지원</td></tr>
+            <tr><td>autotune</td><td>제한</td><td>풍부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        이 권은 <span class="kw">참고만</span>. CPU 최적화 일반은 out-of-scope — 본문은 GPU path를 다룬다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 11</span>
+    <span class="tiny">C++ / OpenMP codegen</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 12: §11 cudagraph ============================ -->
+<section class="page" data-screen-label="12 CUDAGraph">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — cudagraph 통합</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목적 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>CUDAGraph</mark>는 kernel launch 시퀀스를 <span class="kw">capture</span>한 뒤 <code>cudaGraphLaunch</code> 단 한 번으로 replay하는 API. launch당 <span class="kw">~수 μs</span> overhead를 <span class="kw">~ns 수준</span>으로 내린다.
+        </div>
+        <p class="tiny">source: torch/_inductor/cudagraph_trees.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Inductor 활성화 조건</h3>
+        <ul>
+          <li><code>mode="reduce-overhead"</code> 또는 <code>mode="max-autotune"</code></li>
+          <li>또는 <code>config.triton.cudagraphs = True</code></li>
+          <li>CUDA device에 한함</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Graph capture 조건</h3>
+        <table class="compact">
+          <thead><tr><th>요구</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>static shape</td><td>kernel launch가 shape에 의존</td></tr>
+            <tr><td>static pointer</td><td>input tensor address 고정</td></tr>
+            <tr><td>no CPU sync</td><td>capture mid에 synchronize 금지</td></tr>
+            <tr><td>no mem alloc</td><td>capture 중 new alloc 불가</td></tr>
+            <tr><td>no host→device copy</td><td>non-captureable</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Static Input Copy</h3>
+        <ul>
+          <li>Inductor는 graph 실행 시 <span class="kw">static input buffer</span>에 <mark>입력을 복사</mark>한 뒤 replay</li>
+          <li>copy 비용 vs launch 절약 trade-off</li>
+          <li><code>config.triton.cudagraph_skip_dynamic_graphs</code>로 우회</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> CUDA Graph Trees</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>cudagraph_trees</mark>는 여러 graph를 <span class="kw">memory pool</span>을 공유하며 tree 형태로 관리해, inference의 다양한 분기를 효율적으로 replay하게 한다.
+        </div>
+        <p class="tiny">default ON in v2.2+ when mode uses cudagraph</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Re-capture 트리거</h3>
+        <ol class="bullet-num">
+          <li>input shape 변화 → 새 graph</li>
+          <li>new tensor object → pointer mismatch → re-capture</li>
+          <li>warmup 단계 (첫 2~3회는 plain run)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 적용 유/불리 상황</h3>
+        <table class="compact">
+          <thead><tr><th>상황</th><th>유리도</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>LLM decode loop</td><td>★★★</td><td>small kernel × 많음</td></tr>
+            <tr><td>training step</td><td>★★</td><td>shape 거의 고정</td></tr>
+            <tr><td>prefill</td><td>★</td><td>shape 다양 → re-capture 많음</td></tr>
+            <tr><td>variable batch</td><td>△</td><td>graph explosion</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 비활성 패턴</h3>
+        <ul>
+          <li>NCCL collective (동기화 포함) — stream-aware collective 필요 <span class="xref">↗ V15 §15</span></li>
+          <li><code>.cpu()</code> / <code>.item()</code> 호출</li>
+          <li>dynamic allocator가 새 block을 요청</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 진단 env</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td><code>TORCH_LOGS=cudagraphs</code></td><td>capture 로그</td></tr>
+            <tr><td><code>TORCH_CUDAGRAPH_TRACE=1</code></td><td>trace 상세</td></tr>
+            <tr><td><code>TORCHINDUCTOR_CUDAGRAPHS=0</code></td><td>비활성</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        inference serving 경로에서의 cudagraph 통합은 <span class="xref">↗ V16 §10</span>에서 자세히 다룬다 (vLLM · SGLang pool).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 12</span>
+    <span class="tiny">cudagraph capture</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Inductor Config ============================ -->
+<section class="page" data-screen-label="13 Inductor Config">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Inductor Config</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 설정 경로</h3>
+        <ul>
+          <li><code>torch._inductor.config.*</code> — Python attr</li>
+          <li><code>TORCHINDUCTOR_*</code> env — env 변수 매핑</li>
+          <li>우선순위: env &gt; Python attr &gt; default</li>
+        </ul>
+        <p class="tiny">source: torch/_inductor/config.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 주요 bool flag</h3>
+        <table class="compact">
+          <thead><tr><th>flag</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td><code>triton.unique_kernel_names</code></td><td>kernel name 안에 op 이름 포함 (디버깅)</td></tr>
+            <tr><td><code>triton.cudagraphs</code></td><td>cudagraph 켬</td></tr>
+            <tr><td><code>coordinate_descent_tuning</code></td><td>추가 autotune</td></tr>
+            <tr><td><code>epilogue_fusion</code></td><td>matmul epilogue fuse</td></tr>
+            <tr><td><code>cpp_wrapper</code></td><td>C++ wrapper 생성</td></tr>
+            <tr><td><code>freezing</code></td><td>const folding · inference</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Size-related</h3>
+        <table class="compact">
+          <thead><tr><th>flag</th><th>뜻</th></tr></thead>
+          <tbody>
+            <tr><td><code>max_fusion_size</code></td><td>fuse 할 최대 node 수</td></tr>
+            <tr><td><code>max_autotune_gemm</code></td><td>matmul 후보 수 상한</td></tr>
+            <tr><td><code>triton.max_block</code></td><td>block size 상한 (x/y/r)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Debug flag ★</h3>
+        <table class="compact">
+          <thead><tr><th>flag / env</th><th>산출물</th></tr></thead>
+          <tbody>
+            <tr><td><code>TORCH_COMPILE_DEBUG=1</code></td><td>IR dump dir 생성</td></tr>
+            <tr><td><code>TORCH_LOGS="inductor"</code></td><td>Inductor 단계 로그</td></tr>
+            <tr><td><code>TORCH_LOGS="dynamo"</code></td><td>Dynamo 로그</td></tr>
+            <tr><td><code>TORCH_LOGS="aot"</code></td><td>AOT Autograd 로그</td></tr>
+            <tr><td><code>TORCH_LOGS="output_code"</code></td><td>생성된 Triton/C++ 소스</td></tr>
+            <tr><td><code>TORCH_LOGS="schedule"</code></td><td>scheduler 결정</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Cache dir 구조</h3>
+<pre class="ascii">/tmp/torchinductor_$USER/
+  └ &lt;fxgraph_hash&gt;/
+      ├ output_code.py        # Python wrapper
+      ├ fx_graph_readable.py  # pre-lowering
+      ├ fx_graph_runnable.py  # re-executable
+      ├ fx_graph_transformed.py
+      ├ triton_&lt;hash&gt;.py      # kernel source
+      └ fx_graph.aot_inductor.so (cpp_wrapper)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Shape policy</h3>
+        <table class="compact">
+          <thead><tr><th>flag</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td><code>dynamic_shapes</code></td><td>symbolic shape 허용</td></tr>
+            <tr><td><code>assume_static_by_default</code></td><td>첫 호출을 static로</td></tr>
+            <tr><td><code>automatic_dynamic</code></td><td>재컴파일 시 axis 자동으로 symbolic</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">자세한 동작은 <span class="xref">↗ §15</span> Guard.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Trace dump</h3>
+        <ul>
+          <li><code>TORCHINDUCTOR_TRACE=1</code> → 각 kernel call에 NVTX range</li>
+          <li>Nsight Systems로 load · kernel별 분리 관측 가능 <span class="xref">↗ V18 §12</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 권장 조합</h3>
+        <table class="compact">
+          <thead><tr><th>목적</th><th>flag</th></tr></thead>
+          <tbody>
+            <tr><td>이름 해독</td><td><code>unique_kernel_names=True</code></td></tr>
+            <tr><td>IR 확인</td><td><code>TORCH_COMPILE_DEBUG=1</code></td></tr>
+            <tr><td>kernel 소스</td><td><code>TORCH_LOGS=output_code</code></td></tr>
+            <tr><td>재현</td><td><code>fx_graph_runnable.py</code> 실행</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        디버깅 5 env: <span class="key">LOGS · DEBUG · TRACE · CACHE · NAMES</span>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 13</span>
+    <span class="tiny">config / env</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Backend 전환 ============================ -->
+<section class="page" data-screen-label="14 Backend">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Backend 전환 / Custom Backend</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> backend 인자</h3>
+        <div class="def"><span class="label">정의</span>
+          <code>torch.compile(fn, backend=...)</code>의 <mark>backend</mark>는 Dynamo가 추출한 FX GraphModule을 <span class="kw">callable</span>로 컴파일하는 함수 또는 등록된 이름이다.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 목록</h3>
+        <table class="compact">
+          <thead><tr><th>name</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><code>inductor</code></td><td>default · TorchInductor</td></tr>
+            <tr><td><code>eager</code></td><td>Dynamo만 적용 (graph 테스트)</td></tr>
+            <tr><td><code>aot_eager</code></td><td>Dynamo + AOT Autograd, backend은 eager</td></tr>
+            <tr><td><code>cudagraphs</code></td><td>Inductor 없이 cudagraph</td></tr>
+            <tr><td><code>onnxrt</code></td><td>ONNX Runtime</td></tr>
+            <tr><td><code>tvm</code></td><td>TVM <span class="xref">↗ V14</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 언제 eager?</h3>
+        <ul>
+          <li>graph break 원인만 확인 → <code>eager</code></li>
+          <li>bwd 오류 원인만 확인 → <code>aot_eager</code></li>
+          <li>Inductor 버그 격리 → <code>aot_eager</code>로 bisect</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Custom backend signature</h3>
+<pre class="code"><span class="kw2">from</span> torch._dynamo <span class="kw2">import</span> register_backend
+
+<span class="kw2">@register_backend</span>
+<span class="kw2">def</span> <span class="fn">my_be</span>(gm, example_inputs):
+    <span class="cmt"># gm: torch.fx.GraphModule</span>
+    <span class="cmt"># example_inputs: list[FakeTensor]</span>
+    <span class="kw2">return</span> <span class="kw2">lambda</span> *args: gm(*args)</pre>
+        <ul>
+          <li>signature: <code>(gm, example_inputs) → callable</code></li>
+          <li>callable은 eager-equivalent이어야 함</li>
+          <li>내부에서 AOT Autograd를 호출할지 선택</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> AOT Autograd 조합</h3>
+<pre class="code"><span class="kw2">from</span> functorch.compile <span class="kw2">import</span> \
+    aot_module_simplified
+
+<span class="kw2">def</span> <span class="fn">my_be</span>(gm, inputs):
+    <span class="kw2">return</span> aot_module_simplified(
+        gm, inputs,
+        fw_compiler=my_compile,
+        bw_compiler=my_compile)</pre>
+        <p class="tiny">backend이 fwd/bwd 모두 컴파일하려면 AOT를 명시 호출.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> backend 비교 축</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>inductor</th><th>onnxrt</th><th>tvm</th></tr></thead>
+          <tbody>
+            <tr><td>IR 수준</td><td>Inductor IR</td><td>ONNX</td><td>Relay/TIR</td></tr>
+            <tr><td>dynamic shape</td><td>지원</td><td>제한</td><td>제한</td></tr>
+            <tr><td>training</td><td>지원</td><td>미지원</td><td>미지원</td></tr>
+            <tr><td>cudagraph</td><td>내장</td><td>외부</td><td>외부</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">상세 비교는 <span class="xref">↗ V14 §15</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> list_backends()</h3>
+<pre class="code"><span class="kw2">import</span> torch
+<span class="fn">print</span>(torch._dynamo.list_backends())
+<span class="cmt"># 현재 설치된 backend 이름 목록</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> minifier 경로</h3>
+        <ul>
+          <li><code>TORCHDYNAMO_REPRO_AFTER=dynamo</code></li>
+          <li><code>TORCHDYNAMO_REPRO_AFTER=aot</code></li>
+          <li>버그를 minimal FX graph로 재현 → <span class="kw">fx_graph_runnable.py</span>로 산출</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        custom backend이 <span class="red">control flow</span>를 반환하면 Dynamo가 guard와 결합 못 함. backend은 반드시 FX Graph의 동치 callable을 돌려줄 것.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 14</span>
+    <span class="tiny">backend · register · minifier</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Custom op ============================ -->
+<section class="page" data-screen-label="15 Custom Op">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Custom op 통합</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 필요한가</h3>
+        <div class="def"><span class="label">정의</span>
+          user가 직접 작성한 CUDA/Triton kernel을 torch.compile path에 노출하려면 <mark>op registration</mark>이 필요하다. 단순 Python 함수는 Dynamo가 trace할 수 없을 수 있다.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 3 종류 impl</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>dispatch key</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>CUDA impl</td><td>CUDA</td><td>실제 GPU kernel</td></tr>
+            <tr><td>CPU impl</td><td>CPU</td><td>reference</td></tr>
+            <tr><td>Meta / Fake impl</td><td>Meta</td><td>shape inference</td></tr>
+            <tr><td>Autograd impl</td><td>AutogradCUDA</td><td>backward rule</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> custom_op API</h3>
+<pre class="code"><span class="kw2">@torch.library.custom_op</span>(
+  <span class="str">"my::scaled_add"</span>,
+  mutates_args=())
+<span class="kw2">def</span> <span class="fn">scaled_add</span>(
+  x: torch.Tensor,
+  y: torch.Tensor,
+  alpha: <span class="ty">float</span>) -&gt; torch.Tensor:
+    <span class="kw2">return</span> x + alpha * y</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Fake / Meta impl ★</h3>
+<pre class="code"><span class="kw2">@scaled_add.register_fake</span>
+<span class="kw2">def</span> <span class="fn">_</span>(x, y, alpha):
+    torch._check(x.shape == y.shape)
+    <span class="kw2">return</span> torch.empty_like(x)</pre>
+        <ul>
+          <li>fake impl은 <span class="kw">shape/dtype</span>만 돌려줌 — 실제 compute 없음</li>
+          <li>FakeTensor 경로에서 호출 (Dynamo·Inductor·AOT)</li>
+          <li>없으면 trace 실패 → eager fallback</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Backward impl</h3>
+<pre class="code"><span class="kw2">def</span> <span class="fn">setup_ctx</span>(ctx, inputs, output):
+    x, y, alpha = inputs
+    ctx.alpha = alpha
+
+<span class="kw2">def</span> <span class="fn">bwd</span>(ctx, grad):
+    <span class="kw2">return</span> (grad,
+            ctx.alpha * grad,
+            <span class="kw2">None</span>)
+
+scaled_add.register_autograd(
+    bwd, setup_context=setup_ctx)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Inductor lowering 등록</h3>
+<pre class="code"><span class="kw2">from</span> torch._inductor.lowering <span class="kw2">import</span> register_lowering
+
+<span class="kw2">@register_lowering</span>(
+    torch.ops.my.scaled_add)
+<span class="kw2">def</span> <span class="fn">_</span>(x, y, alpha):
+    <span class="kw2">return</span> x + alpha * y    <span class="cmt"># IR ops</span></pre>
+        <ul>
+          <li>등록 시 Inductor가 op을 <span class="kw">inline</span>해 fusion 가능</li>
+          <li>미등록이면 extern kernel로 유지 (fusion 불가)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 등록 계층 요약</h3>
+        <table class="compact">
+          <thead><tr><th>단계</th><th>필수?</th></tr></thead>
+          <tbody>
+            <tr><td>kernel impl (CUDA)</td><td>필수</td></tr>
+            <tr><td>fake impl</td><td>필수 (compile path)</td></tr>
+            <tr><td>autograd rule</td><td>train 시 필수</td></tr>
+            <tr><td>inductor lowering</td><td>선택 (fusion 원할 때)</td></tr>
+            <tr><td>schema mutates_args</td><td>in-place 있을 때</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> torch.library 네임스페이스</h3>
+        <ul>
+          <li><code>Library("my", "DEF")</code> — 새 op 선언</li>
+          <li><code>Library("aten", "IMPL")</code> — 기존 aten override</li>
+          <li><code>torch.library.opcheck(fn, args)</code> — 등록 정합성 검사</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: fake impl에서 <code>torch.empty_like</code>가 아닌 <span class="red">실제 compute</span>를 수행 → Inductor가 shape prop에서 실데이터를 요구해 OOM·성능 저하.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 15</span>
+    <span class="tiny">torch.library · custom_op · fake</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Guard 시스템 ============================ -->
+<section class="page" data-screen-label="16 Guard">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Guard 시스템 상세</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Guard의 책임</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Guard</mark>는 cached compile 결과가 현재 call에 유효한지를 <span class="kw">call당</span> 검증하는 술어이다. 하나라도 false면 <span class="kw">재컴파일</span> 또는 <span class="kw">cache miss</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Static vs Symbolic</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>static</th><th>symbolic</th></tr></thead>
+          <tbody>
+            <tr><td>의미</td><td>특정 값으로 특화</td><td>SymInt로 일반화</td></tr>
+            <tr><td>guard</td><td>equality</td><td>range / constraint</td></tr>
+            <tr><td>codegen</td><td>상수 embed</td><td>runtime arg</td></tr>
+            <tr><td>성능</td><td>↑ (상수 fold)</td><td>약간 ↓</td></tr>
+            <tr><td>재컴파일</td><td>값 바뀌면</td><td>거의 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> SymInt / SymFloat</h3>
+        <ul>
+          <li><code>SymInt</code> = symbolic integer, 대수 연산 지원</li>
+          <li>backing state: <code>ShapeEnv</code>가 constraint 보관</li>
+          <li>shape 관련 비교는 <span class="kw">guard 생성</span>의 주요 원천</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Guard 생성 시점</h3>
+<pre class="ascii">trace:
+  if x.shape[0] == 1024:     # guard: s0 == 1024  (static)
+  if x.shape[0] &gt; 0:         # guard: s0 &gt; 0        (constraint)
+  y = torch.empty(x.shape)   # no guard (shape-passthrough)
+  z = x.view(-1, 8)          # guard: s0 mod 8 == 0</pre>
+        <p class="tiny">source: torch/fx/experimental/symbolic_shapes.py</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> dynamic=True 효과</h3>
+        <ul>
+          <li>모든 shape을 SymInt로 시작</li>
+          <li>constraint는 필요 시만 추가</li>
+          <li>재컴파일 <span class="kw">훨씬 감소</span></li>
+          <li>단, fusion 기회 약간 감소</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> mark_dynamic / mark_static</h3>
+<pre class="code">torch._dynamo.mark_dynamic(x, <span class="num2">0</span>)
+<span class="cmt"># axis 0만 symbolic, 나머지 static</span>
+torch._dynamo.mark_static(y, <span class="num2">1</span>)
+<span class="cmt"># axis 1은 반드시 특정 값으로 컴파일</span></pre>
+        <ul>
+          <li>mixed 정책: 일부 axis만 dynamic</li>
+          <li>초기 호출에서 한 번 호출 → Dynamo hint</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 재컴파일 감소 전략</h3>
+        <ol class="bullet-num">
+          <li>padding/bucketing으로 shape을 <span class="kw">고정된 bucket 집합</span>에 정렬</li>
+          <li><code>dynamic=True</code> 또는 <code>mark_dynamic</code>으로 symbolic화</li>
+          <li><code>cache_size_limit</code> 조정</li>
+          <li>graph break 제거 (재컴파일이 graph 단위임)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 관측 API</h3>
+        <table class="compact">
+          <thead><tr><th>도구</th><th>출력</th></tr></thead>
+          <tbody>
+            <tr><td><code>TORCH_LOGS="guards"</code></td><td>각 guard 리스트</td></tr>
+            <tr><td><code>TORCH_LOGS="recompiles"</code></td><td>왜 재컴파일인지</td></tr>
+            <tr><td><code>torch._dynamo.explain</code></td><td>break/guard 요약</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> ShapeEnv</h3>
+        <div class="formula">
+          (symbols, constraints, value hints)
+          <span class="legend">ShapeEnv는 SymInt 심볼과 그 constraint를 관리. Inductor는 ShapeEnv를 읽어 kernel의 block size 선택과 fusion 가능성을 결정한다.</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">증상</span>: 호출마다 재컴파일 · "recompiles" 로그 다수 → guard overspecialization. <code>dynamic=True</code>를 먼저 시도.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 16</span>
+    <span class="tiny">Guard · SymInt · ShapeEnv</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 17: §16 디버깅 ============================ -->
+<section class="page" data-screen-label="17 Debugging">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — 디버깅 / 소스 읽기</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> TORCH_LOGS 카테고리</h3>
+        <table class="compact">
+          <thead><tr><th>category</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>dynamo</code></td><td>frame capture · bytecode</td></tr>
+            <tr><td><code>aot</code></td><td>joint graph · partition</td></tr>
+            <tr><td><code>inductor</code></td><td>lowering · scheduler</td></tr>
+            <tr><td><code>output_code</code></td><td>최종 Triton/C++ 소스</td></tr>
+            <tr><td><code>schedule</code></td><td>fusion 결정</td></tr>
+            <tr><td><code>guards</code></td><td>guard 목록</td></tr>
+            <tr><td><code>recompiles</code></td><td>재컴파일 이유</td></tr>
+            <tr><td><code>graph_breaks</code></td><td>break 이유</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">여러 카테고리 동시: <code>TORCH_LOGS="+inductor,output_code"</code></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> TORCH_COMPILE_DEBUG=1</h3>
+        <ul>
+          <li>모든 중간 산출물을 cache dir에 덤프</li>
+          <li>fx_graph · output_code · fusion decisions 포함</li>
+          <li><code>debug_trace/</code> 하위 디렉토리에 step-by-step</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Inductor dump 경로 ★</h3>
+<pre class="ascii">$TORCHINDUCTOR_CACHE_DIR or /tmp/torchinductor_$USER/
+
+  &lt;fxhash&gt;/
+    ├ fx_graph_readable.py  ← Dynamo 직후
+    ├ fx_graph_transformed.py ← decomp 후
+    ├ fx_graph_runnable.py  ← 단독 실행 가능
+    ├ output_code.py        ← Python wrapper + triton src
+    ├ triton_poi_*.py       ← per-kernel source
+    └ debug_trace/
+        ├ 0_before_pre_grad_graph.py
+        ├ 1_after_decomp_graph.py
+        ├ 2_after_post_grad_graph.py
+        └ *_ir_pre/post_fusion.txt</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> fx_graph_runnable 활용</h3>
+<pre class="code"><span class="cmt"># 단독 재현</span>
+<span class="kw2">import</span> torch
+<span class="kw2">exec</span>(<span class="fn">open</span>(<span class="str">"fx_graph_runnable.py"</span>).read())
+<span class="cmt"># args0, mod 변수 사용 가능</span>
+mod(*args0)</pre>
+        <p class="tiny">버그를 최소 FX로 축소할 때 유용. minifier 출력과 동일 형식.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 소스 디렉토리 지도</h3>
+        <table class="compact">
+          <thead><tr><th>path</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td><code>torch/_dynamo/</code></td><td>frame capture</td></tr>
+            <tr><td><code>torch/_functorch/</code></td><td>AOT Autograd</td></tr>
+            <tr><td><code>torch/fx/</code></td><td>FX Graph</td></tr>
+            <tr><td><code>torch/_decomp/</code></td><td>decomp rules</td></tr>
+            <tr><td><code>torch/_refs/</code></td><td>prims refs</td></tr>
+            <tr><td><code>torch/_inductor/ir.py</code></td><td>Inductor IR</td></tr>
+            <tr><td><code>torch/_inductor/scheduler.py</code></td><td>fusion</td></tr>
+            <tr><td><code>torch/_inductor/codegen/triton.py</code></td><td>Triton codegen</td></tr>
+            <tr><td><code>torch/_inductor/codegen/cpp.py</code></td><td>C++ codegen</td></tr>
+            <tr><td><code>torch/_inductor/config.py</code></td><td>config · env</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Trace 연계</h3>
+        <ul>
+          <li>NVTX marker로 각 kernel launch를 표시</li>
+          <li>Nsight Systems timeline에서 <code>triton_poi_*</code> 이름으로 식별</li>
+          <li>roofline·stall 분석은 <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 흔한 증상 → 힌트</h3>
+        <table class="compact">
+          <thead><tr><th>증상</th><th>먼저 확인</th></tr></thead>
+          <tbody>
+            <tr><td>매 call 느림</td><td>graph break / recompile 로그</td></tr>
+            <tr><td>numerical 불일치</td><td>decomp 비활성 + aot_eager</td></tr>
+            <tr><td>OOM</td><td>fusion 실패 → realize 과다</td></tr>
+            <tr><td>cudagraph 안 함</td><td>mode 및 static input 여부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        Inductor 버전별로 파일명·config key가 자주 바뀐다. <span class="kw">current source</span>를 기준으로 확인 — 이 권은 구조 지도에 해당.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 17</span>
+    <span class="tiny">debug · dump · source map</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V13 TorchInductor <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Pipeline 단계 × debug 카드</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th>dump env</th><th>소스</th></tr></thead>
+          <tbody>
+            <tr><td>Dynamo</td><td><code>TORCH_LOGS=dynamo</code></td><td><code>_dynamo/</code></td></tr>
+            <tr><td>AOT Autograd</td><td><code>TORCH_LOGS=aot</code></td><td><code>_functorch/</code></td></tr>
+            <tr><td>Decomp</td><td><code>COMPILE_DEBUG=1</code></td><td><code>_decomp/</code></td></tr>
+            <tr><td>Inductor lowering</td><td><code>TORCH_LOGS=inductor</code></td><td><code>_inductor/ir.py</code></td></tr>
+            <tr><td>Scheduler</td><td><code>TORCH_LOGS=schedule</code></td><td><code>scheduler.py</code></td></tr>
+            <tr><td>Codegen</td><td><code>TORCH_LOGS=output_code</code></td><td><code>codegen/</code></td></tr>
+            <tr><td>Guard</td><td><code>TORCH_LOGS=guards</code></td><td><code>symbolic_shapes.py</code></td></tr>
+            <tr><td>Recompile</td><td><code>TORCH_LOGS=recompiles</code></td><td><code>_dynamo/</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 단계 산출 IR 요약</h3>
+        <div class="formula">
+          Python → FX(torch op) → FX(aten+prims) → Inductor IR → Triton/C++
+          <span class="legend">5개 IR 스냅샷이 존재. 각 스냅샷은 <code>debug_trace/</code>에 <code>*_graph.py</code>로 남는다.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Fusion 의사결정 1-liner</h3>
+        <ul>
+          <li>pointwise+pointwise → <span class="kw">vertical</span> (기본)</li>
+          <li>pointwise+reduction → producer 흡수</li>
+          <li>reduction+reduction → <span class="kw">persistent</span>에서만</li>
+          <li>matmul 전후 → template <span class="kw">prologue/epilogue</span></li>
+          <li>scatter/mutation → <span class="kw">fuse 금지</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 재컴파일 최소화 5원칙</h3>
+        <ol class="bullet-num">
+          <li>shape bucketing</li>
+          <li><code>dynamic=True</code> 또는 <code>mark_dynamic</code></li>
+          <li>Python 상수 arg 최소</li>
+          <li>graph break 제거</li>
+          <li><code>cache_size_limit</code> 확대</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> mode 결정 트리</h3>
+<pre class="ascii">inference · decode loop  → reduce-overhead
+training · 큰 matmul       → max-autotune
+디버깅·정확도 bisect       → aot_eager
+graph break 원인 찾기      → eager</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Custom op 등록 체크리스트</h3>
+        <ul>
+          <li>□ kernel impl (CUDA/CPU)</li>
+          <li>□ <code>register_fake</code></li>
+          <li>□ <code>register_autograd</code> (학습 시)</li>
+          <li>□ <code>register_lowering</code> (fusion 원할 때)</li>
+          <li>□ <code>opcheck</code>로 정합성 확인</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 핵심 env 6종</h3>
+        <table class="compact">
+          <thead><tr><th>env</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>TORCH_LOGS</code></td><td>stage별 log</td></tr>
+            <tr><td><code>TORCH_COMPILE_DEBUG</code></td><td>full dump</td></tr>
+            <tr><td><code>TORCHINDUCTOR_CACHE_DIR</code></td><td>cache 위치</td></tr>
+            <tr><td><code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES</code></td><td>kernel name 해독</td></tr>
+            <tr><td><code>TORCHINDUCTOR_CUDAGRAPHS</code></td><td>cudagraph on/off</td></tr>
+            <tr><td><code>TORCHDYNAMO_REPRO_AFTER</code></td><td>minifier</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 타 권 연결</h3>
+        <ul>
+          <li>Triton 내부 pipeline·layout <span class="xref">↗ V11</span></li>
+          <li>MLIR 하위 lowering 일반 <span class="xref">↗ V12</span></li>
+          <li>XLA/TVM 비교 매트릭스 <span class="xref">↗ V14 §15</span></li>
+          <li>distributed training 경로 <span class="xref">↗ V17</span></li>
+          <li>roofline·stall 분석 <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 한 줄 요약</h3>
+        <div class="def"><span class="label">요지</span>
+          torch.compile = <mark>Dynamo</mark>로 frame을 가두고, <mark>AOT</mark>로 bwd까지 묶고, <mark>decomp</mark>로 canonical form으로 내리고, <mark>Inductor</mark>가 IR fusion 후 <mark>Triton/C++</mark>로 내보내는 5-단 파이프라인이다.
+        </div>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        파이프라인 5문자: <span class="key">Dy · AO · FX · IN · CG</span>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V13 · 18</span>
+    <span class="tiny">cheat sheet — end of volume</span>
+  </div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

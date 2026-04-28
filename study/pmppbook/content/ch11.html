@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11장. 접두사 합 (스캔) — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 11</p>
+    <h1>접두사 합 (스캔)</h1>
+    <p class="subtitle">앞쪽을 다 모아서 자기 자리를 찾는 일</p>
+  </header>
+
+  <h2>11.1 배경: 자리를 정해 주는 연산</h2>
+  <p>접두사 합(prefix sum) 또는 스캔(scan)은 이항 연산자 ⊕와 입력 [a₀, a₁, …, aₙ₋₁]에 대해 누적합을 계산하는 연산이다. 정의가 두 종류 있다.</p>
+  <ul>
+    <li><b>Inclusive scan</b>: yᵢ = a₀ ⊕ a₁ ⊕ … ⊕ aᵢ. 자기 자신까지 포함.</li>
+    <li><b>Exclusive scan</b>: yᵢ = a₀ ⊕ a₁ ⊕ … ⊕ aᵢ₋₁ (y₀는 항등원). 자기 자신은 제외.</li>
+  </ul>
+  <p>한 끗 차이지만 응용에서 차이가 크다. exclusive scan은 "내 앞에 몇 명이 있는지"를 알려 주므로, 자원 할당이나 스트림 컴팩션(stream compaction)에서 한 원소가 출력 배열에 어디로 갈지를 결정하는 인덱스로 바로 쓸 수 있다. inclusive scan은 누적 분포 함수(CDF), 누적 길이, 누적 카운트 같은 통계 양에 직접 대응된다.</p>
+  <p>스캔이 빌딩블록으로 쓰이는 곳은 정말 많다. 정렬(radix sort)의 비트 단계마다, 희소 행렬 SpMV의 행 시작 인덱스 계산, 동적 자원 할당, 균등 분포 샘플링의 inverse-CDF 룩업 — 모두 스캔이 핵심이다. 스캔을 모르면 GPU 알고리즘 책의 절반은 닫힌 채로 남는다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>매장에서 줄을 선 손님들을 생각해 보자. 각자 주문이 끝나는 데 걸리는 시간이 다 다르다. 한 사람이 "내 주문이 시작되는 시각은?"을 알고 싶으면 자기 앞에 있는 모두의 시간을 합해야 한다. 모든 손님이 동시에 자기 시작 시각을 알아내고 싶다면? 그게 정확히 exclusive scan이다.</p>
+  </div>
+
+  <h2>11.2 Kogge-Stone 알고리즘</h2>
+  <p>Kogge-Stone은 1973년 디지털 회로 가산기 설계에서 나온 알고리즘인데, GPU에서도 매우 흔한 스캔 골격이다. 아이디어는 깔끔하다. d번째 step에서 모든 위치 i가 i와 i-2^(d-1)의 값을 합한다.</p>
+  <pre><code>step d=1:  a[i] = a[i] + a[i-1]    (i &gt;= 1)
+step d=2:  a[i] = a[i] + a[i-2]    (i &gt;= 2)
+step d=3:  a[i] = a[i] + a[i-4]    (i &gt;= 4)
+...
+step d=k:  a[i] = a[i] + a[i-2^(k-1)] (i &gt;= 2^(k-1))</code></pre>
+  <p>총 step 수는 ⌈log₂N⌉. 한 가지 문제: 각 step에서 모든 i가 동시에 read + write를 수행하면, 어떤 스레드가 자기 데이터를 갱신하기 전에 다른 스레드가 그 자리를 읽어 버리는 race가 생긴다. 두 가지 해법이 있다.</p>
+  <ul>
+    <li><b>Double buffering</b>: 입력 버퍼와 출력 버퍼를 따로 두고 step마다 swap.</li>
+    <li><b>Read-then-sync-then-write</b>: 모든 스레드가 자기 새 값을 레지스터에 일단 받아 두고, __syncthreads 후에 일제히 shared memory에 쓰기.</li>
+  </ul>
+  <pre><code>// Kogge-Stone, double buffering 방식, inclusive scan
+__global__ void scan_kogge_stone(const float* in, float* out, int N) {
+    extern __shared__ float buf[];   // 2 * blockDim.x
+    float* a = buf;
+    float* b = buf + blockDim.x;
+
+    int tid = threadIdx.x;
+    int g   = blockIdx.x * blockDim.x + tid;
+    a[tid] = (g &lt; N) ? in[g] : 0.0f;
+    __syncthreads();
+
+    for (int stride = 1; stride &lt; blockDim.x; stride *= 2) {
+        // a -&gt; b
+        b[tid] = (tid &gt;= stride) ? a[tid] + a[tid - stride] : a[tid];
+        __syncthreads();
+        // swap
+        float* t = a; a = b; b = t;
+    }
+    if (g &lt; N) out[g] = a[tid];
+}</code></pre>
+  <p>이 코드는 한 블록 내부의 inclusive scan만 처리한다. 블록 간 결합은 11.6에서 다룬다.</p>
+
+  <h2>11.3 속도와 work efficiency</h2>
+  <p>Kogge-Stone의 전체 작업량(work)을 세 보자. step d에서 갱신하는 위치의 수는 N - 2^(d-1)이고, d는 1..⌈log₂N⌉ 범위다. 합산하면 대략 N · log₂N - (N-1) ≈ N log₂N. 직렬 스캔이 N-1번의 ⊕로 끝나는 것에 비해 log₂N 배 더 많은 일을 한다. 깊이는 log₂N으로 좋지만, 일은 비효율적이다.</p>
+  <p>이게 무슨 뜻인가. GPU에서 일을 동시에 많이 처리할 수 있을 때만 Kogge-Stone이 이긴다. 데이터가 너무 크고 SM 수가 그에 못 미치면, 즉 일이 직렬화되어 처리되는 부분이 많으면, 실제 wall-clock 시간은 N log₂N · t_op이 되어 직렬보다 오히려 느릴 수도 있다. 일을 많이 만드는 알고리즘은 그걸 동시에 처리할 자원이 있어야 비로소 빠르다.</p>
+  <p>그래서 등장하는 게 work-efficient 알고리즘이다.</p>
+
+  <h2>11.4 Brent-Kung 알고리즘</h2>
+  <p>Brent-Kung은 work를 O(N)으로 끌어내리면서 step은 여전히 O(log N)을 유지한다. 두 단계로 구성된다.</p>
+  <ul>
+    <li><b>Up-sweep (reduction tree)</b>: 위로 올라가면서 짝을 합쳐, 마지막엔 전체합이 맨 끝에 모인다.</li>
+    <li><b>Down-sweep</b>: 다시 내려오면서 부분합들을 적절히 분배해 각 위치에 자기 접두사를 만든다.</li>
+  </ul>
+  <p>up-sweep의 각 step d에서 활성 위치는 N/2^d개. 합치면 N/2 + N/4 + … + 1 = N-1. 즉 up-sweep 일 = N-1. down-sweep도 비슷하게 N-1번. 합쳐서 약 2N — 직렬 N-1과 상수배 차이만 난다. 깊이는 up-sweep log₂N + down-sweep log₂N = 2 log₂N으로, 여전히 작다.</p>
+  <pre><code>// Brent-Kung, exclusive scan (블록 내), N은 2의 거듭제곱 가정
+__global__ void scan_brent_kung(const float* in, float* out, int N) {
+    extern __shared__ float s[];           // size = 2 * blockDim.x
+    int tid = threadIdx.x;
+    int g0  = 2 * blockIdx.x * blockDim.x + 2 * tid;
+    int g1  = g0 + 1;
+
+    s[2*tid]     = (g0 &lt; N) ? in[g0] : 0.0f;
+    s[2*tid + 1] = (g1 &lt; N) ? in[g1] : 0.0f;
+
+    int n = 2 * blockDim.x;
+
+    // ----- up-sweep: 트리 위로 -----
+    int offset = 1;
+    for (int d = n &gt;&gt; 1; d &gt; 0; d &gt;&gt;= 1) {
+        __syncthreads();
+        if (tid &lt; d) {
+            int ai = offset * (2*tid + 1) - 1;
+            int bi = offset * (2*tid + 2) - 1;
+            s[bi] += s[ai];
+        }
+        offset *= 2;
+    }
+
+    // 전체합 자리(끝)를 0으로 비워 exclusive로 변환
+    if (tid == 0) s[n - 1] = 0.0f;
+
+    // ----- down-sweep: 트리 아래로 -----
+    for (int d = 1; d &lt; n; d *= 2) {
+        offset &gt;&gt;= 1;
+        __syncthreads();
+        if (tid &lt; d) {
+            int ai = offset * (2*tid + 1) - 1;
+            int bi = offset * (2*tid + 2) - 1;
+            float t = s[ai];
+            s[ai] = s[bi];
+            s[bi] += t;
+        }
+    }
+    __syncthreads();
+
+    if (g0 &lt; N) out[g0] = s[2*tid];
+    if (g1 &lt; N) out[g1] = s[2*tid + 1];
+}</code></pre>
+  <p>down-sweep의 트릭이 제법 영리하다. 부모의 값을 왼쪽 자식이 받고, 오른쪽 자식은 부모와 옛 왼쪽을 더한다. 두 줄로 정리하면 완전한 exclusive scan이 떨어진다.</p>
+
+  <div class="figure">
+<pre>
+N=8, Brent-Kung up/down sweep
+
+up-sweep (괄호는 누적값)
+  d0: a0   a1   a2   a3   a4   a5   a6   a7
+       \\  /     \\  /     \\  /     \\  /
+  d1: a0  (a0+a1) a2 (a2+a3) a4 (a4+a5) a6 (a6+a7)
+              \\______/             \\______/
+  d2: ..  (a0..a3)  ..  (a4..a7)
+                          \\___________/
+  d3: ..             ..             (a0..a7)
+
+마지막 자리를 0으로 -> exclusive scan을 위한 시작
+
+down-sweep
+  부모를 좌측에 복사, 우측은 부모 + 옛 좌측
+  반복하면 각 잎이 자기 exclusive prefix를 갖는다
+</pre>
+  </div>
+  <p class="figure-caption">그림 11.1 — Brent-Kung의 up-sweep과 down-sweep. work O(N), step O(log N).</p>
+
+  <h2>11.5 코어스닝으로 work efficiency 더 높이기</h2>
+  <p>실제 프로덕션 스캔은 두 알고리즘의 하이브리드다. 한 스레드가 K개의 인접 입력을 직렬로 스캔하고(여기는 직렬이라 work-optimal), 그 부분합 K개의 끝값으로 길이 blockDim.x짜리 작은 배열을 만들어 그 위에서 Kogge-Stone 또는 Brent-Kung을 돌린다. 마지막에 그 결과를 다시 K개씩에 더해 펴 주면 끝이다.</p>
+  <pre><code>// 코어스닝 + Kogge-Stone hybrid (개념 골격, K=4 예)
+__global__ void scan_coarsened(const float* in, float* out, int N) {
+    constexpr int K = 4;
+    __shared__ float tail[256];     // blockDim.x = 256 가정
+
+    int tid = threadIdx.x;
+    int base = blockIdx.x * blockDim.x * K + tid * K;
+
+    // (1) 스레드별 K개 직렬 스캔
+    float local[K];
+    float run = 0.0f;
+    #pragma unroll
+    for (int k = 0; k &lt; K; ++k) {
+        float v = (base + k &lt; N) ? in[base + k] : 0.0f;
+        run += v;
+        local[k] = run;             // inclusive
+    }
+    tail[tid] = run;
+    __syncthreads();
+
+    // (2) tail[]에 대해 Kogge-Stone exclusive scan
+    //     (코드 단순화 위해 inclusive 후 shift)
+    for (int stride = 1; stride &lt; blockDim.x; stride *= 2) {
+        float v = (tid &gt;= stride) ? tail[tid - stride] : 0.0f;
+        __syncthreads();
+        tail[tid] += v;
+        __syncthreads();
+    }
+    float my_offset = (tid == 0) ? 0.0f : tail[tid - 1];
+    __syncthreads();
+
+    // (3) 자기 K개에 my_offset 더해서 출력
+    #pragma unroll
+    for (int k = 0; k &lt; K; ++k) {
+        if (base + k &lt; N) out[base + k] = local[k] + my_offset;
+    }
+}</code></pre>
+  <p>이 패턴의 장점은 직렬 부분이 메모리 접근을 합쳐서 처리하고, 병렬 부분의 사이즈는 작아져서 Kogge-Stone의 work=O(M log M)에서 M=blockDim.x가 되니 절대량이 작다는 것이다. K를 잘 고르면 직렬 부분의 비효율과 병렬 부분의 비효율 사이에서 좋은 점을 찾을 수 있다.</p>
+
+  <h2>11.6 임의 길이 입력의 segmented scan</h2>
+  <p>여태까지의 커널은 한 블록 안의 스캔이다. 입력이 한 블록보다 크면 어떻게 할까. 표준 3단 패턴이 있다.</p>
+  <ol>
+    <li><b>Phase 1</b>: 각 블록이 자기 부분에 대해 local scan을 수행. 동시에 자기 블록의 총합을 별도 배열 <code>sums[]</code>에 쓴다.</li>
+    <li><b>Phase 2</b>: <code>sums[]</code>에 대해 exclusive scan. 그러면 <code>sums[k]</code>는 "0..k-1번 블록의 모든 입력의 합" — 즉 k번 블록이 더해야 할 글로벌 오프셋.</li>
+    <li><b>Phase 3</b>: 각 블록 k가 자기 local scan 결과에 <code>sums[k]</code>를 일제히 더한다.</li>
+  </ol>
+  <p>3단 모두 GPU 친화적이다. Phase 2의 sums[] 자체가 충분히 크면 다시 같은 3단 패턴을 재귀적으로 적용 — 결국 N의 어떤 크기든 log_B(N) 깊이의 phase로 끝낼 수 있다.</p>
+
+  <h2>11.7 Single-pass scan: chained scan과 decoupled lookback</h2>
+  <p>3단 패턴은 깔끔하지만 글로벌 메모리에 중간 결과를 두 번 적게 된다(local scan 결과 + sums). 큰 입력에서 이 메모리 트래픽이 만만치 않다. 이를 한 번의 패스로 끝내는 기법이 chained scan이다.</p>
+  <p>핵심은 <b>인접 동기화(adjacency synchronization)</b>다. 블록 k는 자기 local scan을 끝낸 뒤, 이전 블록 k-1의 "포괄 합(inclusive total)"이 준비되기를 기다린다. 그 값이 도착하면 자기에게 더해 자기 inclusive total을 만들고, 그걸 k+1에게 노출한다. 이 사슬이 한 번에 흐르도록 만든다.</p>
+  <p>NVIDIA의 CUB 라이브러리는 여기서 한 발 더 나아간 <b>decoupled lookback</b>을 쓴다. 블록 k는 k-1을 기다리는 대신, k-1, k-2, k-3, …을 거꾸로 훑으면서 "이 블록이 이미 자기 inclusive를 결정했나?"를 본다. 그렇다면 거기서 끊고 그 inclusive를 받아들인다. 그렇지 않다면 그 블록의 "local sum"(이미 가지고 있는 partial)만 받아 와서 더 위로 올라가며 누적한다. 이 방식은 사슬이 한 군데 막히면 다음 블록들이 아예 정지하던 단순 chain의 약점을 우회한다.</p>
+  <p>구현은 까다롭다 — 메모리 펜스, 플래그 비트, 원자적 읽기, 폴링 루프가 얽힌다. 자세한 코드는 라이브러리 소스에 양보하고, 여기서는 개념만 적어 둔다.</p>
+  <pre><code>// decoupled lookback의 골격 의사코드
+status_block_k = local_sum                  // 1) 자기 local sum 발표
+publish(status, k, "P")                     // P = partial 상태
+
+// 2) lookback
+acc = 0
+for j = k-1, k-2, ...:
+    flag, val = read_status(j)
+    if flag == "I": acc += val; break       // I = inclusive 확정 → 종료
+    if flag == "P": acc += val               // P = partial → 계속 위로
+    else: poll_again(j)                      // 아직 안 발표 → 대기
+
+// 3) 자기 inclusive 확정
+inclusive_k = acc + local_sum
+publish(status, k, "I", inclusive_k)
+
+// 4) 자기 영역에 acc를 더해 출력
+for x in my_partial_scan: out[x] = x + acc</code></pre>
+
+  <div class="callout warn">
+    <div class="label">실전 주의</div>
+    <p>chained scan류 알고리즘은 메모리 모델 가정에 매우 민감하다. CUDA 11 이후의 명시적 fence(__threadfence_block, __threadfence_system, atomic_ref의 memory_order)와 cooperative groups의 sync semantics를 정확히 이해해야 깨지지 않는다. 직접 짤 일이 있다면 단위 테스트를 미친 듯이 돌리자.</p>
+  </div>
+
+  <h2>11.8 정리</h2>
+  <p>스캔은 reduction의 사촌이지만, 모든 위치에 자기만의 답을 남긴다는 점에서 훨씬 더 풍부한 정보를 만든다. Kogge-Stone은 step이 짧은 대신 work가 N log N, Brent-Kung은 work가 O(N)인 대신 step 상수가 두 배다. 코어스닝이 둘의 강점을 섞고, 임의 길이 입력은 3단 패턴 또는 chained / decoupled-lookback으로 다룬다. 스캔을 정복하면 정렬, 컴팩션, 그래프 알고리즘의 문이 열린다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>Inclusive와 exclusive의 차이, 그리고 각각이 어디 쓰이는지를 안다.</li>
+      <li>Kogge-Stone: O(N log N) work, O(log N) step. 충분한 자원이 있을 때 빠르다.</li>
+      <li>Brent-Kung: up-sweep + down-sweep으로 O(N) work, O(log N) step. work-efficient.</li>
+      <li>코어스닝 + Kogge-Stone hybrid는 실전 스캔의 표준 골격.</li>
+      <li>임의 길이는 3단 segmented scan 또는 chained scan + decoupled lookback으로 한 패스에 끝낼 수 있다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch10.html"><span class="dir">← 이전</span><span>리덕션</span></a>
+    <a href="ch12.html" class="next"><span class="dir">다음 →</span><span>병합</span></a>
+  </nav>
+</article>
+</body>
+</html>

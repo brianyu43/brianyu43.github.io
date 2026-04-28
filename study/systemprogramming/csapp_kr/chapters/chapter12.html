@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제12장 · 병행 프로그래밍 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제12장 · 병행 프로그래밍</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="../index.html">목차</a>
+    <a href="chapter11.html">← 이전</a>
+    <a href="../index.html">목차로 돌아가기</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제12장 · 병행 프로그래밍</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-12-1">12.1 프로세스 기반 병행 프로그래밍</a></li>
+      <li class="sub-li"><a href="#sec-12-1-1">12.1.1 프로세스 기반 병행 서버</a></li>
+      <li class="sub-li"><a href="#sec-12-1-2">12.1.2 프로세스의 장단점</a></li>
+      <li><a href="#sec-12-2">12.2 I/O 멀티플렉싱</a></li>
+      <li class="sub-li"><a href="#sec-12-2-1">12.2.1 select/poll로 만든 이벤트 주도 서버</a></li>
+      <li class="sub-li"><a href="#sec-12-2-2">12.2.2 I/O 멀티플렉싱 장단점</a></li>
+      <li><a href="#sec-12-3">12.3 스레드 기반 병행 프로그래밍</a></li>
+      <li class="sub-li"><a href="#sec-12-3-1">12.3.1 스레드 실행 모델</a></li>
+      <li class="sub-li"><a href="#sec-12-3-2">12.3.2 Posix 스레드</a></li>
+      <li class="sub-li"><a href="#sec-12-3-3">12.3.3 스레드 생성</a></li>
+      <li class="sub-li"><a href="#sec-12-3-4">12.3.4 스레드 종료</a></li>
+      <li class="sub-li"><a href="#sec-12-3-5">12.3.5 종료된 스레드 회수</a></li>
+      <li class="sub-li"><a href="#sec-12-3-6">12.3.6 스레드 분리</a></li>
+      <li class="sub-li"><a href="#sec-12-3-7">12.3.7 스레드 초기화</a></li>
+      <li class="sub-li"><a href="#sec-12-3-8">12.3.8 스레드 기반 병행 서버</a></li>
+      <li><a href="#sec-12-4">12.4 스레드 프로그램의 공유 변수</a></li>
+      <li class="sub-li"><a href="#sec-12-4-1">12.4.1 스레드 메모리 모델</a></li>
+      <li class="sub-li"><a href="#sec-12-4-2">12.4.2 변수의 메모리 매핑</a></li>
+      <li class="sub-li"><a href="#sec-12-4-3">12.4.3 공유 변수</a></li>
+      <li><a href="#sec-12-5">12.5 세마포어로 스레드 동기화</a></li>
+      <li class="sub-li"><a href="#sec-12-5-1">12.5.1 진행 그래프와 안전/위험 영역</a></li>
+      <li class="sub-li"><a href="#sec-12-5-2">12.5.2 세마포어</a></li>
+      <li class="sub-li"><a href="#sec-12-5-3">12.5.3 상호 배제용 세마포어</a></li>
+      <li class="sub-li"><a href="#sec-12-5-4">12.5.4 공유 자원 스케줄링</a></li>
+      <li class="sub-li"><a href="#sec-12-5-5">12.5.5 prethreaded 병행 서버</a></li>
+      <li><a href="#sec-12-6">12.6 병렬성을 위한 스레드 사용</a></li>
+      <li><a href="#sec-12-7">12.7 기타 병행성 이슈</a></li>
+      <li class="sub-li"><a href="#sec-12-7-1">12.7.1 스레드 안전성</a></li>
+      <li class="sub-li"><a href="#sec-12-7-2">12.7.2 재진입성</a></li>
+      <li class="sub-li"><a href="#sec-12-7-3">12.7.3 기존 라이브러리 함수 사용</a></li>
+      <li class="sub-li"><a href="#sec-12-7-4">12.7.4 경쟁 조건</a></li>
+      <li class="sub-li"><a href="#sec-12-7-5">12.7.5 데드락</a></li>
+      <li><a href="#sec-12-8">12.8 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 12</span>
+      <h1>병행 프로그래밍</h1>
+      <div class="en">Concurrent Programming</div>
+      <p class="blurb">한 가지 일에 머무는 프로그램은 단순하다. 사용자 입력을 기다리면서 동시에 디스크 쓰기를 처리하고, 또 동시에 백그라운드에서 네트워크 응답을 받아야 하는 순간부터 이야기가 복잡해진다. 이번 장은 그 "동시에"를 구현하는 세 가지 길 — 프로세스, I/O 멀티플렉싱, 스레드 — 을 한 줄로 늘어놓고 비교한다. 그리고 공유 자원을 두고 스레드끼리 다투기 시작하면 등장하는 단어들 — 경쟁 조건(race), 세마포어(semaphore), 데드락(deadlock) — 을 자기 손으로 만져본다. 한 번 이걸 통과하면, 멀티스레드 코드 리뷰를 보고도 도망치지 않는 사람이 된다.</p>
+    </header>
+
+    <article class="section" id="sec-12-1">
+      <h2><span class="anchor-num">12.1</span>프로세스 기반 병행 프로그래밍</h2>
+      <p>병행성(concurrency)이란 여러 흐름이 시간상 겹쳐서 진행되는 것이다. 꼭 물리적으로 동시일 필요는 없다. CPU 한 개에서도 운영체제가 빠르게 스위칭하면 사용자 눈에는 동시처럼 보이니, 그것도 병행이다. 가장 오래되고 가장 안전한 병행 모델은 프로세스(process)를 여러 개 띄워 일감을 나누는 것이다. 8장에서 본 <code>fork</code>가 그 출발점이고, 11장에서 만든 에코 서버를 살짝 손보면 곧장 다중 클라이언트 서버가 된다.</p>
+
+      <h3 id="sec-12-1-1"><span class="anchor-num">12.1.1</span>프로세스 기반 병행 서버 (accept → fork)</h3>
+      <p>가장 단순한 병행 서버의 골격은 이렇다. 부모 프로세스는 듣기 소켓(listenfd) 위에서 무한히 <code>accept</code>를 돌리고, 새 연결이 들어올 때마다 <code>fork</code>로 자식을 만들어 그 연결을 떠넘긴다.</p>
+      <pre><code>int listenfd = open_listenfd(port);
+signal(SIGCHLD, sigchld_handler);   // 좀비 회수용
+
+while (1) {
+    int connfd = accept(listenfd, ...);
+    if (fork() == 0) {
+        close(listenfd);            // 자식은 듣기 소켓 불필요
+        echo(connfd);               // 클라이언트 처리
+        close(connfd);
+        exit(0);
+    }
+    close(connfd);                  // 부모는 통신 소켓을 닫는다
+}</code></pre>
+      <p>핵심 장면은 <code>connfd</code>를 누가 닫느냐다. <code>fork</code> 직후 자식과 부모는 같은 파일 디스크립터 테이블을 공유한다. 정확히는 같은 항목을 가리키는 두 개의 참조가 생긴다. 자식이 통신을 끝내고 <code>connfd</code>를 닫아도, 커널 입장에서는 부모가 들고 있는 참조 카운트가 1 남아 있어 진짜로는 닫히지 않는다. 그래서 <strong>부모는 즉시 connfd를 닫아야</strong> 한다. 안 그러면 디스크립터가 줄줄 새고, 곧 <code>EMFILE</code> 한도에 부딪힌다.</p>
+      <p>또 하나의 함정은 자식 프로세스가 죽을 때 남기는 <strong>좀비(zombie)</strong>다. <code>exit</code>한 자식의 종료 상태를 부모가 거두지(reap) 않으면 커널은 그 프로세스 테이블 슬롯을 못 비운다. 좀비가 누적되면 새 <code>fork</code>가 실패하기 시작한다. 해결책은 <code>SIGCHLD</code> 시그널 핸들러를 등록해두고, 그 안에서 <code>waitpid</code>를 호출해 일괄 회수하는 것이다.</p>
+      <pre><code>void sigchld_handler(int sig) {
+    int olderrno = errno;
+    while (waitpid(-1, NULL, WNOHANG) &gt; 0)
+        ;  // 처리 가능한 모든 좀비 한꺼번에 거두기
+    errno = olderrno;
+}</code></pre>
+      <p><code>WNOHANG</code> 플래그는 "회수할 자식이 없으면 즉시 0 반환"을 의미한다. 시그널 핸들러는 반드시 <em>비차단</em>으로 짠다. 또 시그널이 합쳐서 한 번에 도착할 수 있으니, <code>if</code>가 아니라 <code>while</code>로 모든 자식을 거둔다. 이게 시그널 핸들러의 황금률 중 하나다.</p>
+      <div class="callout note"><span class="label">메모</span><p>시그널 핸들러 안에서는 <em>async-signal-safe</em> 함수만 호출할 수 있다. <code>printf</code>는 안전하지 않고, <code>write</code>는 안전하다. <code>errno</code>를 백업/복원하는 이유도 핸들러 도중 <code>waitpid</code>가 <code>errno</code>를 건드릴 수 있기 때문. 이 자잘한 규칙을 지키지 않으면 디버그 불가능한 산발 크래시가 생긴다.</p></div>
+
+      <h3 id="sec-12-1-2"><span class="anchor-num">12.1.2</span>프로세스의 장단점 (격리 좋음, 통신 비용 큼)</h3>
+      <p>프로세스 모델의 장점은 명확하다. 각 프로세스는 자기만의 가상 주소 공간을 갖는다. 한 자식이 이상한 포인터로 메모리를 박살내도 다른 자식은 멀쩡하다. 부모도 안전하다. 보안적으로도 격리가 강하다. 한 자식이 해킹당해도 같은 머신의 다른 클라이언트 정보는 보이지 않는다. 코드 자체도 단순하다. 공유 자료가 없으니 동기화도 필요 없다.</p>
+      <p>단점도 명확하다. 첫째, 프로세스 사이 통신(IPC)이 비싸고 번거롭다. 파이프, 소켓페어, 공유 메모리, 시그널 — 어느 것도 변수 하나 읽고 쓰는 것만큼 가볍지 않다. 둘째, <code>fork</code> 자체가 무겁다. 페이지 테이블을 복사하고(현대 리눅스는 copy-on-write로 줄였지만 여전히 비용이 있다), 디스크립터 테이블을 복제하고, 자식 PID 등록까지 — 한 번 fork 하는 데 수백 마이크로초가 든다. 동시 연결 수가 수천 단위로 늘어나면 fork만 하다 시간을 다 쓴다.</p>
+      <p>그래서 등장한 대안이 다음 두 절이다. (1) 프로세스 하나에서 여러 연결을 비동기적으로 다루는 I/O 멀티플렉싱, (2) 같은 주소 공간 안에서 여러 흐름을 만드는 스레드.</p>
+    </article>
+
+    <article class="section" id="sec-12-2">
+      <h2><span class="anchor-num">12.2</span>I/O 멀티플렉싱 기반 병행 프로그래밍</h2>
+      <p>프로세스나 스레드 없이도, 한 프로세스 안에서 여러 디스크립터를 동시에 감시할 수 있을까? 답은 "그렇다"이고 그 도구가 <code>select</code>, <code>poll</code>, 그리고 좀 더 빠른 <code>epoll</code>(리눅스), <code>kqueue</code>(BSD/macOS)다. 이 모델을 <strong>이벤트 주도(event-driven)</strong> 또는 <strong>I/O 멀티플렉싱</strong>이라 부른다.</p>
+
+      <h3 id="sec-12-2-1"><span class="anchor-num">12.2.1</span>select/poll로 만든 이벤트 주도 서버</h3>
+      <p><code>select</code>의 아이디어는 단순하다. "다음 디스크립터들 중 하나라도 읽을 준비가 되거나 쓸 준비가 되면 깨워줘." 커널은 그 디스크립터들을 한꺼번에 감시하다가 첫 이벤트가 오면 반환한다.</p>
+      <pre><code>fd_set read_set, ready_set;
+FD_ZERO(&amp;read_set);
+FD_SET(listenfd, &amp;read_set);
+int maxfd = listenfd;
+
+while (1) {
+    ready_set = read_set;          // select가 비트맵을 변경하므로 매번 복사!
+    select(maxfd + 1, &amp;ready_set, NULL, NULL, NULL);
+
+    // (1) 새 연결 들어왔는가?
+    if (FD_ISSET(listenfd, &amp;ready_set)) {
+        int connfd = accept(listenfd, ...);
+        FD_SET(connfd, &amp;read_set);
+        if (connfd &gt; maxfd) maxfd = connfd;
+    }
+    // (2) 기존 연결 중 읽을 준비된 게 있는가?
+    for (int fd = 0; fd &lt;= maxfd; fd++) {
+        if (fd != listenfd &amp;&amp; FD_ISSET(fd, &amp;ready_set)) {
+            // 한 번에 한 줄(또는 가능한 만큼)만 읽고 처리
+            handle_one_chunk(fd);
+        }
+    }
+}</code></pre>
+      <p>여기서 매번 <code>ready_set = read_set</code>으로 복사하는 게 핵심 포인트다. <code>select</code>는 인자로 받은 비트맵을 "준비된 디스크립터만 1로 남기고 나머지를 0으로" 덮어쓰기 때문에, 다음 호출 전에 원본이 필요하면 매번 새로 만들어야 한다. 헷갈리기 좋은 인터페이스다.</p>
+      <p>또 한 가지: <strong>한 콜백에서 한 디스크립터의 데이터를 끝까지 읽으려 하면 안 된다.</strong> 그 사이 다른 클라이언트는 굶는다. 한 청크만 처리하고 즉시 루프 위로 돌아가야 한다. 그래야 모든 클라이언트가 공평하게 대접받는다. 이 지점이 이벤트 주도 코드의 가장 큰 정신적 부담이다. 흐름이 자연스럽게 한 클라이언트 처리에 머물지 않고, 매번 "잠깐, 이만큼만 처리하고 다시 돌아오자"의 콜백 스타일로 바뀌어야 하니까.</p>
+      <p><code>select</code>의 본질적 한계는 두 가지다. 첫째, 매 호출마다 비트맵 전체를 커널에 보내고 다시 받아온다. 디스크립터가 늘수록 O(N) 비용이다. 둘째, 비트맵의 크기가 보통 1024(<code>FD_SETSIZE</code>)로 묶여 있어 그 이상의 디스크립터는 못 감시한다. <code>poll</code>은 비트맵 대신 배열을 쓰는데 한도 문제는 풀어주지만 O(N) 스캔은 여전하다. 진짜 해결책은 리눅스의 <code>epoll</code>이나 BSD의 <code>kqueue</code> — 커널이 변경분만 알려주는 방식이라 동시 디스크립터 10만 개도 거뜬하다. nginx, redis, node.js의 이벤트 루프가 다 이 위에서 돈다.</p>
+
+      <h3 id="sec-12-2-2"><span class="anchor-num">12.2.2</span>I/O 멀티플렉싱 장단점 (성능 좋음, 코드 복잡)</h3>
+      <p>장점: 프로세스나 스레드 컨텍스트 스위치 비용이 거의 없다. 한 프로세스에서 모두 처리하니 디버깅도 단일 흐름이라 그나마 추적이 쉽다. 메모리 사용량도 작다. 동시 1만 연결도 가뿐히 처리한다.</p>
+      <p>단점: 코드가 콜백 지옥처럼 흩어진다. 한 클라이언트의 처리 상태를 자체 자료구조(상태 머신)에 담아두고, 이벤트가 올 때마다 어디서 멈췄는지 복원하며 진행해야 한다. "한 줄 읽고 → DB 조회 → 응답 전송"이라는 직관적인 절차가, 이벤트 모델에서는 "상태 A에서 데이터 도착 → 상태 B로 전이 → DB 콜백 등록 → 콜백에서 상태 C로 → 쓰기 가능 이벤트에서 응답 전송"의 그래프로 풀려버린다. 또 한 콜백이 무거운 계산을 하면 다른 클라이언트가 굶는다. CPU-바운드 작업과는 잘 안 맞는다.</p>
+      <p>이 코드 복잡도를 언어 차원에서 풀어준 게 <code>async/await</code>이고, 라이브러리 차원에서 풀어준 게 libevent, libuv, asyncio 같은 것들이다. 본질은 모두 <code>select</code>/<code>epoll</code> 위의 추상화다.</p>
+    </article>
+
+    <article class="section" id="sec-12-3">
+      <h2><span class="anchor-num">12.3</span>스레드 기반 병행 프로그래밍</h2>
+      <p>스레드는 프로세스의 격리를 포기하는 대신 가벼움과 통신 편의를 얻은 모델이다. 한 프로세스 안에 여러 실행 흐름을 두고, 모두가 같은 주소 공간을 공유한다. 변수 하나로 통신할 수 있으니 IPC가 사라진다. 대신 그 공유가 만드는 새로운 함정 — 경쟁 조건과 데드락 — 이 등장한다.</p>
+
+      <h3 id="sec-12-3-1"><span class="anchor-num">12.3.1</span>스레드 실행 모델 (한 프로세스 안의 동시 흐름, 공유 주소 공간)</h3>
+      <p>한 프로세스가 시작될 때 자동으로 만들어지는 흐름이 메인 스레드(main thread)다. 메인 스레드는 다시 다른 스레드를 만들 수 있고, 그 스레드도 또 다른 스레드를 만들 수 있다. 이 관계는 부모-자식이라기보다 동등한 형제(peer)에 가깝다. 각 스레드는 자기만의 스레드 ID(TID), 프로그램 카운터(PC), 레지스터, 그리고 <strong>스택</strong>을 갖는다. 그러나 코드, 전역 변수, 힙, 열린 파일 디스크립터는 같은 프로세스 안의 모든 스레드가 공유한다.</p>
+      <p>비유하자면, 프로세스가 한 채의 집이라면 스레드는 그 집에 사는 사람들이다. 각자 책상(스택)과 머릿속(레지스터)은 따로지만, 거실 가구(전역 변수)와 부엌(힙)은 공유한다. 한 사람이 거실 책을 옮기면 다른 사람도 같은 변화를 본다. 편리하지만, 두 사람이 같은 책을 동시에 들면 책이 떨어진다. 이게 경쟁 조건이다.</p>
+
+      <h3 id="sec-12-3-2"><span class="anchor-num">12.3.2</span>Posix 스레드 (pthread)</h3>
+      <p>POSIX 스레드(흔히 pthread)는 유닉스 계열 시스템의 표준 스레드 API다. <code>&lt;pthread.h&gt;</code>를 인클루드하고 컴파일 시 <code>-lpthread</code>(또는 <code>-pthread</code>)를 붙이면 된다. 핵심 함수는 다섯 개다: <code>pthread_create</code>, <code>pthread_exit</code>, <code>pthread_join</code>, <code>pthread_detach</code>, <code>pthread_self</code>. 자물쇠나 조건 변수까지 포함하면 더 많지만, 기본 골격은 이 다섯 개로 충분하다.</p>
+
+      <h3 id="sec-12-3-3"><span class="anchor-num">12.3.3</span>스레드 생성 (pthread_create)</h3>
+      <pre><code>#include &lt;pthread.h&gt;
+
+void *thread_routine(void *arg) {
+    int id = *(int *)arg;
+    printf("Hello from thread %d\n", id);
+    return NULL;
+}
+
+int main(void) {
+    pthread_t tid;
+    int arg = 42;
+    pthread_create(&amp;tid, NULL, thread_routine, &amp;arg);
+    pthread_join(tid, NULL);
+    return 0;
+}</code></pre>
+      <p>네 인자 의미: (1) 만들어진 TID를 받아갈 곳, (2) 스레드 속성(보통 <code>NULL</code>로 기본값), (3) 스레드가 실행할 함수 포인터, (4) 함수에 전달할 인자(<code>void *</code>). 함수 시그니처는 반드시 <code>void *(*)(void *)</code> 꼴이어야 한다. 스레드는 이 함수에서 반환하면 자동으로 종료된다.</p>
+      <div class="callout danger"><span class="label">함정</span><p>스레드 함수에 인자를 넘길 때 흔한 실수. 루프 변수 <code>i</code>의 주소를 그대로 넘기면, 스레드들이 같은 주소를 가리키게 되어 결국 다 같은 값을 보게 된다. <code>pthread_create(&amp;tid, NULL, fn, &amp;i)</code>를 루프에서 돌리면, 모든 스레드가 마지막의 <code>i</code> 값을 본다. 해결: 매 반복마다 새 메모리(<code>malloc</code>한 정수 슬롯)에 값을 복사해 넘기거나, 정수를 캐스팅으로 직접 인자에 박아 넣는다(<code>(void *)(intptr_t)i</code>).</p></div>
+
+      <h3 id="sec-12-3-4"><span class="anchor-num">12.3.4</span>스레드 종료 (pthread_exit, return)</h3>
+      <p>스레드 종료 방식은 셋이다. (1) 스레드 함수에서 <code>return</code>으로 빠져나오기 — 가장 자연스럽다. (2) 스레드 안에서 명시적으로 <code>pthread_exit(retval)</code> 호출 — 호출 스택 어디서든 즉시 종료. (3) 다른 스레드가 <code>pthread_cancel(tid)</code>로 취소 요청 — 권장하지 않는다(자원 누수 위험). 또 <em>어떤</em> 스레드든 <code>exit(...)</code>를 호출하면 프로세스 전체가 죽으니 주의.</p>
+
+      <h3 id="sec-12-3-5"><span class="anchor-num">12.3.5</span>종료된 스레드 회수 (pthread_join)</h3>
+      <p>스레드도 좀비처럼 죽은 뒤 자원을 누가 거둬야 한다. <code>pthread_join(tid, &amp;retval)</code>은 그 스레드가 끝날 때까지 기다리고, 종료 값(<code>void *</code>)을 받아오며, 자원을 회수한다. 한 스레드는 정확히 한 번만 join될 수 있다. join하지 않은 스레드는 자원이 새서 메모리 누수처럼 행세한다.</p>
+
+      <h3 id="sec-12-3-6"><span class="anchor-num">12.3.6</span>스레드 분리 (pthread_detach)</h3>
+      <p>모든 스레드를 join할 필요는 없다. 결과를 받아올 필요 없는 "fire-and-forget" 작업이라면, 만들면서 분리(detach)해두자.</p>
+      <pre><code>void *worker(void *arg) {
+    pthread_detach(pthread_self());   // 자기 자신을 분리
+    handle_request((int)(intptr_t)arg);
+    return NULL;
+}</code></pre>
+      <p>분리된 스레드는 종료 즉시 자원이 회수된다. 누구도 join할 수 없고, join하면 오류다. 서버에서 클라이언트마다 워커 스레드를 띄우는 패턴에서는 거의 항상 분리해서 쓴다.</p>
+
+      <h3 id="sec-12-3-7"><span class="anchor-num">12.3.7</span>스레드 초기화 (pthread_once)</h3>
+      <p>전역 자료구조를 정확히 한 번만 초기화하고 싶을 때 — 그러나 어느 스레드가 그 일을 할지 모를 때 — 쓰는 도구다.</p>
+      <pre><code>pthread_once_t once = PTHREAD_ONCE_INIT;
+static int *cache;
+
+void init_cache(void) { cache = malloc(SIZE); memset(cache, 0, SIZE); }
+
+void *worker(void *arg) {
+    pthread_once(&amp;once, init_cache);   // 정확히 한 번만 init_cache 실행
+    use_cache(...);
+    return NULL;
+}</code></pre>
+      <p>여러 스레드가 동시에 <code>pthread_once</code>를 호출해도 <code>init_cache</code>는 한 번만 돈다. 나머지는 그 한 번이 끝날 때까지 기다린다. 직접 자물쇠로 짜려면 까다로운 코드를 라이브러리가 대신 처리해준다.</p>
+
+      <h3 id="sec-12-3-8"><span class="anchor-num">12.3.8</span>스레드 기반 병행 서버</h3>
+      <pre><code>while (1) {
+    int connfd = accept(listenfd, ...);
+    pthread_t tid;
+    int *connfdp = malloc(sizeof(int));
+    *connfdp = connfd;
+    pthread_create(&amp;tid, NULL, worker, connfdp);
+}
+
+void *worker(void *vargp) {
+    int connfd = *((int *)vargp);
+    pthread_detach(pthread_self());
+    free(vargp);                       // 인자 메모리 해제
+    echo(connfd);
+    close(connfd);
+    return NULL;
+}</code></pre>
+      <p>fork 서버와 닮았지만 가볍다. 인자로 <code>connfd</code> 정수를 직접 넘기는 대신 <code>malloc</code>한 슬롯에 담아 넘기는 이유는 위에서 언급한 "공유 변수 함정"을 피하기 위해서다. 워커가 자기 몫의 인자를 안전히 가져간 뒤 <code>free</code>하는 책임을 지는 패턴이다.</p>
+    </article>
+
+    <article class="section" id="sec-12-4">
+      <h2><span class="anchor-num">12.4</span>스레드 프로그램의 공유 변수</h2>
+      <p>스레드 코드가 어려운 이유의 절반은 "이 변수, 진짜 공유되는 건가?"가 헷갈리는 데에서 온다. 정리해두자.</p>
+
+      <h3 id="sec-12-4-1"><span class="anchor-num">12.4.1</span>스레드 메모리 모델 (각 스레드: 사적 레지스터/스택, 공유: 코드/데이터/힙/공유 라이브러리)</h3>
+      <p>한 프로세스의 가상 주소 공간은 코드 영역, 초기화된/안 된 전역(데이터) 영역, 힙, 공유 라이브러리 매핑 영역, 그리고 여러 개의 스택으로 구성된다. 스레드마다 자기 스택이 따로 있고, 자기 레지스터/PC 값을 따로 갖는다. 이건 진짜로 사적이다. 그 외 — 코드/전역/힙 — 은 모두 같은 주소를 가리키므로 공유된다.</p>
+
+      <h3 id="sec-12-4-2"><span class="anchor-num">12.4.2</span>변수의 메모리 매핑 (전역, static 지역, 일반 지역)</h3>
+      <p>C 변수가 어디 사느냐는 선언 위치에 따라 결정된다.</p>
+      <table>
+        <thead><tr><th>선언 위치/속성</th><th>저장 영역</th><th>공유 여부</th></tr></thead>
+        <tbody>
+          <tr><td>함수 밖의 일반 변수 (전역)</td><td>데이터 영역</td><td>모든 스레드가 공유</td></tr>
+          <tr><td>함수 안의 <code>static</code> 변수</td><td>데이터 영역</td><td>모든 스레드가 공유</td></tr>
+          <tr><td>함수 안의 일반 지역 변수 (자동 변수)</td><td>그 스레드의 스택</td><td>원칙적으로 사적</td></tr>
+          <tr><td>지역 변수의 주소를 다른 스레드에 넘긴 경우</td><td>같은 스택</td><td>실질적으로 공유 (위험)</td></tr>
+          <tr><td><code>malloc</code>으로 받은 메모리</td><td>힙</td><td>주소 아는 스레드들이 공유</td></tr>
+        </tbody>
+      </table>
+      <p>중요한 함정은 마지막 두 줄이다. 일반 지역 변수는 "그 스레드의 스택에 산다"는 점에서 사적이지만, 그 주소를 포인터로 다른 스레드에 넘기면 실질적으로 공유 변수가 된다. 게다가 그 변수를 만든 스레드가 함수에서 빠져나가면 스택이 사라지므로, 다른 스레드가 들고 있던 포인터는 댕글링이 된다. 이게 흔한 버그 한 종류다.</p>
+      <pre><code>void *worker(void *arg) {
+    char buf[1024];                // 이 스레드 스택의 자동 변수
+    other_thread_use(&amp;buf);        // 위험! 워커가 끝나면 buf 사라짐
+    return NULL;
+}</code></pre>
+
+      <h3 id="sec-12-4-3"><span class="anchor-num">12.4.3</span>공유 변수 (다른 스레드가 참조 가능한 모든 인스턴스)</h3>
+      <p>책에서 정의하는 "공유 변수"는 사실상 <em>다른 스레드가 그 인스턴스를 참조할 수 있느냐</em>로 결정된다. 같은 변수 선언이라도 인스턴스가 여러 개일 수 있다. 예: 함수 안의 일반 지역 변수는 그 함수가 두 스레드에서 동시에 실행되면 인스턴스가 두 개다. 따라서 한 스레드가 자기 인스턴스를 보는 건 사적이지만, 주소를 넘기면 공유로 변한다. 결국 "선언만 보지 말고 주소가 어디로 새는지 추적하라"가 핵심 원칙이다.</p>
+    </article>
+
+    <article class="section" id="sec-12-5">
+      <h2><span class="anchor-num">12.5</span>세마포어로 스레드 동기화</h2>
+      <p>공유 변수가 있다는 사실 자체가 문제는 아니다. 문제는 <strong>여러 스레드가 동시에 그것을 변경할 때</strong>다. 카운터 하나 늘리는 것조차 안전하지 않다는 사실을 먼저 보고, 그걸 어떻게 길들이는지 본다.</p>
+
+      <h3 id="sec-12-5-1"><span class="anchor-num">12.5.1</span>진행 그래프 (progress graph)와 안전/위험 영역</h3>
+      <p>두 스레드의 실행을 2차원 평면으로 그려본다. 가로축은 스레드 1의 진행, 세로축은 스레드 2의 진행. 한 점은 "스레드 1이 i번째 명령, 스레드 2가 j번째 명령에서 멈춘 상태"를 나타내고, 실행 궤적은 (0,0)에서 출발해 오른쪽이나 위로만 한 칸씩 가는 계단 모양 경로다.</p>
+      <p>두 스레드가 같은 공유 변수를 건드리는 임계 구역(critical section)이 있다고 하자. 두 임계 구역이 시간상 겹치는 영역이 진행 그래프 위에서는 하나의 직사각형으로 보인다. 이 직사각형이 <strong>위험 영역(unsafe region)</strong>이다. 궤적이 그 직사각형 안을 통과하면 경쟁 조건이 발생한다. 안전한 궤적은 이 직사각형을 위/아래나 왼쪽/오른쪽으로 우회한다.</p>
+      <p>이 그림이 알려주는 것은 두 가지다. 첫째, 우리가 할 일은 "어떤 스케줄링이 일어나도" 위험 영역을 통과하지 않게 만드는 것. 둘째, 그러려면 한 스레드가 임계 구역에 들어가 있을 때 다른 스레드가 진입하지 못하도록 막는 도구가 필요하다는 것. 그 도구가 세마포어다.</p>
+
+      <h3 id="sec-12-5-2"><span class="anchor-num">12.5.2</span>세마포어 (P/V 연산, sem_wait/sem_post)</h3>
+      <p>세마포어(semaphore)는 음이 아닌 정수를 들고 있는 객체다. 두 가지 원자적 연산이 정의된다. 옛 이름은 P와 V(다익스트라가 네덜란드어 단어 첫 글자에서 따왔다), POSIX 이름은 <code>sem_wait</code>와 <code>sem_post</code>다.</p>
+      <ul>
+        <li><strong>P(s)</strong> = <code>sem_wait(&amp;s)</code>: <code>s &gt; 0</code>이 될 때까지 기다린 다음 <code>s--</code>를 실행한다. 이 두 동작이 원자적으로 일어난다.</li>
+        <li><strong>V(s)</strong> = <code>sem_post(&amp;s)</code>: <code>s++</code>. 만약 0에서 1로 올라갔다면, 기다리고 있던 스레드 중 하나를 깨운다.</li>
+      </ul>
+      <p>시각화하면 세마포어는 카운터다. 초기값 1로 만든 세마포어 위에서 두 스레드가 P를 부르면, 첫 번째는 1→0으로 통과하고, 두 번째는 0이라 막혀 잠든다. 첫 번째가 V를 부르면 0→1이 되며 잠든 두 번째가 깨어난다. 항상 음수가 되지 않는다는 <strong>세마포어 불변식</strong>이 핵심이다.</p>
+      <pre><code>#include &lt;semaphore.h&gt;
+
+sem_t mutex;
+sem_init(&amp;mutex, 0, 1);     // 초기값 1, 같은 프로세스 안에서만 사용
+
+sem_wait(&amp;mutex);            // P: 임계 구역 진입
+... 공유 자료 만지기 ...
+sem_post(&amp;mutex);            // V: 임계 구역 탈출</code></pre>
+
+      <h3 id="sec-12-5-3"><span class="anchor-num">12.5.3</span>상호 배제용 세마포어 (binary semaphore = mutex)</h3>
+      <p>세마포어 초기값을 1로 두면 카운터는 0과 1만 오간다. 이게 이진 세마포어 또는 뮤텍스(mutex)다. 한 번에 한 스레드만 임계 구역에 들어갈 수 있다는 가장 기본적인 보장이다.</p>
+      <p>왜 단순히 <code>cnt += 1</code>도 안전하지 않은지 어셈블리로 보자. 컴파일하면 보통 이렇게 풀린다.</p>
+      <pre><code>movl  cnt(%rip), %eax     # load:    레지스터로 cnt 읽기
+addl  $1, %eax            # modify:  레지스터에서 +1
+movl  %eax, cnt(%rip)     # store:   결과를 cnt에 다시 쓰기</code></pre>
+      <p>이 세 명령 사이 어디서든 OS는 컨텍스트를 다른 스레드로 넘길 수 있다. 두 스레드 T1, T2가 동시에 <code>cnt += 1</code>을 1만 번씩 한다고 하자. 정답은 2만 번 후 <code>cnt = 20000</code>. 그러나 T1이 load를 마치고 modify를 끝내기 전에 T2가 같은 값을 load하면, 둘 다 같은 값에 1을 더해 같은 값을 store한다. 결과적으로 한 번 늘어야 할 카운터가 늘지 않는다. 두 스레드를 잠깐만 돌려도 <code>cnt</code>가 1만 5천 근처에서 멈추는 걸 볼 수 있다.</p>
+      <pre><code>// 안전한 카운터 증가
+sem_wait(&amp;mutex);
+cnt += 1;
+sem_post(&amp;mutex);</code></pre>
+      <p>이걸로 load-modify-store가 한 덩어리로 묶인다. 다른 스레드는 P에서 막히고, 끝난 뒤 들어온다. 결과는 정확히 2만이 된다.</p>
+      <div class="callout warn"><span class="label">주의</span><p>뮤텍스는 공짜가 아니다. 락 한 번에 수십~수백 사이클이 든다. 임계 구역을 가능한 한 짧게 만드는 게 성능의 첫 규칙이다. "긴 함수 전체를 락으로 감싸지 말 것." 그리고 가능하면 <em>락 자체를 피하는</em> 자료구조(원자 연산만 쓰는 큐, lock-free 컬렉션)를 고려하자. 다만 그건 진짜 어려운 영역이라 표준 라이브러리에 맡기는 게 보통은 옳다.</p></div>
+
+      <h3 id="sec-12-5-4"><span class="anchor-num">12.5.4</span>공유 자원 스케줄링 (생산자-소비자, reader-writer)</h3>
+      <p>세마포어가 단순한 상호 배제를 넘어, 자원의 가용성을 신호하는 데에도 쓰인다. 대표 예가 <strong>생산자-소비자(producer-consumer)</strong> 패턴이다.</p>
+      <p>유한 크기 버퍼가 있고, 한 스레드는 데이터를 채워 넣고(생산자), 다른 스레드는 꺼내 처리한다(소비자). 버퍼가 꽉 차면 생산자는 기다려야 하고, 비면 소비자가 기다려야 한다. 이 조정을 두 개의 세마포어 <code>slots</code>(빈 슬롯 수)와 <code>items</code>(차 있는 슬롯 수)로 해결한다.</p>
+      <pre><code>sem_t mutex;     // 버퍼 자체에 대한 상호 배제
+sem_t slots;     // 비어있는 슬롯 수, 초기 N
+sem_t items;     // 채워진 슬롯 수, 초기 0
+
+// 생산자
+void produce(item v) {
+    sem_wait(&amp;slots);          // 빈 슬롯 하나 확보
+    sem_wait(&amp;mutex);          // 버퍼 만지기 직전
+    insert(v);
+    sem_post(&amp;mutex);
+    sem_post(&amp;items);          // 새 아이템 알림
+}
+
+// 소비자
+item consume(void) {
+    sem_wait(&amp;items);          // 아이템 하나 도착 대기
+    sem_wait(&amp;mutex);
+    item v = remove();
+    sem_post(&amp;mutex);
+    sem_post(&amp;slots);          // 빈 슬롯 하나 알림
+    return v;
+}</code></pre>
+      <p>핵심은 <code>slots</code>와 <code>items</code>가 합쳐서 항상 버퍼 크기 N을 유지한다는 것. 또 <code>sem_wait(&amp;slots)</code>를 <code>mutex</code> 안쪽에 두면 안 된다. 빈 슬롯이 없을 때 mutex를 잡은 채 잠들면 소비자가 mutex를 못 잡고, 영원히 깨어나지 못한다 — 데드락이다. 항상 "자원 신호 세마포어"를 먼저, "상호 배제 세마포어"를 나중에 잡는다.</p>
+      <p><strong>독자-기록자(reader-writer)</strong> 문제도 비슷한 결의 문제다. 한 자료를 여러 스레드가 읽기만 할 때는 동시에 읽어도 되지만, 누가 쓰는 동안엔 아무도 손대면 안 된다. 라이브러리 함수 <code>pthread_rwlock_t</code>가 이걸 직접 제공하므로 직접 짜기보다는 그걸 쓰자.</p>
+
+      <h3 id="sec-12-5-5"><span class="anchor-num">12.5.5</span>정리: prethreaded 병행 서버 (사전 생성 스레드 풀 + 작업 큐)</h3>
+      <p>매 연결마다 스레드를 새로 만드는 12.3.8의 패턴은 가볍긴 해도 여전히 생성/종료 비용이 든다. 한 발짝 더: 처음에 N개의 워커 스레드를 미리 만들어두고, 메인 스레드(마스터)는 들어온 연결을 공유 큐에 넣기만 한다. 워커들은 큐에서 일감을 꺼내 처리한다. 이게 <strong>prethreaded</strong> 또는 <strong>스레드 풀</strong> 모델이다.</p>
+      <pre><code>// 큐는 위 생산자-소비자와 동일한 세 세마포어로 보호
+//   slots, items, mutex
+
+// 마스터(메인 스레드)
+while (1) {
+    int connfd = accept(listenfd, ...);
+    sbuf_insert(&amp;sbuf, connfd);   // 큐에 enqueue (sem_wait/post 내부)
+}
+
+// 워커 (N개)
+void *worker(void *arg) {
+    pthread_detach(pthread_self());
+    while (1) {
+        int connfd = sbuf_remove(&amp;sbuf);   // 큐에서 dequeue
+        echo(connfd);
+        close(connfd);
+    }
+    return NULL;
+}</code></pre>
+      <p>이 모델의 장점: 스레드 생성 오버헤드가 없고, 동시 연결 수가 폭증해도 워커 수가 고정이라 컨텍스트 스위치가 안정적이다. 단점: 풀 크기를 잘못 잡으면(너무 작으면 큐가 길어지고, 너무 크면 컨텍스트 스위치가 늘어나고) 성능이 무너진다. 보통 CPU 코어 수의 1~2배에서 시작해 워크로드를 보고 조정한다.</p>
+    </article>
+
+    <article class="section" id="sec-12-6">
+      <h2><span class="anchor-num">12.6</span>병렬성을 위한 스레드 사용 (성능 측정 모델: speedup, efficiency)</h2>
+      <p>지금까지의 병행성은 "겹쳐서 진행되는 흐름들"이었다. 그 흐름이 정말로 동시에 다른 코어 위에서 돌면 <strong>병렬(parallel)</strong>이라고 부른다. 병렬은 항상 병행이지만, 그 반대는 아니다.</p>
+      <p>여러 코어를 쓸 수 있는 환경에서, p개의 스레드로 작업을 나눴을 때 얼마나 빨라졌는지 측정하는 두 지표가 있다.</p>
+      <ul>
+        <li><strong>속도 향상비(speedup)</strong> <code>S<sub>p</sub> = T<sub>1</sub> / T<sub>p</sub></code>. 1코어로 돌릴 때 시간 대비 p코어로 돌릴 때 시간의 비. 이상적으로는 p에 비례한다(<em>linear speedup</em>).</li>
+        <li><strong>효율성(efficiency)</strong> <code>E<sub>p</sub> = S<sub>p</sub> / p</code>. 1이면 완벽한 선형, 보통 0.5~0.9 사이가 현실적.</li>
+      </ul>
+      <p>현실에서 효율성을 갉아먹는 요소는 많다. (1) 직렬화된 부분 — 어차피 한 스레드만 할 수 있는 작업(예: 파일 입출력 일부, 락 안의 임계 구역). 이걸 <strong>암달의 법칙(Amdahl's law)</strong>으로 정량화한다: 직렬 비율이 5%면 무한 코어를 동원해도 최대 20배. (2) 동기화 오버헤드 — 락 경합. (3) 캐시 일관성 — 한 코어가 변경한 캐시 라인을 다른 코어가 읽으려면 무효화/공유 프로토콜이 일어나는데 이게 의외로 비싸다. 특히 같은 캐시 라인 안 다른 변수들끼리도 충돌하는 <strong>거짓 공유(false sharing)</strong>가 흔하다. (4) 작업 분할 불균형 — 한 워커만 무거운 일을 받으면 나머지가 놀게 된다.</p>
+      <p>실제 측정해보면, 코어 4개 머신에서 효율성 0.7이면 양호한 편이고, 0.9면 잘 짠 편이다. 1.0 가까이 나온다면 측정을 의심해봐야 한다. 보통 그건 캐시 효과 같은 외부 요인 덕에 단일 스레드 버전이 너무 느렸던 경우다.</p>
+    </article>
+
+    <article class="section" id="sec-12-7">
+      <h2><span class="anchor-num">12.7</span>기타 병행성 이슈</h2>
+
+      <h3 id="sec-12-7-1"><span class="anchor-num">12.7.1</span>스레드 안전성 (4가지 thread-unsafe 클래스)</h3>
+      <p>한 함수가 여러 스레드에서 동시에 호출되어도 항상 옳게 동작하면 <strong>스레드 안전(thread-safe)</strong>하다고 한다. 안전하지 않은 함수는 보통 네 부류다.</p>
+      <ol>
+        <li><strong>공유 변수를 보호 없이 만지는 함수.</strong> <code>cnt += 1</code> 같은 것. 락으로 둘러싸지 않으면 위험하다.</li>
+        <li><strong>호출 사이에 상태를 유지하는 함수.</strong> <code>rand()</code>가 대표 예. 내부에 시드 변수를 들고 있어 호출마다 그걸 읽고 쓴다. 두 스레드가 동시에 부르면 시드가 꼬인다.</li>
+        <li><strong>정적/전역 버퍼에 결과를 저장하고 그 포인터를 반환하는 함수.</strong> <code>ctime</code>, <code>strtok</code>, <code>gethostbyname</code>이 그렇다. 두 스레드가 동시에 부르면 한쪽 결과가 다른 쪽 결과로 덮어쓰여 사라진다.</li>
+        <li><strong>다른 스레드 안전하지 않은 함수를 부르는 함수.</strong> 전염성. 한 함수의 안전성은 그 함수가 호출하는 모든 함수의 안전성에 의존한다.</li>
+      </ol>
+
+      <h3 id="sec-12-7-2"><span class="anchor-num">12.7.2</span>재진입성 (reentrant function)</h3>
+      <p>스레드 안전성보다 더 강한 성질이 <strong>재진입(reentrant)</strong>이다. 함수가 어떤 공유 변수도 만지지 않으면 — 즉 모든 데이터가 인자나 지역 변수에서만 흐르면 — 락 없이도 여러 스레드에서 안전하게 부를 수 있다. 재진입 함수는 자동으로 스레드 안전하다. 반대는 거짓: 락으로 보호하면 스레드 안전하지만 재진입은 아니다.</p>
+      <p>재진입의 진짜 가치는 시그널 핸들러에서도 안전하다는 점이다. 핸들러는 메인 흐름을 중단시키며 끼어드는데, 만약 메인이 어떤 함수의 임계 구역에 있을 때 핸들러가 같은 함수를 호출하면 재귀처럼 들어가게 된다. 락은 같은 스레드의 재호출도 막을 수 있어 데드락이 나거나(non-recursive mutex), 안 막더라도 자료 구조가 일관되지 않은 중간 상태에서 호출되어 깨질 수 있다. 재진입 함수만이 그 상황에서 안전하다.</p>
+
+      <h3 id="sec-12-7-3"><span class="anchor-num">12.7.3</span>기존 라이브러리 함수 사용 (gethostbyname → getaddrinfo, ctime → ctime_r)</h3>
+      <p>표준 C 라이브러리에는 정적 버퍼를 쓰는 오래된 함수들이 많다. 이들 옆에는 보통 <code>_r</code>(reentrant) 접미사가 붙은 새 버전이 함께 제공된다. 호출자가 버퍼를 직접 넘기는 형태라 스레드 안전하다.</p>
+      <table>
+        <thead><tr><th>안전하지 않음</th><th>대체 (재진입/스레드 안전)</th></tr></thead>
+        <tbody>
+          <tr><td><code>rand()</code></td><td><code>rand_r(unsigned *seed)</code></td></tr>
+          <tr><td><code>ctime(time_t *)</code></td><td><code>ctime_r(time_t *, char *buf)</code></td></tr>
+          <tr><td><code>strtok(char *, char *)</code></td><td><code>strtok_r(char *, char *, char **saveptr)</code></td></tr>
+          <tr><td><code>gethostbyname(...)</code></td><td><code>getaddrinfo(...)</code> (구조적으로 다름, 더 권장)</td></tr>
+          <tr><td><code>localtime(...)</code></td><td><code>localtime_r(...)</code></td></tr>
+        </tbody>
+      </table>
+      <p>현대 코드에서 <code>gethostbyname</code>은 단순히 스레드 안전성 문제만이 아니라 IPv6 지원 부재 같은 이유로도 폐기 권고다. 11장에서 본 <code>getaddrinfo</code>로 거의 모든 경우를 대체할 수 있다.</p>
+
+      <h3 id="sec-12-7-4"><span class="anchor-num">12.7.4</span>경쟁 조건 (race)</h3>
+      <p>경쟁 조건(race condition)은 <em>두 스레드가 어떤 자원에 접근하는 순서에 결과가 의존하는데, 그 순서가 보장되지 않는 상태</em>를 말한다. 카운터 예가 그 가장 작은 형태였다. 더 미묘한 형태도 많다.</p>
+      <p>전형적인 한 가지: 메인 스레드가 워커에게 인자를 넘기면서 <code>i</code>의 주소를 그대로 넘기고, 메인은 <code>i++</code>로 다음 반복으로 가버린다. 워커가 그 사이 자기 인자를 읽으면 이미 변한 값을 본다. 결과는 워커가 언제 깨어나느냐에 따라 매번 달라진다. 이건 비결정성(non-determinism)을 코드에 심는 일이다. 경쟁 조건은 디버그하기가 끔찍하다. 재현이 어렵고, 디버거가 끼어들면 타이밍이 변해 사라지기 일쑤다.</p>
+      <p>예방의 원칙은 (1) 공유 자료를 <em>식별</em>하고, (2) 가능한 한 그 자료를 줄이고, (3) 남은 자료에 대해 <em>모든 접근을 적절히 보호</em>하는 것이다. 락, 원자 연산, 메시지 패싱 — 도구는 많지만 인식이 첫걸음이다.</p>
+
+      <h3 id="sec-12-7-5"><span class="anchor-num">12.7.5</span>데드락 (Coffman 조건)</h3>
+      <p>데드락(deadlock)은 둘 이상의 스레드가 서로가 가진 자원을 기다리며 영원히 멈춰버리는 상황이다. 1971년 Coffman이 정리한 네 가지 조건이 모두 성립할 때 데드락이 가능하다.</p>
+      <ol>
+        <li><strong>상호 배제(Mutual Exclusion)</strong>: 자원을 한 번에 한 스레드만 보유할 수 있다.</li>
+        <li><strong>점유와 대기(Hold and Wait)</strong>: 자원을 가진 채로 다른 자원을 기다린다.</li>
+        <li><strong>비선점(No Preemption)</strong>: 보유한 자원은 강제로 빼앗을 수 없고, 자발적 반납만 가능하다.</li>
+        <li><strong>순환 대기(Circular Wait)</strong>: 스레드들이 원형으로 서로의 자원을 기다린다. T1이 T2의 자원을, T2가 T3의 자원을, ..., Tn이 T1의 자원을 기다리는 식.</li>
+      </ol>
+      <p>전형적 시나리오. 락 A, B가 있고 두 스레드가 있다.</p>
+      <pre><code>// T1                      // T2
+sem_wait(&amp;A);              sem_wait(&amp;B);
+sem_wait(&amp;B);  ←──┐        sem_wait(&amp;A);  ←──┐
+... 작업 ...        │        ... 작업 ...        │
+sem_post(&amp;B);      │        sem_post(&amp;A);      │
+sem_post(&amp;A);      │        sem_post(&amp;B);      │
+                    │                           │
+            T1은 B 기다림            T2는 A 기다림
+            (T2가 잡고 있음)         (T1이 잡고 있음)</code></pre>
+      <p>가장 단순한 회피책은 <strong>모든 스레드가 락을 같은 순서로 잡는 것</strong>이다. 위 예에서 두 스레드 모두 "A 먼저, 그다음 B" 순서를 따르면, 누구든 A를 잡으면 그 사람이 B도 결국 잡고 풀 수 있다. 락 순서를 코드 컨벤션으로 못 박아두는 게 가장 흔하고 가장 효과적인 데드락 예방법이다.</p>
+      <p>두 번째 회피책은 <code>pthread_mutex_trylock</code> 같은 비차단 시도 함수를 쓰는 것이다. B를 잡지 못하면 A를 풀고 잠시 대기 후 처음부터 다시. 하지만 이는 활동성 문제(<strong>라이브락(livelock)</strong>: 둘 다 양보만 하다 못 끝남)를 만들 수 있어, 백오프(backoff)와 함께 신중히 설계해야 한다.</p>
+      <div class="callout warn"><span class="label">실전 팁</span><p>한 임계 구역 안에서 다른 락을 잡거나 콜백을 호출해야 한다면 빨간불을 켜자. 콜백이 어떤 락을 잡을지 모르는 상황에서 락을 들고 콜백하면 데드락 위험이 폭증한다. 가능하면 <strong>락을 잡은 채로 외부 코드(콜백/I/O/대기)를 부르지 말 것.</strong></p></div>
+    </article>
+
+    <article class="section" id="sec-12-8">
+      <h2><span class="anchor-num">12.8</span>요약</h2>
+      <p>이번 장은 한 줄로 요약하면 이렇다: <strong>"동시"는 공짜가 아니다.</strong> 우리는 세 가지 방식을 봤다. 프로세스 — 격리는 좋지만 무겁다. I/O 멀티플렉싱 — 가볍지만 코드가 콜백 그래프로 꼬인다. 스레드 — 가볍고 직관적이지만 공유로 인한 함정이 새로 생긴다. 어떤 모델도 만능은 아니라서, 워크로드의 성격(I/O 바운드인지 CPU 바운드인지, 격리가 얼마나 중요한지, 동시 연결 규모가 얼마인지)에 따라 골라야 한다.</p>
+      <ul>
+        <li>프로세스 서버는 fork-accept 패턴이 단순하고 안전하다. <code>SIGCHLD</code> 핸들러로 좀비를 거두고, 자식이 받은 connfd는 부모가 즉시 닫는다.</li>
+        <li>I/O 멀티플렉싱은 한 프로세스에서 수많은 디스크립터를 다룰 수 있게 해주지만, 각 클라이언트의 상태를 자체 자료구조로 관리하는 상태 머신 사고가 필요하다. 큰 규모에선 <code>epoll</code>/<code>kqueue</code>로 가야 한다.</li>
+        <li>스레드는 같은 주소 공간을 공유한다. 전역, <code>static</code> 지역, 힙은 공유. 일반 지역 변수는 사적이지만, 그 주소가 새 나가면 사실상 공유가 된다.</li>
+        <li>경쟁 조건은 비결정성을 심는다. 세마포어로 임계 구역을 보호하라. 단순 카운터 증가도 보호 없이는 깨진다.</li>
+        <li>생산자-소비자 같은 자원 스케줄링 문제는 카운팅 세마포어 두 개와 mutex 하나의 조합으로 깔끔하게 해결된다. <code>slots</code>와 <code>items</code>는 합쳐서 항상 N을 유지한다.</li>
+        <li>스레드 안전성 ≠ 재진입성. 후자가 더 강하고, 락 없이 안전하다. 시그널 핸들러에서도 안전한 건 재진입 함수뿐이다. 라이브러리는 <code>_r</code> 접미사 버전을 우선 쓰자.</li>
+        <li>데드락은 Coffman의 4조건을 모두 만족할 때만 가능하다. 가장 효과적인 예방은 락을 항상 같은 순서로 잡기.</li>
+        <li>병렬 성능은 speedup과 efficiency로 측정한다. 암달의 법칙이 알려주듯 직렬 부분 5%만 있어도 무한 코어로도 20배가 한계다. 거짓 공유, 락 경합, 작업 분할 불균형이 효율성을 갉아먹는 주범.</li>
+      </ul>
+      <p>이 장의 내용은 단순한 학습용이 아니다. 현대 서버 프로그래밍, 게임 엔진, 데이터베이스 내부, GUI 이벤트 루프, 모바일 앱의 백그라운드 작업 — 거의 모든 실전 시스템이 여기 나온 패턴들 위에 서 있다. 코드 한 줄이 안전한지 의심하는 습관, 임계 구역을 짧게 유지하는 본능, 락 순서 컨벤션을 정리하는 규율이 이번 장의 진짜 결과물이다. 처음 만나는 멀티스레드 버그가 며칠을 잡아먹어도, 이 장의 도구를 들고 있으면 결국 잡힌다. 잘 잡았다.</p>
+      <div class="callout tip"><span class="label">꿀팁</span><p>스스로 점검: (1) <code>fork</code> 후 부모가 connfd를 닫지 않으면 어떤 일이 생기나? (2) 두 스레드가 락 없이 같은 카운터를 1000만 번씩 늘리면 결과는 왜 2000만보다 작아지는가? (3) 데드락 4조건 중 가장 깨기 쉬운 건 무엇이며, 그걸 어떻게 깨는가? 세 질문에 답할 수 있다면 이 장은 머릿속에 자리잡은 것이다. 막힌다면 해당 절을 다시 펼쳐보자.</p></div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter11.html"><span class="dir">← 이전</span>제11장 · 네트워크 프로그래밍</a>
+      <a class="next" href="../index.html"><span class="dir">다음 →</span>목차로 돌아가기</a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

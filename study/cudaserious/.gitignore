@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+dist/
+webtoon_viewer/node_modules/
+webtoon_viewer/dist/
+webtoon_viewer/public/generated/
+

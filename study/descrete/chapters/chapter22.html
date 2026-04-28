@@ -1,0 +1,256 @@
+<article id="ch22" class="chapter" data-part="V">
+  <header class="ch-header">
+    <p class="part-label">PART V — 점화식</p>
+    <h2 class="ch-title">
+      <span class="ch-num">22</span>
+      <span class="ch-kr">점화식</span>
+      <span class="ch-en">Recurrences</span>
+    </h2>
+    <p class="ch-intro">재귀는 사이즈가 작아진 자기 자신으로 답한다. 점화식은 그 답을 손으로 잡는 도구입니다. 이번 장에서는 하노이의 탑처럼 재귀가 자연스럽게 등장하는 문제부터, 합병 정렬 같은 분할정복 알고리즘의 비용을 셈하는 방법까지 차근차근 따라갑니다. 마지막에는 마스터 정리와 점화식을 다루는 실전 감각을 익혀, 알고리즘을 보고 즉시 복잡도를 가늠할 수 있는 근육을 만들어 봅니다.</p>
+  </header>
+
+  <section id="ch22-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">22.1</span>
+      <span class="sec-kr">하노이의 탑</span>
+      <span class="sec-en">The Towers of Hanoi</span>
+    </h3>
+    <p>점화식 이야기를 시작할 때 거의 모든 교재가 꺼내드는 단골손님이 있습니다. 바로 <b>하노이의 탑</b>입니다. 세 개의 막대 \( A, B, C \)가 있고, 막대 \( A \)에 크기가 서로 다른 원반 \( n \)개가 큰 것이 아래, 작은 것이 위로 쌓여 있어요. 우리는 이 원반들을 모두 막대 \( C \)로 옮겨야 합니다. 단, 규칙이 있습니다.</p>
+    <ul>
+      <li>한 번에 원반은 하나만 움직일 수 있다.</li>
+      <li>큰 원반을 작은 원반 위에 올릴 수 없다.</li>
+    </ul>
+    <p>이 문제의 매력은, 답을 머리로 풀려고 하면 금방 막히는데 재귀로 풀면 거짓말처럼 풀린다는 점입니다. 한번 같이 따라가 봐요.</p>
+
+    <p>핵심 아이디어는 이렇습니다. \( n \)개를 \( A \to C \)로 옮기고 싶으면, 먼저 위쪽 \( n-1 \)개를 \( A \to B \)로 옮긴 다음, 가장 큰 \( n \)번 원반을 \( A \to C \)로 옮기고, 마지막으로 \( B \)에 쌓아둔 \( n-1 \)개를 \( B \to C \)로 옮기면 됩니다. 큰 원반은 깔개 역할만 하므로 작은 원반들의 이동을 방해하지 않아요.</p>
+
+    <pre class="ascii">
+초기                  중간                  최종
+ |       |       |     |       |       |     |       |       |
+ _       |       |     |       |       |     |       |       _
+__       |       |     |       _       |     |       |       __
+___      |       |     |       __      |     |       |       ___
+A        B       C     A       B       C     A       B       C
+    </pre>
+
+    <p>이 전략을 비용으로 바꿔 적으면 점화식이 됩니다. \( n \)개를 옮기는 데 필요한 최소 이동 횟수를 \( T(n) \)이라 하면, 위 절차에서 우리는 \( n-1 \)개 옮기기를 두 번, 그리고 가장 큰 원반 한 번을 옮깁니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 22.1.1 (하노이의 탑 점화식)</p>
+      <p>원반 \( n \)개를 옮기는 최소 이동 횟수 \( T(n) \)은 다음을 만족합니다.</p>
+      <p>\[ T(n) = 2T(n-1) + 1 \quad (n \ge 1), \qquad T(0) = 0. \]</p>
+    </div>
+
+    <p>점화식이 있으면 작은 값부터 직접 계산해 볼 수 있어요. \( T(0)=0,\; T(1)=1,\; T(2)=3,\; T(3)=7,\; T(4)=15,\; T(5)=31 \). 패턴이 보이나요? 1씩 더하면 모두 2의 거듭제곱입니다. 그럼 한번 추측해 봅시다. <b>\( T(n) = 2^n - 1 \)</b>.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 22.1.2 (하노이 폐형식)</p>
+      <p>모든 \( n \ge 0 \)에 대해 \( T(n) = 2^n - 1 \).</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (귀납법)</p>
+      <p>기저 \( n=0 \)에서 \( T(0)=0=2^0-1 \). 귀납 가정으로 \( T(n-1)=2^{n-1}-1 \)이라 두면,</p>
+      <p>\[ T(n) = 2T(n-1) + 1 = 2(2^{n-1}-1) + 1 = 2^n - 2 + 1 = 2^n - 1. \]</p>
+      <p>따라서 모든 \( n \ge 0 \)에 대해 성립합니다.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>여담으로, 전설에 따르면 64개 원반을 어떤 사원의 승려들이 옮기고 있다고 합니다. 1초에 한 번씩 옮긴다 해도 \( 2^{64}-1 \approx 1.8 \times 10^{19} \)초, 약 5849억년이 걸립니다. 우주의 나이보다 훨씬 길죠. 알고리즘 시간복잡도가 왜 중요한지 이보다 직관적인 예가 있을까요.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트: 풀이 한 줄짜리 코드</p>
+      <p>재귀로 옮기는 절차를 그대로 옮기면 다음과 같습니다. 정의가 곧 코드라는 점이 재귀의 매력이에요.</p>
+      <pre><code class="lang-py">def hanoi(n, src, via, dst):
+    if n == 0: return
+    hanoi(n-1, src, dst, via)
+    print(f"{src} -&gt; {dst}")
+    hanoi(n-1, via, src, dst)
+</code></pre>
+    </div>
+  </section>
+
+  <section id="ch22-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">22.2</span>
+      <span class="sec-kr">합병 정렬</span>
+      <span class="sec-en">Merge Sort</span>
+    </h3>
+    <p>이제 좀 더 실용적인 친구를 봅시다. <b>합병 정렬(merge sort)</b>은 \( n \)개의 원소를 정렬할 때, 배열을 절반으로 나눠 각각 정렬한 뒤 두 정렬된 부분을 합쳐 하나로 만드는 알고리즘이에요. 이 "나눠서 풀고 합친다"는 패턴이 바로 분할정복(divide-and-conquer)입니다.</p>
+
+    <p>비용을 \( T(n) \)이라 하면, 길이 \( n \) 배열에서 합병 정렬은 다음 일을 합니다.</p>
+    <ol>
+      <li>길이 \( n/2 \)짜리를 두 번 정렬: 비용 \( 2T(n/2) \).</li>
+      <li>두 정렬된 배열을 하나로 합치는 merge: 비용 \( \Theta(n) \) (양쪽 끝에서 작은 쪽을 한 번씩 뽑아내며 \( n \)개 다 채우면 끝).</li>
+    </ol>
+
+    <div class="callout def">
+      <p class="callout-label">정의 22.2.1 (합병 정렬 점화식)</p>
+      <p>\[ T(n) = 2\,T(n/2) + n \quad (n \ge 2), \qquad T(1) = 0. \]</p>
+      <p>여기서 \( n \)이 2의 거듭제곱이라 가정해도 결과의 점근적 차수는 같습니다.</p>
+    </div>
+
+    <p>이 점화식을 손으로 풀어 봅시다. 가장 단순한 방법은 <b>펼쳐쓰기(unrolling)</b>입니다. 한 단계씩 안쪽으로 들어가면서 식을 풀어 보면,</p>
+    <p>\[ T(n) = 2T(n/2) + n = 2\big(2T(n/4) + n/2\big) + n = 4T(n/4) + 2n. \]</p>
+    <p>한 번 더 펼치면 \( 8T(n/8) + 3n \). \( k \)번 펼치면 \( 2^k T(n/2^k) + k\,n \). 이제 \( n/2^k = 1 \)이 될 때까지, 즉 \( k = \log_2 n \)까지 가면,</p>
+    <p>\[ T(n) = 2^{\log_2 n}\, T(1) + (\log_2 n)\, n = n \cdot 0 + n \log_2 n = n \log_2 n. \]</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 22.2.2 (합병 정렬 비용)</p>
+      <p>\( T(n) = 2T(n/2) + n,\; T(1)=0 \)이면 \( T(n) = \Theta(n \log n) \).</p>
+    </div>
+
+    <p>같은 결과를 그림으로도 볼 수 있어요. <b>재귀 트리(recursion tree)</b>를 그려 봅시다. 루트에서 비용 \( n \), 다음 층에 비용 \( n/2 \)인 노드 두 개(합 \( n \)), 그 다음에 \( n/4 \)인 노드 네 개(합 \( n \))… 층마다 합이 \( n \)인 게 핵심입니다. 트리의 높이는 \( \log_2 n \)이므로 전체 비용은 \( n \log_2 n \).</p>
+
+    <pre class="ascii">
+            n            ← n
+          /   \
+        n/2    n/2        ← n
+       / \    / \
+     n/4 n/4 n/4 n/4      ← n
+      ...                 ← ...
+      1 1 1 ... 1         ← n  (leaves: 총 n개)
+    높이 log₂ n
+    </pre>
+
+    <div class="callout example">
+      <p class="callout-label">예제 22.2.3</p>
+      <p>\( n=8 \)이라 하자. 펼쳐쓰기로 \( T(8) = 2T(4) + 8 = 2(2T(2) + 4) + 8 = 4T(2) + 16 = 4(2T(1)+2) + 16 = 8T(1) + 8 + 16 = 0 + 24 \). 한편 \( n \log_2 n = 8 \cdot 3 = 24 \)로 정확히 일치합니다.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트: 비교 정렬의 한계</p>
+      <p>비교만 가지고 정렬하는 모든 알고리즘은 \( \Omega(n \log n) \) 시간이 걸린다는 게 정보이론적으로 알려져 있습니다. 합병 정렬은 그 하한을 점근적으로 달성하는 깔끔한 알고리즘이라 두고두고 등장해요.</p>
+    </div>
+  </section>
+
+  <section id="ch22-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">22.3</span>
+      <span class="sec-kr">선형 점화식</span>
+      <span class="sec-en">Linear Recurrences</span>
+    </h3>
+    <p>하노이는 \( T(n) = 2T(n-1)+1 \), 합병 정렬은 \( T(n) = 2T(n/2) + n \). 둘 다 자기 자신을 다시 부르지만, 부르는 방식이 다릅니다. 이 절에서는 첫 번째 종류, 즉 입력 크기를 <b>상수만큼 줄이는</b> 점화식을 정리합니다. 일반적으로 모양은</p>
+    <p>\[ a_n = c_1 a_{n-1} + c_2 a_{n-2} + \cdots + c_d a_{n-d} + f(n) \]</p>
+    <p>이고, 계수 \( c_i \)가 상수일 때 이를 <b>상수계수 선형 점화식</b>이라고 합니다. \( f(n)=0 \)이면 <b>동차(homogeneous)</b>, 아니면 <b>비동차(inhomogeneous)</b>입니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 22.3.1 (특성 방정식)</p>
+      <p>동차 점화식 \( a_n = c_1 a_{n-1} + \cdots + c_d a_{n-d} \)에 \( a_n = r^n \)을 대입하면 양변을 \( r^{n-d} \)로 나눠 다음을 얻습니다.</p>
+      <p>\[ r^d - c_1 r^{d-1} - c_2 r^{d-2} - \cdots - c_d = 0. \]</p>
+      <p>이 다항식을 <b>특성 방정식</b>, 그 근을 <b>특성근</b>이라 부릅니다.</p>
+    </div>
+
+    <p>특성근을 \( r_1, \ldots, r_d \)라 하고 모두 다르다면, 일반해는 이들의 선형결합입니다.</p>
+    <p>\[ a_n = \alpha_1 r_1^n + \alpha_2 r_2^n + \cdots + \alpha_d r_d^n. \]</p>
+    <p>계수 \( \alpha_i \)는 초기조건(\( a_0, a_1, \ldots \))을 대입해 연립방정식으로 정합니다. 만약 어떤 근 \( r \)이 중근이라면 \( r^n,\, n r^n,\, n^2 r^n,\ldots \) 식으로 \( n \)을 곱한 항들을 추가해 주면 됩니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 22.3.2 (피보나치)</p>
+      <p>\( F_n = F_{n-1} + F_{n-2},\; F_0 = 0,\; F_1 = 1 \). 특성 방정식은 \( r^2 - r - 1 = 0 \), 근은 \( r = (1\pm\sqrt5)/2 \). 흔히 \( \varphi = (1+\sqrt5)/2 \), \( \psi = (1-\sqrt5)/2 \)라 쓰면 일반해는 \( F_n = \alpha \varphi^n + \beta \psi^n \).</p>
+      <p>\( F_0=0 \)에서 \( \alpha + \beta = 0 \), \( F_1=1 \)에서 \( \alpha\varphi + \beta\psi = 1 \)을 풀면 \( \alpha = 1/\sqrt5,\; \beta = -1/\sqrt5 \). 따라서 비네 공식</p>
+      <p>\[ F_n = \frac{\varphi^n - \psi^n}{\sqrt5}. \]</p>
+      <p>\( |\psi| < 1 \)이라 큰 \( n \)에서 \( F_n \approx \varphi^n/\sqrt5 \). 정수 수열인데 무리수가 등장하는 게 늘 신기하죠.</p>
+    </div>
+
+    <p>비동차 항 \( f(n) \)이 있을 때는 두 단계로 나눕니다. 먼저 동차 부분의 일반해 \( a_n^{(h)} \)를 구하고, \( f(n) \)에 어울리는 <b>특수해</b> \( a_n^{(p)} \)를 추측해서 대입해 본 뒤, 둘을 더한 \( a_n = a_n^{(h)} + a_n^{(p)} \)로 일반해를 만듭니다.</p>
+
+    <table class="tbl">
+      <thead><tr><th>비동차항 \( f(n) \)</th><th>특수해 추측</th></tr></thead>
+      <tbody>
+        <tr><td>상수 \( c \)</td><td>상수 \( A \)</td></tr>
+        <tr><td>다항식 \( n^k \)</td><td>같은 차수의 다항식 \( A_k n^k + \cdots + A_0 \)</td></tr>
+        <tr><td>지수 \( c\,b^n \) (\( b \)가 특성근이 아닐 때)</td><td>\( A b^n \)</td></tr>
+        <tr><td>지수 \( c\,b^n \) (\( b \)가 특성근일 때)</td><td>\( A n b^n \)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout example">
+      <p class="callout-label">예제 22.3.3 (하노이 다시 보기)</p>
+      <p>\( T_n = 2T_{n-1} + 1 \). 동차 부분 \( T_n - 2T_{n-1} = 0 \)의 특성근은 \( r = 2 \), 동차해는 \( T_n^{(h)} = \alpha \cdot 2^n \). 비동차항이 상수이므로 특수해를 \( T_n^{(p)} = A \)로 추측. 대입하면 \( A = 2A + 1 \), \( A = -1 \). 일반해는 \( T_n = \alpha \cdot 2^n - 1 \). 초기조건 \( T_0=0 \)에서 \( \alpha = 1 \). 결과는 \( T_n = 2^n - 1 \). 22.1절의 답과 똑같죠.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트</p>
+      <p>"왜 \( a_n = r^n \)을 시도하나?" 직관은 이렇습니다. \( a_n = r \cdot a_{n-1} \) 같은 1차 점화식이라면 답이 정확히 \( r^n \) 꼴이라는 걸 우리는 압니다. 차수가 높아져도 그 기본형의 합으로 표현된다는 게 선형성의 본질이에요. 미분방정식에서 \( e^{rx} \)를 시도하는 것과 정확히 같은 발상입니다.</p>
+    </div>
+  </section>
+
+  <section id="ch22-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">22.4</span>
+      <span class="sec-kr">분할정복 점화식</span>
+      <span class="sec-en">Divide-and-Conquer Recurrences</span>
+    </h3>
+    <p>합병 정렬 같은 알고리즘의 비용은 일반적으로 다음 모양을 합니다.</p>
+    <p>\[ T(n) = a\,T(n/b) + f(n), \]</p>
+    <p>여기서 \( a \ge 1 \)은 부분문제 개수, \( b > 1 \)은 크기 축소 비율, \( f(n) \)은 분할과 결합에 드는 비용이에요. 이런 점화식의 차수를 한 방에 알려주는 도구가 바로 <b>마스터 정리(Master Theorem)</b>입니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 22.4.1 (마스터 정리)</p>
+      <p>\( T(n) = a\,T(n/b) + f(n) \), \( a \ge 1,\; b > 1 \), \( f(n) \)은 양의 함수라 하자. \( n^{\log_b a} \)와 \( f(n) \)의 점근적 크기를 비교한다.</p>
+      <ol>
+        <li><b>경우 1.</b> 어떤 \( \varepsilon > 0 \)에 대해 \( f(n) = O(n^{\log_b a - \varepsilon}) \)이면 \( T(n) = \Theta(n^{\log_b a}) \).</li>
+        <li><b>경우 2.</b> \( f(n) = \Theta(n^{\log_b a}) \)이면 \( T(n) = \Theta(n^{\log_b a} \log n) \).</li>
+        <li><b>경우 3.</b> 어떤 \( \varepsilon > 0 \)에 대해 \( f(n) = \Omega(n^{\log_b a + \varepsilon}) \)이고, 적당한 \( c < 1 \)이 있어 \( a f(n/b) \le c f(n) \)이면 \( T(n) = \Theta(f(n)) \).</li>
+      </ol>
+    </div>
+
+    <p>왜 이런 모양이 나오는지 직관은 재귀 트리에 있습니다. 트리의 높이는 \( \log_b n \), \( k \)번째 층에는 노드가 \( a^k \)개, 각 노드의 비용이 \( f(n/b^k) \)예요. 잎의 개수는 \( a^{\log_b n} = n^{\log_b a} \). 따라서 비용이 어디에 몰리는지가 차수를 결정합니다.</p>
+    <ul>
+      <li><b>경우 1</b>: 잎 쪽이 무겁다. 합병 비용이 작아 잎이 비용을 지배 → \( n^{\log_b a} \).</li>
+      <li><b>경우 2</b>: 모든 층이 비슷하게 무겁다. 층마다 \( \Theta(n^{\log_b a}) \), 층이 \( \log n \)개 → \( n^{\log_b a} \log n \).</li>
+      <li><b>경우 3</b>: 루트 쪽이 무겁다. 루트의 \( f(n) \)이 비용을 지배 → \( f(n) \).</li>
+    </ul>
+
+    <div class="callout example">
+      <p class="callout-label">예제 22.4.2</p>
+      <p>(a) <b>합병 정렬</b>: \( T(n) = 2T(n/2) + n \). \( a=b=2 \)이므로 \( n^{\log_b a} = n^1 = n \). \( f(n) = n \)도 같으므로 경우 2에 해당, \( T(n) = \Theta(n \log n) \).</p>
+      <p>(b) <b>이진 탐색</b>: \( T(n) = T(n/2) + 1 \). \( a=1,\; b=2 \)이므로 \( n^{\log_b a} = n^0 = 1 \), \( f(n) = 1 \)도 같으므로 경우 2, \( T(n) = \Theta(\log n) \).</p>
+      <p>(c) <b>스트라센 행렬곱</b>: \( T(n) = 7T(n/2) + n^2 \). \( n^{\log_2 7} \approx n^{2.807} \)이고 \( f(n) = n^2 \)이 그보다 다항적으로 작으므로 경우 1, \( T(n) = \Theta(n^{\log_2 7}) \). 표준 행렬곱의 \( \Theta(n^3) \)보다 빠릅니다.</p>
+      <p>(d) <b>퀵셀렉트의 가장 좋은 분기</b>: \( T(n) = T(n/2) + n \). \( n^{\log_b a} = 1 \), \( f(n) = n \)이 다항적으로 더 크므로 경우 3, \( T(n) = \Theta(n) \).</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트: 빠지기 쉬운 함정</p>
+      <p>경우 1과 3은 "다항적으로(\( n^\varepsilon \)만큼) 차이가 나야" 적용됩니다. 가령 \( T(n) = 2T(n/2) + n \log n \)에서 \( n^{\log_2 2} = n \)과 \( n \log n \)은 다항적 차이가 아니라 로그 차이뿐이라 마스터 정리 표준 형태로는 풀리지 않아요. 이런 경계 사례에는 펼쳐쓰기가 직접 도움이 됩니다(답은 \( \Theta(n \log^2 n) \)).</p>
+    </div>
+  </section>
+
+  <section id="ch22-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">22.5</span>
+      <span class="sec-kr">점화식 감각 익히기</span>
+      <span class="sec-en">A Feel for Recurrences</span>
+    </h3>
+    <p>점화식을 잘 다루는 사람은 정리 하나를 외우고 있는 사람이 아니라, 답의 모양을 빠르게 추측하고 검증하는 사람입니다. 이 절에서는 그 감각을 위한 세 가지 도구를 정리합니다.</p>
+
+    <p><b>(1) 펼쳐쓰기(unrolling)</b>. 점화식을 한두 단계 풀어쓰고 패턴을 찾는 방법이에요. 22.2절에서 \( T(n) = 2T(n/2)+n \)을 펼쳐 \( 2^k T(n/2^k) + kn \) 꼴을 얻은 게 전형적인 예입니다. 일반항을 추측한 뒤, 귀납법으로 검증하면 끝.</p>
+
+    <p><b>(2) 재귀 트리(recursion tree)</b>. 부분문제를 트리로 그리고, 층별 비용을 합산하는 방법. 분할정복 점화식의 직관은 거의 항상 트리에서 옵니다. 마스터 정리의 세 경우도 결국 "어느 층이 비용을 지배하는가?"의 트리적 표현이에요.</p>
+
+    <p><b>(3) 추측-검증(guess and verify)</b>. 답이 \( O(n \log n) \)일 거라고 추측한 뒤, 강한 귀납법으로 \( T(n) \le c\,n \log n \)을 직접 증명하는 방법. 이걸 <b>치환법(substitution method)</b>이라고도 부릅니다. 추측만 적당히 하면 거의 모든 점화식을 잡을 수 있어요.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 22.5.1 (치환법)</p>
+      <p>\( T(n) = 2T(n/2) + n,\; T(1) = 1 \)에 대해 \( T(n) \le c n \log_2 n \)을 적당한 \( c \)에 대해 보이자. 귀납 가정: \( T(n/2) \le c\,(n/2) \log_2(n/2) \). 그러면</p>
+      <p>\[ T(n) \le 2 \cdot c (n/2)\log_2(n/2) + n = c n (\log_2 n - 1) + n = c n \log_2 n - c n + n. \]</p>
+      <p>이게 \( c n \log_2 n \) 이하이려면 \( -cn + n \le 0 \), 즉 \( c \ge 1 \). 기저는 \( n=2 \)에서 직접 확인하면 끝. 이렇게 추측 → 대입 → 부등식 정리만 하면 점화식이 풀립니다.</p>
+    </div>
+
+    <p>마지막으로 점화식을 만났을 때 머릿속에 둘 만한 <b>실전 팁</b>입니다.</p>
+    <ul>
+      <li>점화식을 보자마자 <b>"크기를 어떻게 줄이는가"</b>를 묻자. \( n-1 \)인지, \( n/b \)인지에 따라 도구가 달라진다.</li>
+      <li>크기가 상수만큼 줄면(예: \( T(n)=T(n-1)+\cdots \)) 선형 점화식 도구(특성방정식)를 시도.</li>
+      <li>크기가 비율로 줄면(예: \( T(n)=aT(n/b)+f(n) \)) 마스터 정리부터 본다.</li>
+      <li>마스터 정리가 안 되면 재귀 트리를 그려본다. 거의 항상 답이 보인다.</li>
+      <li>그래도 안 풀리면 답의 형태를 추측하고 치환법으로 검증한다.</li>
+      <li>작은 \( n \)에 대해 직접 계산해 보고 OEIS(온라인 정수수열 사전)에 검색해 보는 것도 의외로 빠른 길이다.</li>
+    </ul>
+
+    <div class="callout note">
+      <p class="callout-label">마무리 노트</p>
+      <p>점화식은 알고리즘 분석에서 가장 자주 만나는 도구입니다. 함수의 클로즈드 폼(닫힌 형태)을 항상 구할 필요는 없어요. 우리가 보통 알고 싶은 건 차수 \( \Theta(\cdot) \)뿐이니까요. 이번 장의 도구—펼쳐쓰기, 트리법, 특성방정식, 마스터 정리, 치환법—은 그 차수를 빠르게 잡아내는 다섯 자루의 칼입니다. 알고리즘 책을 읽다 점화식을 마주치면, 다섯 칼 중 어느 것이 어울릴지 한번씩 떠올려 보세요. 손이 풀리는 데에는 시간이 걸리지만, 한 번 풀리면 평생을 갑니다.</p>
+    </div>
+  </section>
+</article>

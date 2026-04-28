@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7장. 컨볼루션과 상수 메모리 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 7</p>
+    <h1>컨볼루션과 상수 메모리</h1>
+    <p class="subtitle">필터를 어디에 두느냐로 갈리는 GPU 컨볼루션의 운명</p>
+  </header>
+
+  <h2>7.1 배경: 컨볼루션이란</h2>
+  <p>컨볼루션(convolution)은 이미지 처리·신호처리·CNN의 중심에 서 있는 연산이다. 1차원 컨볼루션은 입력 신호 <code>x</code>와 필터 <code>h</code>를 받아 출력 <code>y</code>를 만든다.</p>
+  <p><code>y[i] = Σ_k h[k] · x[i + k - r]</code>, 여기서 <code>r</code>은 필터의 반경(radius)이다. 필터 길이가 <code>2r + 1</code>일 때 출력 한 점은 입력의 인접한 <code>2r + 1</code>개 점의 가중 합이다.</p>
+  <p>2차원 컨볼루션은 자연스러운 확장이다. <code>y[i,j] = Σ_dy Σ_dx h[dy,dx] · x[i + dy - r, j + dx - r]</code>. 출력 한 점은 입력의 <code>(2r+1) × (2r+1)</code> 윈도우의 가중 합이다.</p>
+
+  <div class="callout warn">
+    <div class="label">용어 함정</div>
+    <p>CUDA에서 "kernel"은 GPU에서 실행되는 함수를 뜻한다. 하지만 컨볼루션 분야에서 "kernel"은 필터 자체를 가리키기도 한다. 이 책에서는 혼동을 피하기 위해 <strong>커널 = CUDA 함수, 필터 = 컨볼루션 가중치</strong>로 일관되게 쓴다.</p>
+  </div>
+
+  <h2>7.2 기본 병렬 컨볼루션 알고리즘</h2>
+  <p>가장 단순한 매핑은 익숙하다. 출력 픽셀 1개당 스레드 1개. 각 스레드는 자기가 책임진 출력 좌표 주변 입력 윈도우를 읽고 필터를 곱해 누적한다.</p>
+  <pre><code>__global__ void conv2D_basic(const float* in, const float* filter, float* out,
+                              int W, int H, int r) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    if (col &gt;= W || row &gt;= H) return;
+
+    float acc = 0.0f;
+    for (int dy = -r; dy &lt;= r; ++dy) {
+        for (int dx = -r; dx &lt;= r; ++dx) {
+            int x = col + dx;
+            int y = row + dy;
+            float v = (x &gt;= 0 &amp;&amp; x &lt; W &amp;&amp; y &gt;= 0 &amp;&amp; y &lt; H) ? in[y * W + x] : 0.0f;
+            acc += filter[(dy + r) * (2 * r + 1) + (dx + r)] * v;
+        }
+    }
+    out[row * W + col] = acc;
+}</code></pre>
+  <p>분석해 보자. 한 출력 픽셀당 <code>(2r+1)²</code>개의 입력 원소와 같은 수의 필터 원소를 읽고, <code>(2r+1)²</code>번의 곱셈과 덧셈, 즉 약 <code>2(2r+1)²</code>의 FLOP을 한다. 메모리 트래픽은 입력 + 필터 = <code>2 × 4 × (2r+1)²</code>바이트. 산술 강도는 <code>2(2r+1)² / 8(2r+1)² = 0.25 FLOP/B</code>로, 5장의 naive 행렬 곱과 정확히 같은 수치다. <strong>아무 최적화 없이는 메모리 바운드 그 자체</strong>다.</p>
+  <p>그래도 다행인 건 두 가지 redundancy가 명확히 보인다는 점이다. (1) 필터는 모든 스레드가 같은 값을 읽는다 — broadcast 가능. (2) 인접한 출력 픽셀은 입력 윈도우의 대부분을 공유한다 — 타일링 가능. 이 두 redundancy를 차례로 잡아간다.</p>
+
+  <h2>7.3 상수 메모리와 캐싱</h2>
+  <p>먼저 필터부터. 컨볼루션 필터는 보통 작다 — 3×3, 5×5, 많아야 11×11 정도다. 모든 스레드가 정확히 같은 값을 읽는다. 그리고 커널 실행 동안 변하지 않는다. 이런 경우를 위해 CUDA는 <strong>상수 메모리(constant memory)</strong>를 제공한다.</p>
+  <p>상수 메모리는 디바이스 메모리에 자리 잡지만 SM에는 별도의 <strong>상수 캐시</strong>가 달려 있다. 워프 내 모든 스레드가 같은 주소를 읽으면 캐시는 그 값을 한 번 읽어 32스레드에 동시에 뿌린다(broadcast). 워프 다이버전스 없이 단 한 번의 캐시 참조로 32개 데이터 공급이 끝난다. 글로벌 메모리에서 똑같이 읽었다면 32스레드가 모두 같은 주소이므로 코얼레싱은 되지만, 캐시 hit가 안 보장된다.</p>
+  <pre><code>// 호스트 측: 상수 메모리에 필터 복사
+#define MAX_FILTER_SIZE 11
+__constant__ float c_filter[MAX_FILTER_SIZE * MAX_FILTER_SIZE];
+
+void uploadFilter(const float* h_filter, int filterSize) {
+    cudaMemcpyToSymbol(c_filter, h_filter, filterSize * filterSize * sizeof(float));
+}
+
+__global__ void conv2D_constMem(const float* in, float* out, int W, int H, int r) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    if (col &gt;= W || row &gt;= H) return;
+
+    int fSize = 2 * r + 1;
+    float acc = 0.0f;
+    for (int dy = -r; dy &lt;= r; ++dy) {
+        for (int dx = -r; dx &lt;= r; ++dx) {
+            int x = col + dx, y = row + dy;
+            float v = (x &gt;= 0 &amp;&amp; x &lt; W &amp;&amp; y &gt;= 0 &amp;&amp; y &lt; H) ? in[y * W + x] : 0.0f;
+            acc += c_filter[(dy + r) * fSize + (dx + r)] * v;
+        }
+    }
+    out[row * W + col] = acc;
+}</code></pre>
+  <p>이 한 줄 변경으로 (<code>filter</code> → <code>c_filter</code>) 필터의 글로벌 트래픽이 사실상 0이 된다. 캐시는 작지만 (보통 8KB~64KB) 작은 필터는 통째로 들어가고, 한 번 캐시에 올라가면 같은 SM의 모든 워프가 빠르게 가져다 쓴다. 입력에 대한 트래픽은 그대로지만 한쪽 부담이 사라졌다.</p>
+
+  <div class="callout good">
+    <div class="label">잘 된 사례</div>
+    <p>상수 메모리는 "모든 스레드가 같은 데이터를 본다"는 조건일 때 진가를 발휘한다. 스레드별로 다른 부분을 읽는다면 그저 또 다른 캐시 미스의 원천일 뿐이다. 상수 메모리는 컴파일 시 크기가 정해진 read-only 데이터에 적합하다.</p>
+  </div>
+
+  <h2>7.4 halo cell이 있는 타일드 컨볼루션</h2>
+  <p>이제 입력 쪽 redundancy를 잡자. 출력 타일이 <code>O × O</code> 픽셀이라면, 그 출력을 계산하는 데 필요한 입력은 가장자리에 반경 r만큼 더 늘어난 <code>(O + 2r) × (O + 2r)</code> 영역이다. 가장자리에 매달린 추가 영역을 <strong>halo</strong>라 부른다.</p>
+  <p>이 입력 영역을 한 블록의 스레드들이 협력해서 공유 메모리에 한 번만 로드하면, 이후 출력 계산은 모두 공유 메모리에서 일어난다.</p>
+
+  <div class="figure">  ┌──────────────────────────────┐
+  │ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │  ← halo (radius r)
+  │ ▒▒┌──────────────────────┐▒▒ │
+  │ ▒▒│   출력 타일 O × O    │▒▒ │  ← 이 부분만 진짜 출력
+  │ ▒▒│                      │▒▒ │
+  │ ▒▒└──────────────────────┘▒▒ │
+  │ ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │
+  └──────────────────────────────┘
+  공유 메모리에 올리는 입력: (O + 2r) × (O + 2r)
+</div>
+  <p class="figure-caption">그림 7.1 — 출력 타일과 halo의 관계</p>
+
+  <pre><code>#define O_TILE_WIDTH 16
+#define MAX_FILTER_RADIUS 2
+#define IN_TILE_WIDTH (O_TILE_WIDTH + 2 * MAX_FILTER_RADIUS)
+
+__constant__ float c_filter[(2 * MAX_FILTER_RADIUS + 1) * (2 * MAX_FILTER_RADIUS + 1)];
+
+__global__ void conv2D_tiled(const float* in, float* out, int W, int H) {
+    const int r = MAX_FILTER_RADIUS;
+    __shared__ float tile[IN_TILE_WIDTH][IN_TILE_WIDTH];
+
+    int tx = threadIdx.x, ty = threadIdx.y;
+    // 입력 타일의 왼쪽 위 글로벌 좌표
+    int inRow = blockIdx.y * O_TILE_WIDTH + ty - r;
+    int inCol = blockIdx.x * O_TILE_WIDTH + tx - r;
+
+    // (1) 협력 로드: 한 스레드가 입력 1개씩 가져옴
+    if (inRow &gt;= 0 &amp;&amp; inRow &lt; H &amp;&amp; inCol &gt;= 0 &amp;&amp; inCol &lt; W) {
+        tile[ty][tx] = in[inRow * W + inCol];
+    } else {
+        tile[ty][tx] = 0.0f;   // halo의 외부는 0 패딩
+    }
+    __syncthreads();
+
+    // (2) 출력 영역에 속하는 스레드만 계산 수행
+    int outRow = blockIdx.y * O_TILE_WIDTH + ty - r;
+    int outCol = blockIdx.x * O_TILE_WIDTH + tx - r;
+    int fSize = 2 * r + 1;
+
+    if (ty &gt;= r &amp;&amp; ty &lt; r + O_TILE_WIDTH &amp;&amp;
+        tx &gt;= r &amp;&amp; tx &lt; r + O_TILE_WIDTH &amp;&amp;
+        outRow &lt; H &amp;&amp; outCol &lt; W) {
+        float acc = 0.0f;
+        for (int dy = -r; dy &lt;= r; ++dy)
+            for (int dx = -r; dx &lt;= r; ++dx)
+                acc += c_filter[(dy + r) * fSize + (dx + r)] * tile[ty + dy][tx + dx];
+        out[outRow * W + outCol] = acc;
+    }
+}</code></pre>
+  <p>여기서 <strong>블록 차원이 입력 타일 크기 <code>IN_TILE_WIDTH × IN_TILE_WIDTH</code></strong>이고, 그중 안쪽 <code>O_TILE_WIDTH × O_TILE_WIDTH</code> 스레드만 출력을 쓴다. 가장자리 halo 스레드는 데이터 로드만 도와주고 계산에서는 빠진다. 이 비대칭이 살짝 비효율적이지만, halo 데이터를 안전히 채우는 가장 깔끔한 방법이다.</p>
+
+  <h3>타일링 효율 분석</h3>
+  <p>타일링이 얼마나 효과적인가를 정량적으로 보자. 출력 타일 <code>O × O</code>를 만들 때 입력 타일 <code>(O + 2r)²</code>개의 원소가 글로벌에서 공유 메모리로 단 한 번 로드된다. naive 버전이라면 출력 한 점당 <code>(2r+1)²</code>개를 읽으므로 출력 타일 전체로는 <code>O² × (2r+1)²</code>번의 글로벌 읽기. 타일링 효율은 다음 비율이다.</p>
+  <p style="text-align:center; font-size: 17px;"><code>효율 = O² × (2r+1)² / (O + 2r)²</code></p>
+  <p>구체적으로 r=2 (5×5 필터), O=16일 때: <code>16² × 25 / 20² = 6400 / 400 = 16배</code> 절감. r=2, O=32라면 <code>32² × 25 / 36² = 25600 / 1296 ≈ 19.75배</code>. 출력 타일이 클수록 halo가 차지하는 비율이 줄어 효율이 올라간다. 그러나 5장에서 본 occupancy 한계 때문에 무한정 키울 수는 없다.</p>
+
+  <h2>7.5 캐시를 halo로 활용한 단순화</h2>
+  <p>위 코드는 한 가지 불편함이 있다. 블록 차원과 출력 차원이 다르고, 안쪽 스레드만 계산하는 비대칭 구조다. 코드가 어렵고 halo 스레드가 놀게 된다.</p>
+  <p>요즘 GPU(Pascal 이후)에서는 글로벌 메모리에 <strong>L1/L2 캐시</strong>가 잘 작동한다. 블록이 출력 타일을 처리하는 동안 인접한 블록도 비슷한 영역을 읽으므로, 한 블록의 halo 영역은 이웃 블록이 이미 캐시에 올려두었을 가능성이 높다. 그래서 halo를 굳이 공유 메모리에 명시적으로 로드하지 않고 <strong>안쪽 출력만 공유 메모리에 올리고 halo는 글로벌에서 직접 읽는</strong> 단순화가 가능하다.</p>
+  <pre><code>__global__ void conv2D_cacheHalo(const float* in, float* out, int W, int H, int r) {
+    __shared__ float tile[O_TILE_WIDTH][O_TILE_WIDTH];
+
+    int row = blockIdx.y * O_TILE_WIDTH + threadIdx.y;
+    int col = blockIdx.x * O_TILE_WIDTH + threadIdx.x;
+
+    // 출력 타일과 같은 크기로 입력의 안쪽만 공유 메모리에 로드
+    tile[threadIdx.y][threadIdx.x]
+        = (row &lt; H &amp;&amp; col &lt; W) ? in[row * W + col] : 0.0f;
+    __syncthreads();
+
+    if (row &gt;= H || col &gt;= W) return;
+
+    int fSize = 2 * r + 1;
+    float acc = 0.0f;
+    for (int dy = -r; dy &lt;= r; ++dy) {
+        for (int dx = -r; dx &lt;= r; ++dx) {
+            int ty = threadIdx.y + dy;
+            int tx = threadIdx.x + dx;
+            float v;
+            if (ty &gt;= 0 &amp;&amp; ty &lt; O_TILE_WIDTH &amp;&amp; tx &gt;= 0 &amp;&amp; tx &lt; O_TILE_WIDTH) {
+                v = tile[ty][tx];                              // 공유 메모리
+            } else {
+                int gy = row + dy, gx = col + dx;
+                v = (gy &gt;= 0 &amp;&amp; gy &lt; H &amp;&amp; gx &gt;= 0 &amp;&amp; gx &lt; W)
+                    ? in[gy * W + gx] : 0.0f;                  // 글로벌 (캐시 hit 기대)
+            }
+            acc += c_filter[(dy + r) * fSize + (dx + r)] * v;
+        }
+    }
+    out[row * W + col] = acc;
+}</code></pre>
+  <p>코드가 한결 깔끔해진다. 블록 차원 = 출력 차원이고, 안쪽 픽셀은 공유 메모리에서, 가장자리 halo 픽셀은 글로벌에서(L1/L2 캐시에 올라와 있을 것) 가져온다. r이 작고(1~2) 캐시가 따뜻한 상태에서는 명시적 halo 로드 버전과 비슷한 성능을 낸다. 단점은 캐시 동작이 GPU 세대와 워크로드에 따라 흔들린다는 점이라, 안정성이 중요하면 7.4의 명시적 halo 버전이 정석이다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>"공유 메모리에 명시적으로 올릴 것이냐, 캐시를 믿을 것이냐"는 모든 stencil/컨볼루션 류 알고리즘의 단골 결정사항이다. <strong>r이 작고(1-2), 입력이 한 번만 읽히고, 캐시가 충분하다</strong>면 캐시에 맡기자. <strong>r이 크고(5+), 입력이 여러 번 재사용되고, 정확한 성능 보장이 필요</strong>하면 명시적 타일링을 한다.</p>
+  </div>
+
+  <h2>7.6 정리</h2>
+  <p>컨볼루션은 GPU 최적화 기법의 종합 시험장이다. 필터는 상수 메모리에 올려 broadcast의 이득을 보고, 입력은 공유 메모리에 타일로 올려 재사용을 극대화한다. halo 영역은 명시적 협력 로드로 처리하거나 캐시에 맡길 수 있다. 같은 알고리즘이지만 메모리 배치 결정에 따라 산술 강도가 0.25에서 (2r+1)² 가까이까지 뛴다.</p>
+  <p>다음 장은 컨볼루션의 사촌인 stencil이다. 컨볼루션이 이미지에 한 번 쓸어담는 단발성 연산이라면 stencil은 PDE 풀이를 위해 같은 격자를 수백 번 sweep하는 반복 연산이다. 차원도 보통 3D로 올라가는데, 이때 면적/부피 비율이 달라져 타일링 전략이 의외로 어렵다는 것을 보게 될 것이다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>컨볼루션 = 필터를 입력에 슬라이딩하며 가중 합을 만드는 연산. CUDA의 "kernel"과 컨볼루션의 "kernel(필터)"는 다른 의미.</li>
+      <li>naive 컨볼루션의 산술 강도는 0.25 FLOP/B로 메모리 바운드. 필터와 입력 양쪽에서 redundancy를 잡아야 한다.</li>
+      <li>필터는 <code>__constant__</code> 메모리에 두면 모든 스레드가 같은 주소를 broadcast로 받아 캐시 hit가 빠르다.</li>
+      <li>입력은 출력 타일 + halo만큼 공유 메모리에 협력 로드. 타일링 효율 = O²(2r+1)² / (O+2r)².</li>
+      <li>최신 GPU에서는 L1/L2 캐시가 halo를 자동으로 받쳐 줘서, 명시적 halo 로드를 생략한 단순화 버전도 종종 충분하다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch06.html">
+      <span class="dir">← 이전</span>
+      <span>성능 고려사항</span>
+    </a>
+    <a href="ch08.html" class="next">
+      <span class="dir">다음 →</span>
+      <span>스텐실</span>
+    </a>
+  </nav>
+</article>
+</body>
+</html>

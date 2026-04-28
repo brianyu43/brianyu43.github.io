@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2장. 명령어: 컴퓨터의 언어 · 컴퓨터 구조 위트 가이드</title>
+<meta name="description" content="패터슨·헤네시 RISC-V 판 2장을 위트 있게 풀어쓴 한국어 학습 노트. 명령어 집합, 레지스터, 메모리, 분기, 프로시저까지.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="../index.html" class="brand">
+      <span class="badge">RV64</span>
+      컴퓨터 구조 위트 가이드
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">홈</a>
+      <a href="chapter2.html" class="active">2장</a>
+      <a href="chapter3.html" class="disabled" aria-disabled="true">3장</a>
+      <a href="chapter4.html" class="disabled" aria-disabled="true">4장</a>
+      <a href="chapter5.html" class="disabled" aria-disabled="true">5장</a>
+      <a href="chapter6.html" class="disabled" aria-disabled="true">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">🌙 다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 2</div>
+    <h1>명령어: 컴퓨터의 언어</h1>
+    <p class="ch-subtitle">컴퓨터에게 말 거는 32비트짜리 작은 단어들</p>
+  </section>
+
+  <blockquote>
+    스페인어는 신께, 이탈리아어는 여인에게, 프랑스어는 남자에게, 독일어는 내 말(馬)에게 쓴다.
+    하지만 컴퓨터에게 쓰는 언어는… 32비트로 깎아낸, 어휘가 100개도 안 되는 정 떨어지게 솔직한 방언이다.
+    <cite>— 카를 5세의 명언을, 21세기 시점에 슬쩍 비튼 버전</cite>
+  </blockquote>
+
+  <div class="toc">
+    <div class="toc-title">이 장에서 다루는 것</div>
+    <ol>
+      <li><a href="#s1">왜 컴퓨터의 언어를 배우는가</a></li>
+      <li><a href="#s2">기본 연산 — 무조건 세 개</a></li>
+      <li><a href="#s3">피연산자 — 레지스터와 메모리, 그 사이</a></li>
+      <li><a href="#s4">부호 있는 수와 부호 없는 수</a></li>
+      <li><a href="#s5">명령어 표현 — 모든 게 결국 32비트</a></li>
+      <li><a href="#s6">논리 연산 — 비트를 비비고 밀고</a></li>
+      <li><a href="#s7">의사결정 명령어 — if·while·switch의 본모습</a></li>
+      <li><a href="#s8">프로시저 — 함수 호출의 뒷무대</a></li>
+      <li><a href="#s9">사람과의 통신 — 문자와 문자열</a></li>
+      <li><a href="#s10">RISC-V 주소 지정 모드</a></li>
+      <li><a href="#s11">동기화 — 동시에 일어나는 일들의 질서</a></li>
+      <li><a href="#s12">번역과 시작 — C 코드가 실행되기까지</a></li>
+      <li><a href="#s13">예제: 정렬과 배열·포인터</a></li>
+      <li><a href="#s14">다른 언어들 — MIPS, x86</a></li>
+      <li><a href="#s15">오류와 함정</a></li>
+      <li><a href="#s16">결론</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">2.1 왜 컴퓨터의 언어를 배우는가</h2>
+  <p>
+    컴퓨터에게 일을 시키려면 컴퓨터가 알아듣는 단어를 써야 한다. 그게 <strong>명령어(instruction)</strong>다.
+    그리고 그 단어들을 모아 놓은 사전이 <strong>명령어 집합(instruction set)</strong>이다.
+    “어휘력이 풍부해 봤자 회로가 번역을 못하면 무용지물”이라는 게 이 분야의 기본 정서라,
+    컴퓨터 언어는 사람 언어와는 정반대 방향으로 진화했다. 단어 수를 자랑하지 않고, 줄이지 못해 안달이다.
+  </p>
+  <p>
+    이 장의 주인공은 <strong>RISC-V</strong>(리스크 파이브). UC 버클리에서 만들었고, 이름의 “V”는 다섯 번째라는 뜻이지
+    무슨 V등급이라는 뜻이 아니다. RISC-V는 라이선스 비용 없이 쓸 수 있어 학교·연구·스타트업이 좋아하고,
+    명령어 구조가 깔끔해서 교재로도 좋다. 우리가 보는 책의 저자도 이 ISA의 설계자들이라, 책에 끼고 다닐 만한 명분은 충분하다.
+  </p>
+  <p>
+    그런데 신기한 게 있다. 세상의 거의 모든 명령어 집합은 어딘가 닮았다. ARM, MIPS, x86, RISC-V…
+    표면 문법은 다 다른데, 어휘 카테고리는 거의 같다. 더하기·빼기, 메모리에서 값 가져오기·저장하기, 조건 분기, 함수 호출.
+    왜 그럴까? 답은 시시할 만큼 간단하다. <em>회로로 만들기 쉬운 연산이 정해져 있고, 사람이 짜는 프로그램의 구조도 정해져 있기 때문이다.</em>
+    “모든 언어는 결국 같은 인생을 표현한다”는 시인 같은 말은 컴퓨터 ISA에서도 통한다. 진심.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      모든 컴퓨터의 가장 깊은 곳에는 <strong>저장된 프로그램(stored-program)</strong>이라는 사상이 있다.
+      <em>명령어와 데이터가 같은 메모리에 같은 비트 형식으로 들어 있다.</em>
+      그래서 프로그램이 다른 프로그램을 데이터처럼 취급할 수 있다 — 컴파일러가 코드를 만들고, 운영체제가 실행 파일을 로딩하고,
+      JIT가 런타임에 새 코드를 찍어내는 일이 모두 가능하다. 폰 노이만이 1945년에 던진 이 한 줄이 지금까지도 컴퓨터를 컴퓨터답게 만든다.
+    </p>
+  </div>
+
+  <p>
+    명령어 집합을 배운다는 건 단순한 문법 공부가 아니다. <strong>하드웨어와 소프트웨어가 만나는 약속의 자리</strong>를 보는 일이다.
+    위로는 컴파일러·OS·언어가 있고, 아래로는 트랜지스터·게이트·파이프라인이 있다. ISA는 그 둘이 서로를 안 보고도 일하기 위해 합의한 계약서다.
+    이 계약을 알면 “왜 이 코드가 빠른가, 왜 저 코드가 캐시 미스를 부르나”가 보이기 시작한다. 적어도 자기 코드의 부고장은 자기가 쓸 수 있게 된다.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 위트</div>
+    <p>고급 언어는 시(詩)고, 어셈블리는 영수증이다. 시는 예쁜데, 정산은 영수증으로 한다.</p>
+  </div>
+
+  <h2 id="s2">2.2 기본 연산 — 무조건 세 개</h2>
+  <p>
+    RISC-V에서 더하기는 이렇게 쓴다.
+  </p>
+
+<pre><code>add a, b, c     <span class="code-comment">// a = b + c</span></code></pre>
+
+  <p>
+    피연산자가 정확히 셋이다. 결과를 받을 곳, 더할 첫 값, 더할 둘째 값. <em>하나도 빼고 더하고 그런 거 없다.</em>
+    C에서 <code>a = b + c + d</code>처럼 항이 셋이면? 두 줄로 쪼갠다.
+  </p>
+
+<pre><code>add t0, b, c    <span class="code-comment">// t0 = b + c</span>
+add a,  t0, d   <span class="code-comment">// a  = t0 + d</span></code></pre>
+
+  <p>
+    “왜 이렇게 빡빡하게 굴어?”라는 의문이 자연스럽다. 답은 단순하다. <strong>모든 명령어가 똑같은 모양</strong>이면 회로가 행복하다.
+    회로는 항상 “피연산자 두 개 읽고, 결과 하나 쓴다”는 가정을 깔고 살 수 있고, 디코더는 분기 폭주 없이 차분히 일한다.
+    명령어마다 “어떤 건 항이 둘, 어떤 건 셋, 어떤 건 다섯…”이면 매번 회로가 신경쇠약을 앓는다.
+  </p>
+
+  <div class="callout principle">
+    <div class="callout-title">설계 원칙 1</div>
+    <p>단순함은 규칙성을 좋아한다(<em>Simplicity favors regularity</em>). 명령어는 모양이 같을수록 회로가 빠르다.</p>
+  </div>
+
+  <p>
+    그래서 RISC-V의 산술 명령은 죄다 <code>op rd, rs1, rs2</code> 모양이다. 빼기도 같다.
+  </p>
+
+<pre><code>sub x5, x6, x7    <span class="code-comment">// x5 = x6 - x7</span></code></pre>
+
+  <p>
+    예를 들어 C 코드가 이렇게 생겼다고 하자.
+  </p>
+
+<pre><code>f = (g + h) - (i + j);</code></pre>
+
+  <p>
+    어셈블리로 옮기면 임시 자리(<code>t0</code>, <code>t1</code>)를 빌려 두 단계로 합을 만든 뒤 마지막에 빼면 된다.
+  </p>
+
+<pre><code>add t0, g, h    <span class="code-comment">// t0 = g + h</span>
+add t1, i, j    <span class="code-comment">// t1 = i + j</span>
+sub f,  t0, t1  <span class="code-comment">// f  = t0 - t1</span></code></pre>
+
+  <p>
+    여기서 슬슬 의문이 든다. <code>g</code>, <code>h</code> 같은 이름은 변수처럼 적었지만, 정작 연산은 어디 적힌 값으로 하는 걸까?
+    답을 보러 다음 절로 가자.
+  </p>
+
+  <h2 id="s3">2.3 피연산자 — 레지스터와 메모리, 그 사이</h2>
+  <p>
+    고급 언어 변수는 무한정 쓸 수 있는 척하지만, 컴퓨터는 그렇게 헤프지 않다.
+    산술 연산의 피연산자는 <strong>레지스터(register)</strong>라는 아주 좁고 빠른 자리에 있어야 한다.
+    RISC-V 64비트 버전(RV64)에는 정수 레지스터가 정확히 <strong>32개</strong>, 이름은 <code>x0</code>부터 <code>x31</code>까지.
+    각 레지스터의 폭은 64비트, 즉 8바이트. RISC-V는 이 8바이트짜리 단위를 <strong>doubleword</strong>(더블워드)라 부른다.
+    참고로 4바이트는 <strong>word</strong>, 2바이트는 <strong>halfword</strong>다. (이름이 좀 헷갈리지만 받아들이자. 우리도 “냉면 곱빼기”라고 하잖나.)
+  </p>
+
+  <div class="callout principle">
+    <div class="callout-title">설계 원칙 2</div>
+    <p>작을수록 빠르다(<em>Smaller is faster</em>). 레지스터를 32개로 한정한 이유다. 1024개로 늘리면 사랑은 넓어지지만 클럭은 쪼그라든다.</p>
+  </div>
+
+  <p>
+    32개로 못 넣는 데이터는 어디에 둘까? 당연히 <strong>메모리(memory)</strong>다.
+    메모리는 거대한 1차원 바이트 배열이라고 생각하면 된다. 주소 0부터 시작해서, 한 칸당 1바이트씩.
+    “8바이트짜리 변수를 메모리 어디에 두면 처음 바이트의 주소”를 그 변수의 주소라고 부른다.
+    RISC-V의 주소 폭은 64비트라 이론적으로 2<sup>64</sup>바이트까지 인덱싱할 수 있다.
+    물리적으로 그만한 메모리는 너희 통장에는 없다. 안심하자.
+  </p>
+
+  <h3>load와 store — 메모리에 통근하는 명령어</h3>
+  <p>
+    레지스터에서 직접 메모리를 더하는 명령어 같은 건 RISC-V에 없다. 무조건 <em>가져와서 → 계산하고 → 다시 저장</em>이다.
+    이런 구조를 <strong>로드/스토어 아키텍처</strong>라 부른다. 명령어 집합이 깔끔해지는 대신, 메모리를 만질 때마다 출퇴근 도장을 찍어야 한다.
+  </p>
+
+<pre><code>ld   x9, 8(x22)    <span class="code-comment">// x9 = Mem[x22 + 8] (doubleword load)</span>
+sd   x9, 8(x22)    <span class="code-comment">// Mem[x22 + 8] = x9 (doubleword store)</span></code></pre>
+
+  <p>
+    문법을 풀어보자. <code>ld rd, offset(base)</code>는 “베이스 레지스터 값에 offset을 더한 주소에서 더블워드를 읽어 <code>rd</code>에 넣어라”는 뜻.
+    <code>sd</code>는 그 반대. 배열의 <code>i</code>번째 원소를 가져오는 게 익숙한 패턴이다.
+  </p>
+
+<pre><code><span class="code-comment">// long long A[…]; g = h + A[8]; (A의 베이스가 x22, h가 x21, g가 x20에 있다고 하자)</span>
+ld   x9,  64(x22)  <span class="code-comment">// 8바이트 단위라 인덱스 8 → 오프셋 64</span>
+add  x20, x21, x9  <span class="code-comment">// g = h + A[8]</span></code></pre>
+
+  <p>
+    여기서 “인덱스 8인데 왜 오프셋이 64?”가 함정이다. 메모리는 바이트 단위 주소를 쓴다. 한 원소가 8바이트면, 8번째 원소는 베이스에서 64바이트 떨어져 있다.
+    이걸 <strong>byte addressing</strong>이라 부른다. RISC-V는 정확히 이 방식이다.
+  </p>
+
+  <h3>리틀 엔디언 vs 빅 엔디언 — 빵의 어느 끝부터 자를 것인가</h3>
+  <p>
+    8바이트짜리 값을 메모리에 어떻게 늘어놓느냐는 의외로 신앙 같은 문제다.
+    가장 작은 자리(LSB)를 가장 낮은 주소에 두면 <strong>리틀 엔디언(little-endian)</strong>, 그 반대면 <strong>빅 엔디언(big-endian)</strong>.
+    RISC-V는 리틀 엔디언이다. x86도 그렇다. 인터넷 프로토콜은 빅 엔디언이라 “네트워크 바이트 순서”라는 표현이 따로 있을 정도다.
+    이 차이로 디버깅 시간 수억 시간이 인류에서 증발했다. 지금도 어디선가 누군가 이걸로 야근 중이다.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">하드웨어/소프트웨어 인터페이스</div>
+    <p>
+      C에서 <code>long long *p</code>로 메모리에 접근할 때, 컴파일러는 <code>p</code>를 베이스 레지스터에 넣고 <code>ld</code> 한 줄로 끝낸다.
+      구조체 멤버 접근(<code>s-&gt;field</code>)도 결국 베이스+오프셋 형태라 이 명령 한 줄로 정리된다. 어셈블리가 의외로 C와 닮은 이유다.
+    </p>
+  </div>
+
+  <h3>즉치 피연산자 — 굳이 레지스터에 안 넣어도 되는 상수들</h3>
+  <p>
+    <code>x = x + 4;</code> 같은 코드를 짤 때마다 “4를 어디 레지스터에 넣고…”를 반복하면 인생이 짧아진다.
+    그래서 RISC-V에는 <strong>즉치(immediate)</strong> 명령이 있다. 명령어 안에 상수를 박아 넣는 방식이다.
+  </p>
+
+<pre><code>addi x22, x22, 4    <span class="code-comment">// x22 = x22 + 4</span>
+addi x5,  x0,  10   <span class="code-comment">// x5 = 0 + 10 = 10 (상수 로딩 트릭)</span></code></pre>
+
+  <p>
+    <code>addi</code>의 즉치 폭은 12비트(부호 있음). 즉, −2048~+2047 범위의 상수만 한 번에 박을 수 있다.
+    그것보다 큰 값은? 두 번 나눠서 넣어야 한다. 그건 2.10에서 다시 보자.
+  </p>
+
+  <h3>x0의 정체 — 0은 너무 자주 쓰여서 아예 박아 놨다</h3>
+  <p>
+    32개 레지스터 중 <strong>x0</strong>은 항상 0이다. 0이 박혀 있다고 보면 된다. 거기다가 뭘 써도 무시된다. 거의 광기에 가까운 디자인 결정처럼 들리지만,
+    이 한 수 덕분에 “0과 비교”, “0을 복사”, “레지스터 초기화” 같은 빈번한 패턴을 별도 명령 없이 처리할 수 있다.
+    예: 어떤 레지스터를 0으로 초기화하고 싶다면 <code>add x5, x0, x0</code>이면 끝. <code>x5 = 5</code>를 만들고 싶으면 위에서 본 <code>addi x5, x0, 5</code>.
+    “이게 왜 절약인지”는 명령어 집합을 디자인하는 입장에서 자주 0과 비교하는 패턴이 얼마나 흔한지 알게 되면 자연스레 납득된다.
+  </p>
+
+  <div class="callout check">
+    <div class="callout-title">혼자 점검</div>
+    <p>
+      C 코드 <code>A[12] = h + A[8];</code> (A의 베이스 = <code>x10</code>, <code>h</code> = <code>x21</code>)을 RISC-V로 번역해 보자.
+      힌트: 인덱스 8 → 오프셋 64, 인덱스 12 → 오프셋 96. 답은 <code>ld x9,64(x10)</code>; <code>add x9,x21,x9</code>; <code>sd x9,96(x10)</code>.
+    </p>
+  </div>
+
+  <h2 id="s4">2.4 부호 있는 수와 부호 없는 수</h2>
+  <p>
+    레지스터 64비트로 정수를 표현한다. 비트 자체는 0과 1뿐이라 “이 비트열이 양수 1234를 뜻하는가, 부호 있는 −1을 뜻하는가”는 회로가 알 길이 없다.
+    구분은 <strong>명령어가 결정</strong>한다. RISC-V의 산술 명령 중에는 <code>add</code>처럼 부호를 따지는 버전과, <code>sltu</code>처럼 부호 없는 비교 버전이 따로 있다.
+  </p>
+
+  <h3>2의 보수, 다시 한 번</h3>
+  <p>
+    부호 있는 정수는 거의 모든 현대 컴퓨터가 <strong>2의 보수(two’s complement)</strong>로 표현한다. 첫 비트가 0이면 양수, 1이면 음수.
+    음수의 비트 패턴은 “양수 비트를 뒤집은 뒤 1을 더한 것”이다. 이상하게 들리지만, 이 표현 덕분에 덧셈 회로 하나로 양수·음수를 다 처리할 수 있다.
+    “부호 비트 따로 처리하면서 분기를 두지 않아도 된다”는 게 이 표현의 가장 큰 미덕이다.
+  </p>
+  <p>
+    64비트 2의 보수 정수는 −2<sup>63</sup>부터 +2<sup>63</sup>−1까지 표현할 수 있다.
+    숫자가 양수보다 음수 쪽이 한 칸 더 길다는 점에 가끔 사람들은 “비대칭이 마음에 안 들어요”라고 하는데, 미안하지만 자연수의 잘못은 아니다.
+  </p>
+
+  <h3>부호 확장 — 작은 값을 큰 그릇에 옮길 때</h3>
+  <p>
+    32비트 값을 64비트 레지스터에 넣을 때, 부호를 보존하려면 비어 있는 위쪽 비트를 부호 비트(맨 위 비트)로 채워야 한다. 이걸 <strong>부호 확장(sign extension)</strong>이라 한다.
+    <code>−1</code>을 32비트로 표현하면 <code>0xFFFFFFFF</code>, 64비트로 부호 확장하면 <code>0xFFFFFFFFFFFFFFFF</code>. 양수 <code>1</code>은 위쪽이 그냥 0으로 채워지므로 결과가 같다.
+    <code>addi</code>의 12비트 즉치도 사용 직전에 자동으로 64비트로 부호 확장되어 더해진다. 코드에선 안 보이지만 회로 안에서 조용히 일어나는 일이다.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 위트</div>
+    <p>2의 보수는 “음수도 결국 더하기”라는 자기최면 같은 표현이다. 회로는 그 최면에 걸린 채로 60년째 멀쩡하게 산다.</p>
+  </div>
+
+  <h2 id="s5">2.5 명령어 표현 — 모든 게 결국 32비트</h2>
+  <p>
+    여기서부터가 컴퓨터 구조의 정수다. 우리가 본 <code>add x5, x6, x7</code>은 사람용 표기다. 회로가 보는 것은 32비트짜리 비트열이다.
+    “이 32비트를 어떻게 자르고, 각 자리에 무엇을 박을 것인가”가 <strong>명령어 형식(instruction format)</strong>이다.
+    RISC-V는 형식 종류를 일부러 적게 유지했다. 적을수록 디코더가 단순해지니까. 여기선 셋만 보자: R, I, S.
+  </p>
+
+  <h3>R-형식 — 레지스터 셋이 다 모인 자리</h3>
+  <p>
+    <code>add</code>, <code>sub</code> 같은 산술/논리 연산이 R-형식이다. 7비트 <code>opcode</code>, 5비트 <code>rd</code>, 3비트 <code>funct3</code>, 5비트 <code>rs1</code>, 5비트 <code>rs2</code>, 7비트 <code>funct7</code>.
+    더하면? 7+5+3+5+5+7 = 32. 정확히 떨어진다. 이게 우연히 맞춰진 게 아니라, “레지스터 5비트(=32개)”를 정해 놓고 거기서부터 역산한 결과다.
+  </p>
+
+  <table class="fmt-table">
+    <thead>
+      <tr><th>funct7 (7)</th><th>rs2 (5)</th><th>rs1 (5)</th><th>funct3 (3)</th><th>rd (5)</th><th>opcode (7)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0000000</td><td>00111</td><td>00110</td><td>000</td><td>00101</td><td>0110011</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    위 표는 <code>add x5, x6, x7</code>의 비트 배치. <code>opcode</code>가 “이건 R-형식 산술”이라 알리고, <code>funct3</code>+<code>funct7</code>이 “구체적으로 add”라고 명시한다.
+    같은 R-형식 안에서 <code>sub</code>는 <code>funct7</code>의 한 비트가 1로 바뀌어 구분된다. 디코더는 “opcode → funct3 → funct7” 순서로 짧게 묻고 답을 끝낸다. 빠르다.
+  </p>
+
+  <h3>I-형식 — 즉치가 등장하는 자리</h3>
+  <p>
+    <code>addi</code>나 <code>ld</code>처럼 한쪽 피연산자가 즉치(또는 메모리 오프셋)인 명령은 I-형식이다.
+    <code>rs2</code>+<code>funct7</code>의 자리(5+7=12비트)를 통째로 즉치 12비트로 쓴다. 그래서 12비트 부호 있는 값(−2048~+2047)이 즉치의 한계가 된다.
+  </p>
+
+  <table class="fmt-table">
+    <thead>
+      <tr><th>imm[11:0] (12)</th><th>rs1 (5)</th><th>funct3 (3)</th><th>rd (5)</th><th>opcode (7)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>000000000100</td><td>10110</td><td>000</td><td>10110</td><td>0010011</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    위는 <code>addi x22, x22, 4</code>의 모습. <code>opcode</code>가 R-형식과 다른 값이라 디코더가 “이건 즉치가 따라온다”고 즉시 안다.
+  </p>
+
+  <h3>S-형식 — store 전용</h3>
+  <p>
+    저장(<code>sd</code>)은 결과 레지스터(<code>rd</code>)가 없다. 대신 즉치를 어떻게 쪼갤지가 묘하다.
+    설계자들은 <code>rs1</code>·<code>rs2</code> 자리를 R-형식과 같은 위치에 두고 싶었다.
+    그래서 12비트 즉치를 위 5비트(imm[11:5], <code>funct7</code> 자리)와 아래 7비트(imm[4:0], <code>rd</code> 자리)로 쪼갠다.
+    이게 “S-형식이 못생긴 이유”다. 그러나 이렇게 쪼갠 덕에 명령어를 디코딩할 때 “어디에 어떤 레지스터가 오는지”의 자리가 어떤 형식에서도 일관된다.
+    아름답진 않지만, 깔끔하다.
+  </p>
+
+  <div class="callout principle">
+    <div class="callout-title">설계 원칙 3</div>
+    <p>좋은 설계는 좋은 타협을 요구한다(<em>Good design demands good compromises</em>). 형식이 늘면 컴파일러가 편하고, 줄이면 회로가 편하다. 사이 어딘가에서 손을 잡는다.</p>
+  </div>
+
+  <h3>16진수 — 32비트를 8자리로 줄이는 마법</h3>
+  <p>
+    32비트를 그냥 0/1로 적으면 손이 아프다. 그래서 4비트씩 묶어 16진수(hexadecimal)로 적는다. <code>0xDEADBEEF</code>처럼 8자리면 32비트가 다 들어온다.
+    명령어 인코딩을 손으로 풀어보는 연습은 처음엔 짜증나지만 한두 번 해보면 “아, 그래서 이 명령어가 0x12345678이구나” 하는 얕은 직관이 생긴다.
+    그 직관이 디버깅에서 한 번이라도 사람을 살리면 그건 평생의 보험이다.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림</div>
+    <p>
+      <strong>저장된 프로그램</strong>이라는 말이 여기서 다시 의미를 갖는다. 위에서 본 비트 패턴은 메모리에 “데이터”처럼 적힌다.
+      CPU는 PC가 가리키는 주소에서 32비트를 가져와 디코딩하면 그게 명령어가 되고, 다른 코드에선 같은 비트를 그냥 읽으면 데이터가 된다.
+      “이 비트가 명령인가 데이터인가”는 누가 어떻게 보느냐로 결정된다. 영화 〈매트릭스〉도 비슷한 얘기를 한다. 진짜로.
+    </p>
+  </div>
+
+  <h2 id="s6">2.6 논리 연산 — 비트를 비비고 밀고</h2>
+  <p>
+    숫자 산술만으로는 부족하다. 컴퓨터는 비트 단위로 자르고 끼우는 일을 끝없이 한다. 색깔의 알파 채널을 떼어내거나, 권한 플래그를 켜고 끄거나,
+    네트워크 패킷에서 헤더 비트를 뽑아낼 때 모두 <strong>논리 연산</strong>이 필요하다.
+  </p>
+
+  <h3>시프트 — 줄을 통째로 옮기기</h3>
+  <p>
+    왼쪽 시프트는 ×2와 같다. 오른쪽 시프트는 ÷2(부호를 살릴지 말지에 따라 두 종류). RISC-V에선 즉치 시프트가 가장 흔하다.
+  </p>
+
+<pre><code>slli x11, x19, 4    <span class="code-comment">// x11 = x19 << 4   (논리 왼쪽 시프트)</span>
+srli x11, x19, 4    <span class="code-comment">// x11 = x19 >> 4   (논리 오른쪽 시프트, 위쪽을 0으로)</span>
+srai x11, x19, 4    <span class="code-comment">// x11 = x19 >> 4   (산술 오른쪽 시프트, 부호 비트로 위쪽 채움)</span></code></pre>
+
+  <p>
+    <code>slli</code>의 i는 immediate. 64비트 레지스터에서 시프트 양은 0~63이라 6비트면 충분하다.
+    “×8로 곱하고 싶다”는 욕망은 자주 등장하는데, 곱셈 명령보다 <code>slli ..., 3</code> 한 줄이 훨씬 빠르다.
+    옛날 사람들이 비트 시프트를 사랑한 이유다.
+  </p>
+
+  <h3>AND, OR, XOR — 비트의 사칙(?)연산</h3>
+  <p>
+    이름 그대로다. AND는 두 비트가 모두 1일 때 1, OR는 둘 중 하나라도 1이면 1, XOR는 정확히 하나만 1일 때 1.
+  </p>
+
+<pre><code>and  x9, x10, x11   <span class="code-comment">// 비트별 AND</span>
+or   x9, x10, x11   <span class="code-comment">// 비트별 OR</span>
+xor  x9, x10, x11   <span class="code-comment">// 비트별 XOR</span>
+andi x9, x10, 0xFF  <span class="code-comment">// 하위 8비트만 남기기 (마스킹)</span>
+ori  x9, x10, 0x10  <span class="code-comment">// 5번째 비트 켜기</span>
+xori x9, x10, -1    <span class="code-comment">// 모든 비트 반전 (NOT 흉내)</span></code></pre>
+
+  <p>
+    <strong>마스크(mask)</strong>는 “관심 있는 비트만 남기고 나머지를 0으로 미는” 도구다. 위의 <code>andi … 0xFF</code>가 대표 사례.
+    “바이트 하나만 잘라내” 같은 요청이 들어오면 마스크가 출동한다.
+    XOR는 “두 값이 같은지” 비교에도 쓰이고(같으면 0이 나오니까), 토글에도 쓰인다. 암호학에서도 사랑받는다.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 위트</div>
+    <p>NOT 명령은 따로 없다. <code>xori x, y, -1</code>로 충분하다는 게 RISC-V의 무뚝뚝함이다. “있는 걸로 살아라.”</p>
+  </div>
+
+  <h2 id="s7">2.7 의사결정 명령어 — if·while·switch의 본모습</h2>
+  <p>
+    분기(branch)가 없는 컴퓨터는 그냥 고가의 계산기다. <code>if</code>, <code>while</code>, <code>for</code>, <code>switch</code>가 다 분기 위에 서 있다.
+    RISC-V의 조건 분기는 무지막지하게 직관적이다.
+  </p>
+
+<pre><code>beq  rs1, rs2, L   <span class="code-comment">// rs1 == rs2 면 L로 분기</span>
+bne  rs1, rs2, L   <span class="code-comment">// 같지 않으면 분기</span>
+blt  rs1, rs2, L   <span class="code-comment">// rs1 <  rs2 (부호 있는 비교)</span>
+bge  rs1, rs2, L   <span class="code-comment">// rs1 >= rs2 (부호 있는 비교)</span>
+bltu rs1, rs2, L   <span class="code-comment">// 부호 없는 비교 < </span>
+bgeu rs1, rs2, L   <span class="code-comment">// 부호 없는 비교 >= </span></code></pre>
+
+  <p>
+    “비교+분기”가 한 명령에 합쳐져 있다는 점이 RISC-V의 단정한 매력이다. x86은 <em>비교 명령</em>으로 플래그 레지스터를 세팅하고 그다음 명령으로 분기를 거는데, 그 단계가 RISC-V에선 사라졌다.
+    상태 플래그라는 숨은 의존이 없으니 파이프라인이 더 깔끔해진다.
+  </p>
+
+  <h3>if-then-else를 옮겨 보자</h3>
+
+<pre><code><span class="code-comment">// if (i == j) f = g + h; else f = g - h;</span>
+<span class="code-comment">// f→x19, g→x20, h→x21, i→x22, j→x23</span>
+    bne  x22, x23, Else   <span class="code-comment">// 같지 않으면 Else로</span>
+    add  x19, x20, x21    <span class="code-comment">// f = g + h</span>
+    beq  x0,  x0,  Exit   <span class="code-comment">// 무조건 분기 (x0 == x0 항상 참)</span>
+Else: sub  x19, x20, x21  <span class="code-comment">// f = g - h</span>
+Exit: …</code></pre>
+
+  <p>
+    “무조건 분기”를 따로 두지 않고 <code>beq x0,x0,…</code>으로 흉내내는 게 RISC-V스럽다. 또는 진짜 점프인 <code>jal x0, Exit</code>(다음 절에서 나옴)을 써도 된다.
+    어셈블러는 보통 이걸 <code>j Exit</code>이라는 가짜 명령(<em>pseudoinstruction</em>)으로 받아 알아서 변환한다. 우리는 사람이라, 가짜라도 가독성을 택한다.
+  </p>
+
+  <h3>루프 — 반복이라는 이름의 분기</h3>
+
+<pre><code><span class="code-comment">// while (save[i] == k) i += 1;</span>
+<span class="code-comment">// i→x22, k→x24, save 베이스→x25</span>
+Loop: slli x10, x22, 3      <span class="code-comment">// i*8 (doubleword)</span>
+      add  x10, x10, x25    <span class="code-comment">// &save[i]</span>
+      ld   x9,  0(x10)      <span class="code-comment">// save[i]</span>
+      bne  x9,  x24, Exit   <span class="code-comment">// save[i] != k → 빠져나감</span>
+      addi x22, x22, 1      <span class="code-comment">// i += 1</span>
+      beq  x0,  x0,  Loop   <span class="code-comment">// 다시 처음으로</span>
+Exit: …</code></pre>
+
+  <p>
+    위 코드에서 “Loop” 라벨부터 “Exit” 라벨 직전까지가 한 덩어리다. 이렇게 시작이 라벨이고 끝이 분기인 코드 묶음을 <strong>basic block</strong>이라 부른다.
+    컴파일러는 이 단위로 최적화를 한다. 우리도 코드를 읽을 때 이렇게 묶어 읽으면 머리가 덜 아프다.
+  </p>
+
+  <h3>case/switch — 점프 테이블</h3>
+  <p>
+    여러 분기가 한꺼번에 있는 <code>switch</code>는 분기 명령을 N번 쓰는 대신, 분기 주소를 배열에 넣고 인덱스로 한 방에 점프하기도 한다.
+    RISC-V엔 <strong>jalr</strong>(jump and link register) 명령이 있어, 레지스터 하나에 들어 있는 주소로 점프할 수 있다.
+    점프 테이블은 “주소들의 배열”이라, switch의 case 값을 인덱스로 변환해 표에서 주소를 꺼내고, <code>jalr</code>로 점프하면 된다.
+    if-else를 사다리처럼 쌓는 것보다 케이스가 많을 때 더 빠르다.
+  </p>
+
+  <div class="callout check">
+    <div class="callout-title">혼자 점검</div>
+    <p>
+      <code>for (i=0; i&lt;n; i++) sum += A[i];</code>를 RISC-V로 옮겨 보자.
+      배열 <code>A</code>의 베이스가 <code>x10</code>, <code>n</code>이 <code>x11</code>, <code>i</code>는 <code>x12</code>, <code>sum</code>은 <code>x13</code>.
+      한 줄씩 정직하게 쓰면 8~10줄. 시간 안 재고 한번 손으로 짜보길.
+    </p>
+  </div>
+
+  <h2 id="s8">2.8 프로시저 — 함수 호출의 뒷무대</h2>
+  <p>
+    프로그램이 길어지면 함수가 필요하다. 함수는 부르는 쪽과 불리는 쪽이 있는 사회적 행위라, 사이에 약속이 많아진다.
+    인자를 어디로 넘길지, 결과를 어디로 받을지, 돌아갈 주소를 어디에 둘지, 누가 레지스터를 보존할지…
+    이 모든 게 <strong>호출 규약(calling convention)</strong>으로 정해져 있다.
+  </p>
+
+  <h3>핵심 명령 — jal, jalr</h3>
+
+<pre><code>jal  x1, Func      <span class="code-comment">// PC+4를 x1에 저장하고 Func로 점프 (call)</span>
+jalr x0, 0(x1)     <span class="code-comment">// x1에 들어 있는 주소로 점프 (return)</span></code></pre>
+
+  <p>
+    <code>jal</code>은 <em>jump and link</em>의 약자. 점프하면서 “돌아갈 주소(다음 명령의 PC)”를 지정한 레지스터에 저장한다. 관례적으로 <code>x1</code>(별명 <code>ra</code>, return address).
+    <code>jalr</code>은 레지스터에 들어 있는 주소로 점프한다. 위 두 번째 줄에서 <code>rd</code>를 <code>x0</code>로 두면 “돌아갈 주소를 굳이 따로 안 남기고 그냥 점프”가 된다. 이게 보통 함수의 return.
+  </p>
+
+  <h3>인자와 반환 — 약속된 자리</h3>
+  <p>
+    RISC-V는 인자를 <code>x10~x17</code>(8개, 별명 <code>a0~a7</code>)로 넘긴다. 반환값도 <code>x10~x11</code>(<code>a0</code>, <code>a1</code>) 두 자리로 받는다.
+    인자가 8개를 넘으면? 스택을 쓴다. 그럴 일은 인생에 자주 없지만, 가끔 함수 시그니처 욕심내는 사람이 있어서 표준에 들어 있다.
+  </p>
+
+  <h3>스택 — 호출의 시간 캡슐</h3>
+  <p>
+    함수 안에서 또 함수를 부르면(중첩 호출), <code>x1</code>이 한 번만 있는 게 문제가 된다. 외부에서 받은 return 주소를 안에서 덮어쓰면 영영 못 돌아간다.
+    그래서 <strong>스택(stack)</strong>이 필요하다. <code>sp</code>(<code>x2</code>, stack pointer)가 그 위치를 가리킨다.
+    RISC-V 스택은 메모리 위쪽에서 시작해서 <em>아래로 자란다</em>. 푸시는 <code>sp</code>를 빼고, 팝은 <code>sp</code>를 더한다. (직관과 반대 방향이라 처음엔 헷갈린다.)
+  </p>
+
+<pre><code>addi sp, sp, -16   <span class="code-comment">// 16바이트 공간 확보 (push 자리 만들기)</span>
+sd   x1,  8(sp)    <span class="code-comment">// return address 저장</span>
+sd   x9,  0(sp)    <span class="code-comment">// 보존 레지스터 저장</span>
+…
+ld   x9,  0(sp)    <span class="code-comment">// 복원</span>
+ld   x1,  8(sp)
+addi sp, sp, 16    <span class="code-comment">// 공간 해제 (pop)</span>
+jalr x0, 0(x1)     <span class="code-comment">// 돌아가기</span></code></pre>
+
+  <h3>저장 vs 임시 레지스터 — 누가 책임지는가</h3>
+  <p>
+    레지스터를 두 부류로 나눈다. <strong>saved register</strong>(<code>x9</code>, <code>x18~x27</code>)는 <em>피호출자</em>(callee)가 보존 책임. 즉, 함수 안에서 이걸 건드리면 시작할 때 스택에 저장하고, 끝날 때 복원해야 한다.
+    <strong>temporary register</strong>(<code>x5~x7</code>, <code>x28~x31</code>)는 <em>호출자</em>(caller)가 보존 책임. 함수에 들어가기 전에 “난 돌아와도 이 값이 그대로일 거라 기대 안 한다”고 마음의 준비를 해야 한다.
+    이 둘을 적절히 섞으면 “꼭 살아남아야 할 값만 스택에 푸시”하는 최소 비용 호출이 가능해진다.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>레지스터</th><th>별명</th><th>용도</th><th>호출 시 보존?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>x0</td><td>zero</td><td>상수 0</td><td>—</td></tr>
+      <tr><td>x1</td><td>ra</td><td>return address</td><td>아니오 (caller)</td></tr>
+      <tr><td>x2</td><td>sp</td><td>stack pointer</td><td>예</td></tr>
+      <tr><td>x5–x7, x28–x31</td><td>t0–t6</td><td>임시</td><td>아니오 (caller)</td></tr>
+      <tr><td>x8</td><td>s0/fp</td><td>frame pointer</td><td>예 (callee)</td></tr>
+      <tr><td>x9, x18–x27</td><td>s1–s11</td><td>저장</td><td>예 (callee)</td></tr>
+      <tr><td>x10–x17</td><td>a0–a7</td><td>인자/반환</td><td>아니오</td></tr>
+    </tbody>
+  </table>
+
+  <h3>리프 함수와 중첩 함수</h3>
+  <p>
+    다른 함수를 호출하지 않는 함수를 <strong>leaf 함수</strong>라 한다. 리프는 스택을 거의 안 써도 된다. <code>x1</code>을 덮어쓸 일이 없으니까.
+    반대로 자기가 다시 함수를 부르는 <strong>중첩(nested)</strong> 함수는 <code>x1</code>·인자·로컬을 다 스택에 풀어놔야 한다.
+    유명한 예가 팩토리얼이다.
+  </p>
+
+<pre><code><span class="code-comment">// long long fact(long long n) {</span>
+<span class="code-comment">//   if (n &lt; 1) return 1;</span>
+<span class="code-comment">//   else return n * fact(n - 1);</span>
+<span class="code-comment">// }</span>
+fact: addi sp, sp, -16
+      sd   x1, 8(sp)        <span class="code-comment">// return address 저장</span>
+      sd   x10, 0(sp)       <span class="code-comment">// n 저장</span>
+      addi x5, x10, -1
+      bge  x5, x0, L1       <span class="code-comment">// n &gt;= 1 이면 L1</span>
+      addi x10, x0, 1       <span class="code-comment">// 아니면 1 반환</span>
+      addi sp, sp, 16
+      jalr x0, 0(x1)
+L1:   addi x10, x10, -1     <span class="code-comment">// n - 1</span>
+      jal  x1, fact         <span class="code-comment">// fact(n-1)</span>
+      mul  x10, x10, x6     <span class="code-comment">// (가짜) — 실제로는 곱셈을 별도 처리해야 함</span>
+      ld   x10, 0(sp)       <span class="code-comment">// 원래 n 복원</span>
+      ld   x1,  8(sp)
+      addi sp, sp, 16
+      jalr x0, 0(x1)</code></pre>
+
+  <p>
+    위 코드는 책에 비해 간략화했다 — 곱셈이나 보존 레지스터 사용 부분은 책에서 더 정교하게 다룬다. 핵심은 “재귀가 일어나도 <code>x1</code>과 <code>n</code>이 스택에 안전하게 보관된다”는 점이다.
+  </p>
+
+  <h3>프레임 포인터와 메모리 레이아웃</h3>
+  <p>
+    함수 한 번 호출당 스택에 차지하는 공간을 <strong>스택 프레임(stack frame)</strong>이라 한다. <code>sp</code>가 프레임의 꼭대기를, <strong>frame pointer</strong>(<code>x8</code>, <code>fp</code>)가 프레임의 바닥을 가리킨다.
+    프레임 포인터는 디버거에서 “이 함수의 로컬 변수 위치”를 안정적으로 가리키기 위한 장치라, 최적화가 켜지면 컴파일러가 생략하기도 한다.
+  </p>
+
+  <p>
+    프로그램 메모리는 보통 이런 모양이다(주소가 위로 갈수록 큰 방향).
+  </p>
+
+  <table class="fmt-table">
+    <thead><tr><th>위치(주소 큰 쪽)</th><th>영역</th></tr></thead>
+    <tbody>
+      <tr><td>높은 주소 →</td><td>스택 (아래로 자람)</td></tr>
+      <tr><td></td><td>↕ 빈 공간</td></tr>
+      <tr><td></td><td>힙 (위로 자람, malloc)</td></tr>
+      <tr><td></td><td>정적 데이터(static, .data)</td></tr>
+      <tr><td>낮은 주소 →</td><td>프로그램 코드(text)</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    스택이 아래로 자라고 힙이 위로 자라는 이유는 “충돌하기 전까지 자유롭게 늘어나라”는 배려다.
+    그러다 둘이 만나면? 그게 스택 오버플로 또는 메모리 부족이다. 위에서 내려오는 적과 아래에서 올라오는 아군의 비극적 만남.
+  </p>
+
+  <h2 id="s9">2.9 사람과의 통신 — 문자와 문자열</h2>
+  <p>
+    숫자만 다루면 컴퓨터는 외롭다. 사람과 글자를 주고받으려면 문자도 비트로 표현해야 한다.
+    아스키(ASCII)는 8비트 한 바이트로 한 글자를, 유니코드(UTF-8 등)는 가변 길이로 한 글자를 표현한다.
+    RISC-V엔 바이트와 하프워드 단위 로드/스토어가 있어 문자 데이터를 다룰 수 있다.
+  </p>
+
+<pre><code>lb   x9, 0(x10)    <span class="code-comment">// load byte (부호 확장)</span>
+lbu  x9, 0(x10)    <span class="code-comment">// load byte unsigned (위쪽 0으로 채움)</span>
+sb   x9, 0(x10)    <span class="code-comment">// store byte</span>
+lh   x9, 0(x10)    <span class="code-comment">// load halfword (부호 확장)</span>
+lhu  x9, 0(x10)    <span class="code-comment">// load halfword unsigned</span></code></pre>
+
+  <p>
+    C에서 <code>char</code>은 1바이트라 <code>lb</code>/<code>sb</code>로 다룬다.
+    문자열은 보통 “바이트 배열 + 끝을 알리는 0 바이트”(<code>'\0'</code>)로 구성된다. <code>strcpy</code> 같은 함수가 “0 만날 때까지 한 바이트씩 복사”라는 단순한 루프로 짜이는 이유다.
+  </p>
+
+  <h2 id="s10">2.10 RISC-V 주소 지정 모드</h2>
+  <p>
+    “큰 즉치 어떻게 박을래?”와 “먼 곳으로 어떻게 점프할래?”가 이 절의 두 화두다.
+  </p>
+
+  <h3>lui — 위쪽 20비트 한 방에 채우기</h3>
+  <p>
+    <code>addi</code>의 즉치는 12비트라, 더 큰 상수는 한 번에 못 박는다. 그래서 <code>lui</code>(load upper immediate)가 따로 있다.
+    이 명령은 20비트 즉치를 받아서 “레지스터의 31:12 자리에 박고 나머지는 0”으로 만든다. 이걸 <code>addi</code>와 짝지으면 32비트 임의 상수를 만들 수 있다.
+  </p>
+
+<pre><code>lui  x9, 0x12345    <span class="code-comment">// x9 = 0x12345_000 (위쪽 20비트만)</span>
+addi x9, x9, 0x678   <span class="code-comment">// x9 = 0x12345_678 (아래 12비트 더하기)</span></code></pre>
+
+  <p>
+    더 큰 64비트 상수는 여러 단계가 필요하지만, 보통 그 정도 큰 상수는 메모리에서 로드해 오는 게 속 편하다.
+  </p>
+
+  <h3>PC-상대 주소 지정 — 분기와 jal의 사정</h3>
+  <p>
+    조건 분기와 <code>jal</code>은 절대 주소가 아니라 <strong>PC-relative</strong> 주소를 쓴다. 즉, “현재 PC에서 ±몇 바이트”라는 거리값을 명령어 안에 박아둔다.
+    이 방식이 좋은 이유는 두 가지. 첫째, 코드가 메모리 어디에 로드되어도 분기 거리가 변하지 않는다(즉, <em>위치 독립적</em>이라 동적 라이브러리·재배치에 유리).
+    둘째, 거리값을 짧게 박아도 큰 코드 영역을 커버할 수 있다(±MB 단위).
+    멀리 점프해야 한다면 <code>auipc</code>+<code>jalr</code> 조합으로 32비트 거리를 만든다.
+  </p>
+
+  <h2 id="s11">2.11 동기화 — 동시에 일어나는 일들의 질서</h2>
+  <p>
+    한 코어가 메모리를 읽고 그 값에 1을 더해 다시 쓰는 동안, 다른 코어가 같은 자리에 끼어들면? 결과가 망가진다.
+    이걸 막기 위해 “읽고-수정하고-쓰는 동작이 중간에 끊기지 않게” 하는 명령이 필요하다. RISC-V는 <strong>load-reserved</strong>(<code>lr</code>)와 <strong>store-conditional</strong>(<code>sc</code>) 두 명령으로 처리한다.
+  </p>
+
+  <p>
+    아이디어는 이렇다. <code>lr</code>로 메모리 한 자리를 “예약하고” 읽는다. 그 사이 다른 코어가 그 자리를 건드리면 예약이 깨진다.
+    마지막에 <code>sc</code>로 쓰려 하면, 예약이 살아 있을 때만 쓰기가 성공한다. 실패하면 처음부터 다시 시도. 이걸 락 구현이나 원자적 카운터의 기반으로 쓴다.
+    “원자적”이란 말은 “쪼갤 수 없이 한 덩어리로 일어난다”는 뜻이다. 화학에서 빌려온 표현이지만, 멀티코어 세계에선 신앙에 가깝다.
+  </p>
+
+  <div class="callout hwsw">
+    <div class="callout-title">하드웨어/소프트웨어 인터페이스</div>
+    <p>
+      뮤텍스(mutex), 세마포어, lock-free 자료구조 — 우리가 매일 쓰는 동기화 기법들의 가장 안쪽엔 결국 <code>lr</code>/<code>sc</code> 같은 원자 명령이 있다.
+      “한 줄짜리 보장”이 운영체제의 안전을 떠받든다.
+    </p>
+  </div>
+
+  <h2 id="s12">2.12 번역과 시작 — C 코드가 실행되기까지</h2>
+  <p>
+    우리가 짠 <code>main()</code>이 실제로 CPU를 휘어잡기까지의 여정을 정리하자. 단계가 많아 보이지만, 각각이 다 이유가 있다.
+  </p>
+
+  <ol>
+    <li><strong>컴파일러(compiler)</strong>: C/C++ 소스를 어셈블리로 번역. 최적화 단계가 끼어든다(루프 풀기, 상수 폴딩, 인라이닝 등).</li>
+    <li><strong>어셈블러(assembler)</strong>: 어셈블리를 32비트 기계어 + 메타데이터(심볼 테이블, 재배치 정보)로 바꿔서 <em>오브젝트 파일</em>(.o)을 만든다.</li>
+    <li><strong>링커(linker)</strong>: 여러 오브젝트 파일과 라이브러리들을 한 실행 파일로 엮는다. 외부 함수 호출의 “주소 자리”를 채워 넣는 작업이 핵심.</li>
+    <li><strong>로더(loader)</strong>: 운영체제가 실행 파일을 메모리에 올리고, PC를 시작 주소로 맞춰 첫 명령을 실행한다.</li>
+  </ol>
+
+  <p>
+    <strong>정적 라이브러리</strong>는 링커 단계에 코드를 통째로 끌어와서 실행 파일이 비대해진다. <strong>동적 링크 라이브러리(DLL/.so)</strong>는 링크를 실행 시점으로 미뤄서, 여러 프로세스가 한 라이브러리를 공유한다. 메모리도 절약되고 보안 패치도 라이브러리 한 번 갈면 끝.
+  </p>
+  <p>
+    <strong>JIT(just-in-time) 컴파일</strong>은 한 발짝 더 나간다. 자바·자바스크립트·.NET 같은 런타임은 처음엔 바이트코드를 인터프리트하다가 “자주 도는 코드”를 발견하면 그 자리에서 기계어로 번역해 버린다.
+    <em>저장된 프로그램</em> 사상 덕분에, 만들어진 기계어 비트를 메모리에 적고 그쪽으로 점프하는 게 합법이다. 1945년의 한 줄짜리 결정이 2026년의 V8 엔진까지 떠받친다.
+  </p>
+
+  <h2 id="s13">2.13 ~ 2.14 예제: 정렬과 배열·포인터</h2>
+  <p>
+    책 후반에는 <code>swap</code>·<code>sort</code> 같은 함수의 실제 RISC-V 코드를 따라간다.
+    핵심 교훈은 두 가지. 하나, 인자 전달과 보존 레지스터 사용을 어떻게 조합하느냐로 코드 크기와 속도가 꽤 달라진다.
+    둘, <strong>배열을 인덱스로 도느냐, 포인터로 도느냐</strong>는 같은 알고리즘이라도 어셈블리 모양이 꽤 달라진다.
+  </p>
+
+<pre><code><span class="code-comment">// 인덱스 버전</span>
+for (i = 0; i &lt; n; i++) sum += A[i];
+
+<span class="code-comment">// 포인터 버전</span>
+end = A + n;
+for (p = A; p &lt; end; p++) sum += *p;</code></pre>
+
+  <p>
+    인덱스 버전은 매 회 곱셈(<code>i*8</code>)이 들어가지만, 포인터 버전은 단순 덧셈(<code>p += 8</code>)만 한다.
+    옛날엔 포인터 버전이 늘 빨랐지만, 요즘 컴파일러가 <em>strength reduction</em>을 알아서 해줘서 둘이 거의 같은 코드를 토해내곤 한다. 그래도 포인터 산술이 기계 가까이라는 사실은 변하지 않는다.
+  </p>
+
+  <h2 id="s14">2.16 ~ 2.18 다른 언어들 — MIPS, x86</h2>
+  <p>
+    RISC-V 말고도 ISA는 많다. 두 가지만 짧게 비교하자.
+  </p>
+
+  <h3>MIPS — 가까운 사촌</h3>
+  <p>
+    MIPS는 RISC-V의 학문적 큰형이다. 같은 RISC 철학, 32개 레지스터, 거의 같은 명령 카테고리.
+    다른 점은 사소하다 — 분기 명령에 “비교는 따로, 분기는 따로”의 흔적이 있고, 즉치 폭이나 형식 분류가 약간 다르다.
+    하지만 MIPS를 알면 RISC-V는 거의 그대로 읽힌다. “다른 한국어 사투리” 정도의 거리.
+  </p>
+
+  <h3>x86 — 38년의 누더기 옷</h3>
+  <p>
+    x86은 1978년 8086부터 누적된 거대한 명령어 집합이다. RISC-V가 깔끔한 카페 메뉴라면 x86은 “시그니처가 너무 많아 책 한 권”인 노포 메뉴판이다.
+    명령어 길이가 가변(1~15바이트), 주소 지정 모드가 풍부, 한 명령이 메모리도 만지고 산술도 하는 복합 명령이 많다.
+    그래도 인텔/AMD는 이걸 안에서 RISC 같은 마이크로옵으로 쪼개서 실행한다. 즉, <em>겉은 CISC, 속은 RISC</em>.
+    소프트웨어 호환성이 자산이라 절대 못 버리는 것이고, 그 누더기가 전 세계 PC와 서버를 굴린다. 위대한 동시에 안쓰러운 운명.
+  </p>
+
+  <div class="callout witty">
+    <div class="callout-title">한 줄 위트</div>
+    <p>x86은 “호환성을 위해 못생겨졌고, 그 못생김이 다시 호환성이 됐다”는 뫼비우스의 띠다.</p>
+  </div>
+
+  <h2 id="s15">2.19 오류와 함정</h2>
+
+  <h3>함정 1 — “더 강한 명령어 = 더 빠른 컴퓨터”의 환상</h3>
+  <p>
+    한 명령어로 많은 일을 하면 사이클이 줄어들 거 같지만, 실제로는 디코딩이 무거워지고 파이프라인이 꼬여 오히려 느려지기 쉽다.
+    “명령어 수”는 성능의 한 요소일 뿐, 사이클당 명령어 수(IPC)와 클럭 주파수가 같이 곱해져야 진짜 속도가 된다(<em>iron law</em>: 시간 = 명령어 수 × CPI × 사이클 시간).
+  </p>
+
+  <h3>함정 2 — “어셈블리로 짜면 무조건 빠르다”</h3>
+  <p>
+    1990년대까지는 그렇기도 했다. 하지만 요즘 컴파일러는 사람이 한나절 고민할 최적화를 0.3초에 한다.
+    어셈블리 직접 작성이 의미 있는 영역은 SIMD 커널, 부트로더, 인라인 OS 코드 정도. 일반 앱 코드를 어셈블리로 다시 짜면, 보통은 컴파일러보다 느려지고 버그만 늘어난다.
+  </p>
+
+  <h3>함정 3 — “포인터가 무조건 인덱스보다 빠르다”</h3>
+  <p>
+    옛 책에서 자주 나온 미신. 위 13~14절에서 본 대로, 현대 컴파일러는 인덱스 루프도 포인터 수준으로 펴 준다.
+    “읽기 좋은 쪽”을 쓰고, 정 의심되면 디스어셈블해 보면 된다. 측정하지 않은 최적화는 미신이고, 미신은 종종 비싼 버그가 된다.
+  </p>
+
+  <h3>오류 1 — 부호 있는/없는 비교를 헷갈리는 일</h3>
+  <p>
+    C에서 <code>int</code>와 <code>unsigned</code>가 섞이면 비교가 부호 없는 쪽으로 끌려간다. <code>−1 &gt; 0u</code>가 참이 되는 식이다.
+    RISC-V도 <code>blt</code>와 <code>bltu</code>가 따로 있는 이유가 이거다. 둘이 다른 건 부호 비트 한 자리뿐이지만, 그 한 비트가 인생을 바꾼다.
+  </p>
+
+  <h2 id="s16">2.20 결론</h2>
+  <p>
+    이 장에서 우리는 “컴퓨터에게 말 거는 법”을 배웠다. 산술과 논리, 메모리 접근, 분기, 함수 호출, 동기화, 그리고 그 코드가 실제로 실행되는 단계까지.
+    핵심은 단순하다. <strong>레지스터에 올려서 계산하고, 분기로 흐름을 만들고, 메모리로 큰 데이터를 다룬다.</strong>
+    이 세 가지면 어떤 알고리즘이든 표현된다. 우리가 매일 짜는 파이썬·자바스크립트·러스트는 결국 어딘가에서 이 32비트 단어들로 번역되어, 바닥의 트랜지스터를 덜컹거린다.
+  </p>
+  <p>
+    명령어 집합을 “외워야 할 사전”으로 보지 말자. 차라리 <strong>하드웨어와 소프트웨어가 만나는 약속의 자리</strong>로 보자.
+    이 약속이 바뀌면 반세기 전 코드가 못 돌고, 안 바뀌면 반세기 후의 칩 설계가 발목 잡힌다. 그래서 ISA는 보수적이고, 그래서 RISC-V 같은 새 ISA가 나오면 다들 들썩인다.
+  </p>
+  <p>
+    다음 장에서는 “이 명령어가 실제 어떻게 산술을 해내는가” — 정수 곱셈/나눗셈 회로, 부동소수점, IEEE 754 — 를 들여다본다.
+    숫자가 결코 단순하지 않다는 걸, 컴퓨터 안에서 다시 한 번 확인하게 될 것이다.
+  </p>
+
+  <div class="callout bigpic">
+    <div class="callout-title">큰 그림 (요약)</div>
+    <p>
+      <strong>레지스터·메모리·분기</strong>가 컴퓨터 언어의 세 기둥.
+      <strong>형식이 적고 규칙적</strong>일수록 회로가 단순해지고, 그래서 클럭이 올라간다.
+      <strong>저장된 프로그램</strong> 덕분에 컴파일러·로더·JIT 같은 “코드를 만들고 옮기는 코드”가 가능하다.
+      이 세 줄이 RISC-V 한 장의 몸체다.
+    </p>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="../index.html">
+      <div class="label">← 돌아가기</div>
+      <div class="title">홈</div>
+    </a>
+    <a href="chapter3.html" class="next disabled" aria-disabled="true">
+      <div class="label">다음 →</div>
+      <div class="title">3장. 컴퓨터를 위한 산술 (준비 중)</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  © Comarchi Korean Notes · 원서: Patterson &amp; Hennessy, <em>Computer Organization and Design (RISC-V Edition)</em>, Morgan Kaufmann
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>CUDA/Kernel/Compiler 18권 단권화 — Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .index-grid {
+    padding: 8mm;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2mm;
+  }
+  .tier-block {
+    border: 0.6pt solid var(--box-border);
+    border-radius: 1.2pt;
+    padding: 2mm 3mm;
+    background: #fff;
+  }
+  .tier-block h3 {
+    margin: 0 0 1mm;
+    font-size: 11pt;
+    font-weight: 800;
+    border-bottom: 0.5pt solid var(--box-border-soft);
+    padding-bottom: 0.8mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .tier-block h3 .tier-label {
+    font-family: var(--mono);
+    font-size: 9pt;
+    background: var(--hl-yellow);
+    padding: 0 3px;
+  }
+  .tier-block .vol-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5mm 3mm;
+    margin-top: 1mm;
+  }
+  .vol-row {
+    display: grid;
+    grid-template-columns: 40mm 1fr 18mm;
+    gap: 2mm;
+    align-items: baseline;
+    font-size: 8.5pt;
+    padding: 0.5mm 0;
+    border-bottom: 0.3pt dotted var(--box-border-soft);
+  }
+  .vol-row a {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+  .vol-row a:hover { color: #1565c0; text-decoration: underline; }
+  .vol-row .vol-title { color: var(--ink-soft); font-weight: 600; }
+  .vol-row .vol-pages { font-family: var(--mono); color: var(--ink-mute); font-size: 8pt; text-align: right; }
+  .dep-graph {
+    font-family: var(--mono);
+    font-size: 7.8pt;
+    line-height: 1.25;
+    background: #fafafa;
+    padding: 2mm 3mm;
+    border: 0.4pt solid var(--box-border-soft);
+    white-space: pre;
+    margin: 1mm 0;
+  }
+  .path-box {
+    background: var(--hl-blue);
+    border: 0.5pt solid #1565c0;
+    padding: 1.5mm 2mm;
+    font-size: 8.5pt;
+    margin: 0.5mm 0;
+  }
+  .path-box b { color: #0d47a1; }
+</style>
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Index Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA / KERNEL / COMPILER 단권화 시리즈 · 18권 · A4 LANDSCAPE</div>
+    <h1>18권 <span class="accent">단권화</span></h1>
+    <div class="subtitle">HW · ISA · Kernel 패턴 · 수치 · Compiler · 분산/서빙 · 방법론</div>
+    <div class="meta">
+      <div><b>총 페이지</b> 약 320p</div>
+      <div><b>Tier</b> T1~T6</div>
+      <div><b>기준</b> Ampere sm_80 · Hopper sm_90 · Blackwell</div>
+      <div><b>용도</b> 보고 떠올릴 지도 (체화 후 인출 트리거)</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차 (Tier별)</h4>
+      <div class="toc">
+        <div class="row star"><span class="t">T1 V01 — PMPP Core</span><span class="p">18p</span></div>
+        <div class="row star"><span class="t">T1 V02 — GPU Arch Quantitative</span><span class="p">20p</span></div>
+        <div class="row star"><span class="t">T1 V03 — PTX ISA (Ampere)</span><span class="p">18p</span></div>
+        <div class="row star"><span class="t">T1 V04 — PTX Hopper + SASS</span><span class="p">18p</span></div>
+        <div class="row"><span class="t">T2 V05 — 병렬 Primitive 고급</span><span class="p">15p</span></div>
+        <div class="row star"><span class="t">T2 V06 — GEMM (CUTLASS·CuTe)</span><span class="p">22p</span></div>
+        <div class="row star"><span class="t">T2 V07 — Attention 계보</span><span class="p">20p</span></div>
+        <div class="row"><span class="t">T2 V08 — 기타 LLM 커널</span><span class="p">16p</span></div>
+        <div class="row"><span class="t">T3 V09 — Mixed Precision</span><span class="p">14p</span></div>
+        <div class="row"><span class="t">T3 V10 — 양자화</span><span class="p">14p</span></div>
+        <div class="row star"><span class="t">T4 V11 — Triton Compiler 내부</span><span class="p">18p</span></div>
+        <div class="row"><span class="t">T4 V12 — MLIR & LLVM for GPU</span><span class="p">18p</span></div>
+        <div class="row"><span class="t">T4 V13 — TorchInductor</span><span class="p">18p</span></div>
+        <div class="row"><span class="t">T4 V14 — XLA · TVM · Polyhedral</span><span class="p">18p</span></div>
+        <div class="row star"><span class="t">T5 V15 — 분산 통신 · 병렬화</span><span class="p">20p</span></div>
+        <div class="row star"><span class="t">T5 V16 — Inference Serving</span><span class="p">22p</span></div>
+        <div class="row"><span class="t">T5 V17 — Training System</span><span class="p">18p</span></div>
+        <div class="row"><span class="t">T6 V18 — Roofline · Profiling</span><span class="p">14p</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 · 표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의 · 수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의 · 실수 지점</span></div>
+      <div class="row"><span class="sym">★</span><span>시리즈 핵심 권</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉</span></div>
+      <div class="row"><span class="sym">↗</span><span>타권 cross-ref</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>설계 원칙</b> 밀도 ≥80% · 3열 · 수식/표/의사코드 우선 · 실측 감각 배제</div>
+    <div class="mono">18 volumes · ~320 pages · ctrl+P</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: TIER 체계 + 목록 ============================ -->
+<section class="page" data-screen-label="02 Tier 체계">
+  <div class="page-header">
+    <div class="brand">18권 Index <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Tier 체계 · 권별 파일</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Tier 체계 <span class="ko">6-tier</span></h3>
+        <table class="compact">
+          <thead><tr><th>Tier</th><th>주제</th><th>권</th><th class="num">p/권</th></tr></thead>
+          <tbody>
+            <tr><td><b>T1</b></td><td>HW & ISA<br/><span class="tiny">실리콘→instruction</span></td><td class="mono">V01~V04</td><td class="num">15~20</td></tr>
+            <tr><td><b>T2</b></td><td>Kernel 패턴<br/><span class="tiny">알고리즘→GPU</span></td><td class="mono">V05~V08</td><td class="num">15~22</td></tr>
+            <tr><td><b>T3</b></td><td>수치<br/><span class="tiny">bit→양자화</span></td><td class="mono">V09~V10</td><td class="num">14~18</td></tr>
+            <tr><td><b>T4</b></td><td>Compiler<br/><span class="tiny">source→PTX</span></td><td class="mono">V11~V14</td><td class="num">18~24</td></tr>
+            <tr><td><b>T5</b></td><td>분산/서빙<br/><span class="tiny">multi-GPU→engine</span></td><td class="mono">V15~V17</td><td class="num">18~22</td></tr>
+            <tr><td><b>T6</b></td><td>방법론<br/><span class="tiny">프로파일링</span></td><td class="mono">V18</td><td class="num">14~16</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> T1 — HW & ISA</h3>
+        <div class="vol-row"><a href="V01_pmpp_core.html">V01</a><span class="vol-title">PMPP Core</span><span class="vol-pages">18p</span></div>
+        <div class="vol-row"><a href="V02_gpu_arch.html">V02</a><span class="vol-title">GPU Arch 정량</span><span class="vol-pages">20p</span></div>
+        <div class="vol-row"><a href="V03_ptx_ampere.html">V03</a><span class="vol-title">PTX Ampere</span><span class="vol-pages">18p</span></div>
+        <div class="vol-row"><a href="V04_ptx_hopper_sass.html">V04</a><span class="vol-title">Hopper PTX + SASS</span><span class="vol-pages">18p</span></div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> T2 — Kernel 패턴</h3>
+        <div class="vol-row"><a href="V05_parallel_primitives.html">V05</a><span class="vol-title">병렬 Primitive</span><span class="vol-pages">15p</span></div>
+        <div class="vol-row"><a href="V06_gemm_cutlass_cute.html">V06</a><span class="vol-title">GEMM CUTLASS</span><span class="vol-pages">22p</span></div>
+        <div class="vol-row"><a href="V07_attention.html">V07</a><span class="vol-title">Attention 계보</span><span class="vol-pages">20p</span></div>
+        <div class="vol-row"><a href="V08_llm_kernels.html">V08</a><span class="vol-title">LLM 커널</span><span class="vol-pages">16p</span></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> T3 — 수치</h3>
+        <div class="vol-row"><a href="V09_mixed_precision.html">V09</a><span class="vol-title">Mixed Precision</span><span class="vol-pages">14p</span></div>
+        <div class="vol-row"><a href="V10_quantization.html">V10</a><span class="vol-title">Quantization</span><span class="vol-pages">14p</span></div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> T4 — Compiler</h3>
+        <div class="vol-row"><a href="V11_triton_compiler.html">V11</a><span class="vol-title">Triton 내부</span><span class="vol-pages">18p</span></div>
+        <div class="vol-row"><a href="V12_mlir_llvm.html">V12</a><span class="vol-title">MLIR & LLVM</span><span class="vol-pages">18p</span></div>
+        <div class="vol-row"><a href="V13_torch_inductor.html">V13</a><span class="vol-title">TorchInductor</span><span class="vol-pages">18p</span></div>
+        <div class="vol-row"><a href="V14_xla_tvm.html">V14</a><span class="vol-title">XLA · TVM</span><span class="vol-pages">18p</span></div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> T5 — 분산/서빙</h3>
+        <div class="vol-row"><a href="V15_distributed_comm.html">V15</a><span class="vol-title">분산 통신</span><span class="vol-pages">20p</span></div>
+        <div class="vol-row"><a href="V16_inference_serving.html">V16</a><span class="vol-title">Inference Serving</span><span class="vol-pages">22p</span></div>
+        <div class="vol-row"><a href="V17_training_system.html">V17</a><span class="vol-title">Training System</span><span class="vol-pages">18p</span></div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> T6 — 방법론</h3>
+        <div class="vol-row"><a href="V18_profiling_roofline.html">V18</a><span class="vol-title">Roofline · Profiling</span><span class="vol-pages">14p</span></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">8</span> 의존성 지도 <span class="ko">권 간 선행</span></h3>
+        <pre class="ascii">        V01 (PMPP)
+         │
+    ┌────┼──────────────┐
+    ▼    ▼              ▼
+   V02  V05            V09
+   (HW) (prim)       (numerics)
+    │    │              │
+    ▼    │              ▼
+   V03   │             V10
+   (PTX) │            (quant)
+    │    │
+    ▼    │
+   V04   │
+   (Hop) │
+    │    │
+    └──┬─┘
+       ▼
+      V06 → V07 → V08
+      GEMM  attn   LLM
+       │     │     │
+       └──┬──┴─────┘
+          ▼
+    V11→V12→V13→V14
+    Triton MLIR Ind XLA/TVM
+          │
+          └→ V15 (분산)
+              │
+              ├→ V16 (infer)
+              └→ V17 (train)
+
+V18 — 모든 권 뒤에</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 학습 경로</h3>
+        <div class="def"><span class="label">정규 경로</span>
+          V01→V02→V05→V03→V04→V06→V07→V08→V09→V10→V11→V12→V13→V14→V15→V17→V16→V18
+        </div>
+        <div class="def"><span class="label">최단 경로</span>
+          <b>vLLM 컨트리뷰션 목표</b>:<br/>
+          V01→V02→V03→V04→V06→V07→V15→V16→V18
+          <span class="legend">9권 완성 후 나머지 확장</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 기존 두 권과의 관계</h3>
+        <table class="compact">
+          <thead><tr><th>기존</th><th>18권 내 매핑</th></tr></thead>
+          <tbody>
+            <tr><td><code>pmpponebook.html</code><br/><span class="tiny">17p</span></td><td>V01이 확장 대체</td></tr>
+            <tr><td><code>cudalearning_단권화_v2.html</code><br/><span class="tiny">20p</span></td><td>V02/V03/V04/V06/V07/V11/V15/V18에 분산</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">기존 두 권은 "프론티어 스냅샷"으로 보존.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">단권화 제외 원칙</span>: Nsight UI 조작법, 벤더 기술 마케팅, 실측 벤치마크(whitepaper 제외), 튜닝 사례, 디버깅 수법, CI/CD 세팅, API reference, 저자 개인 의견 — 모두 out-of-scope.
+        <br/>∵ 단권화는 <mark>정지된 지도</mark>, 이 항목들은 <mark>움직이는 영토</mark>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+</div>
+<script src="tweaks.js"></script>
+</body>
+</html>

@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>13장 레지스터 할당 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html" class="active">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>13장. 레지스터 할당</h1>
+<p class="lead">유한한 레지스터, 무한한 변수 — 그래프 색칠하기와 spill 비용의 미학.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 679–724</span>
+<span><strong>키워드:</strong> register allocation, live range, interference graph, graph coloring, spilling, coalescing</span>
+</div>
+
+<h2>13.1 들어가며: 자리는 부족하고 줄은 길다</h2>
+
+<p>레지스터(register)는 메모리 계층에서 가장 빠른 자리다. 대부분의 프로세서에서 연산이 직접 만질 수 있는 유일한 메모리이기도 하다. 연산 유닛 바로 옆에 붙어 있어서, 레지스터를 잘 쓰는 일은 곧 런타임 성능 그 자체다. 컴파일러에서 이 자원을 책임지는 사람이 <strong>레지스터 할당기(register allocator)</strong>다.</p>
+
+<p>레지스터 할당기가 매 순간 답해야 할 질문은 두 개다. <em>어떤 값을 레지스터에 두는가?</em> 그리고 <em>그 값은 어느 레지스터에 들어가는가?</em> 둘 다 답이 안 나오면 메모리에 보내야 한다. 보내는 이유는 두 가지인데, 하나는 살아 있는 값이 레지스터 개수보다 많아서, 다른 하나는 컴파일러가 그 값을 레지스터에 안전하게 둘 수 있다고 증명하지 못해서다.</p>
+
+<div class="figure">
+<pre>
+   입력 프로그램   ┌────────────┐   출력 프로그램
+   n 레지스터  ──▶│ Register   │──▶ m 레지스터
+                  │ Allocator  │
+                  └────────────┘
+</pre>
+<span class="figure-caption">레지스터 할당기를 블랙박스로 보면 — 입력은 가상 레지스터를 마음대로 쓰는 코드, 출력은 타깃 머신의 유한한 레지스터에 끼워맞춘 코드.</span>
+</div>
+
+<p>할당기는 값을 메모리와 레지스터 사이로 옮기기 위해 load/store를 추가로 끼워넣어야 할 수도 있다. 이렇게 끼워넣은 코드를 <strong>spill 코드(spill code)</strong>라 부른다. 좋은 할당기는 (1) spill 코드의 실행 시간, (2) 차지하는 코드 공간, (3) 빠져나간 값이 잡아먹는 데이터 공간 — 이 셋을 모두 줄이려고 한다.</p>
+
+<div class="term-box">
+<span class="term">spill 코드</span> <span class="en">(spill code)</span> — 레지스터 할당기가 추가로 삽입한 load와 store. 본질적으로는 "레지스터가 모자라서 메모리 다녀오는 비용"이다.
+</div>
+
+<div class="callout">
+<div class="callout-title">알고리즘적 본질</div>
+레지스터 할당의 일반형은 <strong>NP-완전(NP-complete)</strong>이다. 즉 최적해는 다항 시간으로 못 구한다. 그래서 좋은 할당기는 "어려운 문제에 대한 효과적인 근사 해를 빠르게" 계산한다. 이 책 전체에서 가장 노골적으로 NP-hard와 부딪히는 단원이기도 하다.
+</div>
+
+<h2>13.2 배경 이야기 — 메모리 모델, 할당과 배정, 레지스터 클래스</h2>
+
+<p>레지스터 할당기에 도착할 즈음의 코드는 거의 모든 단계를 거친 상태다. 스캔, 파스, 검사, 분석, 최적화, 타깃 코드 변환, 어쩌면 스케줄링까지 끝났다. 그래서 <em>이전 단계들이 내린 결정</em>이 할당기의 일거리를 좌우한다. 이 절에서는 그 환경을 만드는 세 가지 요인을 본다.</p>
+
+<h3>13.2.1 메모리 vs 레지스터 — 어떤 메모리 모델을 골랐나</h3>
+
+<p>컴파일러를 만들 때 메모리 모델(memory model) 선택은 IR의 모양과 할당기의 일거리를 동시에 결정한다.</p>
+
+<ul>
+<li><strong>레지스터-투-레지스터 모델(register-to-register model)</strong>: 컴파일러의 앞단이 "이 값은 모호하지 않으니 레지스터에 둬도 된다"고 판단되는 값을 가상 레지스터(virtual register)에 넣어버린다. 메모리에 있는 값은 모호하다고 가정하고 그냥 거기 둔다. 이 경우 할당은 <em>합법성 자체</em>의 문제다 — 가상 레지스터 무한대를 물리 레지스터 유한 개에 끼워맞추지 않으면 코드가 굴러가지 않는다.</li>
+<li><strong>메모리-투-메모리 모델(memory-to-memory model)</strong>: 모든 값이 메모리에 산다. 할당기는 "메모리에 있는 값 중 어느 것을 레지스터로 끌어올릴 수 있는가, 끌어올리는 게 이득인가"를 결정한다. 이 모델에서는 할당이 <em>최적화</em>다. 안 해도 코드는 합법, 하면 빨라질 뿐.</li>
+</ul>
+
+<p>실무에서는 레지스터-투-레지스터 모델이 우세하다. 이유는 단순하다. 컴파일러 앞단(파서, 타입 분석)이 모호함과 유일성에 대한 지식을 IR의 모양에 직접 새겨 넣을 수 있기 때문이다. 메모리-투-메모리 모델은 그 지식을 분석으로 다시 발굴해야 한다.</p>
+
+<h3>13.2.2 할당 vs 배정 — 같은 동전의 양면</h3>
+
+<p>레지스터 할당기가 푸는 문제는 사실 두 개로 쪼개진다.</p>
+
+<div class="term-box">
+<span class="term">할당 (Allocation)</span> <span class="en">(register allocation)</span> — "어느 값을 레지스터에 둘까?"의 답. 무한한 이름 공간을 물리 레지스터 집합 + 메모리에 사상한다. <strong>모든 명령어 시점에서</strong> 레지스터에 거주하는 값의 개수가 <em>k</em>개를 넘지 않도록 보장한다.<br><br>
+<span class="term">배정 (Assignment)</span> <span class="en">(register assignment)</span> — "그 값을 정확히 어느 레지스터에 둘까?"의 답. 할당 결과로 만들어진 이름 집합을 실제 물리 레지스터 번호로 바꾼다.
+</div>
+
+<p>이 둘이 어떻게 다른가? 할당은 어렵고, 배정은 (보통은) 쉽다. 하나의 레지스터 종류만 있고 매 명령어 시점의 수요가 <em>k</em> 이하라면 — 즉 할당이 이미 잘 되어 있다면 — 배정은 <strong>구간 그래프 색칠(interval-graph coloring)</strong>로 다항 시간에 풀린다. 어려움은 거의 항상 <em>할당</em>에 몰려 있다.</p>
+
+<div class="term-box">
+<span class="term">구간 그래프</span> <span class="en">(interval graph)</span> — 실수 직선 위 구간들의 겹침을 나타내는 그래프. 노드는 구간 하나, 간선 (i,j)는 두 구간이 겹친다는 표시. 일반 그래프와 달리 <em>k</em>-색칠을 다항 시간에 풀 수 있다.
+</div>
+
+<h3>13.2.3 레지스터 클래스 — 종류가 다르면 따로 논다</h3>
+
+<p>현실의 프로세서는 모든 레지스터를 균일한 풀(pool)로 주지 않는다. 거의 항상 종류가 갈린다. 가장 흔한 분리는 <strong>범용 레지스터(general-purpose register)</strong>(정수, 주소)와 <strong>부동소수점 레지스터(floating-point register)</strong>다. IBM 360의 16+4 구성 시절부터 있던 이야기다. 현대 ISA는 더 많은 클래스를 들고 있다 — PowerPC는 조건 코드용 레지스터를, Intel IA-64는 술어(predicate)와 분기 타깃용 레지스터를 따로 가진다.</p>
+
+<p>두 클래스가 서로 닿지 않으면 컴파일러는 그것들을 <em>독립적으로</em> 할당할 수 있다. 작은 문제를 여러 개로 쪼개서 풀면 자료 구조 크기가 줄고 컴파일 시간도 빨라진다. 반대로 클래스가 겹치면 — 예: x86에서 32비트 레지스터를 1×32비트 / 2×16비트 / 4×8비트로 쓸 수 있는 경우, 또는 단정밀도 두 개와 배정밀도 하나가 같은 레지스터 쌍을 두고 다툴 때 — 한꺼번에 풀어야 한다.</p>
+
+<h2>13.3 지역 레지스터 할당과 배정 — 한 블록 안에서</h2>
+
+<p>전역 할당으로 가기 전에, 가장 단순한 경우부터 본다. <strong>기본 블록(basic block)</strong> 하나만 있는 상황. 이 동네에서는 제어 흐름이 일직선이라 "이 값이 다음에 언제 쓰이는가"를 거리(distance)로 정확히 측정할 수 있다.</p>
+
+<p>가정은 이렇다. 블록은 가상 레지스터 <code>vr<sub>i</sub></code>를 자유롭게 쓰고, 타깃 머신은 물리 레지스터 <em>k</em>개를 준다. 가상 레지스터 수가 <em>k</em>를 넘으면 일부를 메모리로 빼야 한다. 두 가지 접근이 있다.</p>
+
+<h3>13.3.1 톱다운 지역 할당 — "많이 쓰이는 놈이 임자"</h3>
+
+<p>아이디어는 단순하다. <strong>가장 자주 등장하는 값일수록 레지스터에 살 자격이 있다.</strong> 알고리즘:</p>
+
+<ol>
+<li>각 가상 레지스터의 등장 빈도를 센다 (블록을 한 번 훑으면 끝).</li>
+<li>빈도순으로 정렬한다.</li>
+<li>상위 <em>k − F</em>개 가상 레지스터에 물리 레지스터를 영구 배정한다. 여기서 <em>F</em>는 "spill 코드를 만드는 데 필요한 예약 레지스터 수" — RISC라면 보통 2~4개.</li>
+<li>코드를 다시 훑으면서 가상 레지스터 이름을 물리 레지스터 이름으로 바꿔 쓰고, 배정받지 못한 가상 레지스터는 예약 레지스터로 잠깐 끌어와 쓰는 짧은 시퀀스로 대체한다.</li>
+</ol>
+
+<p>이 방식의 약점은 명확하다. <em>한 가상 레지스터에 한 물리 레지스터를 블록 전체 동안 잡아둔다.</em> 어떤 값이 블록 전반에서만 자주 쓰이고 후반에는 안 쓰여도, 그 레지스터는 후반 내내 놀게 된다. 자원의 시간적 낭비가 발생한다.</p>
+
+<h3>13.3.2 보텀업 지역 할당 — "다음에 쓰일 때까지 가장 먼 놈을 쫓아내자"</h3>
+
+<p>보텀업 할당은 결정의 단위가 다르다. 전체 블록을 한꺼번에 보지 않고, <em>연산 단위로</em> 결정한다. 각 연산 <code>op vr<sub>i1</sub>, vr<sub>i2</sub> ⇒ vr<sub>i3</sub></code>마다 (1) 두 피연산자가 레지스터에 있도록 보장하고, (2) 결과를 담을 레지스터를 확보한다.</p>
+
+<div class="figure">
+<pre>
+/* 보텀업 지역 할당기 */
+for each operation, i, in order from 1 to N
+    where i has the form: op vr_{i1}, vr_{i2} => vr_{i3}
+
+    r_x ← Ensure(vr_{i1}, class(vr_{i1}))   /* 첫 피연산자를 레지스터에 */
+    r_y ← Ensure(vr_{i2}, class(vr_{i2}))   /* 둘째 피연산자를 레지스터에 */
+
+    if vr_{i1} is not needed after i then Free(r_x, ...)
+    if vr_{i2} is not needed after i then Free(r_y, ...)
+
+    r_z ← Allocate(vr_{i3}, class(vr_{i3}))  /* 결과 자리 잡기 */
+    rewrite i as: op r_x, r_y => r_z
+
+    /* 다음 사용 거리 갱신 */
+    if vr_{i1} is needed after i then class.Next[r_x] ← Dist(vr_{i1})
+    if vr_{i2} is needed after i then class.Next[r_y] ← Dist(vr_{i2})
+    class.Next[r_z] ← Dist(vr_{i3})
+</pre>
+<span class="figure-caption">보텀업 지역 할당기의 골격. <code>Ensure</code>는 "필요한 값을 레지스터에 올려놓기", <code>Allocate</code>는 "빈 레지스터 잡기 또는 누군가 spill"이다.</span>
+</div>
+
+<p>핵심 휴리스틱은 <code>Allocate</code>가 빈 레지스터를 못 찾았을 때다. 이 알고리즘은 <strong>"다음에 쓰일 때까지 가장 먼" 값</strong>을 쫓아낸다. 직관적으로 말하면, 가장 오래 쓰이지 않을 값을 메모리로 보내서 그 시간 동안 레지스터를 다른 일에 쓰자는 것이다. 잘 알려진 캐시 교체 정책 — Belady의 OPT — 와 같은 아이디어다.</p>
+
+<div class="callout note">
+<div class="callout-title">clean과 dirty — 모든 spill이 같지 않다</div>
+어떤 값을 메모리로 보낼 때, 그 값이 이미 메모리에 있는 형태와 같다면 <em>store</em>는 필요 없다. 상수로 만들어진 값이나 <em>load</em>로 가져온 값이 그 예다. 이런 값을 <strong>clean</strong>, store가 필요한 값을 <strong>dirty</strong>라 부른다. 최적 할당은 clean과 dirty의 비용 차이를 고려해야 한다 — 어떤 참조 시퀀스에서는 clean을 spill하는 게 이득이고, 다른 시퀀스에서는 dirty를 spill하는 게 이득이다. 단순한 "가장 먼 사용" 규칙은 이 차이를 잡지 못한다. 그래서 최적 지역 할당은 <strong>NP-hard</strong>다. 그래도 보텀업은 실무에서 매우 좋은 결과를 낸다.
+</div>
+
+<h3>13.3.3 단일 블록 너머로 — 왜 지역만으로는 안 되나</h3>
+
+<p>지역 할당기는 단일 블록 안에서는 잘 작동한다. 그런데 진짜 프로그램에서 값은 블록 사이를 흐른다. 어떤 값을 한 블록에서 만들고 다른 블록에서 쓰는 일은 일상이다. 지역 할당기를 그대로 여러 블록에 적용하려고 하면 곳곳에서 무너진다.</p>
+
+<div class="callout">
+<div class="callout-title">지역 할당기를 여러 블록에 그대로 쓰려 할 때 생기는 문제</div>
+변수 <code>x</code>가 네 블록 <em>B<sub>1</sub>, B<sub>2</sub>, B<sub>3</sub>, B<sub>4</sub></em>에서 각각 <code>r<sub>1</sub>, r<sub>2</sub>, r<sub>3</sub>, r<sub>4</sub></code>에 할당되었다고 하자. <em>B<sub>1</sub>→B<sub>2</sub></em>로 흐르는 길에서 <code>r<sub>1</sub></code>의 값을 <code>r<sub>2</sub></code>로 옮겨야 한다. 안전한 일반 해법은 <em>B<sub>1</sub></em> 끝에서 메모리에 store하고 <em>B<sub>2</sub></em> 시작에서 load하는 것뿐이다. 컨트롤 흐름 그래프를 자유롭게 수정할 수 없다면 register-to-register copy도 모든 경우에 들어맞게 끼워넣을 수 없다 (이른바 <em>critical edge</em> 문제). 결국 메모리 트래픽이 늘어난다.<br><br>
+또 보텀업의 핵심 수치인 "다음 사용 거리"가 다중 블록에서는 <em>다중 값</em>이 되어 정의가 모호해진다. 어떤 후행 경로를 따라 가는지에 따라 거리가 달라지기 때문이다.
+</div>
+
+<p>이 문제들은 본질적으로 지역 할당기의 시야 밖에 있다. 그래서 다중 블록 할당은 지역 할당의 단순 확장이 아니라 <em>완전히 다른 알고리즘</em>으로 풀어야 한다. 그게 다음 절의 주제다.</p>
+
+<h2>13.4 전역 레지스터 할당과 배정 — 그래프 색칠의 등장</h2>
+
+<p>전역 할당기는 spill 코드의 충격을 줄이려고 한다. 충격은 (1) 실행 시간, (2) 코드 공간, (3) 데이터 공간 세 갈래다. 보통 첫 번째에 집중한다. 전역이 지역과 본질적으로 다른 이유는 두 가지.</p>
+
+<ol>
+<li><strong>전역 라이브 레인지의 구조가 더 복잡하다.</strong> 지역에서는 라이브 레인지가 직선 코드의 구간이지만, 전역에서는 정의와 사용이 얽힌 <em>거미줄(web)</em>이다. 한 사용에 도달하는 모든 정의, 한 정의가 닿는 모든 사용 — 이들이 한 라이브 레인지로 묶여야 한다.</li>
+<li><strong>spill 비용이 위치에 따라 다르다.</strong> 지역 블록 안에서는 모든 참조가 같은 횟수로 실행되니 비용이 균일하다. 전역에서는 어떤 참조가 깊은 루프 안에 있느냐, 가끔 가는 if-branch에 있느냐에 따라 비용이 천차만별이다.</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">그래프 색칠 (Graph Coloring) 잠깐 정리</div>
+임의 그래프 <em>G</em>의 <em>색칠</em>이란 인접한 두 노드가 같은 색을 받지 않도록 각 노드에 색을 부여하는 것. <em>k</em>가지 색으로 색칠 가능하면 <em>k-색칠 가능</em>하다고 부른다. 가장 작은 그런 <em>k</em>를 <strong>채색수(chromatic number)</strong>라 한다.<br><br>
+임의 그래프의 채색수 결정은 <strong>NP-완전</strong>이다. 고정된 <em>k</em>에 대해 <em>k</em>-색칠 가능한지 묻는 것도 <strong>NP-완전</strong>(<em>k≥3</em>). 그래서 그래프 색칠을 자원 할당에 쓰는 알고리즘은 모두 <em>근사적</em>이다.
+</div>
+
+<p>이 사실이 전역 할당의 메타포가 된다. 컴파일러는 <strong>인터퍼런스 그래프(interference graph)</strong> <em>I</em>를 만든다. 노드는 라이브 레인지, 간선은 "두 라이브 레인지가 동시에 살아 있어 같은 레지스터를 쓸 수 없다"는 충돌 표시다. 이 그래프의 <em>k</em>-색칠을 찾으면 그게 곧 합법 할당이다 — 색이 곧 물리 레지스터다. 못 찾으면? 코드를 수정해서(=spill) 그래프를 더 색칠하기 쉬운 모양으로 바꾼 뒤 다시 시도한다.</p>
+
+<div class="term-box">
+<span class="term">인터퍼런스 그래프</span> <span class="en">(interference graph)</span> — 노드는 라이브 레인지(live range), 간선 (i,j)는 LR<sub>i</sub>와 LR<sub>j</sub>가 같은 레지스터를 공유할 수 없음을 뜻함.<br><br>
+<span class="term">간섭 (Interference)</span> — 두 라이브 레인지 LR<sub>i</sub>와 LR<sub>j</sub>는, 한쪽이 정의되는 시점에 다른 쪽이 살아 있고 두 값이 다르다면 <em>간섭한다</em>.
+</div>
+
+<h3>13.4.1 전역 라이브 레인지 찾기 — SSA가 길을 잡아준다</h3>
+
+<p>전역 라이브 레인지를 만들려면 정의와 사용 사이의 도달 관계를 풀어야 한다. 한 정의가 어떤 사용에 도달하는가? 한 사용에 어떤 정의들이 도달하는가? 같은 라이브 레인지에 묶일 정의-사용은 한 그룹이다.</p>
+
+<p><strong>SSA 형식(static single-assignment form)</strong>이 이 작업의 자연스러운 출발점이다. SSA에서는 각 이름이 정확히 한 번 정의되고, 각 사용은 단일 정의를 참조한다. 컨트롤 흐름이 합쳐지는 지점에서 <em>φ-함수</em>가 여러 정의를 하나의 이름으로 합쳐주는데, 이 φ-함수가 "어떤 정의들이 한 바구니에 들어가야 하는가"를 그대로 알려준다.</p>
+
+<div class="callout note">
+<div class="callout-title">알고리즘: φ-함수에 대해 union-find</div>
+1. 각 SSA 이름(정의)을 자기 자신만 들어 있는 집합으로 시작한다.<br>
+2. 각 φ-함수마다, 그 결과의 집합과 모든 인자의 집합을 union으로 합친다.<br>
+3. 모든 φ-함수를 처리하면, 남은 집합들이 곧 라이브 레인지다.
+</div>
+
+<p>예를 들어 코드에 SSA 이름 <code>a<sub>0</sub>, b<sub>0</sub>, c<sub>0</sub>, d<sub>0</sub>, d<sub>1</sub>, d<sub>2</sub></code>가 있고 φ-함수 <code>d<sub>2</sub> ← φ(d<sub>0</sub>, d<sub>1</sub>)</code>이 있다면, <code>{d<sub>0</sub>, d<sub>1</sub>, d<sub>2</sub>}</code>가 합쳐져 LR<sub>d</sub>가 된다. 나머지는 각각 자기만의 LR을 갖는다 — LR<sub>a</sub>, LR<sub>b</sub>, LR<sub>c</sub>.</p>
+
+<h3>13.4.2 전역 spill 비용 추정</h3>
+
+<p>그래프가 <em>k</em>-색칠 안 될 때 어떤 라이브 레인지를 spill할지 결정하려면, 각 LR을 spill하는 데 드는 비용을 알아야 한다. 비용의 구성:</p>
+
+<ul>
+<li><strong>주소 계산</strong>: 보통 활성 레코드(activation record, AR) 안 register-save area에 두면 ARP 기준 상대 주소로 끝나서 거의 공짜다.</li>
+<li><strong>메모리 연산</strong>: 정의 후 store, 사용 전 load. 메모리 지연 시간이 클수록 무겁다.</li>
+<li><strong>실행 빈도</strong>: 어디 위치한 참조냐에 따라 가중치가 곱해진다.</li>
+</ul>
+
+<div class="callout">
+<div class="callout-title">실행 빈도 추정의 관행</div>
+컴파일러는 각 블록에 실행 횟수 추정값을 매긴다. 프로파일 데이터가 있으면 그걸 쓰고, 없으면 휴리스틱이 동원된다. <em>흔한 가정</em>: 한 루프는 10회 실행. 따라서 한 겹 루프 안의 참조는 ×10, 두 겹 루프 안은 ×100. <em>if-then-else</em>는 빈도를 절반으로 나눈다. 정밀하지는 않지만, "안쪽 루프보다 바깥 루프에서 spill하라"는 편향을 만들어주는 데는 충분하다.
+</div>
+
+<h4>음수 spill 비용</h4>
+
+<p>같은 주소를 가리키는 load와 store만 있고 다른 사용이 없는 라이브 레인지는 <em>음수 비용</em>을 가져야 한다. spill하는 게 오히려 코드를 줄여주기 때문이다. 그런 LR이 발견되면 무조건 spill해야 한다. 레지스터 수요도 줄고 명령어도 사라진다 — 일석이조.</p>
+
+<h4>무한 spill 비용</h4>
+
+<p>너무 짧은 라이브 레인지(정의 직후 사용)는 spill해봐야 store + load 두 명령어가 새 LR로 추가될 뿐, 원래 LR보다 짧지 않다. 이런 LR은 spill로 얻을 게 없으니 비용을 ∞로 매겨 절대 spill 후보에서 빠지게 한다. 일반화하면, 정의와 사용 사이에 다른 LR이 끝나지 않는 LR은 모두 무한 비용이다.</p>
+
+<h3>13.4.3 인터퍼런스 그래프 만들기</h3>
+
+<p>라이브 레인지가 정해지고 각 블록의 LiveOut 집합이 계산되었다면, 그래프는 블록 단위로 한 번씩 훑으면 만들어진다. 알고리즘은 LiveNow를 LiveOut으로 초기화한 뒤 <em>블록을 거꾸로</em> 따라가며 매 연산마다 간선을 추가한다.</p>
+
+<div class="figure">
+<pre>
+for each LR_i: create a node n_i ∈ N
+
+for each basic block b:
+    LiveNow ← LiveOut(b)
+
+    for each operation op_n, op_{n-1}, op_{n-2}, ..., op_1 in b:
+        with form op_i: LR_a, LR_b => LR_c
+
+        for each LR_j ∈ LiveNow:
+            add (LR_c, LR_j) to E
+
+        remove LR_c from LiveNow
+        add LR_a and LR_b to LiveNow
+</pre>
+<span class="figure-caption">인터퍼런스 그래프 만들기. 거꾸로 훑으면서 "정의 시점에 살아 있는 모든 LR"과 정의 대상 사이에 간선을 긋는다.</span>
+</div>
+
+<div class="callout note">
+<div class="callout-title">copy 연산은 특별 대우</div>
+copy <code>LR<sub>i</sub> ⇒ LR<sub>j</sub></code>는 두 LR이 같은 값을 갖게 만든다. 따라서 같은 레지스터에 둬도 안전하다 — 이 연산만으로는 (LR<sub>i</sub>, LR<sub>j</sub>) 간선을 만들지 <em>않는다</em>. 이후 다른 맥락에서 진짜 충돌이 생기면 그때 간선이 추가된다. 같은 이유로 φ-함수도 인자와 결과 사이에 간선을 만들지 않는다. 이 처리는 뒤에 나올 <strong>coalescing</strong>에 결정적이다.
+</div>
+
+<p>실용 팁: 그래프 자료구조는 <em>하삼각 비트 행렬(lower-diagonal bit matrix)</em>과 <em>인접 리스트(adjacency lists)</em>를 같이 들고 다닌다. 비트 행렬은 (i,j) 간선이 있는지 상수 시간에 체크하고, 인접 리스트는 한 노드의 이웃을 빠르게 순회한다. 공간을 두 배 쓰지만 할당 시간이 크게 줄어든다.</p>
+
+<h3>13.4.4 톱다운 색칠 — 우선순위가 골라준다</h3>
+
+<p>색칠 단계에서도 톱다운과 보텀업이 갈린다. 톱다운은 외부에서 매겨준 <strong>우선순위(priority)</strong> — 보통 라이브 레인지 보존 시 절약되는 런타임 예상치 — 에 따라 LR을 정렬한다. 우선순위가 높은 LR부터 색을 시도한다.</p>
+
+<p>핵심 분류는 <strong>제약 LR(constrained)</strong>과 <strong>비제약 LR(unconstrained)</strong>이다. <em>차수(degree)</em>가 <em>k</em> 이상이면 제약, 미만이면 비제약. 비제약 LR은 이웃들이 모든 색을 다 써도 항상 빈 색이 하나는 남는다 — 그래서 항상 색칠 가능. 톱다운 알고리즘은 <em>제약 LR부터 우선순위 순으로</em> 색칠하고, 비제약 LR은 마지막에 임의 순서로 처리한다.</p>
+
+<p>우선순위 순서로 그냥 가면 어떤 일이 생길까? 비제약이지만 우선순위가 높은 이웃이 모든 색을 잡아먹어서, <em>이론상 색칠 가능한</em> 제약 LR이 색칠을 못 받는 일이 생긴다. 그래서 제약 LR을 먼저 처리하는 것이다.</p>
+
+<h4>spill 처리</h4>
+
+<p>색칠을 못 받은 LR은 spill하거나 split해야 한다. <em>spill</em>은 정의 뒤마다 store, 사용 앞마다 load를 끼워넣어 LR을 잘게 부수는 것이다. <em>split</em>은 LR을 더 큰 조각 몇 개로 나눠서 그 조각들이 더 적은 LR과 충돌하기를 기대하는 것이다.</p>
+
+<p>톱다운에서 spill 코드 자체가 레지스터를 필요로 한다는 모순이 있다 — 그래서 보통 약간의 레지스터를 spill 전용으로 예약한다. 예약은 <em>k</em>를 사실상 줄이는 효과가 있어, 그 자체로 spill을 더 일으킬 수 있다는 역설이 따라온다.</p>
+
+<h3>13.4.5 보텀업 색칠 — 그래프 구조가 순서를 정한다</h3>
+
+<p>보텀업은 <strong>그래프 구조</strong>로 색칠 순서를 결정한다. 외부 우선순위가 아니다. 핵심 통찰: <em>모든 노드를 자기보다 적은 수의 이미 색칠된 이웃을 갖는 시점에 색칠하면, 그 노드는 항상 색을 받는다.</em></p>
+
+<div class="figure">
+<pre>
+/* 색칠 순서 결정 (reduction) */
+initialize stack to empty
+while (N ≠ ∅):
+    if ∃ n ∈ N with n° < k:        /* 비제약 노드 우선 */
+        node ← n
+    else:
+        node ← n picked from N      /* spill metric으로 고름 */
+    remove node and its edges from I
+    push node onto stack
+
+/* 색칠 (reverse order) */
+while (stack ≠ ∅):
+    node ← pop(stack)
+    insert node and its edges back into I
+    color node                      /* 이웃의 색을 보고 빈 색 하나 고름 */
+</pre>
+<span class="figure-caption">보텀업 그래프 색칠. 비제약 노드부터 차례로 빼서 스택에 쌓고, 빼낸 역순으로 다시 끼워넣으며 색칠한다.</span>
+</div>
+
+<p>알고리즘은 두 단계다. <strong>축소(reduction)</strong>: 비제약 노드(차수 &lt; <em>k</em>)를 찾아 그래프에서 제거하고 스택에 푸시. 비제약 노드가 없으면 spill metric으로 한 노드를 골라 제거(이건 색을 못 받을 수 있다). <strong>색칠(coloring)</strong>: 스택에서 팝하며 노드와 간선을 다시 끼워넣고, 이웃의 색을 보고 빈 색을 부여.</p>
+
+<div class="callout">
+<div class="callout-title">왜 작동하는가</div>
+한 노드를 그래프에서 제거할 때 비제약이었다면, 다시 끼워넣는 시점에도 비제약이다 — 그동안 다른 노드들이 더 들어왔지만, 이 노드의 이웃은 변하지 않는다. 따라서 색을 받지 못할 위험은 <em>오직 spill metric으로 강제 제거된 노드에만</em> 존재한다. 그것마저도 운이 좋으면 색을 받을 수 있는데, <em>k</em>개 이웃이 우연히 같은 색을 공유했을 경우다.
+</div>
+
+<h4>spill metric — 어떤 노드를 강제 제거할까</h4>
+
+<p>모든 남은 노드가 제약일 때 골라야 하는 한 명. Chaitin et al.의 원조 보텀업 할당기는 <strong>비용/차수(cost/degree)</strong> 비율을 최소화하는 노드를 골랐다. 직관: 비용은 작고 (싸게 spill되고) 차수는 크다 (제거 시 다른 노드의 차수를 많이 줄여준다)면 좋다.</p>
+
+<p>변형도 많다 — <em>cost/degree²</em>는 이웃에 미치는 영향을 더 강조, <em>straight cost</em>는 런타임 속도만 본다, spill 연산 수만 세는 metric은 코드 크기를 줄인다. 정답은 없고, 실무에서는 여러 metric으로 색칠을 시도해 가장 좋은 결과를 고르기도 한다 — 색칠 자체가 빠르니까 가능한 전략이다.</p>
+
+<h3>13.4.6 Coalescing — 복사 명령어 없애기</h3>
+
+<p>인터퍼런스 그래프는 또 다른 용도로 쓰인다. 두 LR이 copy 연산 <code>i2i LR<sub>i</sub> ⇒ LR<sub>j</sub></code>로 연결되어 있고 <em>둘 사이에 간선이 없다면</em>, 두 LR을 합쳐서 한 LR로 만들 수 있다. 이걸 <strong>coalescing</strong>이라 한다.</p>
+
+<p>합치면 다음 효과가 한꺼번에 발생한다.</p>
+<ul>
+<li>copy 연산이 사라진다 (코드 단축, 빨라짐).</li>
+<li>합쳐진 LR은 양쪽의 이웃을 합집합으로 가지므로, 양쪽 모두와 충돌하던 다른 LR의 차수가 줄어든다.</li>
+<li>전체 LR 개수가 줄어들어 <em>I</em>를 비롯한 자료 구조가 작아진다.</li>
+</ul>
+
+<p>차수가 줄어드는 효과가 핵심이다. <em>합치기는 다른 노드의 차수를 절대 늘리지 않는다 — 줄이거나 그대로 두거나 둘 중 하나다.</em> 그래서 보통 색칠 전에 coalescing을 한다. Briggs의 논문은 코드에 따라 라이브 레인지의 1/3까지 합쳐 없앤다는 예를 보여준다.</p>
+
+<div class="callout note">
+<div class="callout-title">전체 흐름은 build-coalesce 루프</div>
+실무 보텀업 할당기의 흐름:<br>
+1. 라이브 레인지 찾기 → 인터퍼런스 그래프 빌드.<br>
+2. coalescing 한 라운드 — 합칠 수 있는 모든 copy를 합친다.<br>
+3. 합쳐졌으니 그래프가 달라졌다 → 다시 빌드해서 더 합칠 게 있나 확인.<br>
+4. 더 합칠 게 없으면 spill 비용 계산 → 색칠 시도 → spill 코드 삽입(필요 시) → 다시 처음부터.<br><br>
+보통 두어 라운드면 끝난다. 첫 빌드가 가장 비싸고, 이후 라운드는 더 작은 그래프라 빠르다.
+</div>
+
+<h3>13.4.7 톱다운 vs 보텀업 — 어디가 다른가</h3>
+
+<p>두 알고리즘은 큰 골격은 같다. 라이브 레인지 찾기 → 인터퍼런스 그래프 만들기 → coalescing → spill 비용 계산 → 색칠 → 색칠 안 된 LR 처리.</p>
+
+<p>차이는 <em>색칠 순서를 결정하는 정보 종류</em>다.</p>
+
+<table>
+<thead><tr><th></th><th>톱다운</th><th>보텀업</th></tr></thead>
+<tbody>
+<tr><th>순서 결정</th><td>외부 우선순위 (예상 절약 시간)</td><td>그래프 구조 (차수 &lt; <em>k</em> 우선)</td></tr>
+<tr><th>spill 처리</th><td>예약 레지스터 사용</td><td>spill-and-iterate (전체 다시)</td></tr>
+<tr><th>비제약 노드 처리</th><td>제약 처리 후 임의 순서</td><td>처음부터 우선 제거</td></tr>
+<tr><th>"진짜 어려운 노드"</th><td>우선순위 순으로 색칠 시도</td><td>spill metric으로 후보 선정</td></tr>
+<tr><th>예약 vs 반복</th><td>예약 = 빠름, 더 많은 spill 가능</td><td>반복 = 느림, 더 적은 spill</td></tr>
+</tbody>
+</table>
+
+<p>두 알고리즘의 성능을 결정짓는 부분은 "보텀업이 spill metric으로 강제 제거하는 노드들"이다. 이 노드들이야말로 그래프에서 가장 색칠하기 어려운, 강하게 연결된 부분 그래프를 이루는 노드들이다. 톱다운은 이 노드들을 우선순위 순으로 처리하고, 보텀업은 spill metric (비용 + 차수의 균형)으로 처리한다.</p>
+
+<div class="callout note">
+<div class="callout-title">선형 스캔 할당 — JIT 컴파일러의 단골</div>
+<strong>linear scan allocation</strong>은 전역 LR을 단순 구간 [i,j]로 표현해 색칠 단순화를 시도한다. 구간 그래프는 <em>k</em>-색칠을 다항 시간으로 풀 수 있어서 정확한 인터퍼런스 그래프를 만들지 않아도 된다. 정밀도는 떨어지지만 컴파일 시간이 압도적으로 짧아서 JIT(just-in-time) 컴파일러에서 자주 쓰인다. "할당 속도" vs "spill 코드 양"의 trade-off가 분명한 사례다.
+</div>
+
+<h3>13.4.8 머신 제약을 그래프에 인코딩하기</h3>
+
+<p>실제 ISA는 일반적인 그래프 색칠 모델에 잘 안 맞는 제약을 잔뜩 가진다. 두 가지 흔한 사례.</p>
+
+<h4>다중 레지스터 값</h4>
+
+<p>배정밀도(double-precision) 부동소수점 값이 <em>인접한 정렬된 레지스터 쌍</em>을 요구한다고 하자. 이걸 표준 인터퍼런스 그래프로만 모델하면, 주위 단정밀도 LR이 두 번째 레지스터 자리를 차지해서 <em>쌍을 못 잡게</em> 만들 수 있다.</p>
+
+<p>해결: 그런 LR 노드의 차수를 인위적으로 부풀린다. 모든 이웃에 간선을 두 개씩 — 즉 다중 간선을 사용한다. 이렇게 하면 그래프 축소 알고리즘이 그 노드를 제약으로 정확히 인식하고, 두 레지스터를 모두 잡아주는 시점에야 색칠을 시도하게 된다.</p>
+
+<h4>특정 레지스터 배치</h4>
+
+<p>호출 규약(linkage convention)은 인자나 반환 값을 특정 레지스터에 두라고 강요한다. PowerPC에서는 함수 반환값이 <code>r3</code>에 떨어진다. x86의 <code>imul</code>은 결과를 <code>ax</code>에 쓴다. 이런 LR을 다른 LR과 합치면 충돌이 생긴다.</p>
+
+<p>해결책 두 가지가 있다.</p>
+<ol>
+<li>가상 레지스터 <code>vr<sub>i</sub></code>를 <code>r3</code> 외 모든 물리 레지스터에 인터퍼런스 간선을 추가해서 <em>r3로만 색칠 가능</em>하게 강제. 깔끔하지만 그래프를 과도하게 제약할 수 있다.</li>
+<li>코드 모양으로 풀기 — 호출 직전에 짧은 LR <code>vr<sub>1</sub></code>(=<code>r3</code>에만 매핑되는)을 만들고 copy <code>vr<sub>1</sub> ⇒ vr<sub>i</sub></code>로 분리. 그 짧은 LR만 r3에 묶이고 본 LR은 자유롭게 다닌다. 단, coalescing이 이 짧은 LR을 다른 LR과 합치지 않도록 막아야 한다 — 안 그러면 충돌이 다시 끼어들 수 있다.</li>
+</ol>
+
+<h2>13.5 고급 주제 — 그래프 색칠의 변형들</h2>
+
+<h3>13.5.1 그래프 색칠 할당의 변종들</h3>
+
+<h4>부정확한 인터퍼런스 그래프</h4>
+
+<p>Chow의 톱다운 우선순위 기반 할당기는 간섭 정의를 단순화했다. <em>두 LR이 같은 블록에서 둘 다 살아 있으면 간섭한다</em>고 본다. 더 빠르게 그래프를 만들 수 있지만, copy로 연결된 두 LR도 같은 블록에 살아 있으면 충돌로 처리되어 coalescing이 막힌다. 이 손실을 보충하려고 같은 알고리즘은 단일 블록에만 사는 값에 대해 사전 지역 할당을 따로 돌렸다.</p>
+
+<h4>그래프를 작은 조각으로 쪼개기</h4>
+
+<p>인터퍼런스 그래프가 비연결 컴포넌트(connected component)로 분리될 수 있다면 컴포넌트별로 독립 색칠하면 된다. <em>O</em>(<em>N</em>²) 비트 행렬 크기를 절약한다. 가장 단순한 분리는 <em>분리된 레지스터 클래스</em>(부동소수점 vs 정수)다. 더 정교하게는 <em>clique separator</em>를 찾아 그래프를 잘게 나눈다.</p>
+
+<h4>보수적 coalescing</h4>
+
+<p>Coalescing은 차수를 절대 늘리지 않지만 — 노드 수준에서는 사실이지만 — 합쳐진 LR<sub>ij</sub>의 차수가 LR<sub>i</sub>나 LR<sub>j</sub> 어느 쪽보다도 높을 수 있다. 둘 다 비제약(차수 &lt; <em>k</em>)이었는데 합쳐서 제약(차수 ≥ <em>k</em>)이 되면 색칠이 어려워질 수 있다.</p>
+
+<p>해결: <strong>conservative coalescing</strong>. 합쳤을 때 결과 LR이 "<em>유의미한 차수</em>(즉 차수 ≥ <em>k</em>)의 이웃"을 <em>k</em>개 미만으로 갖는 경우에만 합친다. 이 조건은 합쳐도 색칠 가능성을 해치지 않음을 보장한다.</p>
+
+<p>이걸 더 발전시키면 <strong>iterated coalescing</strong>이 된다. 모든 LR이 제약이 되어 spill 후보를 골라야 할 때, 그 시점에 다시 한 번 coalescing을 시도한다. 그래프가 줄어든 만큼 이전엔 안전하지 않던 합치기가 안전해질 수 있다.</p>
+
+<h4>biased coloring</h4>
+
+<p>copy로 연결된 두 LR에 같은 색을 주려고 노력하는 색 선택 정책. 색 선택 시점에 <em>이미 색칠된 copy 상대들이 받은 색</em>을 우선 시도한다. 같은 색이 가능하면 copy가 자연스럽게 무의미해진다 — 사실상 사후 coalescing이다. 그래프를 어렵게 만들지 않으면서 copy를 줄인다.</p>
+
+<h3>부분 라이브 레인지 spill</h3>
+
+<p>전체 LR을 spill하는 건 종종 과잉이다. LR 대부분은 레지스터 수요가 낮은 구간에 있고, 작은 영역에서만 충돌한다면 그 영역만 spill하면 된다. 이걸 <em>interference-region spilling</em>이라고도 한다.</p>
+
+<h3>라이브 레인지 분할 (Live-Range Splitting)</h3>
+
+<p>spill의 대안. LR을 더 작은 조각으로 쪼개고, 그 조각들을 copy나 store/load로 이어준다. 작은 조각은 차수가 더 낮을 수 있어서 색을 받을 가능성이 높아진다. 분할 지점을 잘 고르면 spill 코드를 루프 바깥으로 밀어낼 수 있다 — 안에서 도는 것보다 훨씬 싸다. <em>zero-cost splitting</em>은 스케줄에서 nop으로 비어 있는 슬롯을 활용해 분할 비용을 0으로 만든다.</p>
+
+<h3>재구체화 (Rematerialization)</h3>
+
+<p>어떤 값은 메모리에서 다시 가져오는 것보다 <em>다시 계산</em>하는 게 싸다. 작은 정수 상수를 예로 들면, store + load 대신 load-immediate 한 명령어면 끝난다. 보텀업 할당기에 작은 변경을 더하면 SSA 이름에 "재구체화 가능" 태그를 붙이고 spill 시점에 재계산 코드로 대체할 수 있다.</p>
+
+<h3>모호한 값 (Ambiguous Values)</h3>
+
+<p>포인터, 배열 원소, 객체 참조처럼 <em>같은 메모리 위치를 가리키는지</em> 컴파일 타임에 못 가리는 값들. 이런 값을 레지스터에 못 두는 건 큰 성능 손실이다. <em>scalar replacement</em>는 배열-첨자 분석으로 재사용을 찾아내 임시 스칼라에 옮기고, <em>register promotion</em>은 데이터 흐름 분석으로 포인터 값을 루프 동안 레지스터에 안전하게 둘 수 있는지 판단해 코드를 바꿔준다. 둘 다 결국 "할당기에게 뜻을 명확히 알려주는" 코드 변환이다.</p>
+
+<h3>13.5.2 SSA 형식 위에서의 전역 레지스터 할당</h3>
+
+<p>최근 흥미로운 방향. SSA 이름을 직접 라이브 레인지로 쓰면 인터퍼런스 그래프가 <strong>chordal graph</strong>가 된다.</p>
+
+<div class="term-box">
+<span class="term">chordal graph</span> — 길이 4 이상의 모든 사이클이 <em>chord</em>(사이클에 인접하지 않은 두 노드를 잇는 간선)를 갖는 그래프. 이 클래스의 <em>k</em>-색칠은 <em>O</em>(|V| + |E|) 다항 시간에 풀린다.
+</div>
+
+<p>이 사실이 매력적인 이유는 <em>최적</em> 색칠을 (휴리스틱 없이) 다항 시간에 구할 수 있다는 점이다. 다만 SSA 형식은 — φ-함수가 살아 있는 동안만 — 코드를 그 모양으로 유지해야 하므로 <em>SSA 해체(out-of-SSA translation)</em>가 별도로 필요하다. 해체는 copy를 삽입하므로 일부 copy를 다시 처리해야 한다 (chordal 성질을 깨므로 인터퍼런스 그래프 기반 coalescing을 못 쓴다 — 다른 coalescing 알고리즘이 필요).</p>
+
+<p>SSA 기반 할당기는 색칠 자체는 더 좋을 수 있지만 <strong>spill 선택과 배치</strong> 문제는 여전히 풀어야 한다. 이게 실제 성능을 더 크게 좌우하기 때문에, SSA 기반 할당기가 전통 할당기보다 항상 우위라고 단언하기는 어렵다.</p>
+
+<h2>13.6 요약 — 유한과 무한이 만나는 자리</h2>
+
+<p>레지스터 할당은 결국 <strong>유한한 자원에 무한한 수요를 끼워맞추는 문제</strong>다. 매 명령어 시점에서 살아 있는 값들이 물리 레지스터 개수를 넘어서면 누군가는 메모리에 다녀와야 한다. 그 다녀오기를 최소화하는 것이 할당기의 사명이다.</p>
+
+<p>이 단원의 핵심 줄거리는 다음과 같다.</p>
+
+<ul>
+<li><strong>지역 할당</strong>은 단일 블록 안에서만 본다. 톱다운(빈도 기반)과 보텀업(다음 사용 거리 기반)이 양대 산맥이고, 보텀업이 보통 더 좋다.</li>
+<li><strong>전역 할당</strong>은 다중 블록 흐름을 처리하기 위해 <em>완전히 다른 패러다임</em> — 그래프 색칠 — 을 채택한다.</li>
+<li><strong>인터퍼런스 그래프</strong>는 라이브 레인지 사이의 충돌을 노드와 간선으로 모델한다. <em>k</em>-색칠이 곧 합법 할당이다.</li>
+<li><strong>그래프 색칠은 NP-완전</strong>이다. 그래서 모든 실용 할당기는 휴리스틱 — 톱다운(우선순위)이나 보텀업(차수 기반 축소 + spill metric) — 을 쓴다.</li>
+<li><strong>spill 비용 추정</strong>은 실행 빈도 추정에 크게 의존한다. 안쪽 루프보다 바깥 루프에서 spill하라는 편향을 만든다.</li>
+<li><strong>Coalescing</strong>은 copy 연산을 없애 코드를 줄이고 그래프를 단순화한다. 보수적 coalescing은 색칠 가능성을 깨지 않으면서 합친다.</li>
+<li>실용적인 개선은 모두 <em>색칠 패러다임이 실제 문제를 부정확하게 모델하는 지점</em>을 공격한다 — 비용 모델 정교화, 부분 LR spill, 라이브 레인지 분할, 재구체화. 이 개선들은 패러다임을 실제 문제에 더 가깝게 만든다.</li>
+</ul>
+
+<div class="callout note">
+<div class="callout-title">한 줄 요약</div>
+컴파일러 백엔드의 마지막 진짜 어려운 문제. <em>k</em>개의 자리에 무한히 많은 손님을 앉히는 결혼식 좌석 배치 — 누가 누구 옆에 앉으면 안 되는지(인터퍼런스), 어떤 손님이 빠지면 가장 덜 아쉬운지(spill 비용), 같은 사람을 두 번 부르지 않을 방법(coalescing), 안쪽 테이블 대신 바깥 테이블에서 빼는 요령(루프 바깥 spill) — 이 모든 결정을 NP-완전이라는 어둠 속에서, 휴리스틱이라는 손전등 하나만 들고 빠르게 해내야 한다. 그래도 우리가 매일 쓰는 컴파일된 코드가 빠르게 도는 건, 이 한 손전등이 그동안 충분히 정교해졌기 때문이다.
+</div>
+
+<div class="chapter-nav">
+<a href="chapter-12.html"><span class="label">← 이전</span><span>12장. 명령어 스케줄링</span></a>
+<a href="appendix-a.html" class="next-link"><span class="label">다음 →</span><span>부록 A. ILOC</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

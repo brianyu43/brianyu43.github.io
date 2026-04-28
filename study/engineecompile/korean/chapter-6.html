@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>6장 프로시저 추상화 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html" class="active">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>6장. 프로시저 추상화</h1>
+<p class="lead">함수 호출, 활성 레코드, 이름 공간, 객체 지향 런타임 — 스택과 힙의 정치학.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 269–330</span>
+<span><strong>키워드:</strong> activation record, calling convention, name space, scope, heap, garbage collection</span>
+</div>
+
+<h2>6.1 시작하며 — 프로시저, 그게 뭐길래</h2>
+
+<p>현대 프로그래밍 언어를 배운 사람이라면 누구나 함수를 호출해본 적이 있다. <code>printf("hello")</code>를 쳐본 적 있는 사람, <code>List.map</code>을 호출해본 사람 모두 프로시저(procedure)라는 추상화 위에 서 있다. 그런데 이 평범한 동작 — 이름을 부르고, 인자를 넣고, 반환값을 받는 — 뒤에는 컴파일러와 운영체제와 하드웨어가 합심해서 짜놓은 정교한 무대 장치가 있다. 이번 장이 다루는 게 바로 그 무대 뒤다.</p>
+
+<p>프로시저는 세 가지 역할을 한꺼번에 한다.</p>
+
+<ol>
+<li><strong>호출 추상화 (Procedure Call Abstraction).</strong> "이름 부르고 인자 넘기면 점프하고, 끝나면 호출자(caller)의 다음 줄로 돌아온다." 이 약속이 깨지지 않으면 프로그래머는 라이브러리·시스템 콜·다른 사람이 짠 코드도 자기 코드인 양 부를 수 있다.</li>
+<li><strong>이름 공간 (Name Space).</strong> 프로시저는 자기만의 사적 이름 영역을 만든다. 함수 안의 <code>x</code>는 바깥의 <code>x</code>와 별개로 살아간다. 덕분에 다른 사람이 짠 함수를 부를 때 변수 이름이 겹칠까 걱정할 필요가 없다.</li>
+<li><strong>외부 인터페이스 (External Interface).</strong> 호출 규약(linkage convention)이라는 사회 계약이 호출자와 피호출자(callee), 컴파일러, OS, 하드웨어를 한 자리에 모아 "누가 어디까지 책임지는가"를 못 박아준다. 이게 있어서 분리 컴파일(separate compilation)이 가능하고, 100만 줄짜리 시스템도 한 사람 머리에 안 다 들어와도 동작한다.</li>
+</ol>
+
+<p>분리 컴파일이 안 됐다면 우리는 매번 리눅스 커널 전체를 같이 컴파일해야 했을 거다. 그런 세계관에서는 누구도 큰 시스템을 만들지 못한다. 프로시저는 곧 모듈성의 원자 단위다.</p>
+
+<div class="callout-warn" style="background:var(--warn-bg);border-left:3px solid var(--warn-border);padding:0.75rem 1rem;margin:1.5rem 0;border-radius:6px;font-size:0.92rem;">
+<strong>컴파일 시간 vs 런타임.</strong> 이 장에서 가장 헷갈리는 지점은 "어디까지가 컴파일러가 직접 하는 일이고, 어디부터가 컴파일러가 짜놓은 코드가 런타임에 하는 일인가"다. 컴파일러는 <em>코드를 짜는</em> 사람이지 <em>코드를 실행하는</em> 사람이 아니다. 메모리 레이아웃 결정, 심볼 테이블 구축, 정적 좌표 부여 같은 건 컴파일 시간에 컴파일러가 직접 한다. 그러나 활성 레코드를 실제로 할당하고, 인자를 복사하고, 반환 주소로 점프하는 일은 — 컴파일러가 그렇게 <em>하도록 시키는 코드를 생성하지만</em> — 런타임에 일어난다.
+</div>
+
+<h2>6.2 프로시저 호출 — 무대 뒤의 안무</h2>
+
+<p>Algol 계열 언어(Algol-like languages, 줄여서 ALL)에서 호출/반환은 단순하다. 호출자에서 호출 지점(call site)에 도달하면 제어가 피호출자의 시작점으로 넘어가고, 피호출자가 끝나면 호출 지점 바로 다음 명령으로 돌아온다. 피호출자가 또 다른 함수를 부르면, 그 또한 같은 규칙으로 돌아온다. 이게 전부다.</p>
+
+<p>이 단순한 규칙이 만들어내는 구조가 곧 <strong>호출 그래프(call graph)</strong>다. Pascal로 된 다음 예시를 보자.</p>
+
+<pre><code>program Main;
+  procedure Fee; ...
+  procedure Fie;
+    procedure Foe;
+      procedure Fum;
+        begin Fum  ...; Fee; ... end;
+      begin Foe ...; Fum end;
+    begin Fie ...; Foe end;
+  begin Main ...; Fie end.</code></pre>
+
+<p>호출 그래프는 "누가 누구를 부를 가능성이 있는가"의 정적(static) 관계다. 반면 <strong>실행 이력(execution history)</strong>은 실제로 런타임에 어떤 순서로 호출이 일어났는가의 동적(dynamic) 기록이다. <code>Main → Fie → Foe → Fum → Fee</code>처럼 실제 호출의 시간 순서가 적힌다.</p>
+
+<h3>활성과 재귀 — 같은 함수, 여러 인스턴스</h3>
+
+<p>호출이 일어날 때마다 피호출자의 새 <strong>활성(activation)</strong>이 만들어진다. 같은 <code>Fee</code>를 두 번 부르면 두 개의 독립된 <code>Fee</code> 활성이 시간차를 두고 존재한다 — 첫 번째는 두 번째가 시작될 때쯤이면 이미 사라진 뒤지만 말이다.</p>
+
+<p>재귀(recursion)는 이걸 극단까지 밀어붙인다. <code>(fact 5)</code>를 호출하면 <code>(fact 5)</code>가 <code>(fact 4)</code>를 부르고, 그게 다시 <code>(fact 3)</code>을 부르고, 같은 함수가 동시에 5개의 활성으로 살아 있다. 호출 그래프 위의 사이클이 실행 시점에 펼쳐져 일직선으로 나열되는 셈이다.</p>
+
+<h3>스택, 그 단순한 마법</h3>
+
+<p>호출/반환 동작은 본질적으로 후입선출(LIFO)이다. <code>Foe</code>에서 <code>Fum</code>을 부르면 <code>Fum</code>이 먼저 끝나야 <code>Foe</code>로 돌아올 수 있다. 그 사이에 <code>Foe</code>가 먼저 끝나는 일은 없다. 이 LIFO 패턴이 곧 스택을 정당화한다. 호출 시점에 <strong>반환 주소(return address)</strong>를 스택에 푸시하고, 반환 시점에 팝하면 끝이다.</p>
+
+<pre><code>호출 시:   stack.push(현재_위치 + 1)
+            jump 피호출자_시작
+반환 시:   addr = stack.pop()
+            jump addr</code></pre>
+
+<p>이렇게 단순한 메커니즘이 임의 깊이의 재귀를 자연스레 처리한다. 무한 루프나 런타임 오류로 함수가 정상 반환하지 않을 수도 있는데, 이런 경우를 <em>발산(diverge)</em>한다고 한다. 호출 메커니즘은 그래도 충분한 정보를 보존해서, 만약 피호출자가 결국 돌아온다면 호출자의 다음 줄에서 깔끔하게 이어갈 수 있어야 한다.</p>
+
+<h3>OO 언어와 더 복잡한 제어 흐름</h3>
+
+<p>객체 지향 언어(OOL)도 호출/반환의 큰 그림은 ALL과 같다. 차이는 두 가지: (1) 피호출자를 어떻게 <em>이름 짓느냐</em>, (2) 그 이름을 런타임에 어떻게 실제 코드로 <em>해석하느냐</em>다. 메서드 탐색이라는 단계가 끼어든다는 뜻이다.</p>
+
+<p>Scheme 같은 언어는 한 술 더 떠서 <strong>클로저(closure)</strong>라는 추상화를 끌어들인다. 클로저는 "프로시저 + 그것이 참조하는 자유 변수들의 런타임 환경"을 한 객체로 캡슐화한다. 클로저가 호출되면 캡슐화된 환경 안에서 실행된다. 이런 언어에서는 단순 스택만으로는 부족하다. 프로시저가 끝나도 그 환경이 살아남아야 하기 때문이다 — 즉, 활성 레코드가 호출자보다 오래 살 수 있다. 스택의 LIFO 가정이 깨지는 것이다. 이런 경우엔 활성 레코드를 힙(heap)에 두어야 한다.</p>
+
+<h2>6.3 이름 공간 — 누구의 x인가</h2>
+
+<p><strong>스코프(scope)</strong>란 이름들이 값과 매핑되는 영역이다. 한 프로그램 안에는 여러 스코프가 있고, 같은 이름이 다른 스코프에서 다른 의미를 가질 수 있다. 안쪽 스코프에서 <code>fee</code>를 새로 선언하면 바깥의 <code>fee</code>는 가려진다(obscure). 스코프 규칙은 결국 "이 이름이 어떤 선언을 가리키는가"의 게임이다.</p>
+
+<h3>6.3.1 Algol 계열의 이름 공간 — 어휘적 스코핑</h3>
+
+<p>대부분의 ALL은 <strong>어휘적 스코핑(lexical scoping)</strong>을 따른다. 규칙은 단순하다.</p>
+
+<blockquote style="border-left:3px solid var(--accent);padding:0.5rem 1rem;margin:1rem 0;color:var(--text-muted);font-style:italic;">
+어떤 스코프에서 사용된 이름은, 어휘적으로 가장 가까운 선언을 가리킨다.
+</blockquote>
+
+<p>"어휘적으로 가깝다"는 건 소스 코드 텍스트 상에서 가깝다는 뜻이다. 현재 스코프에 선언이 있으면 그걸 쓰고, 없으면 한 단계 바깥, 또 없으면 두 단계 바깥 — 이런 식으로 올라가다 발견되는 첫 번째 선언에 묶인다.</p>
+
+<p>이걸 컴파일러가 어떻게 다루는지 보자. 모든 이름에 <strong>정적 좌표(static coordinate)</strong> ⟨l, o⟩를 할당한다. <code>l</code>은 어휘 중첩 레벨(lexical nesting level), <code>o</code>는 그 레벨 데이터 영역에서의 오프셋이다. <code>Main</code>이 레벨 0이라면 그 안에 선언된 <code>x, y, z</code>는 레벨 1이다. 한 단계 더 들어간 <code>Foe</code>의 <code>z</code>는 ⟨2, 0⟩쯤 되겠다. 이 좌표는 컴파일러가 심볼 테이블을 통해 부여한다.</p>
+
+<div class="callout-note" style="background:var(--note-bg);border-left:3px solid var(--note-border);padding:0.75rem 1rem;margin:1.5rem 0;border-radius:6px;font-size:0.92rem;">
+<strong>동적 스코핑이라는 대안.</strong> 어휘적 스코핑의 반대편엔 동적 스코핑(dynamic scoping)이 있다. 자유 변수가 <em>가장 최근에 만들어진</em> 같은 이름의 변수에 묶인다. 초기 Lisp 인터프리터들이 즐겨 썼다. 인터프리터에서는 구현이 쉬운데 컴파일러에선 효율적으로 만들기 까다롭고, 무엇보다 — 추적하기 어려운 버그를 잘 만든다. 그래서 오늘날 대부분의 언어는 어휘적 스코핑으로 수렴했다. Common Lisp는 여전히 옵션으로 남겨두었지만 말이다.
+</div>
+
+<h3>언어별 차이 한눈에</h3>
+
+<ul>
+<li><strong>FORTRAN.</strong> 단순. 전역 스코프 하나 + 프로시저별 로컬 스코프. 전역 변수는 "common block"으로 묶어 다룬다. 분리 컴파일 때문에 컴파일러가 같은 이름의 다른 선언을 잡아내기가 어렵다.</li>
+<li><strong>C.</strong> 좀 더 복잡. 함수, 파일(file-level), 블록(중괄호로 감싼 영역) 단위 스코프가 있다. 표준 C는 중첩 함수를 허용하지 않지만, GCC 같은 일부 컴파일러는 확장으로 지원한다. <code>static</code> 키워드는 변수에는 "정의 함수의 호출 사이에서 값을 유지" 의미, 함수에는 "파일 외부에는 보이지 않음"의 두 가지 의미로 쓰인다.</li>
+<li><strong>Scheme.</strong> 거의 모든 객체가 단일 전역 공간에 놓이고, <code>let</code> 표현식을 중첩해 임의 깊이의 어휘적 스코프를 만든다.</li>
+</ul>
+
+<h3>6.3.2 활성 레코드 — 프로시저의 사적 메모리</h3>
+
+<p>호출과 스코프, 두 추상화를 동시에 받쳐주는 구조물이 <strong>활성 레코드(activation record, AR)</strong>다. 호출 한 번에 AR 하나. 재귀 호출이 5겹이면 AR도 5개다. AR에는 다음이 들어간다.</p>
+
+<ul>
+<li><strong>파라미터 영역(parameter area)</strong> — 호출자가 넘긴 실제 인자들</li>
+<li><strong>레지스터 저장 영역(register save area)</strong> — 호출 전후로 보존해야 할 레지스터 값</li>
+<li><strong>반환값 슬롯(return-value slot)</strong> — 피호출자가 호출자에게 돌려줄 값</li>
+<li><strong>반환 주소(return address)</strong> — 끝나면 점프할 곳</li>
+<li><strong>주소 가능성 슬롯(addressability slot)</strong> — 어휘적으로 둘러싼 스코프의 변수에 접근하기 위한 정보 (액세스 링크 등)</li>
+<li><strong>호출자의 ARP</strong> — 끝나고 호출자의 환경을 복구하기 위해</li>
+<li><strong>로컬 데이터 영역(local data area)</strong> — 피호출자가 선언한 로컬 변수들</li>
+</ul>
+
+<p>AR 전체는 <strong>활성 레코드 포인터(ARP)</strong>가 가리키는 한 점에서 양방향 오프셋으로 접근한다. 컴파일러는 이 ARP를 전용 레지스터(ILOC에서는 <code>r<sub>arp</sub></code>)에 항상 담아둔다. 모든 로컬 변수 접근은 결국 <code>loadAI r<sub>arp</sub>, offset ⇒ r<sub>i</sub></code> 같은 한 줄짜리 일이 된다.</p>
+
+<pre><code>          Caller's AR
+          ┌──────────────────┐
+          │ Local-Data Area  │
+          │ Caller's ARP     │
+          │ Addressability   │
+          │ Return Address   │
+          │ Return Value     │
+          │ Register Save    │
+          │ Parameters       │
+          └──────────────────┘
+ARP+n ──► ┌──────────────────┐ ◄── Callee's AR
+          │ Local-Data Area  │
+          │ Caller's ARP     │  (불러서 끝나면 복구할 호출자 ARP)
+          │ Addressability   │
+          │ Return Address   │
+          │ Return Value     │
+          │ Register Save    │
+ARP   ──► │ Parameters       │
+ARP-m ──► └──────────────────┘</code></pre>
+
+<h3>AR을 어디에 둘 것인가 — 스택, 힙, 정적</h3>
+
+<p><strong>스택 할당.</strong> 가장 흔한 경우다. AR의 수명이 호출의 LIFO 패턴과 정확히 맞아떨어진다면, 스택 위에 차곡차곡 쌓고 반환할 때 팝하는 것보다 빠른 게 없다. 할당·해제는 스택 포인터를 더하고 빼는 산술 한 번이면 끝. 디버거가 스택을 따라 위에서 아래로 훑으면 활성 호출 사슬을 그대로 그릴 수 있다. Pascal, C, Java — 모두 이 모델이다.</p>
+
+<p><strong>힙 할당.</strong> 만약 프로시저가 클로저를 반환하거나, 로컬 변수에 대한 참조를 외부로 노출시킬 수 있다면, 스택 모델이 깨진다. 호출자보다 오래 살 수 있는 AR은 힙에 둬야 한다. Scheme, ML 구현체들이 이 길을 택한다. 현대 메모리 할당기는 이 비용을 꽤 낮춰놓았다.</p>
+
+<p><strong>정적 할당.</strong> 다른 함수를 절대 부르지 않는 함수를 <strong>리프 프로시저(leaf procedure)</strong>라 한다. 리프 프로시저는 자기 자신의 AR이 한 번에 하나만 활성화된다. 그러므로 컴파일러가 정적으로 AR 하나를 할당해두고 모든 리프 프로시저가 공유해도 안전하다 — 동시에 두 리프 프로시저가 활성일 수 없으니까. 클로저가 없는 언어라면 최적화로 활용할 만하다.</p>
+
+<h3>6.3.3 OO 언어의 이름 공간 — 두 개의 계층</h3>
+
+<p>OO 언어(OOL)는 ALL의 어휘적 스코핑을 그대로 가져오면서, 그 위에 데이터 중심의 두 번째 이름 계층을 얹는다 — 클래스 정의에 의한 계층이다. 그래서 OOL의 컴파일러는 두 종류의 스코프 사슬을 모두 모델링해야 한다.</p>
+
+<p>OO의 핵심 개념을 한번 정리하자.</p>
+
+<ul>
+<li><strong>객체(Object).</strong> 데이터 멤버 + 코드 멤버(메서드)의 묶음. 코드 멤버가 있으면 그건 <em>클래스</em>다.</li>
+<li><strong>클래스(Class).</strong> 같은 추상 구조와 특성을 공유하는 객체들의 집합. 각 인스턴스의 데이터 멤버 명세 + 클래스 로컬 메서드 정의.</li>
+<li><strong>상속(Inheritance).</strong> 클래스들 사이의 부분 순서. 자식은 부모의 코드와 데이터 멤버를 모두 받는다.</li>
+<li><strong>리시버(Receiver).</strong> 메서드는 항상 어떤 객체에 대해 호출된다. 그 객체를 <code>this</code>나 <code>self</code> 같은 이름으로 메서드 안에서 참조한다.</li>
+</ul>
+
+<p>메서드 <code>m</code> 안에서 이름 <code>x</code>를 참조했다고 하자. 컴파일러는 다음 순서로 찾아간다.</p>
+
+<ol>
+<li><code>m</code>을 둘러싼 어휘적 스코프 (메서드의 로컬 변수, 파라미터)</li>
+<li><code>m</code>이 정의된 클래스</li>
+<li>그 클래스의 직접 부모 클래스(direct superclass), 또 그 부모 — 클래스 계층을 따라 위로</li>
+<li>전역 이름 공간</li>
+</ol>
+
+<h3>닫힌 vs 열린 클래스 구조</h3>
+
+<p>핵심 질문: 컴파일 시점에 클래스 구조가 고정되어 있는가? 그렇다면 <strong>닫힌 클래스 구조(closed class structure)</strong>다. C++가 그 예다. 컴파일러가 모든 이름을 컴파일 시간에 해소(resolve)할 수 있다.</p>
+
+<p>반면 Java나 Smalltalk처럼 런타임에 새 클래스를 import 하거나 클래스를 편집할 수 있다면 <strong>열린 클래스 구조(open class structure)</strong>다. 이 경우 일부 이름 해소를 런타임으로 미뤄야 하고, 그래서 종종 인터프리터나 JIT(just-in-time compiler)가 등장한다.</p>
+
+<h3>6.3.4 OO 런타임 구조 — 객체 레코드와 메서드 벡터</h3>
+
+<p>각 객체는 자기 상태를 담을 <strong>객체 레코드(object record, OR)</strong>를 갖는다. 클래스는 자체 OR을 가지며 이 OR들이 상속 계층을 인스턴스화한다. <code>ColorPoint extends Point</code>의 예시 그림을 떠올리자.</p>
+
+<pre><code>SimplePoint OR              LeftCorner OR
+┌──────────┐                 ┌──────────┐
+│ class ●──┼──► Point class  │ class ●──┼──► ColorPoint class
+│ methods ●┼──► [draw, move] │ methods ●┼──► [draw, move, test]
+│ x = 84   │                 │ x = 364  │
+│ y = 14   │                 │ y = 16   │
+└──────────┘                 │ c = blue │
+                             └──────────┘</code></pre>
+
+<p>중요한 트릭: <strong>접두 배치(prefixing)</strong>. 부모의 필드들이 자식 OR의 앞쪽에 그대로 놓이고, 자식 고유 필드는 뒤에 붙는다. 이렇게 하면 <code>x</code>의 오프셋이 <code>Point</code>에서든 <code>ColorPoint</code>에서든 같은 자리에 있으니, <code>Point.move</code>가 자식 객체에 호출돼도 그대로 동작한다.</p>
+
+<h3>메서드 디스패치 — 정적이냐 동적이냐</h3>
+
+<p>메서드 호출은 객체의 메서드 벡터를 거친다. 컴파일러가 호출 시점에 정확한 구현체를 알아낼 수 있으면 직접 점프 — 이걸 <strong>정적 디스패치(static dispatch)</strong>라 한다. 모르겠으면 객체의 method 포인터를 따라 런타임에 결정 — <strong>동적 디스패치(dynamic dispatch)</strong>다. C++의 가상 함수, Java의 일반 메서드 호출이 이쪽이다.</p>
+
+<p>열린 클래스 구조에서는 동적 디스패치 비용을 줄이려고 <strong>메서드 캐시(method cache)</strong>를 쓴다. (수신자 클래스, 메서드 이름) → 메서드 포인터의 작은 룩업 테이블이다. 호출 지점마다 한 칸짜리 캐시를 두는 <strong>인라인 메서드 캐시(inline method cache)</strong>도 있다 — 같은 호출 지점에서 같은 클래스의 객체로 반복 호출되는 패턴(타입 지역성)을 노린 최적화다.</p>
+
+<h3>다중 상속의 진통</h3>
+
+<p>다중 상속을 허용하면 OR 레이아웃이 골치 아파진다. 클래스 α가 β, γ, δ를 상속한다면, β의 메서드는 β 레이아웃 기준의 오프셋을 쓰고, γ는 γ 레이아웃 기준 오프셋을 쓴다. 이걸 한 OR에 욱여넣으려면 <strong>트램폴린 함수(trampoline function)</strong>가 필요하다. 메서드 벡터와 진짜 메서드 사이에 끼어, OR 포인터를 적절히 조정해주고, 끝나면 다시 원위치시킨다.</p>
+
+<h2>6.4 프로시저 사이의 값 전달</h2>
+
+<h3>6.4.1 파라미터 — 값 호출과 참조 호출</h3>
+
+<p>파라미터 결합(parameter binding)은 호출 지점의 실제 파라미터(actual parameter)를 피호출자의 형식 파라미터(formal parameter)에 매핑한다. 두 가지 방식이 지배적이다.</p>
+
+<p><strong>값 호출(call by value).</strong> 호출자가 실제 인자의 <em>값</em>을 복사해 피호출자의 슬롯에 넣는다. 피호출자가 그 값을 바꿔도 호출자엔 영향이 없다. C가 이 모델이다. 다음 예를 보자.</p>
+
+<pre><code>int fee(int x, int y) {     호출:   c = fee(2, 3)    →  반환 7
+  x = 2 * x;                       a = 2; b = 3;
+  y = x + y;                       c = fee(a, b)    →  반환 7
+  return y;                        c = fee(a, a)    →  반환 6
+}</code></pre>
+
+<p>호출 후에 <code>a</code>, <code>b</code>는 그대로다. 안에서 <code>x</code>, <code>y</code>를 아무리 주물러도 바깥은 무사하다.</p>
+
+<p><strong>참조 호출(call by reference).</strong> 호출자가 실제 인자의 <em>주소</em>를 넘긴다. 피호출자는 형식 파라미터를 통해 호출자의 변수를 직접 건드린다. PL/I, Fortran, Pascal의 <code>var</code> 파라미터가 이쪽이다. 같은 예를 PL/I로 다시 쓰면:</p>
+
+<pre><code>fee: procedure(x, y)        호출:   fee(a, b) 후  a=4, b=7  → 반환 7
+       returns fixed binary;        fee(a, a) 후  a=8, b=3  → 반환 8
+       declare x, y fixed binary;
+       x = 2 * x;
+       y = x + y;
+       return y;
+     end fee;</code></pre>
+
+<p>마지막 호출이 흥미롭다. <code>x</code>와 <code>y</code>가 같은 변수 <code>a</code>를 가리켜 <strong>앨리어스(alias)</strong>가 됐다. <code>x = 2*x</code> 하면 <code>a</code>가 4가 되고, 그 다음 <code>y = x + y</code>는 <code>a + a = 8</code>이 돼서 <code>a</code>에 다시 저장된다. 앨리어싱은 자주 머리를 어지럽힌다 — 그래서 컴파일러 최적화에서도 가장 까다로운 적이다.</p>
+
+<div class="callout-warn" style="background:var(--warn-bg);border-left:3px solid var(--warn-border);padding:0.75rem 1rem;margin:1.5rem 0;border-radius:6px;font-size:0.92rem;">
+<strong>옛날 옛적 — call by name, 그리고 thunks.</strong> Algol 60은 한층 더 환상적인 방식을 시도했다. <em>이름 호출(call by name)</em>: "실제 파라미터의 텍스트가 적절한 이름 변경을 거쳐 그 자리에 그대로 들어간 것처럼 동작하라." 그러려면 컴파일러는 각 파라미터마다 작은 함수(<em>thunk</em>)를 만들어, 참조될 때마다 실제 파라미터를 평가해 포인터를 반환하게 해야 했다. 정의는 우아했으나, 구현은 복잡했고 매 접근마다 thunk 호출 비용이 들었다. 그래서 결국 자취를 감췄다. R 언어가 lazy form의 값 호출을 쓰며 비슷한 promise/thunk 메커니즘을 부활시키긴 했다.
+</div>
+
+<h3>6.4.2 반환값</h3>
+
+<p>반환값은 정의상 피호출자가 끝난 <em>뒤에</em> 쓰여야 하므로 피호출자 AR 바깥의 어딘가에 둬야 한다. 작은 고정 크기 값이라면 호출자의 AR 슬롯이나 지정 레지스터에 직접 쓴다. 크기를 컴파일 시간에 모르거나 너무 크다면, 피호출자가 힙에 공간을 잡고 그 포인터를 호출자의 반환값 슬롯에 적는다. 호출자는 다 쓰고 나서 그 공간을 해제할 책임을 진다.</p>
+
+<h3>6.4.3 주소 가능성 — 변수의 주소를 어떻게 만드나</h3>
+
+<p>모든 변수 접근은 결국 두 가지 정보로 환원된다: (1) 데이터 영역(data area)의 베이스 주소(base address), (2) 그 안에서의 오프셋(offset). 컴파일러는 이 둘을 합쳐 메모리 주소를 만든다.</p>
+
+<p><strong>정적 베이스 주소.</strong> 전역 변수, 정적 변수가 여기 해당한다. 컴파일러가 어셈블리 레이블을 부여하고(예: <code>&fee.</code>), 링커/로더가 가상 주소로 변환한다. <strong>네임 맹글링(name mangling)</strong>은 소스 이름에 접두/접미사를 붙여 어셈블리 수준에서 충돌하지 않을 유일한 레이블을 만드는 작업이다.</p>
+
+<p><strong>동적 베이스 주소.</strong> 로컬 변수는 AR 안에 있고, AR은 호출마다 새로 생긴다. 베이스 주소가 런타임에야 결정되는 것이다.</p>
+
+<p>현재 프로시저의 로컬 변수는 쉽다. ARP에 오프셋을 더하면 끝. 어려운 건 <em>둘러싸는 어휘적 스코프</em>의 로컬 변수다. 정적 좌표가 ⟨n, o⟩일 때 (현재 프로시저 레벨이 m), 컴파일러는 가장 최근 레벨 n 활성의 ARP를 찾아 거기 오프셋 o를 더해야 한다. 이 ARP는 어떻게 찾을까?</p>
+
+<h3>액세스 링크 — 사슬을 따라가기</h3>
+
+<p>각 AR이 자기 어휘적 부모 AR을 가리키는 포인터(<strong>액세스 링크 / 정적 링크</strong>)를 갖게 한다. 그러면 액세스 링크들이 사슬을 이루고, 현재 프로시저에서 시작해 m−n번 따라가면 레벨 n의 ARP에 도달한다.</p>
+
+<pre><code>Level 2 AR (현재)         Level 1 AR             Level 0 AR
+┌────────────┐            ┌────────────┐         ┌────────────┐
+│ Local Data │            │ Local Data │         │ Local Data │
+│ Caller's   │            │ Caller's   │         │ Caller's   │
+│ Access ●───┼─────────►  │ Access ●───┼────────►│ Access     │
+│ Return Addr│            │ Return Addr│         │ Return Addr│
+│ ...        │            │ ...        │         │ ...        │
+└────────────┘            └────────────┘         └────────────┘
+ARP</code></pre>
+
+<p>접근 비용은 정적 거리(static distance) m−n에 비례한다. 어휘 중첩이 얕으면 큰 부담은 아니다.</p>
+
+<h3>전역 디스플레이 — 사슬 대신 배열</h3>
+
+<p>또 다른 방법: 전역 배열 하나를 두고 인덱스 <code>i</code>에 "가장 최근의 레벨 i 활성의 ARP"를 저장한다. 이걸 <strong>디스플레이(display)</strong>라 부른다. 비국지 접근 비용이 정적 거리에 무관하게 일정해진다 — 디스플레이[n]을 한 번 로드, 거기에 오프셋 더해 또 한 번 로드, 끝.</p>
+
+<p>대신 호출/반환 때마다 디스플레이를 갱신해야 한다. 다행히 자기보다 더 깊이 중첩된 프로시저를 부르지 않는 함수는 디스플레이 갱신이 필요 없어, 리프 프로시저나 많은 평범한 호출에서 갱신이 생략 가능하다.</p>
+
+<h2>6.5 표준화된 호출 규약 — 사회 계약</h2>
+
+<p>호출 규약(linkage convention)은 컴파일러, OS, 타깃 머신이 맺은 삼자 계약이다. 표준 호출 규약은 다음 네 조각으로 짜인다.</p>
+
+<pre><code>    Procedure p                        Procedure q
+    ┌──────────┐                       ┌──────────┐
+    │ Prologue │ ← q 호출 받기          │ Prologue │
+    └──────────┘                       └──────────┘
+        ↓                                  ↓
+    ┌──────────┐         Call         ┌──────────┐
+    │ Precall  │ ─────────────────►   │  ......  │
+    │          │ ◄─────────────────   │  ......  │
+    │Postreturn│         Return       │  ......  │
+    └──────────┘                       └──────────┘
+        ↓                                  ↓
+    ┌──────────┐                       ┌──────────┐
+    │ Epilogue │                       │ Epilogue │
+    └──────────┘                       └──────────┘</code></pre>
+
+<ul>
+<li><strong>Prologue (서두).</strong> 함수 진입 직후. 피호출자의 환경을 마무리한다. 레지스터에 담겨 온 값들을 AR 슬롯에 저장하고, 로컬 변수 공간을 만들고 초기화한다.</li>
+<li><strong>Precall (호출 전).</strong> 호출 직전. 피호출자 환경 만들기를 시작한다. 실제 인자를 평가하고, 반환 주소를 준비하고, (필요하면) 반환값 공간을 잡는다. 처음 k개 인자는 보통 레지스터에, 나머지는 AR에 둔다.</li>
+<li><strong>Postreturn (반환 후).</strong> 호출 직후. precall이 한 일을 되돌린다. 참조 호출 파라미터의 값을 갱신하고, 호출자가 보존한 레지스터를 복구하고, 피호출자 AR을 해제한다.</li>
+<li><strong>Epilogue (꼬리).</strong> 함수 종료 직전. 피호출자 환경 해체. 반환값을 적절한 위치에 저장하고, 호출자의 ARP를 복구하고, 반환 주소로 점프한다.</li>
+</ul>
+
+<p>일을 prologue/epilogue로 옮길수록 코드가 컴팩트해진다 — precall/postreturn은 호출 지점마다 한 벌씩이지만 prologue/epilogue는 함수당 한 벌이니까. 평균적으로 함수가 한 번 이상 호출된다면 후자가 이득이다.</p>
+
+<h3>레지스터 저장 — 누가 책임지나</h3>
+
+<p>호출을 가로질러 살아남아야 할 레지스터 값들은 메모리에 백업해야 한다. 두 가지 정책이 있다.</p>
+
+<ul>
+<li><strong>Caller-saves 레지스터.</strong> 호출자가 책임진다. 호출자는 호출 후에도 쓸 값들만 골라 저장하면 되므로, 안 쓸 값은 안 저장해도 된다.</li>
+<li><strong>Callee-saves 레지스터.</strong> 피호출자가 책임진다. 피호출자는 자기가 실제로 덮어 쓸 레지스터만 저장하면 된다.</li>
+</ul>
+
+<p>현실적인 시스템은 둘을 섞는다. 일부 레지스터는 caller-saves로, 일부는 callee-saves로 약속한다. 그러면 컴파일러는 호출을 가로질러 오래 사는 값은 callee-saves 레지스터에, 잠깐 사는 값은 caller-saves 레지스터에 두려 한다 — 짧은 값이라면 호출 지점에서 굳이 저장 안 해도 되므로.</p>
+
+<h2>6.6 고급 주제 — 힙 관리와 가비지 컬렉션</h2>
+
+<h3>6.6.1 명시적 힙 관리</h3>
+
+<p>힙 인터페이스는 단순하다. <code>allocate(size)</code>는 size 바이트 이상의 블록 주소를 돌려준다. <code>free(addr)</code>는 그 블록을 풀에 돌려놓는다. 설계 쟁점은 둘: <em>속도</em>와 <em>단편화(fragmentation)</em>.</p>
+
+<p><strong>최초 적합(first-fit) 할당.</strong> 가장 단순한 전략. 자유 리스트(free list)를 순회하면서 충분히 큰 블록을 처음 만나면 그걸 쓴다. 각 블록 헤더에 크기 필드를 둔다. 크면 잘라서 쓰고, 남은 부분을 자유 리스트로 돌려놓는다.</p>
+
+<p>기본 <code>free</code>는 그냥 자유 리스트의 머리에 갖다 붙이고 끝낸다. 빠르다. 그런데 시간이 흐르면 메모리가 잘게 쪼개진다 — <em>단편화</em>다. 이걸 막으려면 <code>free</code>가 인접한 자유 블록들을 합칠(coalesce) 줄 알아야 한다. 블록 끝에 자기 머리를 가리키는 포인터를 두면, <code>free</code>가 자기 앞 블록의 끝을 보고 그게 자유 블록인지 판별할 수 있다.</p>
+
+<p><strong>다중 풀(multipool) 할당.</strong> 현대 할당기들은 자주 쓰이는 크기들(2의 거듭제곱 같은)에 대해 별도 풀을 둔다. 풀 안의 모든 블록은 같은 크기라서, <code>allocate</code>는 자유 리스트 첫 블록만 떼주면 되고 <code>free</code>는 머리에 붙이면 된다. 큰 요청만 first-fit으로 처리한다. 활성 레코드를 힙에 할당하는 언어들에 특히 잘 맞는다.</p>
+
+<h3>6.6.2 암묵적 회수 — 가비지 컬렉션</h3>
+
+<p>"<code>free</code>를 까먹으면 메모리 누수, 잘못 부르면 댕글링 포인터." 이 양난을 피하는 길이 <strong>가비지 컬렉션(garbage collection, GC)</strong>이다. 더 이상 쓰이지 않는 객체를 시스템이 알아서 회수한다. GC 구현은 두 가지 일을 해야 한다: (1) 객체가 죽었는지(dead) 판단, (2) 죽은 공간을 회수.</p>
+
+<h4>참조 카운팅 (reference counting)</h4>
+
+<p>각 객체에 자기를 가리키는 포인터의 수를 세는 카운터를 둔다. 포인터 대입이 일어날 때마다 두 카운터를 갱신한다 — 새로 가리켜지는 쪽은 +1, 더 이상 가리켜지지 않는 쪽은 −1. 카운터가 0이 되면 회수.</p>
+
+<p>장점: 비용이 프로그램 전체에 균등하게 분산된다. 단점:</p>
+
+<ul>
+<li>모든 포인터 대입이 비싸진다.</li>
+<li>순환 참조(cyclic reference)를 회수 못 한다 — 사이클 안의 카운터들은 0으로 떨어지지 않는다. 프로그래머가 미리 사이클을 깨야 한다.</li>
+<li>객체가 다른 포인터를 담고 있을 때, 한 번의 감산이 연쇄 회수를 일으켜 일시 중단이 길어질 수 있다 (이건 큐로 분산시켜 완화 가능).</li>
+</ul>
+
+<h4>일괄 회수 (batch collectors) — Mark-Sweep</h4>
+
+<p>자유 공간이 다 떨어졌을 때만 작동한다. 두 단계로 진행:</p>
+
+<ol>
+<li><strong>Mark (표시).</strong> 레지스터와 활성 레코드들에서 시작해 모든 도달 가능한 객체를 표시한다. 각 객체 헤더의 <em>마크 비트(mark bit)</em>를 켠다.</li>
+<li><strong>Sweep (청소).</strong> 힙을 한 번 훑으면서, 표시되지 않은 객체를 자유 리스트에 넣는다.</li>
+</ol>
+
+<pre><code>모든 마크 지우기
+Worklist ← { 활성 레코드와 레지스터에 있는 포인터들 }
+while (Worklist ≠ ∅)
+    p ← Worklist에서 하나 꺼내기
+    if (p→object 가 표시 안 됨)
+        p→object 표시
+        p→object 안의 포인터들을 Worklist에 추가</code></pre>
+
+<p>마킹은 <em>정밀(precise)</em>일 수도 <em>보수적(conservative)</em>일 수도 있다. 정밀 마커는 객체의 타입과 레이아웃을 정확히 안다 — 진짜 포인터만 따라간다. 보수적 마커는 모를 때, "포인터처럼 생긴 비트 패턴은 일단 포인터라 치자"고 한다 — C처럼 GC를 염두에 두고 설계되지 않은 언어를 위한 GC(Boehm-Weiser 같은)가 이렇게 한다. 살아있다고 잘못 판단할 수는 있어도, 살아있는 걸 놓치진 않는다.</p>
+
+<h4>복사 회수 (copying collectors)</h4>
+
+<p>힙을 두 영역(old, new)으로 나눈다. 할당은 항상 old에서. 가득 차면 — <em>stop-and-copy</em> — 살아있는 모든 객체를 old에서 new로 복사하고 두 영역의 역할을 바꾼다. 복사하는 행위 자체가 자동으로 메모리를 압축한다 — 회수 후의 자유 공간은 한 덩어리다. mark-sweep과 달리 살아있는 객체만 손대므로, 살아있는 데이터 양이 적으면 매우 빠르다. 단점은 메모리의 절반밖에 못 쓴다는 것.</p>
+
+<h4>세대별 회수 (generational collectors)</h4>
+
+<p>관찰: "한 번의 회수에서 살아남은 객체는 다음에도 살아남기 쉽다." 그러니 회수를 영역별로 나눠, "젊은 세대"만 자주 회수하고 "늙은 세대"는 가끔만 들여다본다. 한 번의 회수 비용이 줄고, 살아있는 객체를 매번 복사하지 않아 전체 처리량도 좋아진다. 오늘날 JVM, .NET, V8 같은 대부분의 산업급 GC는 세대별 + 복사의 변종이다.</p>
+
+<h3>회수 기법 비교 한 줄씩</h3>
+
+<ul>
+<li><strong>참조 카운팅:</strong> 비용 분산, 사이클 회수 불가, 모든 대입에 부담.</li>
+<li><strong>Mark-sweep:</strong> 힙 전체 훑음. 사이클 OK. 압축은 별도 작업.</li>
+<li><strong>Copying:</strong> 살아있는 데이터만 처리. 자동 압축. 메모리 절반 낭비.</li>
+<li><strong>Generational:</strong> 젊은 세대 집중. 산업 표준.</li>
+<li><strong>Real-time:</strong> 회수 비용을 잘게 분산해 멈춤 시간 보장. 실시간 시스템용.</li>
+</ul>
+
+<h2>6.7 정리하며</h2>
+
+<p>어셈블리 너머로 넘어온 가장 큰 이유는 더 추상적인 프로그래밍 모델 — 즉, 더 큰 프로그램을 사람이 머릿속에 그려낼 수 있게 하기 위함이다. 프로시저는 그 추상화의 가장 기본 벽돌이다. 이번 장은 컴파일러가 그 벽돌을 어떻게 타깃 머신의 명령어들로 빚어내는지를 좇았다.</p>
+
+<p>핵심을 한 번 다시 줄여 말하면 이렇다.</p>
+
+<ul>
+<li>호출/반환의 LIFO 패턴은 활성 레코드의 스택 할당을 정당화한다. 이게 안 통할 때(클로저, 일급 함수)는 힙으로 옮긴다.</li>
+<li>이름 공간은 두 가지 도구로 다룬다 — 어휘적 스코핑(정적 좌표 + 액세스 링크/디스플레이)과, OO의 클래스 계층(객체 레코드 + 메서드 벡터).</li>
+<li>호출 규약은 컴파일러·OS·하드웨어의 사회 계약이다. 누가 무얼 저장하고, 누가 무얼 할당하고, 누가 무얼 복구할지 못박는다. 분리 컴파일과 라이브러리, 시스템 콜이 이 계약 위에 선다.</li>
+<li>힙 관리는 명시적(allocate/free, first-fit, multipool)이거나 암묵적(GC: 참조 카운팅 / mark-sweep / copying / generational)이다. 현대 흐름은 GC, 그것도 세대별 복사 회수의 변종 쪽으로 굳어졌다.</li>
+</ul>
+
+<p>다음 장에서는 시야를 넓혀, 이 모든 인프라 위에서 흔히 쓰이는 언어 구문들 — 표현식, 배열, 문자열, 제어 구조, 객체 — 을 어떻게 코드로 빚어내는지를 본다. "코드 모양(code shape)"이라는 제목이 붙어 있다.</p>
+
+<div class="chapter-nav">
+<a href="chapter-5.html"><span class="label">← 이전</span><span>5장. 중간 표현</span></a>
+<a href="chapter-7.html" class="next-link"><span class="label">다음 →</span><span>7장. 코드 모양</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제9장 · 가상 메모리 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제9장 · 가상 메모리</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="chapter08.html">← 이전</a>
+    <a href="../index.html">목차</a>
+    <a href="chapter10.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제9장 · 가상 메모리</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-9-1">9.1 물리 주소와 가상 주소</a></li>
+      <li><a href="#sec-9-2">9.2 주소 공간</a></li>
+      <li><a href="#sec-9-3">9.3 캐싱 도구로서의 VM</a></li>
+      <li class="sub-li"><a href="#sec-9-3-1">9.3.1 DRAM 캐시 구성</a></li>
+      <li class="sub-li"><a href="#sec-9-3-2">9.3.2 페이지 테이블</a></li>
+      <li class="sub-li"><a href="#sec-9-3-3">9.3.3 페이지 히트</a></li>
+      <li class="sub-li"><a href="#sec-9-3-4">9.3.4 페이지 폴트</a></li>
+      <li class="sub-li"><a href="#sec-9-3-5">9.3.5 페이지 할당</a></li>
+      <li class="sub-li"><a href="#sec-9-3-6">9.3.6 다시 한번, 지역성이 구원자</a></li>
+      <li><a href="#sec-9-4">9.4 메모리 관리 도구로서의 VM</a></li>
+      <li><a href="#sec-9-5">9.5 메모리 보호 도구로서의 VM</a></li>
+      <li><a href="#sec-9-6">9.6 주소 변환</a></li>
+      <li class="sub-li"><a href="#sec-9-6-1">9.6.1 캐시와 VM 통합</a></li>
+      <li class="sub-li"><a href="#sec-9-6-2">9.6.2 TLB</a></li>
+      <li class="sub-li"><a href="#sec-9-6-3">9.6.3 다단계 페이지 테이블</a></li>
+      <li class="sub-li"><a href="#sec-9-6-4">9.6.4 정리: 종단 간 주소 변환</a></li>
+      <li><a href="#sec-9-7">9.7 사례 연구: Core i7/Linux</a></li>
+      <li class="sub-li"><a href="#sec-9-7-1">9.7.1 Core i7 주소 변환</a></li>
+      <li class="sub-li"><a href="#sec-9-7-2">9.7.2 Linux 가상 메모리</a></li>
+      <li><a href="#sec-9-8">9.8 메모리 매핑</a></li>
+      <li class="sub-li"><a href="#sec-9-8-1">9.8.1 공유 객체 vs 사적 객체</a></li>
+      <li class="sub-li"><a href="#sec-9-8-2">9.8.2 fork 다시 보기</a></li>
+      <li class="sub-li"><a href="#sec-9-8-3">9.8.3 execve 다시 보기</a></li>
+      <li class="sub-li"><a href="#sec-9-8-4">9.8.4 mmap 시스템 콜</a></li>
+      <li><a href="#sec-9-9">9.9 동적 메모리 할당</a></li>
+      <li class="sub-li"><a href="#sec-9-9-1">9.9.1 malloc과 free</a></li>
+      <li class="sub-li"><a href="#sec-9-9-2">9.9.2 왜 동적 메모리 할당인가</a></li>
+      <li class="sub-li"><a href="#sec-9-9-3">9.9.3 할당자 요구 사항</a></li>
+      <li class="sub-li"><a href="#sec-9-9-4">9.9.4 단편화</a></li>
+      <li class="sub-li"><a href="#sec-9-9-5">9.9.5 구현 이슈</a></li>
+      <li class="sub-li"><a href="#sec-9-9-6">9.9.6 묵시적 가용 리스트</a></li>
+      <li class="sub-li"><a href="#sec-9-9-7">9.9.7 할당 블록 배치</a></li>
+      <li class="sub-li"><a href="#sec-9-9-8">9.9.8 가용 블록 분할</a></li>
+      <li class="sub-li"><a href="#sec-9-9-9">9.9.9 추가 힙 메모리 얻기</a></li>
+      <li class="sub-li"><a href="#sec-9-9-10">9.9.10 가용 블록 병합</a></li>
+      <li class="sub-li"><a href="#sec-9-9-11">9.9.11 경계 태그를 이용한 병합</a></li>
+      <li class="sub-li"><a href="#sec-9-9-12">9.9.12 단순 할당자 정리</a></li>
+      <li class="sub-li"><a href="#sec-9-9-13">9.9.13 명시적 가용 리스트</a></li>
+      <li class="sub-li"><a href="#sec-9-9-14">9.9.14 분리된 가용 리스트</a></li>
+      <li><a href="#sec-9-10">9.10 가비지 컬렉션</a></li>
+      <li class="sub-li"><a href="#sec-9-10-1">9.10.1 GC 기초</a></li>
+      <li class="sub-li"><a href="#sec-9-10-2">9.10.2 Mark&amp;Sweep</a></li>
+      <li class="sub-li"><a href="#sec-9-10-3">9.10.3 보수적 Mark&amp;Sweep</a></li>
+      <li><a href="#sec-9-11">9.11 C의 흔한 메모리 버그</a></li>
+      <li class="sub-li"><a href="#sec-9-11-1">9.11.1 잘못된 포인터 역참조</a></li>
+      <li class="sub-li"><a href="#sec-9-11-2">9.11.2 초기화되지 않은 메모리</a></li>
+      <li class="sub-li"><a href="#sec-9-11-3">9.11.3 스택 버퍼 오버플로</a></li>
+      <li class="sub-li"><a href="#sec-9-11-4">9.11.4 sizeof 함정</a></li>
+      <li class="sub-li"><a href="#sec-9-11-5">9.11.5 off-by-one</a></li>
+      <li class="sub-li"><a href="#sec-9-11-6">9.11.6 객체 대신 포인터</a></li>
+      <li class="sub-li"><a href="#sec-9-11-7">9.11.7 포인터 산술 오해</a></li>
+      <li class="sub-li"><a href="#sec-9-11-8">9.11.8 지역변수 주소 반환</a></li>
+      <li class="sub-li"><a href="#sec-9-11-9">9.11.9 use-after-free</a></li>
+      <li class="sub-li"><a href="#sec-9-11-10">9.11.10 메모리 누수</a></li>
+      <li><a href="#sec-9-12">9.12 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 09</span>
+      <h1>가상 메모리</h1>
+      <div class="en">Virtual Memory</div>
+      <p class="blurb">
+        모든 프로세스가 자기 혼자만의 거대한 주소 공간을 갖는 환상은 어떻게 만들어질까. 페이지 테이블이 그 마법의 무대 장치이고,
+        TLB가 무대 뒤의 빠른 일꾼이다. 이 환상이 만들어지면 그 위에서 <code>malloc</code>이 살고, GC가 살고, <code>fork</code>의 COW가 산다.
+        그리고 환상이 새는 순간들 — 댕글링 포인터, off-by-one, use-after-free — 도 결국 다 가상 메모리 위에서 벌어지는 일이다.
+      </p>
+    </header>
+
+    <article class="section" id="sec-9-1">
+      <h2><span class="anchor-num">9.1</span>물리 주소와 가상 주소</h2>
+
+      <p>
+        DRAM 칩에 실제로 존재하는 주소를 <strong>물리 주소(physical address, PA)</strong>라고 부른다. 0번 바이트부터 시작해서 실제 메모리 용량까지 죽 늘어선,
+        하드웨어가 직접 보는 진짜 주소다. 옛날 8비트 마이크로컴퓨터 시절엔 프로그램이 이 주소를 직접 다뤘다. 단순하지만 위험하다 —
+        한 프로그램이 다른 프로그램의 메모리를 마음대로 읽고 쓸 수 있고, 메모리가 부족하면 답이 없다.
+      </p>
+
+      <p>
+        현대 시스템은 그 사이에 한 층을 더 끼워 넣었다. CPU가 메모리에 접근할 때 사용하는 주소는 <strong>가상 주소(virtual address, VA)</strong>이고,
+        이 주소는 CPU 안의 <em>MMU(Memory Management Unit)</em>가 OS의 페이지 테이블을 참고해 물리 주소로 번역한다.
+        가상 주소는 프로세스마다 따로 갖는 "사적인 주소", 물리 주소는 "공용 주소"라고 생각하면 깔끔하다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 9.1 · 가상 주소 → 물리 주소 변환</span><code>CPU 칩
+┌────────────────────────────────┐
+│  CPU 코어                       │
+│   │                            │
+│   │ 가상 주소 (VA)               │
+│   ▼                            │
+│  ┌──────┐    페이지 테이블 ↗      │
+│  │ MMU  │ ───────────────       │
+│  └──────┘                      │
+│   │ 물리 주소 (PA)               │
+└───┼────────────────────────────┘
+    ▼
+┌─────────────────────────────────┐
+│         DRAM (물리 메모리)        │
+└─────────────────────────────────┘
+</code></pre>
+
+      <p>
+        이 한 층의 추상이 만드는 효과는 어마어마하다 — 프로세스 격리, 페이징을 통한 메모리 확장, 권한 보호, 공유 메모리, COW(copy-on-write).
+        뒤에서 하나씩 본다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-9-2">
+      <h2><span class="anchor-num">9.2</span>주소 공간 (Address Spaces)</h2>
+
+      <p>
+        <strong>주소 공간(address space)</strong>은 그냥 "어떤 주소들의 집합"이다. 가상 주소 공간은 보통 0에서 2<sup>n</sup>−1까지 늘어선 가상 주소들의 집합이고,
+        n이 가상 주소의 비트 수를 결정한다. 64비트 머신이라고 다 64비트 가상 주소를 쓰는 건 아니고, 현대 x86-64는 실제로는 48비트만 사용한다(상위 16비트는 부호 확장).
+      </p>
+
+      <p>
+        물리 주소 공간도 마찬가지로 0부터 시작해서 실제 DRAM 용량까지의 정수 집합이다. 보통 가상 주소 공간이 물리 주소 공간보다 훨씬 크다.
+        예를 들어 노트북에 16GB DRAM이 꽂혀 있고 가상 주소가 48비트라면, 가상 주소 공간은 256TB이고 물리 주소 공간은 16GB. 주소 공간 추상은
+        <em>"실제로 가진 것보다 훨씬 큰 주소를 쓰게 해준다"</em>는 마법의 첫 번째 조각이다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-9-3">
+      <h2><span class="anchor-num">9.3</span>캐싱 도구로서의 VM</h2>
+
+      <p>
+        가상 메모리의 첫 번째 역할은 <strong>DRAM을 디스크에 대한 캐시</strong>로 쓰는 것이다.
+        프로세스의 주소 공간은 사실 디스크에 통째로 들어 있고(개념적으로), DRAM은 그중 자주 쓰는 부분만 떠 안고 있는 캐시 역할을 한다.
+        CPU가 어떤 가상 주소에 접근할 때 그 페이지가 DRAM에 있으면 <em>히트</em>, 없으면 <em>미스(페이지 폴트)</em>다.
+      </p>
+
+      <article class="section" id="sec-9-3-1">
+        <h3><span class="anchor-num">9.3.1</span>DRAM 캐시 구성</h3>
+
+        <p>
+          DRAM과 SRAM 캐시(L1/L2/L3)는 모두 캐시지만 비용 구조가 완전히 다르다. DRAM 미스(=디스크 접근)는 SRAM 미스(=DRAM 접근)보다 약 100배 느리다 —
+          SRAM 미스는 100ns 정도지만, DRAM 미스는 수 ms다. 한 번의 미스 비용이 너무 비싸기 때문에, DRAM 캐시는 SRAM 캐시와는 완전히 다른 설계 결정을 한다.
+        </p>
+
+        <ul>
+          <li><strong>큰 블록(페이지)</strong>: 미스 비용이 크니, 한 번 읽어 올 때 많이 읽어 둬야 본전을 뽑는다. 보통 4KB ~ 2MB.</li>
+          <li><strong>완전 연관(fully associative)</strong>: 어떤 페이지든 어디든 들어갈 수 있다. 미스 절대 안 나게 하는 게 우선.</li>
+          <li><strong>정교한 교체 알고리즘</strong>: LRU 비슷한 걸 OS가 소프트웨어로 굴린다. 미스가 비싸니까 똑똑하게.</li>
+          <li><strong>write-back</strong>: 매번 디스크에 쓰면 죽는다. 더티 비트를 두고 나중에 한꺼번에 내려쓴다.</li>
+        </ul>
+
+        <p>
+          비유하자면 SRAM 캐시는 사무실 책상에서 자주 쓰는 서류 몇 장 꺼내 두는 느낌이고, DRAM 캐시는 도서관에 있는 책을 집까지 빌려 오는 느낌이다.
+          빌려 오는 비용이 비싸니 작은 페이지 한 장 빌리지 말고 책 한 권 통째로 빌리고, 어디 책장에 꽂든 상관 안 한다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-3-2">
+        <h3><span class="anchor-num">9.3.2</span>페이지 테이블 (PTE)</h3>
+
+        <p>
+          DRAM 캐시의 메타데이터 — "어떤 가상 페이지가 어느 물리 페이지에 들어 있나, 아니면 디스크에만 있나" — 를 기록하는 자료구조가
+          <strong>페이지 테이블(page table)</strong>이다. 페이지 테이블은 가상 페이지 번호(VPN)를 인덱스로 하는 PTE의 배열이다.
+        </p>
+
+        <p>
+          하나의 PTE(Page Table Entry)는 핵심적으로 두 가지를 담는다 — <em>유효 비트(valid bit)</em>와 <em>주소 필드</em>:
+        </p>
+
+        <table>
+          <thead><tr><th>유효 비트</th><th>주소 필드 의미</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>물리 페이지 번호(PPN)</td><td>DRAM에 적재됨 — 히트 가능</td></tr>
+            <tr><td>0 (주소 != null)</td><td>디스크 위치</td><td>디스크에는 있음 — 페이지 폴트 시 가져옴</td></tr>
+            <tr><td>0 (주소 == null)</td><td>—</td><td>아직 할당되지 않음</td></tr>
+          </tbody>
+        </table>
+
+<pre class="with-caption"><span class="caption">그림 9.2 · 페이지 테이블의 모습</span><code>가상 페이지 번호(VPN)        PTE
+   ┌──┐                ┌─────┬────────────┐
+ 0 │  │ ─────────────→ │ V=1 │ PPN=0x4    │   DRAM 상주
+   ├──┤                ├─────┼────────────┤
+ 1 │  │ ─────────────→ │ V=0 │ disk@0xA8  │   디스크에 있음
+   ├──┤                ├─────┼────────────┤
+ 2 │  │ ─────────────→ │ V=0 │ null       │   할당 안 됨
+   ├──┤                ├─────┼────────────┤
+ 3 │  │ ─────────────→ │ V=1 │ PPN=0x9    │   DRAM 상주
+   └──┘                └─────┴────────────┘
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-9-3-3">
+        <h3><span class="anchor-num">9.3.3</span>페이지 히트</h3>
+
+        <p>
+          CPU가 어떤 가상 주소에 읽기를 시도한다. MMU는 그 가상 주소에서 VPN을 뽑아 페이지 테이블에서 해당 PTE를 가져오고,
+          유효 비트가 1이면 — 행운! — PTE의 PPN과 페이지 오프셋을 합쳐 물리 주소를 만들고 그 주소로 DRAM을 읽는다.
+          이 과정 전체는 하드웨어로 수십 사이클 안에 끝난다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-3-4">
+        <h3><span class="anchor-num">9.3.4</span>페이지 폴트</h3>
+
+        <p>
+          유효 비트가 0이면 — <strong>페이지 폴트</strong>가 발생한다. MMU가 폴트 신호를 보내면 CPU는 페이지 폴트 핸들러(OS의 일부)로 점프한다.
+          핸들러는 다음 일을 한다:
+        </p>
+
+        <ol>
+          <li>희생자 페이지(victim page)를 고른다. 보통 LRU 비슷한 정책.</li>
+          <li>희생자가 더티(dirty)이면 디스크로 내려쓴다.</li>
+          <li>요청된 페이지를 디스크에서 읽어 와 빈 자리에 넣는다.</li>
+          <li>희생자의 PTE를 갱신(V=0)하고, 새 페이지의 PTE를 갱신(V=1, PPN 설정).</li>
+          <li>핸들러 종료, CPU가 페이지 폴트를 일으킨 명령어를 다시 실행. 이번엔 히트.</li>
+        </ol>
+
+        <p>
+          여기서 신기한 부분 — CPU는 폴트가 났다는 걸 알기만 하고, 자기가 뭔가 잘못한 게 아니다.
+          OS가 디스크에서 페이지를 끌어와 자리에 앉혀 주는 동안 그 프로세스는 <em>대기</em> 상태가 되고, 다른 프로세스가 CPU를 쓴다.
+          폴트가 해결되면 다시 깨어나 똑같은 명령어를 실행하면 그만이다. 환상은 깨지지 않는다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            "페이지 미스"라고 안 부르고 "페이지 폴트"라고 부르는 건 단순한 캐시 미스가 아니라 <em>예외(exception)</em>를 일으키기 때문이다.
+            8장에서 본 그 예외 메커니즘이 여기서 본격적으로 쓰인다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-9-3-5">
+        <h3><span class="anchor-num">9.3.5</span>페이지 할당 (demand paging)</h3>
+
+        <p>
+          <code>malloc(1GB)</code>를 한다고 하자. 진짜로 1GB의 DRAM과 디스크 공간을 그 자리에서 잡을까? 아니다.
+          OS는 그냥 PTE들의 주소 필드를 채워 두고 V=0으로 둔다. <em>실제로 그 페이지에 처음 접근하는 순간</em>까지 물리 메모리는 할당되지 않는다.
+          이걸 <strong>요구 페이징(demand paging)</strong>이라 부른다.
+        </p>
+
+        <p>
+          그래서 <code>malloc(100GB)</code>가 16GB RAM 머신에서도 성공할 수 있다(주소 공간만 잡는 거라). 단, 실제로 다 채우려고 들면 어딘가에서 OOM이 난다.
+          이 게으름은 매우 효과적이다 — 프로그램이 잡아 둔 메모리의 상당 부분은 사실 안 쓰니까.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-3-6">
+        <h3><span class="anchor-num">9.3.6</span>다시 한번, 지역성이 구원자</h3>
+
+        <p>
+          "페이지 폴트가 ms 단위라며? 그럼 시스템이 못 쓸 만큼 느릴 텐데?" — 맞다, 만약 폴트가 자주 난다면.
+          하지만 프로그램은 보통 <strong>워킹 셋(working set)</strong>이라 부르는 일부 페이지만 집중해서 쓴다. 워킹 셋이 DRAM에 다 들어가면 폴트는 거의 안 난다.
+          이게 캐시가 작동하는 모든 곳에서 반복되는 그 익숙한 이야기다 — 지역성.
+        </p>
+
+        <p>
+          반대로 워킹 셋이 DRAM보다 크면 비참하다. 한 페이지 끌어오면 다른 페이지 쫓아내고, 쫓겨난 페이지가 곧 또 필요해서 다시 끌어오는 — <strong>스래싱(thrashing)</strong>이 일어난다.
+          이때 시스템은 거의 멈춘 듯이 느려진다. 노트북 RAM 부족할 때 디스크 사운드가 미친 듯이 들리던 그 시절이 바로 이거다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-4">
+      <h2><span class="anchor-num">9.4</span>메모리 관리 도구로서의 VM</h2>
+
+      <p>
+        VM의 두 번째 역할은 <strong>메모리 관리를 단순하게 만드는 것</strong>이다. 모든 프로세스에게 같은 모양의 가상 주소 공간을 주면 일이 정말 쉬워진다.
+      </p>
+
+      <ul>
+        <li><strong>링크의 단순화</strong>: 모든 실행 파일은 같은 가상 주소(예: 0x400000)에 코드가 적재된다고 가정하고 링크한다. 실제 물리 위치는 페이지 테이블이 알아서 매핑.</li>
+        <li><strong>로딩의 단순화</strong>: 실행 파일을 적재할 때 PTE를 디스크의 위치만 가리키게 두면 끝. 실제 페이지는 demand paging으로 들어온다.</li>
+        <li><strong>공유의 단순화</strong>: 여러 프로세스의 PTE를 같은 물리 페이지로 매핑하면 자연스럽게 공유 메모리가 된다. <code>libc.so</code>가 모든 프로세스에서 한 번만 로드되는 마법.</li>
+        <li><strong>할당의 단순화</strong>: 가상 공간에서 연속된 주소를 잡는 건 쉽다. 물리 메모리는 흩어져 있어도 상관없다.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="sec-9-5">
+      <h2><span class="anchor-num">9.5</span>메모리 보호 도구로서의 VM</h2>
+
+      <p>
+        세 번째 역할 — <strong>보호(protection)</strong>. PTE에 권한 비트를 추가하면 페이지 단위 접근 제어가 공짜로 따라온다.
+      </p>
+
+      <table>
+        <thead><tr><th>비트</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>SUP</td><td>커널 모드에서만 접근 가능. 사용자 모드에서 건드리면 폴트.</td></tr>
+          <tr><td>READ</td><td>읽기 허용</td></tr>
+          <tr><td>WRITE</td><td>쓰기 허용 — 0이면 read-only 페이지</td></tr>
+          <tr><td>EXEC</td><td>실행 허용 — 데이터 영역에서 코드를 실행하지 못하게 막음 (NX 비트)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        이 비트들 덕에 <code>.text</code> 영역은 read+exec 만, <code>.data</code>는 read+write 만, 스택은 read+write 만 (요즘은 보통 NX) 식으로 페이지 단위 권한을 줄 수 있다.
+        권한을 위반하는 접근이 일어나면 MMU가 폴트를 던지고, 커널은 보통 <code>SIGSEGV</code>로 그 프로세스를 죽인다 — 그 유명한 segmentation fault.
+      </p>
+
+      <p>
+        스택 버퍼 오버플로 공격을 막는 NX(no-execute)가 EXEC 비트의 대표 사례다. 데이터 영역에 침입자가 코드를 심어도 EXEC=0이면 실행이 안 된다.
+        ROP 같은 우회 기법이 등장한 이유이기도 하지만, 어쨌든 1차 방어선은 페이지 권한이다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-9-6">
+      <h2><span class="anchor-num">9.6</span>주소 변환</h2>
+
+      <p>
+        본격적으로 가상 주소가 어떻게 물리 주소로 바뀌는지 들여다본다. 핵심 식 하나만 기억하자 —
+        <strong>가상 주소 = VPN(가상 페이지 번호) + VPO(페이지 오프셋)</strong>, <strong>물리 주소 = PPN(물리 페이지 번호) + PPO(=VPO)</strong>.
+        오프셋은 그대로 가고, 페이지 번호만 PTE 룩업으로 번역된다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 9.3 · 가상 주소를 VPN과 VPO로 분해</span><code>가상 주소 (n비트)
+┌─────────────────────┬──────────────────┐
+│        VPN          │       VPO        │
+└─────────────────────┴──────────────────┘
+   상위 비트              하위 p비트 (페이지 크기 = 2^p)
+
+   ┌──── PT 룩업 ────┐
+   ▼                ▼
+물리 주소
+┌──────────────┬──────────────────┐
+│     PPN      │       PPO        │  ← VPO와 동일
+└──────────────┴──────────────────┘
+</code></pre>
+
+      <p>
+        4KB 페이지(p=12)라면 하위 12비트는 그대로 살아남고, 상위 비트만 변환된다. 이게 페이지가 4KB의 정수 배 정렬되는 이유이기도 하다 —
+        하위 12비트가 페이지 안의 위치니까 페이지 시작 주소는 항상 12비트가 0인 주소.
+      </p>
+
+      <article class="section" id="sec-9-6-1">
+        <h3><span class="anchor-num">9.6.1</span>캐시와 VM 통합 (PIPT, VIPT)</h3>
+
+        <p>
+          MMU 변환 결과를 받은 다음에 SRAM 캐시(L1)를 찌르면, 변환이 캐시 접근 직전에 끼어들어 시간을 잡아먹는다. 이 문제를 푸는 두 갈래가 있다.
+        </p>
+
+        <ul>
+          <li><strong>PIPT (Physically Indexed, Physically Tagged)</strong>: 변환 끝난 PA로 캐시를 찌른다. 단순하지만 느릴 수 있음.</li>
+          <li><strong>VIPT (Virtually Indexed, Physically Tagged)</strong>: 캐시 인덱스는 VA로 미리 시작하고(병렬), 태그 비교는 변환 끝난 PA로. 영리한 트릭.</li>
+        </ul>
+
+        <p>
+          현대 x86의 L1 캐시는 보통 VIPT다. 페이지 오프셋(VPO)만으로 인덱스가 구해지도록 캐시 크기와 구조를 잘 잡으면, 변환과 캐시 인덱싱이 동시에 일어날 수 있다.
+          현대 CPU가 그렇게 빠른 데에는 이런 작은 트릭들이 잔뜩 모여 있다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-6-2">
+        <h3><span class="anchor-num">9.6.2</span>TLB (Translation Lookaside Buffer)</h3>
+
+        <p>
+          매번 PTE를 메모리에서 읽으면 메모리 접근이 두 배가 된다(PTE 한 번, 데이터 한 번). 너무 비싸다.
+          그래서 MMU 안에 PTE의 작은 캐시를 둔다 — 그게 <strong>TLB</strong>다. 보통 64~512엔트리 정도의 완전 연관 또는 set-associative 캐시.
+        </p>
+
+        <p>
+          TLB 히트면 변환은 1 사이클 안에 끝난다. TLB 미스라도 보통 PTE는 L1/L2에 캐시되어 있어 곧 풀린다.
+          진짜 비참한 건 TLB 미스 + L3 미스 조합 — DRAM에 가서 PTE를 읽어 와야 한다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 9.4 · VPN을 TLB 인덱스/태그로 분해</span><code>VPN (가상 페이지 번호)
+┌─────────────────┬─────────────────┐
+│   TLB 태그       │   TLB 인덱스      │
+└─────────────────┴─────────────────┘
+       ↓                  ↓
+   비교용 태그          어느 set으로 갈지
+
+TLB
+┌────────────────────────────────────────────┐
+│ set 0: ⟨태그│PTE0⟩  ⟨태그│PTE1⟩ ...           │
+│ set 1: ⟨태그│PTE0⟩  ⟨태그│PTE1⟩ ...           │
+│   ⋮                                          │
+└────────────────────────────────────────────┘
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-9-6-3">
+        <h3><span class="anchor-num">9.6.3</span>다단계 페이지 테이블</h3>
+
+        <p>
+          여기 정말 중요한 문제가 있다. 48비트 가상 주소, 4KB 페이지를 가정하면 VPN은 36비트.
+          단일 단계 페이지 테이블이라면 PTE가 2<sup>36</sup>개 필요하고, PTE가 8바이트라 치면 <strong>한 프로세스당 페이지 테이블만 512GB</strong>다. 미친 짓이다.
+        </p>
+
+        <p>
+          해결책은 페이지 테이블 자체를 트리로 만드는 것 — <strong>다단계 페이지 테이블(multi-level page table)</strong>이다.
+          핵심 통찰: 프로세스의 가상 주소 공간 대부분은 비어 있다. 비어 있는 영역에 대해서는 PTE를 만들지 않는다.
+        </p>
+
+        <p>
+          1단계 페이지 테이블의 한 엔트리는 2단계 페이지 테이블 전체를 가리키고, 그 영역이 통째로 비어 있으면 그 엔트리를 null로 두고 2단계 테이블을 아예 안 만든다.
+          깊이가 깊어질수록 메모리 절약이 극적이다. 실제로 빈 큰 영역이 많은 프로세스의 페이지 테이블은 KB 단위로 작아진다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 9.5 · 2단계 페이지 테이블 (개념)</span><code>VPN을 둘로 쪼갠다: VPN1 (1단계 인덱스) | VPN2 (2단계 인덱스)
+
+      1단계 PT (항상 메모리 상주)
+   ┌──────────────────────────┐
+ 0 │ → 2단계 PT @ 0xA000       │ ──→  실제 PTE들
+   ├──────────────────────────┤
+ 1 │ null (이 영역 비어 있음)    │      메모리 차지 ✗
+   ├──────────────────────────┤
+ 2 │ null                      │      메모리 차지 ✗
+   ├──────────────────────────┤
+ 3 │ → 2단계 PT @ 0xB000       │ ──→  실제 PTE들
+   └──────────────────────────┘
+</code></pre>
+
+        <p>
+          2단계 PT가 아예 없는 영역은 정말로 메모리에서 사라진다. 비유하자면 거대한 도시의 모든 집 주소를 한 권의 책에 적어 두는 대신,
+          동(洞) 단위로 나눠 빈 동은 책 자체를 안 만드는 식이다.
+        </p>
+
+        <p>
+          뒤에서 보겠지만 x86-64는 이걸 4단계로 한다 — PML4 → PDPT → PD → PT, 각 9비트씩 인덱스, 12비트 페이지 오프셋. 합쳐서 9+9+9+9+12 = 48비트.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-6-4">
+        <h3><span class="anchor-num">9.6.4</span>정리: 종단 간 주소 변환</h3>
+
+        <p>한 번에 정리. CPU가 가상 주소 VA를 발행했을 때 일어나는 전 과정:</p>
+
+<pre class="with-caption"><span class="caption">그림 9.6 · 주소 변환 종단 간 흐름</span><code>1. CPU 발행: VA
+                │
+                ▼
+2. VA 분해: ┌─────┬─────┐
+            │ VPN │ VPO │
+            └─────┴─────┘
+                │
+                ▼
+3. TLB 룩업
+   ├─ 히트 → PPN 즉시 획득 (다음 5단계로)
+   └─ 미스 ↓
+                ▼
+4. 페이지 테이블 워크 (다단계)
+   ├─ V=1 → PPN 획득, TLB에 채움
+   └─ V=0 → 페이지 폴트 → OS 핸들러 → 디스크 → 재시작
+                │
+                ▼
+5. 물리 주소 조립: ┌─────┬─────┐
+                  │ PPN │ PPO │   (PPO = VPO)
+                  └─────┴─────┘
+                │
+                ▼
+6. L1 캐시 조회 (PIPT or VIPT)
+   ├─ 히트 → 데이터 즉시
+   └─ 미스 → L2 → L3 → DRAM
+</code></pre>
+
+        <p>
+          이 길이 매번 일어난다. <em>모든 메모리 접근에서</em>. TLB 히트 + L1 캐시 히트가 가장 빠른 길(수 사이클).
+          반대 끝, TLB 미스 + 페이지 폴트는 ms 수준의 재앙. 그래서 시스템 성능은 결국 이 흐름의 어느 단계에서 멈추느냐로 결정된다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-7">
+      <h2><span class="anchor-num">9.7</span>사례 연구: Intel Core i7/Linux 메모리 시스템</h2>
+
+      <article class="section" id="sec-9-7-1">
+        <h3><span class="anchor-num">9.7.1</span>Core i7 주소 변환</h3>
+
+        <p>
+          Core i7는 48비트 가상 주소, 52비트 물리 주소를 쓴다(주소 버스가 그렇다는 것이지 실제 DRAM은 작다).
+          페이지 크기는 기본 4KB이고 하드웨어가 2MB, 1GB의 거대 페이지(huge page)도 지원한다.
+        </p>
+
+        <p>48비트 가상 주소는 다음과 같이 쪼갠다:</p>
+
+<pre class="with-caption"><span class="caption">그림 9.7 · Core i7 가상 주소 비트 분할</span><code> 47        39 38        30 29        21 20        12 11         0
+┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│   VPN1 (9)  │   VPN2 (9)  │   VPN3 (9)  │   VPN4 (9)  │  VPO (12)   │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+       │             │             │             │
+       ▼             ▼             ▼             ▼
+     PML4  →      PDPT   →       PD    →       PT    →  PPN + PPO
+   (4단계)       (3단계)        (2단계)       (1단계)
+</code></pre>
+
+        <p>
+          각 단계의 페이지 테이블은 정확히 한 페이지(4KB) 크기다 — 9비트 인덱스 × 8바이트 PTE = 4096바이트.
+          깔끔한 설계. CR3 레지스터가 PML4 테이블의 시작 물리 주소를 들고 있고, 컨텍스트 스위치 때 CR3 값이 바뀌면서 프로세스가 자기 페이지 테이블을 갈아 끼운다.
+        </p>
+
+        <p>
+          한 번의 주소 변환이 4번의 메모리 접근(각 단계의 PTE)을 부를 수도 있다. 그래서 TLB가 <em>없으면</em> 매 명령이 5배 느려진다.
+          TLB 히트율이 99.9%만 돼도 평균 변환 비용이 1 사이클 근처로 떨어진다 — 이게 현대 CPU가 빠른 비결의 한 조각.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-7-2">
+        <h3><span class="anchor-num">9.7.2</span>Linux 가상 메모리 시스템</h3>
+
+        <p>
+          Linux는 각 프로세스의 가상 메모리 상태를 두 자료구조로 관리한다 — <code>mm_struct</code>와 <code>vm_area_struct</code>.
+        </p>
+
+        <ul>
+          <li><strong><code>mm_struct</code></strong>: 한 프로세스의 메모리 디스크립터. CR3에 들어갈 페이지 글로벌 디렉토리(pgd) 시작 주소, 코드/데이터/스택 시작 위치, 그리고 모든 영역 리스트의 헤드를 담고 있다.</li>
+          <li><strong><code>vm_area_struct</code></strong>: 한 영역(area)을 묘사한다. 영역은 가상 주소 공간 안의 연속된 페이지들의 묶음이고, 같은 권한(R/W/X), 같은 매핑 대상(파일/익명)을 공유한다. 코드 영역, 데이터 영역, 힙, 스택, mmap된 파일 등이 각각 하나의 vm_area다.</li>
+        </ul>
+
+<pre class="with-caption"><span class="caption">그림 9.8 · Linux의 영역 자료구조</span><code>mm_struct
+   pgd  ─→ 페이지 글로벌 디렉토리 (물리)
+   mmap ─→ ┌──────────────┐  vm_area_struct (코드)
+           │ vm_start     │
+           │ vm_end       │
+           │ vm_prot=R+X  │
+           │ vm_flags=...  │
+           │ vm_next ─────│→ ┌──────────────┐ vm_area (데이터)
+           └──────────────┘   │ vm_start     │
+                              │ ...          │
+                              │ vm_next ─────│→ ... (heap, stack, ...)
+                              └──────────────┘
+</code></pre>
+
+        <p>
+          페이지 폴트가 났을 때 커널은 폴트 주소를 가지고 vm_area 리스트를 찾는다.
+          어느 vm_area 안에도 안 떨어지면 → SIGSEGV.
+          vm_area 안에 있긴 한데 권한 위반(예: 쓰기 금지 영역에 쓰기) → 역시 SIGSEGV.
+          그렇지 않은 정상 폴트면 demand paging으로 페이지를 읽어 오거나 만들어 준다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-8">
+      <h2><span class="anchor-num">9.8</span>메모리 매핑</h2>
+
+      <p>
+        Linux는 가상 메모리 영역의 내용물을 <strong>디스크의 객체</strong>와 연결할 수 있게 해 준다. 이걸 <em>메모리 매핑(memory mapping)</em>이라 하고,
+        이 메커니즘 하나로 실행 파일 로딩, <code>fork</code>, <code>exec</code>, 사용자 mmap이 통일된 방식으로 설명된다.
+      </p>
+
+      <article class="section" id="sec-9-8-1">
+        <h3><span class="anchor-num">9.8.1</span>공유 객체 vs 사적 객체 (COW)</h3>
+
+        <p>매핑할 때 객체를 <em>공유</em>로 잡느냐 <em>사적</em>으로 잡느냐가 두 가지 큰 모드다:</p>
+
+        <ul>
+          <li><strong>공유 객체(shared object)</strong>: 여러 프로세스가 같은 물리 페이지를 보고, 누가 쓰면 다 같이 본다. 디스크 파일에 변경 사항이 반영된다. <code>libc.so</code> 공유 코드, 공유 메모리 IPC가 여기에 해당.</li>
+          <li><strong>사적 객체(private object)</strong>: 매핑 시점엔 똑같이 같은 물리 페이지를 가리키지만, 누군가 쓰려는 순간 그 페이지를 복사해 자기 사본을 만든다. 이걸 <strong>COW(Copy-On-Write)</strong>라 한다.</li>
+        </ul>
+
+        <p>
+          COW의 트릭은 PTE의 WRITE 비트에 있다. 처음엔 양쪽 다 WRITE=0으로 매핑해 둔다. 둘 중 하나가 쓰기를 시도하면 보호 폴트가 나고,
+          핸들러가 그 페이지를 복사해 쓴 쪽의 PTE만 새 페이지에 WRITE=1로 갱신한다. 안 쓴 쪽은 그대로 원본을 본다.
+          "꼭 필요할 때만 복사한다"는 게으름이 어마어마한 효율을 만든다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-8-2">
+        <h3><span class="anchor-num">9.8.2</span>fork 다시 보기 (COW)</h3>
+
+        <p>
+          <code>fork()</code>가 부모의 모든 메모리를 진짜로 통째로 복사한다면? 1GB 프로세스 fork에 1GB 복사 + 페이지 테이블 통째 새로 만들기. 미친 짓이다.
+          현대 OS는 절대 그렇게 안 한다. <code>fork</code>가 하는 일은:
+        </p>
+
+        <ol>
+          <li>자식의 mm_struct, vm_area들, 페이지 테이블을 부모로부터 복사. (메타데이터만!)</li>
+          <li>부모와 자식 양쪽의 모든 사적 영역 PTE에서 WRITE=0으로 클리어.</li>
+        </ol>
+
+        <p>
+          즉, 두 프로세스가 같은 물리 페이지들을 공유하기 시작한다. 둘 중 누가 사적 페이지에 쓰려 하면 그제서야 보호 폴트 → 페이지 복사 → 양쪽 PTE 업데이트.
+          fork 비용이 페이지 수가 아니라 vm_area 수와 PTE 수에 비례하는 비용으로 줄어든다. 이게 유닉스의 fork가 의외로 빠른 비결.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-8-3">
+        <h3><span class="anchor-num">9.8.3</span>execve 다시 보기 (영역 매핑)</h3>
+
+        <p>
+          <code>execve("a.out", ...)</code>는 현재 프로세스의 메모리 이미지를 새 프로그램으로 바꾸는 일이다. 단계로 보면:
+        </p>
+
+        <ol>
+          <li>현재 프로세스의 모든 vm_area 제거 (자기 옷 다 벗기).</li>
+          <li>새 프로그램의 코드/데이터 영역을 a.out 파일에 사적 매핑. (실제 페이지는 demand paging.)</li>
+          <li>BSS, 스택, 힙 영역은 익명 매핑(/dev/zero 같은 가상 객체).</li>
+          <li>공유 라이브러리(libc.so 등)를 공유 매핑.</li>
+          <li>PC를 새 프로그램의 진입점으로 설정.</li>
+        </ol>
+
+        <p>
+          이 과정에서 진짜 디스크에서 데이터를 읽어 오는 일은 거의 없다. 다 PTE 설정뿐. 첫 명령어를 fetch 하는 순간 페이지 폴트가 일어나고 실제 코드 페이지가 끌려온다.
+          느린 일은 정말 필요한 순간까지 미루는, 시스템 설계의 미학.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-8-4">
+        <h3><span class="anchor-num">9.8.4</span>mmap 시스템 콜</h3>
+
+        <p>
+          사용자가 직접 메모리 매핑을 만들 수도 있다 — <code>mmap</code> 시스템 콜.
+        </p>
+
+<pre><code>void *mmap(void *start, size_t length, int prot,
+           int flags, int fd, off_t offset);
+</code></pre>
+
+        <p>
+          파일 디스크립터 <code>fd</code>가 가리키는 파일의 <code>offset</code>부터 <code>length</code> 바이트를, 가상 주소 <code>start</code> 근처에
+          <code>prot</code> 권한으로 매핑한다. <code>flags</code>로 공유/사적, 익명 매핑 등을 결정.
+          <code>read</code>/<code>write</code>로 파일을 다루는 대신, 그냥 포인터로 파일 내용을 읽고 쓸 수 있다는 점에서 매우 강력한 도구.
+        </p>
+
+        <p>
+          DB 엔진들이 자주 쓰는 트릭이다 — 거대한 데이터 파일을 mmap 해 두고, 페이지 캐시와 demand paging을 OS에 맡긴다.
+          단점은 페이지 폴트의 타이밍을 예측하기 힘들고, mmap된 영역이 줄지어 있다 보니 주소 공간이 단편화될 수 있다는 점.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-9">
+      <h2><span class="anchor-num">9.9</span>동적 메모리 할당</h2>
+
+      <p>
+        OS의 페이지 단위 할당(brk, mmap)은 너무 거칠다. 응용은 12바이트, 73바이트 같은 자잘한 크기를 매번 빠르게 잡고 싶어 한다.
+        그래서 응용 라이브러리 층에 <strong>동적 메모리 할당자(allocator)</strong>가 산다 — 이게 우리에게 익숙한 <code>malloc</code>/<code>free</code> 가족이다.
+      </p>
+
+      <article class="section" id="sec-9-9-1">
+        <h3><span class="anchor-num">9.9.1</span>malloc과 free</h3>
+
+        <p>표준 C의 핵심 인터페이스:</p>
+
+<pre><code>void *malloc(size_t size);
+void  free(void *ptr);
+void *calloc(size_t n, size_t size);   // 0으로 초기화
+void *realloc(void *ptr, size_t size); // 크기 조절
+</code></pre>
+
+        <p>
+          <code>malloc</code>은 적어도 <code>size</code> 바이트의 정렬된 블록을 돌려준다(64비트에서는 보통 16바이트 정렬).
+          <code>free</code>는 그 블록을 반납. 반환된 포인터는 정확히 <code>malloc</code>이 돌려준 그 포인터여야 한다.
+          이 작은 약속을 어기는 게 모든 메모리 버그의 시작이다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-2">
+        <h3><span class="anchor-num">9.9.2</span>왜 동적 메모리 할당인가</h3>
+
+        <p>
+          왜 컴파일 타임에 다 잡지 않고? 답은 단순하다 — <em>크기를 컴파일 타임에 모르는 데이터가 너무 많다</em>.
+          사용자가 입력할 텍스트의 길이, 네트워크에서 받을 패킷의 크기, 트리에 쌓일 노드의 수. 이런 걸 미리 잡으면 거의 항상 너무 적거나 너무 많다.
+        </p>
+
+        <p>
+          또 함수 호출 종료 후에도 살아남아야 하는 데이터(스택은 함수가 끝나면 사라진다), 그리고 자료구조의 크기를 동적으로 늘이고 줄이는 일.
+          이 두 가지가 힙을 필요하게 만든다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-3">
+        <h3><span class="anchor-num">9.9.3</span>할당자 요구 사항과 목표</h3>
+
+        <p>좋은 할당자의 두 큰 목표:</p>
+
+        <ul>
+          <li><strong>처리량(throughput)</strong>: 단위 시간당 얼마나 많은 요청을 처리할 수 있나. malloc과 free가 평균적으로 얼마나 빠른지.</li>
+          <li><strong>최대 메모리 활용도(peak memory utilization)</strong>: 사용자가 요청한 총 바이트(P)에 비해 할당자가 OS에게 받은 힙 크기(H)가 얼마나 작은가. P/H가 클수록 좋다.</li>
+        </ul>
+
+        <p>
+          이 둘은 보통 트레이드오프 관계다. 빠르게 만들려고 자료구조를 단순화하면 단편화가 커지고, 단편화를 줄이려고 정교한 자료구조를 쓰면 느려진다.
+          진짜 어려운 건 이 둘 사이의 절묘한 균형을 찾는 일.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-4">
+        <h3><span class="anchor-num">9.9.4</span>단편화</h3>
+
+        <p>
+          단편화(fragmentation) — 사용자에게 못 쓰게 된 빈 공간이 두 가지 형태로 발생한다.
+        </p>
+
+        <ul>
+          <li><strong>내부 단편화(internal fragmentation)</strong>: 할당된 블록이 사용자가 요청한 것보다 큰 경우. 예를 들어 13바이트 요청에 정렬 때문에 16바이트를 줘 버리면 3바이트가 그 블록 <em>안에서</em> 낭비.</li>
+          <li><strong>외부 단편화(external fragmentation)</strong>: 빈 공간 총합은 충분한데 연속된 큰 블록이 없어서 큰 요청을 못 받는 경우. 빈 자리들이 사이사이에 흩어져 있는 상태.</li>
+        </ul>
+
+        <p>
+          비유하자면 내부 단편화는 한 사람이 잡은 빈 테이블에 자기 짐 외 의자 한 자리가 비어 있는 상태고,
+          외부 단편화는 식당 전체에 빈 자리는 많은데 6명이 앉을 자리가 모이지 않은 상태다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-5">
+        <h3><span class="anchor-num">9.9.5</span>구현 이슈</h3>
+
+        <p>할당자를 짤 때 답해야 할 질문 모음:</p>
+
+        <ul>
+          <li><strong>가용 블록을 어떻게 추적하나</strong> — 묵시적, 명시적, 분리, 분리 적합...</li>
+          <li><strong>요청에 어떤 블록을 할당하나</strong> — first fit, next fit, best fit.</li>
+          <li><strong>할당 후 남은 빈 공간 처리</strong> — 분할(splitting)할 것인가, 통째로 줄 것인가.</li>
+          <li><strong>해제된 블록 병합</strong> — 즉시(immediate) 병합? 지연(deferred) 병합?</li>
+        </ul>
+
+        <p>이 질문들에 답하면서 차례차례 더 정교한 할당자로 진화한다. 다음 절들에서 그 진화를 따라간다.</p>
+      </article>
+
+      <article class="section" id="sec-9-9-6">
+        <h3><span class="anchor-num">9.9.6</span>묵시적 가용 리스트 (implicit free list)</h3>
+
+        <p>
+          가장 단순한 형태. 힙을 블록의 일렬 시퀀스로 보고, 각 블록 앞에 <strong>헤더</strong>를 둬 그 블록의 크기와 할당 여부를 기록한다.
+          가용 블록을 따로 연결하지 않고도 헤더의 크기 정보로 다음 블록 위치를 계산할 수 있다 — 그래서 "묵시적"이다.
+        </p>
+
+        <p>
+          여기 영리한 트릭이 있다. 정렬 요구사항이 8바이트 또는 16바이트라면, 블록 크기는 항상 그 배수다. 즉 크기의 하위 3비트(8B 정렬 시) 또는 4비트는 항상 0.
+          이 자투리에 할당 비트를 슬쩍 끼워 넣을 수 있다 — <strong>비트 패킹</strong>.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 9.9 · 헤더 비트 패킹</span><code>32비트 헤더 (블록 크기 + 할당 비트)
+┌─────────────────────────────────────────────┬───┐
+│            block size (29비트)               │ a │
+└─────────────────────────────────────────────┴───┘
+                                                ↑
+                                         a=1 할당, a=0 가용
+</code></pre>
+
+        <p>
+          힙을 순회할 때 헤더의 크기를 읽어 그만큼 점프하면 다음 블록 헤더에 도달한다. 단순하지만 한 번의 검색이 O(블록 수)라 큰 힙에서 느리다.
+          그래도 출발점으로 좋은 모델이다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-7">
+        <h3><span class="anchor-num">9.9.7</span>할당 블록 배치 (first/next/best fit)</h3>
+
+        <p>요청이 들어왔을 때 어떤 가용 블록을 골라 할당할까?</p>
+
+        <ul>
+          <li><strong>first fit</strong>: 처음부터 훑어 충분히 큰 첫 가용 블록을 쓴다. 빠르지만 힙 앞쪽에 작은 단편이 많이 쌓인다.</li>
+          <li><strong>next fit</strong>: 마지막에 끝낸 위치부터 이어서 훑는다. first fit의 변형. 캐시 친화도가 약간 좋을 수 있지만 외부 단편화는 비슷하거나 나쁠 수도.</li>
+          <li><strong>best fit</strong>: 모든 가용 블록을 다 보고 가장 딱 맞는 것을 고른다. 단편화는 작지만 매번 전체 순회라 느리다.</li>
+        </ul>
+
+        <p>
+          실용적으로는 분리 가용 리스트(segregated list)와 first fit 또는 best fit의 조합을 많이 쓴다. 그 부분은 9.9.14에서 다시.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-8">
+        <h3><span class="anchor-num">9.9.8</span>가용 블록 분할</h3>
+
+        <p>
+          요청이 16바이트인데 64바이트 가용 블록을 골랐다면? 그 블록을 통째로 주면 48바이트가 내부 단편화로 낭비된다.
+          영리한 방법은 <strong>분할(splitting)</strong> — 16바이트를 떼어 할당하고, 남은 48바이트는 새로운 가용 블록으로 만든다.
+        </p>
+
+        <p>
+          단, 너무 작은 자투리는 분할하지 않는 게 보통. 헤더 오버헤드 때문에 8바이트짜리 자투리는 의미가 없을 수도.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-9">
+        <h3><span class="anchor-num">9.9.9</span>추가 힙 메모리 얻기 (sbrk)</h3>
+
+        <p>
+          힙이 다 차서 모든 가용 블록을 합쳐도 요청을 만족 못 하면? OS에게 더 달라고 한다 — Linux에서는 <code>sbrk</code> 시스템 콜.
+          힙의 끝(브레이크 포인터)을 위로 올려 새 페이지를 받아 온다. 받아 온 영역은 큰 가용 블록 하나로 등록한다.
+        </p>
+
+        <p>
+          현대 할당자(glibc malloc 등)는 작은 요청에는 <code>sbrk</code>를, 큰 요청에는 <code>mmap</code>을 쓴다 — 큰 영역은 free 시 OS에 즉시 반환할 수 있어서 좋다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-10">
+        <h3><span class="anchor-num">9.9.10</span>가용 블록 병합 (coalescing)</h3>
+
+        <p>
+          <code>free</code>로 풀린 블록이 인접한 가용 블록과 붙어 있으면 합치는 게 좋다 — <strong>병합(coalescing)</strong>. 안 그러면 외부 단편화가 폭증한다.
+        </p>
+
+        <p>
+          오른쪽 병합(right-coalesce)은 쉽다. 헤더를 따라가면 다음 블록 헤더가 바로 나오니, 그게 가용이면 합치면 끝. O(1).
+        </p>
+
+        <p>
+          왼쪽 병합(left-coalesce)이 문제다. 묵시적 리스트에서 "내 앞 블록"을 알려면 힙 시작부터 다시 훑어야 한다 — O(블록 수). 비싸다.
+          이 문제의 해결책이 다음 절의 핵심.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-11">
+        <h3><span class="anchor-num">9.9.11</span>경계 태그를 이용한 병합 (boundary tag)</h3>
+
+        <p>
+          Knuth의 우아한 트릭 — 모든 블록 끝에도 헤더의 사본을 둔다. 이걸 <strong>풋터(footer)</strong> 또는 경계 태그라 부른다.
+          내 헤더 바로 앞 4바이트가 곧 이전 블록의 풋터다. 풋터의 크기 필드를 읽으면 즉시 이전 블록의 헤더 위치를 알 수 있다 — O(1).
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 9.10 · 경계 태그가 있는 블록 레이아웃</span><code>┌────────┬───────────────┬────────┐
+│ Header │   Payload     │ Footer │
+│ size,a │   ...           │ size,a │
+└────────┴───────────────┴────────┘
+   4B          (size−8)           4B
+</code></pre>
+
+        <p>
+          이제 양방향 병합이 다 O(1). 비용은 모든 블록에 추가 4~8바이트의 풋터 오버헤드. 작은 블록이 많을 때 이 오버헤드가 무시 못 할 수 있어서,
+          나중에 본 "할당된 블록의 풋터는 생략"하는 변형도 있다 — 인접한 이전 블록의 할당 비트를 헤더에 같이 패킹해 두는 방식.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-12">
+        <h3><span class="anchor-num">9.9.12</span>정리: 단순 할당자 구현</h3>
+
+        <p>
+          묵시적 리스트 + 헤더/풋터 + first fit + 분할 + 즉시 병합 — 이 다섯 조각으로 동작하는 할당자가 만들어진다.
+          교과서의 표준 예제이고, 실습 과제로도 자주 등장한다(말로비-실험).
+        </p>
+
+        <p>
+          짧은 의사 코드:
+        </p>
+
+<pre><code>void *mm_malloc(size_t size) {
+    size_t asize = align(size + HEADER + FOOTER);
+    void *bp = find_first_fit(asize);
+    if (!bp) bp = extend_heap(asize);
+    place(bp, asize);   // 분할 포함
+    return bp;
+}
+
+void mm_free(void *bp) {
+    size_t size = GET_SIZE(HDRP(bp));
+    PUT(HDRP(bp), PACK(size, 0));
+    PUT(FTRP(bp), PACK(size, 0));
+    coalesce(bp);
+}
+</code></pre>
+      </article>
+
+      <article class="section" id="sec-9-9-13">
+        <h3><span class="anchor-num">9.9.13</span>명시적 가용 리스트 (explicit free list)</h3>
+
+        <p>
+          묵시적 리스트의 약점은 first fit이 모든 블록(할당+가용)을 다 훑는다는 것. 가용 블록만 따로 연결리스트로 묶으면 검색이 빨라진다.
+          이게 <strong>명시적 가용 리스트</strong>.
+        </p>
+
+        <p>
+          영리한 점: 가용 블록은 어차피 페이로드를 안 쓰니, 그 자리에 prev/next 포인터를 그냥 박아 넣을 수 있다. 추가 공간 안 든다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 9.11 · 명시적 가용 리스트</span><code>┌─────┬──────┬──────┬────────────┬─────┐
+│ Hdr │ prev │ next │ (unused)    │ Ftr │   ← 가용 블록
+└─────┴──────┴──────┴────────────┴─────┘
+
+가용 리스트:
+   [블록 A] ↔ [블록 C] ↔ [블록 F] ↔ [블록 G]
+</code></pre>
+
+        <p>
+          삽입 정책에 따라 또 두 갈래 — LIFO(가용 리스트의 head에 끼워 넣기, O(1))와 주소 순(주소 순서로 정렬해 끼워 넣기, 조금 느리지만 단편화 적음).
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-9-14">
+        <h3><span class="anchor-num">9.9.14</span>분리된 가용 리스트 (segregated free list)</h3>
+
+        <p>
+          한 단계 더 — 가용 블록을 <strong>크기 클래스(size class)</strong>별로 나눠 여러 개의 리스트를 둔다.
+          예: 16~31, 32~63, 64~127, ..., 큰 것까지. 16바이트 요청이 오면 작은 클래스부터 훑어 빠르게 찾는다.
+        </p>
+
+        <p>
+          현대 할당자(jemalloc, tcmalloc, glibc malloc)는 다 이 변형을 쓴다. 클래스 안에서 다시 first/best fit 같은 정책을 쓰고, 멀티스레드 환경에서는 스레드별 캐시를 두기도 한다.
+          이 단순한 아이디어 하나가 처리량과 단편화 둘 다를 크게 개선한다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            jemalloc은 페이스북에서, tcmalloc은 구글에서 만들었다. 일반 glibc malloc보다 멀티스레드 작업에 훨씬 강하다. 서버 한 대에 어떤 할당자를 쓰느냐로 처리량이 두 배 차이 나기도 한다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-10">
+      <h2><span class="anchor-num">9.10</span>가비지 컬렉션</h2>
+
+      <p>
+        명시적 free 호출 없이도 더 이상 쓰지 않는 메모리를 자동으로 회수하는 메커니즘 — <strong>가비지 컬렉션(garbage collection, GC)</strong>.
+        Java, Python, Go, Lisp 등이 다 GC를 쓴다. C/C++는 기본적으론 GC 없지만, Boehm GC 같은 보수적 GC를 끼워 쓸 수 있다.
+      </p>
+
+      <article class="section" id="sec-9-10-1">
+        <h3><span class="anchor-num">9.10.1</span>GC 기초 (도달성 그래프)</h3>
+
+        <p>
+          GC의 핵심 모델은 <strong>도달성 그래프(reachability graph)</strong>. 노드는 힙의 객체, 간선은 한 객체가 다른 객체를 가리키는 포인터.
+          그리고 <em>루트(root)</em> — 레지스터, 스택 변수, 전역 변수에서 출발하는 시작 노드들.
+        </p>
+
+        <p>
+          루트에서 도달 가능한 객체는 <em>살아 있다(reachable)</em>. 도달 불가능한 객체는 <em>가비지</em>. 어차피 누구도 못 가리키니 회수해도 안전.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-10-2">
+        <h3><span class="anchor-num">9.10.2</span>Mark&amp;Sweep</h3>
+
+        <p>고전적 GC 알고리즘. 두 단계로 굴러간다:</p>
+
+        <ol>
+          <li><strong>Mark</strong>: 루트에서 출발해 도달 가능한 모든 객체에 마크 비트를 세운다. DFS/BFS.</li>
+          <li><strong>Sweep</strong>: 힙 전체를 훑어 마크 안 된 객체를 가용 리스트로 돌려보낸다.</li>
+        </ol>
+
+        <p>
+          두 페이즈 동안엔 보통 응용 스레드를 멈춘다 — 이걸 <em>stop-the-world</em>라 한다. 큰 힙에서는 수백 ms씩 멈출 수 있어 GC 튜닝이 늘 골치.
+          현대 GC(G1, ZGC, Shenandoah)는 이 멈춤을 줄이려고 동시 마킹, 점진 sweep 같은 정교한 기법을 쓴다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-10-3">
+        <h3><span class="anchor-num">9.10.3</span>C 프로그램을 위한 보수적 Mark&amp;Sweep</h3>
+
+        <p>
+          C는 타입 정보를 런타임에 안 주고, 정수와 포인터를 자유로이 섞어 쓸 수 있다. 그래서 어떤 비트열이 진짜 포인터인지 GC가 확신할 수 없다.
+          그래도 GC가 가능한가? 가능 — 단, <strong>보수적(conservative)</strong>으로.
+        </p>
+
+        <p>
+          보수적 GC는 메모리 안의 모든 64비트 값이 "혹시 포인터일 수도 있다"고 가정한다. 어떤 값이 힙 안의 어떤 객체를 가리키는 것처럼 <em>보이면</em>, 그 객체를 살려 둔다.
+          그래서 가짜 양성(false positive)이 생긴다 — 실제론 정수인데 어쩌다 객체 주소처럼 보이는 값 때문에 죽어야 할 객체가 살아남는다. 회수율은 떨어지지만 안전하긴 하다.
+          Boehm-Demers-Weiser GC가 대표적이다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-11">
+      <h2><span class="anchor-num">9.11</span>C의 흔한 메모리 버그</h2>
+
+      <p>
+        가상 메모리가 환상이라 했지만, 그 환상이 깨질 때가 있다. 그 깨진 자리에서 나오는 게 바로 메모리 버그.
+        C 프로그래머가 평생 마주치는 단골 11가지를 짧은 코드와 함께 본다.
+      </p>
+
+      <article class="section" id="sec-9-11-1">
+        <h3><span class="anchor-num">9.11.1</span>잘못된 포인터 역참조</h3>
+
+<pre><code>int x;
+scanf("%d", x);   // ❌ &amp;x 대신 x
+</code></pre>
+
+        <p>
+          <code>scanf</code>는 주소를 기대하는데 <code>x</code>의 값을 주소로 해석해 그 자리에 정수를 쓰려 든다.
+          x의 값이 우연히 어떤 매핑된 페이지에 떨어지면 메모리가 조용히 깨지고, 운이 좋아 매핑되지 않은 페이지면 SIGSEGV. 운이 좋다는 게 죽는 쪽.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-2">
+        <h3><span class="anchor-num">9.11.2</span>초기화되지 않은 메모리 읽기</h3>
+
+<pre><code>int *arr = malloc(100 * sizeof(int));
+int sum = 0;
+for (int i = 0; i &lt; 100; i++)
+    sum += arr[i];   // ❌ malloc은 초기화 안 함
+</code></pre>
+
+        <p>
+          <code>malloc</code>은 페이로드를 0으로 채우지 않는다(<code>calloc</code>은 채운다).
+          초기화 전 읽기는 <em>이전에 그 페이지에 살았던 다른 값</em>을 읽게 되고, 결과가 비결정적이다.
+          최악은 디버그 빌드에선 0이 자주 나오는데 릴리스 빌드에선 쓰레기가 나오는 경우.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-3">
+        <h3><span class="anchor-num">9.11.3</span>스택 버퍼 오버플로</h3>
+
+<pre><code>void greet(void) {
+    char buf[16];
+    gets(buf);   // ❌ 입력이 16바이트 넘으면?
+}
+</code></pre>
+
+        <p>
+          입력이 16바이트를 넘는 순간 스택의 인접 영역(저장된 리턴 주소 포함)이 덮어써진다.
+          공격자가 셸코드 주소로 리턴 주소를 갈아치우면 임의 코드 실행. 보안 역사상 가장 흔한 취약점이고, 카나리/ASLR/NX가 이걸 막는 1차 방어선.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-4">
+        <h3><span class="anchor-num">9.11.4</span>포인터/객체 크기 가정 오류 (sizeof 함정)</h3>
+
+<pre><code>int *arr = malloc(N * sizeof(int *));   // ❌ sizeof(int)였어야
+</code></pre>
+
+        <p>
+          <code>sizeof(int *)</code>(포인터 크기, 64비트에선 8B)와 <code>sizeof(int)</code>(정수 크기, 보통 4B)는 다르다.
+          이 실수를 하면 64비트 환경에서는 두 배 큰 메모리를 잡아서 (낭비지만 동작은 함), 반대 방향 실수면 절반만 잡아 오버런.
+          관용구: <code>malloc(N * sizeof *arr)</code> — 변수 자체에서 크기를 뽑아 안전하게.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-5">
+        <h3><span class="anchor-num">9.11.5</span>off-by-one</h3>
+
+<pre><code>int *arr = malloc(N * sizeof(int));
+for (int i = 0; i &lt;= N; i++)   // ❌ &lt;= 가 아니라 &lt;
+    arr[i] = 0;
+</code></pre>
+
+        <p>
+          마지막 반복에서 <code>arr[N]</code>에 쓰려 든다. 인덱스가 0..N-1이니 N은 범위 밖. 한 칸 넘어선 지점의 메모리를 깨뜨린다.
+          힙의 다음 블록 헤더를 깨면 그 다음 free에서 이상하게 죽는다. 디버깅 악몽.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-6">
+        <h3><span class="anchor-num">9.11.6</span>객체 대신 포인터 참조</h3>
+
+<pre><code>int *p = malloc(sizeof(int));
+*p = 0;
+*p++;   // ❌ 의도: (*p)++
+</code></pre>
+
+        <p>
+          <code>*p++</code>는 우선순위 때문에 <code>*(p++)</code>로 해석된다. 즉 p가 가리키던 정수 값이 아니라 <em>p 자체</em>가 증가한다.
+          그 다음 자유 호출 <code>free(p)</code>는 잘못된 주소를 풀려 시도해 댐을 무너뜨린다. 괄호는 자유.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-7">
+        <h3><span class="anchor-num">9.11.7</span>포인터 산술 오해</h3>
+
+<pre><code>int *p = arr;
+p += 8;   // ❌ 8바이트 이동? 아니, 8개 int 이동 (32바이트)
+</code></pre>
+
+        <p>
+          포인터 산술은 <em>가리키는 객체의 크기 단위</em>로 움직인다. <code>int *</code>에 +8을 하면 8 × <code>sizeof(int)</code>만큼 주소가 증가한다.
+          바이트 단위 이동을 원하면 <code>char *</code>로 캐스팅해서 더하자.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-8">
+        <h3><span class="anchor-num">9.11.8</span>존재하지 않는 변수 참조 (지역변수 주소 반환)</h3>
+
+<pre><code>int *get(void) {
+    int x = 42;
+    return &amp;x;   // ❌ 반환 후 x의 스택은 무효
+}
+</code></pre>
+
+        <p>
+          함수가 끝나는 순간 <code>x</code>가 살던 스택 프레임이 사라진다. 반환된 주소는 <em>댕글링 포인터(dangling pointer)</em>.
+          그 자리에 다른 함수의 지역변수가 들어선 후 읽으면 엉뚱한 값이, 쓰면 그 함수의 변수가 깨진다. 정적/힙 변수 또는 in-out 인자로 해결.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-9">
+        <h3><span class="anchor-num">9.11.9</span>해제된 힙 블록 데이터 참조 (use-after-free)</h3>
+
+<pre><code>int *p = malloc(sizeof(int));
+*p = 1;
+free(p);
+*p = 2;   // ❌ 풀린 후의 메모리에 쓰기
+</code></pre>
+
+        <p>
+          free 후엔 그 영역이 다른 malloc에 할당될 수 있다. 거기에 쓰면 남의 데이터가 깨지고, 읽으면 남의 데이터가 보인다.
+          UAF는 보안 취약점의 단골이기도 하다 — 공격자가 적절한 객체를 같은 자리에 alloc 시킬 수만 있으면 임의 메모리 조작이 가능.
+          관용구: free 후 포인터를 <code>NULL</code>로 — 적어도 다음 역참조가 즉시 죽도록.
+        </p>
+      </article>
+
+      <article class="section" id="sec-9-11-10">
+        <h3><span class="anchor-num">9.11.10</span>메모리 누수</h3>
+
+<pre><code>void leak(void) {
+    int *p = malloc(BIG);
+    if (some_condition) return;   // ❌ free 안 함
+    work(p);
+    free(p);
+}
+</code></pre>
+
+        <p>
+          어떤 경로에선 free가 누락된다. 그 경로를 자주 타는 장수 프로세스(서버)는 시간이 지나면서 메모리가 계속 늘다가 OOM.
+          GC 언어는 이걸 막아 주지만, GC가 있어도 "도달 가능한데 안 쓰는" 객체(예: 쓰지 않는 캐시 엔트리)는 누수다 — GC도 만능이 아니다.
+        </p>
+
+        <div class="callout tip">
+          <span class="label">꿀팁</span>
+          <p>
+            valgrind, AddressSanitizer(ASan), MemorySanitizer 같은 도구가 위 11종 중 대부분을 잡아 준다.
+            특히 ASan은 컴파일 옵션 한 줄(<code>-fsanitize=address</code>)로 켤 수 있고 디버그 단계에선 거의 무조건 쓰는 게 좋다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-9-12">
+      <h2><span class="anchor-num">9.12</span>요약</h2>
+
+      <p>
+        가상 메모리는 한 줄로 요약하면 <em>"하드웨어와 OS가 협력해 만드는 거대한 환상"</em>이다. 정리:
+      </p>
+
+      <ul>
+        <li>VM은 DRAM을 디스크에 대한 캐시로 쓰고, 페이지 테이블이 그 캐시의 메타데이터다. 페이지 폴트가 비싸지만 지역성 덕분에 평균 비용은 낮다.</li>
+        <li>VM은 메모리 관리를 단순화한다 — 모든 프로세스가 같은 모양의 주소 공간을 가지면 링크/로드/공유/할당이 다 쉬워진다.</li>
+        <li>VM은 페이지 권한 비트로 메모리 보호를 제공한다 — SUP/READ/WRITE/EXEC.</li>
+        <li>주소 변환은 VPN/VPO 분해 → TLB → 다단계 페이지 테이블 → PPN/PPO 조립 → 캐시 조회의 흐름.</li>
+        <li>x86-64는 4단계(PML4/PDPT/PD/PT) 페이지 테이블, 9비트씩 인덱스, 12비트 오프셋, 합 48비트.</li>
+        <li>Linux는 mm_struct와 vm_area_struct로 프로세스 주소 공간을 관리하며, 모든 영역은 디스크 객체와의 매핑이다.</li>
+        <li>fork는 COW로 빠르고, exec는 영역 매핑 + demand paging으로 게으르게 동작한다.</li>
+        <li>malloc은 묵시적 → 명시적 → 분리 가용 리스트로 진화하면서 처리량과 단편화의 균형을 잡는다.</li>
+        <li>경계 태그(footer)는 양방향 병합을 O(1)로 만들어 주는 우아한 트릭.</li>
+        <li>GC는 도달성 그래프 위의 Mark&amp;Sweep으로 동작하며, C에서는 보수적 GC가 차선책.</li>
+        <li>메모리 버그 11종은 대부분 도구(valgrind, ASan)로 잡힌다 — 안 쓰면 손해.</li>
+      </ul>
+
+      <p>
+        이 장은 책에서 가장 두꺼운 장 중 하나다. 그 두께만큼 많은 시스템의 미스터리가 여기서 풀린다 — "왜 fork가 빠르지?", "왜 같은 라이브러리가 모든 프로세스에 한 번만 로드되지?",
+        "왜 segfault가 나지?", "왜 malloc이 가끔 느리지?". 다 페이지 테이블과 그 친구들의 일이다.
+      </p>
+
+      <p>
+        다음 장은 한 발 떨어져 — 우리가 가상 메모리 위에서 열고 닫는 파일들과 시스템 콜의 세계로 간다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          이 장에서 다룬 자료구조와 시스템 콜은 다음 장(I/O), 11장(네트워크), 12장(병행성)에서 계속 등장한다. 페이지 테이블과 mmap의 직관은 거기서 다시 한번 빛난다.
+        </p>
+      </div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter08.html">
+        <span class="dir">← 이전</span>
+        제8장 · 예외적 제어 흐름
+      </a>
+      <a class="next" href="chapter10.html">
+        <span class="dir">다음 →</span>
+        제10장 · 시스템 수준 입출력
+      </a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>2장 스캐너 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html" class="active">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+
+<main class="content">
+<h1>2장. 스캐너</h1>
+<p class="lead">소스 코드 문자 흐름을 토큰의 흐름으로 잘라 주는 부품. 정규표현식에서 NFA, NFA에서 DFA, 그리고 최소 DFA까지 — 컴파일러 프론트엔드 첫 관문의 이론과 구현.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 25–82</span>
+<span><strong>키워드:</strong> regular expression, NFA, DFA, Thompson construction, subset construction, Hopcroft minimization</span>
+</div>
+
+<h2>2.1 들어가며 — 스캐너가 하는 일</h2>
+
+<p>컴파일러가 소스 코드를 처음 만나면 가장 먼저 하는 일은 글자 한 줄 한 줄을 읽어서 <strong>의미 있는 단어 단위(토큰)</strong>로 자르는 것이다. 이걸 하는 부품이 <em>스캐너(scanner)</em>, 다른 말로 <em>어휘 분석기(lexical analyzer)</em>다. 영어 문장을 보면서 "<code>if</code>는 한 단어, <code>while</code>은 다른 단어, <code>x123</code>은 식별자"라고 분류하는, 말하자면 컴파일러의 <em>음절 분석가</em>다.</p>
+
+<p>컴파일러 안에서 스캐너의 위치는 독특하다. 모든 글자를 빠짐없이 만지는 유일한 패스(pass)다. 그래서 스캐너의 입력 크기는 다른 어떤 패스보다도 크고, 한 글자당 비용이 1ms만 늘어도 전체 컴파일 속도가 눈에 띄게 느려진다. 이 때문에 컴파일러 작성자는 스캐너의 속도에 강박적으로 집착한다 — 다행히 스캐너가 하는 일이 단순해서 충분히 빠르게 만들 수 있다.</p>
+
+<div class="callout">
+<div class="callout-title">한 줄 요약</div>
+스캐너는 문자 흐름 → 단어(토큰) 흐름으로 변환하면서, 각 단어에 <strong>구문 범주(syntactic category)</strong>를 붙여 준다. "키워드인지, 식별자인지, 숫자인지, 연산자인지" 분류표(part of speech)를 같이 내놓는 셈이다.
+</div>
+
+<h3>로드맵</h3>
+
+<p>이 장에서 다루는 흐름은 다음과 같다.</p>
+
+<ul>
+<li><strong>2.2 단어 인식</strong> — "단어를 알아본다"는 게 형식적으로 무엇인지. 전이 다이어그램과 유한 오토마타(FA).</li>
+<li><strong>2.3 정규표현식</strong> — 어휘 구조를 적는 표기법. 합집합·연결·클로저 세 가지 연산.</li>
+<li><strong>2.4 RE → 스캐너</strong> — 톰슨 구성(NFA), 부분집합 구성(DFA), Hopcroft 최소화.</li>
+<li><strong>2.5 스캐너 구현</strong> — 테이블 기반, 직접 코드, 손코딩 세 가지 전략.</li>
+<li><strong>2.6 고급 주제</strong> — DFA → RE, Brzozowski 알고리즘, 클로저 없는 RE.</li>
+</ul>
+
+<p>실무 컴파일러는 의외로 <em>손으로 짠 스캐너</em>를 많이 쓴다. 자동 생성된 스캐너보다 인터페이스 오버헤드를 더 줄일 수 있어서다. 그래서 이 장은 자동 생성과 수작업 양쪽을 모두 다룬다.</p>
+
+<h2>2.2 단어 인식하기</h2>
+
+<p>가장 단순한 인식기 알고리즘은 글자 하나하나를 검사하는 코드다. 키워드 <code>new</code>를 알아본다고 해 보자. <code>NextChar()</code>가 다음 글자를 돌려준다고 가정하면, 이런 식의 중첩 if문을 짤 수 있다.</p>
+
+<pre><code><span class="cm">// "new"를 인식하는 단순 코드</span>
+c &larr; NextChar();
+<span class="kw">if</span> (c = 'n') <span class="kw">then begin</span>
+   c &larr; NextChar();
+   <span class="kw">if</span> (c = 'e') <span class="kw">then begin</span>
+      c &larr; NextChar();
+      <span class="kw">if</span> (c = 'w') <span class="kw">then</span> report success;
+      <span class="kw">else</span> try something else;
+   <span class="kw">end</span>;
+   <span class="kw">else</span> try something else;
+<span class="kw">end</span>;
+<span class="kw">else</span> try something else;</code></pre>
+
+<p>이 코드를 그림으로 옮기면 깔끔한 <em>전이 다이어그램(transition diagram)</em>이 된다. 각 원이 상태고, 화살표 위에 적힌 글자가 그 상태에서 그 글자가 들어왔을 때 다음 상태로 넘어간다는 뜻이다.</p>
+
+<div class="figure">
+<pre class="ascii">
+   ┌────┐  n   ┌────┐  e   ┌────┐  w   ╔════╗
+   │ s₀ │ ───▶ │ s₁ │ ───▶ │ s₂ │ ───▶ ║ s₃ ║
+   └────┘      └────┘      └────┘      ╚════╝
+                                       (수락 상태)
+</pre>
+<span class="figure-caption">그림 2.1 — "new"를 인식하는 전이 다이어그램. 이중 원이 수락 상태.</span>
+</div>
+
+<p>여러 단어를 동시에 인식하려면 가지(branch)를 늘리면 된다. 예컨대 <code>new</code>와 <code>not</code>이라면 <code>s₁</code>에서 <code>e</code>로 가는 길과 <code>o</code>로 가는 길을 둘 다 만들면 된다. <code>while</code>까지 합쳐 한 그래프에 넣으면 가지가 더 풍성해질 뿐, 원리는 같다.</p>
+
+<h3>2.2.1 인식기의 형식론 — 유한 오토마타</h3>
+
+<p>이 그림이 곧 <strong>유한 오토마타(finite automaton, FA)</strong>의 그림이다. 형식적으로 FA는 다섯 개짜리 묶음 (5-tuple) 이다.</p>
+
+<div class="term-box">
+<span class="term">유한 오토마타 FA = (S, Σ, δ, s₀, S<sub>A</sub>)</span> <span class="en">finite automaton</span>
+<ul>
+<li><code>S</code> — 모든 상태의 집합 (오류 상태 <code>s<sub>e</sub></code> 포함)</li>
+<li><code>Σ</code> — 알파벳 (입력에 등장 가능한 글자 집합)</li>
+<li><code>δ : S × Σ → S</code> — 전이 함수. 상태 + 글자 → 다음 상태</li>
+<li><code>s₀</code> — 시작 상태</li>
+<li><code>S<sub>A</sub> ⊆ S</code> — 수락 상태들의 집합</li>
+</ul>
+</div>
+
+<p>FA가 문자열 <code>x = x₁x₂...x<sub>n</sub></code>을 받아들인다는 말은, <code>s₀</code>에서 출발해 글자를 차례로 먹으며 전이했을 때 마지막에 도착한 상태가 수락 상태에 속한다는 뜻이다. 형식적으로:</p>
+
+<p style="text-align:center"><code>δ(δ(...δ(δ(s₀, x₁), x₂)..., x<sub>n-1</sub>), x<sub>n</sub>) ∈ S<sub>A</sub></code></p>
+
+<p>FA 동작 비용은 입력 문자 1개당 전이 1번 — 즉 <strong>O(입력 길이)</strong>다. 이게 핵심이다. 정규표현식이 아무리 복잡해도 <em>실행 비용은 입력 길이에만 비례</em>한다.</p>
+
+<h3>2.2.2 더 복잡한 단어 — 무한 집합 인식</h3>
+
+<p>이제 "부호 없는 정수"처럼 <em>무한히 많은 단어가 속한 집합</em>을 인식하고 싶다고 하자. 정의는: "0 자체이거나, 1~9로 시작해서 0~9가 0개 이상 따라붙은 것."</p>
+
+<p>이걸 직선 그래프로 그리면 상태가 끝없이 늘어난다. 해법은 간단하다 — 사이클을 허용하면 된다.</p>
+
+<div class="figure">
+<pre class="ascii">
+              ┌──────── 0..9 ────────┐
+              ▼                      │
+   ┌────┐ 1..9  ╔════╗               │
+   │ s₀ │ ────▶ ║ s₂ ║ ──────────────┘
+   └─┬──┘       ╚════╝
+     │  0
+     ▼
+   ╔════╗
+   ║ s₁ ║   ← "0" 하나만 받는 경로
+   ╚════╝
+</pre>
+<span class="figure-caption">그림 2.2 — 부호 없는 정수를 인식하는 순환 FA. <code>s₂</code>에서 자기 자신으로 돌아오는 루프가 임의 길이의 숫자를 처리한다.</span>
+</div>
+
+<p>이 사이클이 핵심이다. 직선 if-else 중첩으로는 사이클을 표현할 수 없으니, 이젠 <code>while</code> 루프로 구현해야 한다.</p>
+
+<pre><code>char  &larr; NextChar();
+state &larr; s₀;
+<span class="kw">while</span> (char ≠ eof <span class="kw">and</span> state ≠ s<sub>e</sub>) <span class="kw">do</span>
+   state &larr; δ(state, char);
+   char  &larr; NextChar();
+<span class="kw">end</span>;
+<span class="kw">if</span> (state ∈ S<sub>A</sub>)
+   <span class="kw">then</span> report acceptance;
+   <span class="kw">else</span> report failure;</code></pre>
+
+<p>여기서 전이 함수 δ는 보통 <strong>2차원 테이블</strong>로 표현한다. 행은 상태, 열은 입력 글자. 원래 표는 <code>0,1,...,9,Other</code>로 11개 열을 갖지만, <code>1~9</code> 열이 모두 동일하므로 압축해서 <code>0 / 1..9 / Other</code> 3열로 줄일 수 있다. 메모리를 아끼는 첫 번째 트릭이다.</p>
+
+<div class="term-box">
+<span class="term">렉심 lexeme</span> <span class="en">the actual text for a word recognized by an FA</span>
+<br>FA가 인식한 토큰의 <em>실제 글자열</em>. 예컨대 "부호 없는 정수"는 구문 범주이고, <code>113</code>은 그 범주에 속한 한 렉심이다.
+</div>
+
+<p>식별자 같은 건 더 단순하다 — "알파벳 한 글자 + 0개 이상의 영숫자"는 두 상태짜리 FA로 끝난다.</p>
+
+<div class="callout note">
+<div class="callout-title">왜 사이클이 그렇게 중요한가</div>
+유한한 단어 집합(예: 키워드 50개)은 <em>비순환 FA</em>로 표현 가능하다. 그러나 무한 집합(정수, 식별자) 은 <em>반드시 사이클</em>을 거쳐야 한다. 사이클이 곧 "0개 이상 반복"의 정체다.
+</div>
+
+<h2>2.3 정규표현식 (RE)</h2>
+
+<p>FA가 받아들이는 문자열의 집합을 <em>언어(language)</em>라고 하고 <code>L(F)</code>로 쓴다. 사람이 FA를 직접 그리는 건 번거로우니, 같은 언어를 더 간결하게 적는 표기법이 필요하다 — 그게 <strong>정규표현식(regular expression, RE)</strong>이고, RE로 적을 수 있는 언어를 <em>정규 언어(regular language)</em>라 한다.</p>
+
+<h3>2.3.1 RE의 세 가지 기본 연산</h3>
+
+<p>RE는 알파벳 Σ 위에서, 빈 문자열 ε을 추가하여, 다음 세 연산만으로 만들어진다.</p>
+
+<div class="term-box">
+<span class="term">합집합 (alternation)</span> <span class="en">R | S</span><br>
+"R 또는 S 중 어느 하나" — 두 언어의 합집합.
+</div>
+<div class="term-box">
+<span class="term">연결 (concatenation)</span> <span class="en">RS</span><br>
+"R에 속한 문자열 뒤에 S에 속한 문자열을 이어 붙인 것".
+</div>
+<div class="term-box">
+<span class="term">클로저 / Kleene 별표</span> <span class="en">R*</span><br>
+"R을 0번 이상 반복한 모든 문자열" = ε ∪ R ∪ RR ∪ RRR ∪ …
+</div>
+
+<p>편의를 위해 다음 약어도 자주 쓴다.</p>
+
+<ul>
+<li><code>R⁺ = RR*</code> — <em>양의 클로저(positive closure)</em>, "1번 이상 반복"</li>
+<li><code>R<sup>i</sup></code> — <em>유한 클로저</em>, "i번 반복" (예: <code>R³ = RRR</code>)</li>
+<li><code>[a..z]</code> — 글자 범위 약어, 사실상 <code>a|b|c|...|z</code></li>
+<li><code>^c</code> — 보집합(complement) 연산자, "<code>c</code>가 아닌 모든 글자"</li>
+</ul>
+
+<p>우선순위는 <strong>괄호 &gt; 클로저 &gt; 연결 &gt; 합집합</strong> 순서. 그래서 <code>a|b*</code>는 <code>a | (b*)</code>이지 <code>(a|b)*</code>가 아니다.</p>
+
+<h3>2.3.2 실전 예시</h3>
+
+<p>프로그래밍 언어에서 자주 마주치는 RE 다섯 가지를 보자.</p>
+
+<table>
+<thead><tr><th>구문 범주</th><th>정규표현식</th></tr></thead>
+<tbody>
+<tr><td>식별자(C/Java류)</td><td><code>([A..Z]|[a..z]) ([A..Z]|[a..z]|[0..9])*</code></td></tr>
+<tr><td>부호 없는 정수</td><td><code>0 | [1..9][0..9]*</code></td></tr>
+<tr><td>실수(과학적 표기)</td><td><code>(0|[1..9][0..9]*) (ε | .[0..9]*) E (ε | + | -) (0|[1..9][0..9]*)</code></td></tr>
+<tr><td>C 문자열</td><td><code>" (^(" | \n))* "</code></td></tr>
+<tr><td>C 한 줄 주석</td><td><code>// (^\n)* \n</code></td></tr>
+<tr><td>ILOC 레지스터(<code>r0..r31</code>)</td><td><code>r ([0..2]([0..9]|ε) | [4..9] | (3(0|1|ε)))</code></td></tr>
+</tbody>
+</table>
+
+<p>마지막 ILOC 예시를 음미해보면 — "0~31 사이 숫자"를 정확히 표현하려고 RE가 갑자기 복잡해진다. 같은 의미를 단순하게 쓰려면 <code>r0 | r1 | r2 | ... | r31</code>처럼 <em>32개를 늘어놓는</em> 방식도 있다. 컴파일러 작성자는 이 둘 사이에서 "표현의 우아함 vs 상태 폭증" 트레이드오프를 골라야 한다. 다행히 둘 다 한 글자당 1전이라는 비용은 똑같다.</p>
+
+<div class="callout warn">
+<div class="callout-title">핵심 포인트</div>
+<strong>FA의 실행 비용은 입력 길이에 비례할 뿐, RE의 복잡도와는 무관</strong>하다. 복잡한 RE는 더 큰 FA를 만들어 메모리를 더 쓸 수 있지만, 글자당 처리 시간은 그대로 1전이다.
+</div>
+
+<h3>2.3.3 RE의 클로저 성질 (closure properties)</h3>
+
+<p>RE에는 매우 유용한 닫힘 성질들이 있다. 두 RE에 어떤 연산을 적용해도 결과가 또 RE라는 뜻이다.</p>
+
+<ul>
+<li><strong>연결·합집합·클로저 아래 닫힘</strong> — 정의상 당연하다. 그래서 우리가 각 구문 범주(예: 키워드, 식별자, 숫자)에 대해 <code>a₀, a₁, ..., aₙ</code> 각각의 RE를 갖고 있다면, 합집합 <code>a₀ | a₁ | ... | aₙ</code>이 곧 전체 어휘의 RE가 된다. 이게 스캐너 자동 생성의 출발점이다.</li>
+<li><strong>유한 언어는 곧 정규 언어</strong> — 합집합 닫힘 덕분에, 단어 100개를 늘어놓아도 그대로 RE다.</li>
+<li><strong>보집합 아래 닫힘</strong> — 완전한 FA(complete FA, 모든 오류 전이를 명시한 FA)에서 수락/비수락 상태를 뒤집기만 하면 보집합 언어를 인식하는 FA가 된다. 그래서 <code>lex</code>에 <code>^</code> 연산자가 있다.</li>
+</ul>
+
+<p>이 성질들이 다음 절의 <em>구성 알고리즘들이 잘 작동하는 이유</em>를 떠받친다.</p>
+
+<h2>2.4 RE에서 스캐너로 — 구성의 사이클</h2>
+
+<p>실제 스캐너를 자동으로 만들려면, RE → FA → 코드까지 가는 변환이 필요하다. 이 변환은 세 단계의 사이클을 이룬다.</p>
+
+<div class="figure">
+<pre class="ascii">
+                  Thompson 구성
+       ┌─────────────────────────────▶ NFA
+       │                                │
+       │                                │ 부분집합 구성
+       RE                                ▼
+       ▲                               DFA  ──── 코드 ────▶ 스캐너
+       │                                │
+       │     Kleene 구성                  │ Hopcroft 최소화
+       └─────────────────────────────── ◀┘ (DFA→DFA)
+</pre>
+<span class="figure-caption">그림 2.3 — 구성의 사이클. 각 화살표는 한 형식에서 다른 형식으로 가는 알고리즘이다.</span>
+</div>
+
+<h3>2.4.1 결정적 vs 비결정적 FA</h3>
+
+<div class="term-box">
+<span class="term">DFA (결정적 유한 오토마타)</span> <span class="en">deterministic FA</span><br>
+각 (상태, 입력 글자) 조합에 다음 상태가 <em>유일</em>하게 정해짐. ε-전이 없음.
+</div>
+<div class="term-box">
+<span class="term">NFA (비결정적 유한 오토마타)</span> <span class="en">nondeterministic FA</span><br>
+같은 글자에 여러 다음 상태가 가능. <strong>ε-전이</strong>(빈 문자열로 옮겨가는, 입력을 소비하지 않는 전이)도 허용.
+</div>
+
+<p>NFA의 동작을 이해하는 직관은 두 가지가 있다.</p>
+
+<ol>
+<li><strong>전지전능 모델</strong> — NFA가 매 갈림길에서 "정답으로 향하는 길"을 알고 정확히 그 길로 간다. 마술 같지만 정의는 깔끔하다.</li>
+<li><strong>복제 모델</strong> — 갈림길에서 NFA가 자기 자신을 복제해 모든 가능성을 동시에 추적한다. 어느 클론이 수락 상태에 도달하면 받아들임. 이때 "현재 활동 중인 상태들의 집합"을 NFA의 <em>구성(configuration)</em>이라 부른다.</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">DFA vs NFA 직관</div>
+<strong>DFA는 메모 한 장 들고 일하는 직원.</strong> 매 순간 자기 위치 하나만 안다.<br>
+<strong>NFA는 동시에 여러 가능성을 따라가는 평행우주.</strong> 매 순간 가능한 위치들의 <em>집합</em>을 들고 다닌다.
+</div>
+
+<p>놀라운 사실: <strong>표현력은 둘이 같다.</strong> 모든 NFA는 동등한 DFA로 변환할 수 있다(부분집합 구성으로 증명). DFA는 NFA의 특수한 경우이므로 역방향은 자명하다.</p>
+
+<p>NFA의 구성은 NFA 상태 집합의 부분집합이므로 최대 <code>2<sup>|N|</sup></code>개. 따라서 동등한 DFA는 NFA보다 <em>지수적으로 클 수 있지만 유한</em>하다 — 시간 문제가 아니라 공간 문제다.</p>
+
+<h3>2.4.2 RE → NFA: Thompson 구성</h3>
+
+<p>Thompson 구성(Thompson's construction)은 RE의 각 연산자에 대응하는 작은 NFA 조각들을 합쳐 큰 NFA를 짓는다. 핵심은 <em>각 RE 연산자마다 한 가지 합치기 패턴</em>만 알면 된다는 점.</p>
+
+<div class="figure">
+<pre class="ascii">
+(a) 한 글자 a:           (c) 연결 ab:
+   ┌──┐ a  ╔══╗           ┌──┐ a  ┌──┐ ε  ┌──┐ b  ╔══╗
+   │s_i│──▶║s_j║           │s_i│──▶│s_j│──▶│s_k│──▶║s_l║
+   └──┘    ╚══╝           └──┘    └──┘    └──┘    ╚══╝
+
+(d) 합집합 a|b:                    (e) 클로저 a*:
+            ε   ┌──┐ a  ┌──┐ ε                ε
+       ┌──────▶│s_i│──▶│s_j│──┐                ┌────────────────┐
+   ┌──┐│       └──┘    └──┘  ▼┌──┐         ┌──┐│ ε  ┌──┐ a  ┌──┐ ε ╔══╗
+   │s_m│                      │s_n│         │s_p├──▶│s_i│──▶│s_j├─▶║s_q║
+   └──┘│       ┌──┐ b  ┌──┐ ε ▲└──┘         └──┘    └──┘    └──┘   ╚══╝
+       └──────▶│s_k│──▶│s_l│──┘                ▲        ε             │
+            ε   └──┘    └──┘                   └─────────────────────┘
+</pre>
+<span class="figure-caption">그림 2.4 — Thompson 구성의 기본 합치기 패턴들. ε 화살표는 입력 없이 옮겨가는 전이.</span>
+</div>
+
+<p>Thompson 구성으로 만든 NFA는 매우 규칙적인 모양을 갖는다. 시작 상태 1개, 수락 상태 1개. 각 상태로 들어오는 ε-전이는 최대 2개, 나가는 ε-전이도 최대 2개, 알파벳 글자 전이는 들어오고 나가는 게 각각 최대 1개. 이 규칙성이 다음 단계(부분집합 구성) 구현을 단순화한다.</p>
+
+<h3>2.4.3 NFA → DFA: 부분집합 구성</h3>
+
+<p>부분집합 구성(subset construction)의 아이디어 한 줄: <strong>"NFA의 가능한 구성(상태들의 부분집합) 하나하나가 DFA의 한 상태가 된다."</strong> 그래서 동시에 추적되던 평행우주들을 하나의 결정적 상태로 응축시킨다.</p>
+
+<p>이 알고리즘은 두 개의 보조 함수를 사용한다.</p>
+
+<ul>
+<li><code>ε-closure(S)</code> — 상태 집합 <code>S</code>에서 ε-전이만 따라 도달 가능한 모든 상태를 포함시킨 집합. "입력 없이 갈 수 있는 곳까지 미리 다 가둬두기."</li>
+<li><code>Delta(q, c)</code> = <code>∪<sub>s∈q</sub> δ<sub>N</sub>(s, c)</code> — 구성 <code>q</code>의 모든 상태에서 글자 <code>c</code>로 갈 수 있는 NFA 상태들의 합집합.</li>
+</ul>
+
+<pre><code><span class="cm">// 부분집합 구성 알고리즘</span>
+q₀ &larr; ε-closure({n₀});
+Q  &larr; {q₀};                <span class="cm">// DFA 상태 모음</span>
+WorkList &larr; {q₀};
+
+<span class="kw">while</span> (WorkList ≠ ∅) <span class="kw">do</span>
+   q를 WorkList에서 꺼낸다;
+   <span class="kw">for each</span> 글자 c ∈ Σ <span class="kw">do</span>
+      t &larr; ε-closure(Delta(q, c));
+      T[q, c] &larr; t;        <span class="cm">// DFA 전이 기록</span>
+      <span class="kw">if</span> t ∉ Q <span class="kw">then</span>
+         t를 Q에 추가, WorkList에 추가;
+      <span class="kw">end</span>;
+   <span class="kw">end</span>;
+<span class="kw">end</span>;</code></pre>
+
+<p>이 알고리즘은 <strong>고정점 계산(fixed-point computation)</strong>의 전형이다. 새로운 상태를 발견할 때만 작업이 늘어나고, 가능한 상태(NFA 상태 부분집합) 수가 유한하므로 반드시 종료한다. 최악의 경우 <code>2<sup>|N|</sup></code>번 반복.</p>
+
+<div class="callout note">
+<div class="callout-title">왜 종료가 보장되나</div>
+<code>Q</code>는 <em>단조 증가</em>한다 — 한 번 추가된 집합은 절대 빠지지 않는다. 가능한 부분집합 수가 유한(<code>2<sup>|N|</sup></code>)이므로 언젠가는 더 추가할 게 없는 <strong>고정점</strong>에 도달한다.
+</div>
+
+<h4>예: <code>a(b|c)*</code>에 부분집합 구성 적용</h4>
+
+<p>Thompson 구성으로 <code>a(b|c)*</code>의 NFA를 만들면 ε-전이가 잔뜩 들어간 큰 그래프가 나온다. 거기에 부분집합 구성을 적용하면 다음 4개의 DFA 상태가 나온다.</p>
+
+<div class="figure">
+<pre class="ascii">
+   d₀ = ε-closure({n₀})              ← 시작
+   d₁ = ε-closure(Delta(d₀, a))      ← 'a' 보고 진입
+   d₂ = ε-closure(Delta(d₁, b))      ← 'b' 보고
+   d₃ = ε-closure(Delta(d₁, c))      ← 'c' 보고
+
+   결과 DFA:
+                       ┌─ b ─┐
+                       │     ▼
+   ┌──┐ a  ╔══╗ b  ╔══╗
+   │d₀│──▶ ║d₁║──▶ ║d₂║
+   └──┘    ╚══╝    ╚══╝
+            │ c     ▲
+            ▼       │ b
+           ╔══╗ ────┘
+           ║d₃║ ─── c (자기 자신)
+           ╚══╝
+</pre>
+<span class="figure-caption">그림 2.5 — <code>a(b|c)*</code>의 부분집합 구성 결과. 사람이 직관적으로 그린 DFA(s₀→s₁ 자기 루프 b,c)보다 상태가 많지만 이후 최소화 단계에서 줄어든다.</span>
+</div>
+
+<h3>2.4.4 DFA → 최소 DFA: Hopcroft 알고리즘</h3>
+
+<p>부분집합 구성의 결과 DFA는 종종 <em>중복 상태</em>를 포함한다. 같은 행동을 하는 상태들을 합쳐 더 작은 DFA를 얻고 싶다 — 캐시에 들어가는 작은 인식기는 빠르다. Hopcroft 최소화의 아이디어:</p>
+
+<div class="callout">
+<div class="callout-title">Hopcroft의 핵심 통찰</div>
+"두 상태 <code>d<sub>i</sub></code>, <code>d<sub>j</sub></code>가 동등하다" ⇔ "어떤 입력 글자 <code>c</code>로 전이해도, <code>δ(d<sub>i</sub>, c)</code>와 <code>δ(d<sub>j</sub>, c)</code>가 또한 동등한 부류에 속한다."
+</div>
+
+<p>이 정의는 순환적이지만, <em>분할(partition) 정련</em>으로 푼다. 처음엔 거칠게 둘로 나누고, 서로 다른 행동을 보이는 상태들을 발견할 때마다 분할을 더 잘게 쪼갠다.</p>
+
+<pre><code><span class="cm">// Hopcroft DFA 최소화</span>
+T &larr; { D<sub>A</sub>, D - D<sub>A</sub> };   <span class="cm">// 수락/비수락으로 초기 분할</span>
+P &larr; ∅;
+<span class="kw">while</span> (P ≠ T) <span class="kw">do</span>
+   P &larr; T;
+   T &larr; ∅;
+   <span class="kw">for each</span> 부분 p ∈ P <span class="kw">do</span>
+      T &larr; T ∪ Split(p);  <span class="cm">// p를 더 잘게 쪼갤 수 있으면 쪼갬</span>
+   <span class="kw">end</span>;
+<span class="kw">end</span>;
+
+<span class="cm">// Split: c라는 글자에 대해 서로 다른 부류로 가는 상태를 찾으면 분할</span>
+Split(S):
+   <span class="kw">for each</span> c ∈ Σ <span class="kw">do</span>
+      <span class="kw">if</span> c가 S를 s₁, s₂로 쪼갠다면
+         <span class="kw">return</span> {s₁, s₂};
+   <span class="kw">end</span>;
+   <span class="kw">return</span> S;</code></pre>
+
+<p>왜 처음에 수락/비수락으로 나누나? 수락 상태와 비수락 상태가 같은 부류에 들어가면 절대 안 된다. 이렇게 시작하면 그 불변식이 자연스럽게 유지된다.</p>
+
+<h4>예: <code>fee | fie</code> 최소화</h4>
+
+<div class="figure">
+<pre class="ascii">
+원래 DFA:
+              e         e
+    ┌──▶ s₂ ──▶ ╔══╗
+   ┌──┐ f      ║s₃║
+   │s₀│──▶s₁              s₃와 s₅는 입력 e로 들어와서
+   └──┘            \      더 이상 전이 없음 → 행동이 같음
+              ┌──▶ s₄ ──▶ ╔══╗
+              i       e   ║s₅║
+
+분할 진화:
+  step 0: {s₀,s₁,s₂,s₄}, {s₃,s₅}        ← 비수락/수락
+  step 2: e로 인해 {s₀,s₁,s₂,s₄}에서 s₂,s₄가 분리
+  step 3: f로 인해 {s₀,s₁}에서 s₁ 분리
+  최종:   {s₀}, {s₁}, {s₂,s₄}, {s₃,s₅}
+
+최소 DFA:
+   ┌──┐ f  ┌──┐ i,e ┌──┐ e  ╔══╗
+   │s₀│──▶│s₁│ ──▶  │s₂│──▶ ║s₃║
+   └──┘    └──┘     └──┘    ╚══╝
+</pre>
+<span class="figure-caption">그림 2.11 — Hopcroft 알고리즘으로 <code>fee | fie</code> DFA가 4상태로 압축됨.</span>
+</div>
+
+<h3>2.4.5 DFA를 인식기로 사용 — 최장 일치(maximal munch)</h3>
+
+<p>이제 DFA로 어떻게 실제 스캐너를 만드는가? 여러 RE <code>r₁, r₂, ..., rₖ</code>를 하나로 묶어 <code>(r₁ | r₂ | ... | rₖ)</code>의 DFA를 만든 뒤 사용한다.</p>
+
+<p>스캐너의 핵심 동작은 "<strong>입력을 가능한 한 길게 먹어서 가장 긴 매칭 토큰을 만들어 내라</strong>" — <em>최장 일치(longest match / maximal munch)</em> 규칙이다. 구현은 이렇다.</p>
+
+<ol>
+<li>DFA를 글자가 더 이상 전이할 수 없을 때까지 굴린다.</li>
+<li>지금 상태가 <strong>수락 상태</strong>면? 토큰 인식 성공.</li>
+<li>지금 상태가 비수락 상태인데, <em>도중에 거쳐 간 수락 상태가 있다면</em>? 가장 최근 그 수락 상태로 <strong>롤백(roll back)</strong>해서 그때까지의 글자열을 토큰으로 잡는다.</li>
+<li>도중에 한 번도 수락 상태에 들른 적이 없다면? 어휘 오류.</li>
+</ol>
+
+<p>한 가지 합병증: 한 수락 상태가 NFA의 여러 수락 상태(여러 RE)에 대응할 수 있다. 예컨대 <code>new</code>는 키워드 <code>new</code>의 RE에도, 식별자 RE에도 매칭한다. 이때 보통 <em>우선순위(priority)</em> 규칙을 적용한다 — <code>lex</code>는 RE를 적은 순서가 우선순위다. 키워드를 식별자보다 먼저 적으면 키워드가 이긴다.</p>
+
+<div class="callout warn">
+<div class="callout-title">공백과 주석</div>
+실무 스캐너는 RE 목록에 공백·탭·줄바꿈도 포함시켜, 매칭되면 <em>토큰을 반환하지 않고 자기 자신을 다시 호출</em>한다. 주석도 마찬가지로 "삼키고 무시" 패턴이다.
+</div>
+
+<h2>2.5 스캐너 구현 — 세 가지 길</h2>
+
+<p>같은 DFA를 코드로 옮기는 방법은 크게 셋이다.</p>
+
+<ol>
+<li><strong>테이블 기반(table-driven)</strong> — 보편 스켈레톤 + 언어별 테이블</li>
+<li><strong>직접 코드(direct-coded)</strong> — DFA 상태마다 코드 조각, goto로 점프</li>
+<li><strong>손코딩(hand-coded)</strong> — 사람이 직접 작성, I/O 인터페이스까지 최적화</li>
+</ol>
+
+<p>점근 복잡도는 셋 다 글자당 O(1) — 즉 입력 길이에 비례. 차이는 <em>상수 비용</em>에 있다.</p>
+
+<h3>2.5.1 테이블 기반 스캐너</h3>
+
+<p>스캐너 생성기는 RE 목록을 받아 (1) <em>분류기 테이블</em> <code>CharCat</code>, (2) <em>전이 테이블</em> <code>δ</code>, (3) <em>토큰 타입 테이블</em> <code>Type</code>을 출력한다. 스켈레톤 코드는 언어 독립이고, 테이블만 갈아끼우면 다른 언어로 변신한다.</p>
+
+<pre><code><span class="cm">// ILOC 레지스터 r[0..9]+에 대한 테이블 기반 스캐너</span>
+NextWord():
+   state  &larr; s₀;
+   lexeme &larr; "";
+   clear stack;
+   push(bad);
+
+   <span class="cm">// 메인 루프: DFA 시뮬레이션</span>
+   <span class="kw">while</span> (state ≠ s<sub>e</sub>) <span class="kw">do</span>
+      NextChar(char);
+      lexeme &larr; lexeme + char;
+      <span class="kw">if</span> state ∈ S<sub>A</sub>
+         <span class="kw">then</span> clear stack;
+      push(state);
+      cat   &larr; CharCat[char];
+      state &larr; δ[state, cat];
+   <span class="kw">end</span>;
+
+   <span class="cm">// 롤백 루프: 마지막 수락 상태까지 되돌림</span>
+   <span class="kw">while</span> (state ∉ S<sub>A</sub> <span class="kw">and</span> state ≠ bad) <span class="kw">do</span>
+      state &larr; pop();
+      truncate lexeme;
+      RollBack();    <span class="cm">// 입력 포인터 1글자 되돌림</span>
+   <span class="kw">end</span>;
+
+   <span class="kw">if</span> state ∈ S<sub>A</sub>
+      <span class="kw">then return</span> Type[state];
+      <span class="kw">else return</span> invalid;</code></pre>
+
+<p>매 글자에 두 번의 테이블 룩업: (글자 → 카테고리), 그리고 (상태, 카테고리 → 다음 상태). <code>CharCat</code>는 ASCII면 256엔트리, 작아서 캐시에 잘 들어간다. 전이 테이블 <code>δ</code>는 (상태 수 × 카테고리 수)인데, 카테고리로 압축되어 있어 순수 글자별 테이블보다 훨씬 작다.</p>
+
+<h4>2차 폭주 방지 — 최대 먹기 스캐너</h4>
+
+<p>병적인 경우 롤백이 2차(quadratic) 비용으로 폭주할 수 있다. RE <code>ab | (ab)*c</code>를 입력 <code>ababab</code>에 대해 돌리면, 매번 끝까지 갔다가 처음으로 돌아오는 패턴이 반복된다. 해결책: <strong>실패한 (상태, 입력 위치) 쌍을 비트 배열 <code>Failed</code>에 기록</strong>하여, 같은 위치에 같은 상태로 다시 오면 즉시 멈춘다.</p>
+
+<pre><code><span class="cm">// 최대 먹기(maximal munch) 스캐너의 핵심 변경</span>
+<span class="kw">while</span> (state ≠ s<sub>e</sub>) <span class="kw">do</span>
+   NextChar(char);
+   InputPos &larr; InputPos + 1;
+   lexeme   &larr; lexeme + char;
+
+   <span class="kw">if</span> Failed[state, InputPos]
+      <span class="kw">then break</span>;        <span class="cm">// 이미 가본 막다른 길</span>
+   ...
+<span class="kw">end</span>;
+
+<span class="kw">while</span> (state ∉ S<sub>A</sub> <span class="kw">and</span> state ≠ bad) <span class="kw">do</span>
+   Failed[state, InputPos] &larr; true;   <span class="cm">// 실패 기록</span>
+   ...
+<span class="kw">end</span>;</code></pre>
+
+<p>대부분의 프로그래밍 언어 어휘는 이 폭주가 일어날 만큼 복잡하지 않아서 일반 테이블 기반으로 충분하다. 하지만 가능성을 알면 대비할 수 있다.</p>
+
+<h3>2.5.2 직접 코드 스캐너</h3>
+
+<p>테이블 기반의 두 가지 오버헤드: 테이블 주소 계산 + 메모리 로드. 직접 코드 스캐너는 이걸 없앤다 — DFA의 상태와 전이 그래프를 <em>코드 자체로</em> 표현한다. 각 상태마다 작은 코드 조각이 있고, 한 조각의 끝에서 <code>goto</code>로 다음 조각으로 점프한다.</p>
+
+<pre><code><span class="cm">// r[0..9]+의 직접 코드 스캐너</span>
+
+s_init: lexeme &larr; "";
+        clear stack;
+        push(bad);
+        <span class="kw">goto</span> s₀;
+
+s₀:     NextChar(char);
+        lexeme &larr; lexeme + char;
+        <span class="kw">if</span> state ∈ S<sub>A</sub> <span class="kw">then</span> clear stack;
+        push(state);
+        <span class="kw">if</span> char = 'r' <span class="kw">then goto</span> s₁;
+        <span class="kw">else goto</span> s_out;
+
+s₁:     NextChar(char);
+        lexeme &larr; lexeme + char;
+        <span class="kw">if</span> state ∈ S<sub>A</sub> <span class="kw">then</span> clear stack;
+        push(state);
+        <span class="kw">if</span> '0' ≤ char ≤ '9' <span class="kw">then goto</span> s₂;
+        <span class="kw">else goto</span> s_out;
+
+s₂:     NextChar(char);
+        lexeme &larr; lexeme + char;
+        <span class="kw">if</span> state ∈ S<sub>A</sub> <span class="kw">then</span> clear stack;
+        push(state);
+        <span class="kw">if</span> '0' ≤ char ≤ '9' <span class="kw">then goto</span> s₂;
+        <span class="kw">else goto</span> s_out;
+
+s_out:  <span class="cm">// 롤백 + 결과 반환</span>
+        ...</code></pre>
+
+<p>이 스타일을 흔히 <em>스파게티 코드(spaghetti code)</em>라 부른다 — 보기에 어지럽지만 사람이 읽을 코드가 아니라 <strong>스캐너 생성기가 뱉어내는 코드</strong>다. 더 빠른 게 중요하지 가독성은 부차적이다.</p>
+
+<h4>왜 더 빠른가</h4>
+
+<ul>
+<li>전이 함수 호출이 단순 비교문으로 변함 — 테이블 주소 계산 없음.</li>
+<li>각 상태에서 비교할 글자 종류가 적으면(예: <code>r</code> 하나만), 코드가 매우 짧아져 분기 예측이 잘 됨.</li>
+<li><code>state</code> 변수 자체가 사라짐 — 제어 흐름 위치가 곧 상태.</li>
+</ul>
+
+<h3>2.5.3 손코딩 스캐너</h3>
+
+<p>실무 컴파일러(GCC 4.0 등) 상당수는 손으로 짠 스캐너를 쓴다. 직접 코드보다 더 빨라서가 아니라, <strong>스캐너와 외부의 인터페이스 비용</strong>(I/O, 렉심 복사 등)을 더 잘 줄일 수 있어서다.</p>
+
+<h4>입력 버퍼링 — 이중 버퍼</h4>
+
+<p>한 글자씩 시스템 호출하는 건 너무 비싸다. 큰 버퍼를 한 번에 채우고 그 안에서 포인터를 옮긴다. 그러나 롤백을 지원하려면 <em>이전 글자에도 접근 가능</em>해야 한다. 해법: <strong>이중 버퍼링(double buffering)</strong>.</p>
+
+<div class="figure">
+<pre class="ascii">
+  ┌──────── Buffer 0 ──────────┬──────── Buffer 1 ────────┐
+  │                            │                          │
+  0                            n-1 n            ▲         2n-1
+                                                │
+                                          Input 포인터
+</pre>
+<span class="figure-caption">그림 2.17 — 이중 버퍼. 포인터는 mod 2n으로 회전한다.</span>
+</div>
+
+<pre><code><span class="cm">// NextChar 구현</span>
+Char  &larr; Buffer[Input];
+Input &larr; (Input + 1) <span class="kw">mod</span> 2n;
+<span class="kw">if</span> (Input <span class="kw">mod</span> n = 0) <span class="kw">then</span>
+   Buffer[Input : Input + n - 1]를 새로 채움;
+   Fence &larr; (Input + n) <span class="kw">mod</span> 2n;
+<span class="kw">return</span> Char;
+
+<span class="cm">// RollBack 구현</span>
+<span class="kw">if</span> (Input = Fence)
+   <span class="kw">then</span> 롤백 한계 초과 오류;
+Input &larr; (Input - 1) <span class="kw">mod</span> 2n;</code></pre>
+
+<p><code>Fence</code>는 안전 한계 — n글자 이상 롤백하지 못하게 막는다. 버퍼 크기를 4096 같은 큰 값으로 두면 I/O 비용이 무시할 수준이 된다.</p>
+
+<h4>렉심 직접 변환</h4>
+
+<p>정수 토큰의 경우 굳이 글자열 lexeme을 쌓아 두었다가 나중에 <code>atoi</code>로 변환할 필요가 없다. 한 글자씩 받을 때마다 <code>RegNum &larr; RegNum × 10 + (char - '0')</code>으로 누산하면 된다. 손코딩의 묘미.</p>
+
+<h3>2.5.4 키워드 처리 — 두 가지 전략</h3>
+
+<p>키워드를 어떻게 인식할까? 두 길이 있다.</p>
+
+<table>
+<thead><tr><th>전략</th><th>장점</th><th>단점</th></tr></thead>
+<tbody>
+<tr><td>① 키워드마다 RE를 명시 → DFA에 통합</td><td>한 번의 DFA 실행으로 끝. 룩업 없음.</td><td>DFA 상태 수 폭증.</td></tr>
+<tr><td>② 식별자로 인식 후 해시 테이블 룩업</td><td>DFA 작아짐. 손코딩 친화적.</td><td>식별자마다 룩업 비용 추가.</td></tr>
+</tbody>
+</table>
+
+<p>스캐너 생성기를 쓴다면 ①이 자연스럽다 — 추가 상태는 컴파일 시간이 아니라 메모리만 먹으니까. 손코딩에서는 <em>완전 해싱(perfect hashing)</em>으로 ②를 빠르게 만들기도 한다. 키워드 집합이 고정이므로 충돌 없는 해시를 미리 계산해 둘 수 있다.</p>
+
+<h2>2.6 고급 주제</h2>
+
+<h3>2.6.1 DFA → RE: Kleene 구성</h3>
+
+<p>지금까지 RE → NFA → DFA 방향만 봤다. 역방향 — <em>DFA에서 RE 만들기</em> — 도 가능하다. Kleene 구성은 DFA의 그래프를 <em>경로 표현식 문제</em>로 환원한다.</p>
+
+<p>핵심 점화식: <code>R<sup>k</sup><sub>ij</sub></code>는 "상태 i에서 j까지 가는 경로 중, 중간 상태 번호가 k 이하만 거치는 경로들의 RE".</p>
+
+<p style="text-align:center"><code>R<sup>k</sup><sub>ij</sub> = R<sup>k-1</sup><sub>ik</sub> (R<sup>k-1</sup><sub>kk</sub>)* R<sup>k-1</sup><sub>kj</sub> | R<sup>k-1</sup><sub>ij</sub></code></p>
+
+<p>i에서 k를 거쳐 j로 가는 경로 = "i에서 k로" + "k에서 자기 자신을 0번 이상 돌고" + "k에서 j로", 이것에 "k 안 거치는 기존 경로"를 합집합. 모든 (i,j) 쌍에 대해 k = -1, 0, 1, ..., |D|-1로 키워가며 채워나간다.</p>
+
+<p>최종 답: <code>L = ⋃<sub>j ∈ D<sub>A</sub></sub> R<sup>|D|-1</sup><sub>0j</sub></code> — 시작 상태에서 모든 수락 상태까지의 경로 표현식 합집합.</p>
+
+<h3>2.6.2 Brzozowski 알고리즘 — 우아한 DFA 최소화</h3>
+
+<p>Hopcroft 분할 알고리즘 외에 다른 길도 있다. Brzozowski의 매혹적인 한 줄짜리 공식:</p>
+
+<div class="callout">
+<div class="callout-title">Brzozowski의 공식</div>
+NFA <code>n</code>의 최소 동등 DFA = <br>
+<code>reachable(subset(reverse(reachable(subset(reverse(n))))))</code>
+</div>
+
+<p>여기서:</p>
+<ul>
+<li><code>reverse(n)</code> — 모든 전이 방향을 뒤집고, 원래 시작 상태를 종료 상태로, 원래 종료 상태들을 새로운 시작 상태들로 만든 NFA.</li>
+<li><code>subset(n)</code> — 부분집합 구성으로 만든 DFA.</li>
+<li><code>reachable(n)</code> — 시작 상태에서 도달 가능한 부분만 남긴 그래프.</li>
+</ul>
+
+<p>왜 이게 작동하는가? 안쪽 <code>subset(reverse)</code>는 원래 NFA의 <em>중복 접미사</em>(suffix)를 제거한다. 바깥쪽 <code>subset(reverse)</code>는 <em>중복 접두사</em>(prefix)를 제거한다. 두 번 뒤집으면서 양쪽을 깔끔히 정리하는 셈. 이론적으로 부분집합 구성을 두 번 부르니 비싸 보이지만, 실제로는 NFA의 좋은 성질 덕분에 종종 효율적으로 동작한다.</p>
+
+<h3>2.6.3 클로저 없는 RE — 비순환 DFA</h3>
+
+<p><code>w₁ | w₂ | ... | wₙ</code> 형태의 RE — 즉 단순한 단어들의 합집합 — 은 특별한 의미를 갖는다. 이런 RE의 DFA는 <strong>사이클이 없다(acyclic)</strong>. 사전, URL 필터, 해시 키 검사처럼 "고정된 단어 집합 매칭" 문제에 자연스럽게 들어맞는다.</p>
+
+<p>비순환 DFA는 <em>증분식(incremental)</em>으로 짓기 좋다. 새 단어를 기존 DFA에 추가하려면, 시작 상태부터 글자를 따라가다가 더 이상 전이가 없는 지점부터 새 경로를 붙이면 된다. 비용은 새 단어 길이에만 비례.</p>
+
+<p>이런 비순환 DFA는 <em>완전 해싱의 대안</em>이 된다. 충돌 없는 해시 함수를 만드는 대신, 글자별로 트라이(trie)를 따라가는 셈. 키 수가 늘면 캐시 효율이 떨어지므로 어느 시점부터는 해시가 더 빨라지지만, 작은 사전엔 좋은 선택이다.</p>
+
+<h2>2.7 정리 — 무엇을 얻었나</h2>
+
+<p>이 장에서 따라간 길은 한 줄 요약하면:</p>
+
+<div class="callout note">
+<div class="callout-title">스캐너 만들기 풀코스</div>
+<strong>RE → NFA → DFA → 최소 DFA → 코드</strong><br>
+1. 어휘를 정규표현식으로 적는다.<br>
+2. Thompson 구성으로 NFA를 만든다 (작고 규칙적).<br>
+3. 부분집합 구성으로 DFA를 만든다 (결정적, 시뮬레이션 쉬움).<br>
+4. Hopcroft 알고리즘으로 최소화한다 (캐시 친화적).<br>
+5. 테이블 기반 / 직접 코드 / 손코딩 중 하나로 구현한다.
+</div>
+
+<p>각 단계 모두 <strong>입력 글자당 O(1)</strong> 비용을 지키는 게 가능하다는 점이 본질이다. 정규 언어와 유한 오토마타 이론이 우리에게 준 선물 — "어휘를 적기는 RE처럼 우아하게, 실행은 DFA처럼 빠르게."</p>
+
+<p>또한 이 장에서 두 번 등장한 <strong>고정점 계산</strong>(부분집합 구성, Hopcroft 분할)은 컴파일러 곳곳에서 다시 만난다. 데이터 흐름 분석(9장), SSA 구성, 타입 추론 — 모두 같은 패턴의 변주다. 단조 함수가 유한 격자(lattice) 위에서 반복되며 한 점에 정착하는 그림은 컴파일러 작성자의 기본기다.</p>
+
+<p>마지막으로 실용적 노트 — 이론은 자동 생성을 향한다지만, 현장의 베테랑들은 손코딩을 즐긴다. 어휘 명세는 자주 바뀌지 않고, 손으로 짜면 I/O 인터페이스부터 끝까지 통제할 수 있어서다. <em>tools first 또는 hands first</em> 둘 다 합리적 선택이다.</p>
+
+<div class="chapter-nav">
+<a href="chapter-1.html"><span class="label">← 이전</span><span>1장. 컴파일 개관</span></a>
+<a href="chapter-3.html" class="next-link"><span class="label">다음 →</span><span>3장. 파서</span></a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

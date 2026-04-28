@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3장. 다차원 그리드와 데이터 매핑 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 3</p>
+    <h1>다차원 그리드와 데이터 매핑</h1>
+    <p class="subtitle">스레드를 데이터 위에 평면으로 펼쳐 놓기</p>
+  </header>
+
+  <h2>3.1 다차원 그리드 구성</h2>
+  <p>벡터 덧셈은 데이터가 1차원이라 스레드도 1차원으로 늘어놓으면 끝이었다. 그러나 우리가 다룰 진짜 데이터는 거의 다 2차원 이상이다. 이미지는 (행, 열), 행렬도 (행, 열), 동영상은 (시간, 행, 열), 의료 볼륨은 (z, y, x). 매번 1차원으로 평탄화해 인덱스 계산을 수동으로 하는 것은 번거롭고 실수의 온상이다. CUDA는 그래서 처음부터 그리드와 블록을 1D/2D/3D로 잡을 수 있게 해 두었다.</p>
+
+  <p>모양을 지정하는 타입이 <code>dim3</code>다. 1D, 2D, 3D 어느 쪽이든 같은 타입으로 표현한다.</p>
+
+  <pre><code>dim3 block(16, 16);              // 16×16 = 256 스레드/블록 (2D)
+dim3 grid((W + 15) / 16,
+          (H + 15) / 16);        // W×H 픽셀 이미지 덮기
+
+myKernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(...);
+</code></pre>
+
+  <p>커널 안에서는 <code>threadIdx.x, .y, .z</code>와 <code>blockIdx.x, .y, .z</code>, <code>blockDim.x, .y, .z</code>가 다 살아 있다(쓰지 않는 차원은 1로 셋업된다). 이미지를 다룰 때 (col, row) = (x, y) 매핑을 쓰는 게 관례다. 즉 .x가 가로(열), .y가 세로(행)다. 처음엔 헷갈리지만 한 번 익혀 두면 일관성이 무기가 된다.</p>
+
+  <p>왜 굳이 다차원으로 잡을까? 1차원으로도 충분히 일은 된다. 두 가지 이유가 있다. 첫째, <strong>코드 가독성</strong>이다. 2D 데이터에 2D 스레드는 머릿속에서 그대로 그려진다. 인덱스 산수 한 번 줄이는 것 이상으로, "내가 픽셀 (col, row)에서 일을 하고 있다"가 자연스럽게 읽힌다. 둘째, <strong>메모리 합치기(coalescing)</strong>와의 궁합이다. 같은 워프(연속한 32 스레드)가 메모리에서 연속된 주소를 읽을 때 GPU는 한 번의 트랜잭션으로 묶어 읽는다. 행 우선(row-major) 배열에서 같은 행의 인접 열들이 연속 주소이므로, threadIdx.x가 열에 매핑되면 자연히 합쳐진 접근이 된다. 세부는 6장에서 다루지만, 매핑 관례를 일찍 익히는 게 그 미래를 편하게 한다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>한 블록에 들어갈 수 있는 총 스레드 수는 1024(현행 모든 NVIDIA GPU에서). 16×16=256, 32×8=256, 32×32=1024 식으로 쪼개 쓰는 게 보통이다. 블록 모양은 데이터 모양과 같이 잡는 것이 일반적이지만 강제는 아니다.</p>
+  </div>
+
+  <h2>3.2 다차원 데이터에 스레드 매핑</h2>
+  <p>2D 이미지에서 픽셀 (col, row)에 한 스레드씩 매핑하려면 다음 두 줄을 거의 모든 커널 첫머리에 둔다.</p>
+
+  <pre><code>int col = blockIdx.x * blockDim.x + threadIdx.x;
+int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+if (col &lt; W &amp;&amp; row &lt; H) {
+    int idx = row * W + col;     // 행 우선 1D 평탄화
+    out[idx] = doSomething(in[idx]);
+}
+</code></pre>
+
+  <p>여기서 <code>row * W + col</code> 패턴이 핵심이다. 메모리상 배열은 결국 1차원으로 쭉 깔려 있다. C/C++의 행 우선 배치에서는 같은 행의 원소들이 연속해 있다. 그래서 위 인덱스 계산이 표준이 된다. 만약 행렬이 column-major(예: BLAS, Fortran 관례)라면 <code>col * H + row</code>가 된다. 어느 쪽을 쓰든 한 프로젝트 안에서 일관되어야 한다 ─ 섞으면 디버깅이 지옥이다.</p>
+
+  <p>경계 검사 <code>if (col &lt; W &amp;&amp; row &lt; H)</code>도 빠뜨리지 말 것. 그리드를 천장(ceiling)으로 잡았으니 가장자리 블록은 항상 일부 스레드가 범위 밖이다. 이 검사 한 줄이 메모리 침범을 막는다.</p>
+
+  <p>3D로 가면 자연스럽게 <code>idx = z * H * W + y * W + x</code>가 된다. 의료 영상의 복셀, 3D 시뮬레이션 격자에서 그대로 쓰인다. 차원이 늘어도 패턴은 같다 ─ 가장 안쪽이 .x, 그 밖이 .y, 가장 바깥이 .z.</p>
+
+  <div class="figure">  Block(0,0)  Block(1,0)  Block(2,0)
+  +--------+ +--------+ +--------+
+  |TT TT TT| |TT TT TT| |  TT    |  ← 가장 오른쪽 열은
+  |TT TT TT| |TT TT TT| |  TT    |    패딩(out-of-range)
+  +--------+ +--------+ +--------+
+  Block(0,1)  Block(1,1)  Block(2,1)
+       |          |          |
+       +----------+----------+
+              Grid (3 × 2 blocks)
+  </div>
+  <p class="figure-caption">그림 3.1 — 너비가 블록 폭의 배수가 아닐 때 마지막 블록 일부는 비활성</p>
+
+  <h2>3.3 첫 2D 커널: 이미지 블러</h2>
+  <p>3×3 박스 블러를 구현해 보자. 한 픽셀의 새 값은 자기와 8 이웃의 평균(총 9 픽셀의 산술 평균)이다. 입력은 1채널 8비트 그레이스케일 이미지라고 하자.</p>
+
+  <pre><code>__global__ void boxBlur3x3(const unsigned char* in,
+                           unsigned char* out,
+                           int W, int H) {
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    if (col &gt;= W || row &gt;= H) return;
+
+    int sum = 0, cnt = 0;
+    for (int dy = -1; dy &lt;= 1; ++dy) {
+        for (int dx = -1; dx &lt;= 1; ++dx) {
+            int r = row + dy;
+            int c = col + dx;
+            if (r &gt;= 0 &amp;&amp; r &lt; H &amp;&amp; c &gt;= 0 &amp;&amp; c &lt; W) {
+                sum += in[r * W + c];
+                ++cnt;
+            }
+        }
+    }
+    out[row * W + col] = (unsigned char)(sum / cnt);
+}
+
+// 호스트에서:
+//   dim3 block(16, 16);
+//   dim3 grid((W + 15) / 16, (H + 15) / 16);
+//   boxBlur3x3&lt;&lt;&lt;grid, block&gt;&gt;&gt;(d_in, d_out, W, H);
+</code></pre>
+
+  <p>경계 처리 방식 두 가지를 짚어 두자. 위 코드에서는 <em>유효 이웃의 평균</em>을 쓴다. 즉 가장자리 픽셀은 5~6개의 이웃만으로 평균 낸다. 다른 흔한 선택지는 <em>제로 패딩</em>(범위 밖은 0으로 간주)과 <em>경계 복제</em>(가장 가까운 안쪽 값을 복사)다. 어느 것을 고를지는 응용에 따라 다르다. 여기서는 가장자리 명도가 어두워지지 않게 유효 평균을 썼다.</p>
+
+  <p>한 가지 미리 짚을 것. 이 커널의 모든 메모리 접근은 글로벌 메모리(DRAM)로 직행한다. 한 출력 픽셀당 9번 입력을 읽는데, 이웃 픽셀들은 인접 스레드 사이에서 겹친다. 즉 같은 데이터를 여러 번 DRAM에서 끌어온다. 5장에서 공유 메모리 타일링으로 이 중복을 제거할 것이다. 그때까지는 일단 "동작하는 단순 버전"으로 두는 게 정석이다 ─ 최적화 전에 정확성, 정확성 전에 단순함.</p>
+
+  <h2>3.4 행렬 곱셈: 이 책의 단골 손님</h2>
+  <p>행렬 곱은 GPU 컴퓨팅의 "Hello, World" 너머의 첫 번째 진지한 예제이고, 이 책 전체에 걸쳐 계속 진화한다. 3장에서는 가장 단순한 글로벌 메모리 버전, 5장에서는 공유 메모리 타일링, 6장에서는 메모리 합치기 최적화, 그리고 후반부에서는 텐서 코어 활용까지 ─ 같은 문제를 점점 빠르게 만든다. 그러니 지금 이 단순 버전을 머릿속에 잘 새겨 두자. 이후 모든 비교의 기준선이 된다.</p>
+
+  <p>크기 M×K 행렬 A와 K×N 행렬 B의 곱 C = A·B를 구한다. C의 (row, col) 원소는</p>
+
+  <p style="text-align:center; font-style:italic;">C[row, col] = Σ<sub>k=0..K−1</sub> A[row, k] · B[k, col]</p>
+
+  <p>각 출력 원소가 다른 출력 원소와 독립이라는 점이 보인다. 그러니 한 스레드에 한 C 원소를 맡기는 매핑이 자연스럽다.</p>
+
+  <pre><code>__global__ void matMulNaive(const float* A, const float* B, float* C,
+                            int M, int N, int K) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;   // C의 행
+    int col = blockIdx.x * blockDim.x + threadIdx.x;   // C의 열
+    if (row &gt;= M || col &gt;= N) return;
+
+    float acc = 0.0f;
+    for (int k = 0; k &lt; K; ++k) {
+        acc += A[row * K + k] * B[k * N + col];
+    }
+    C[row * N + col] = acc;
+}
+</code></pre>
+
+  <p>코드는 간결하다. 그러나 성능 분석을 잠깐 해 보자. 출력 원소 한 개를 만들기 위해 A의 한 행(K개)과 B의 한 열(K개)을 글로벌 메모리에서 읽는다. 즉 1번의 출력당 2K번 읽기와 K번 곱셈/덧셈. 산술 강도(FLOP/byte)는 대략 2K FLOP / (8K바이트) = 0.25 FLOP/byte. 너무 낮다. 게다가 인접 출력 원소들 사이에 같은 데이터가 거듭 사용된다 ─ C[row, col]과 C[row, col+1]은 둘 다 같은 A 행을 읽는다. 이 중복이 5장에서 공유 메모리로 제거된다.</p>
+
+  <p>그래도 지금 이 버전으로 1024×1024 행렬을 GPU에서 돌리면 CPU naive 버전보다 한참 빠르다. 무식한 병렬성이 이미 큰 일을 하기 때문이다. 단지 그 무식함이 GPU 성능의 5~10%만 쓰고 있을 뿐이다. 우리의 여정은 이 시작점에서 50%, 80%, 그리고 텐서 코어 시대엔 이론치에 근접한 곳까지 가게 된다.</p>
+
+  <div class="callout warn">
+    <div class="label">함정</div>
+    <p>row/col을 .y/.x에 매핑하는지 .x/.y에 매핑하는지에 따라 메모리 합치기 결과가 정반대가 된다. 위 코드는 col이 .x, row가 .y다 ─ 같은 워프(연속 .x) 안의 스레드들이 C의 같은 행에서 연속된 열을 만지므로 C 쓰기는 합쳐진다. 만약 row를 .x로 바꾸면? 인접 스레드들이 C의 같은 열에서 다른 행을 만지게 되어 메모리 접근이 흩어진다. 이 한 줄 차이로 성능이 4~8배 차이 나는 일이 흔하다. 6장에서 다시 본다.</p>
+  </div>
+
+  <div class="callout good">
+    <div class="label">실습 거리</div>
+    <p>위 커널을 직접 컴파일해 1024×1024 float 행렬에 돌려 보자. CPU 단순 3중 루프와의 시간 차이를 측정해 보면 GPU의 무식한 병렬성이 얼마나 큰지가 체감된다. 동시에 Nsight Compute로 살펴보면 글로벌 메모리 트래픽이 미친 듯이 나오는 것도 확인할 수 있다. 그 두 인상을 갖고 5장에 진입해야 공유 메모리 타일링이 왜 절실한지가 손에 잡힌다.</p>
+  </div>
+
+  <h2>3.5 정리</h2>
+  <p>이 장에서는 1차원 사고에서 다차원 사고로 옮겨갔다. dim3로 그리드와 블록을 잡고, (col, row) = (x, y) 관례로 스레드를 데이터 위에 펼치고, 행 우선 평탄화 <code>row*W + col</code>로 메모리에 접근하는 패턴을 익혔다. 이미지 블러에서는 이웃 픽셀을 읽는 패턴이, 행렬 곱에서는 한 출력 원소가 한 행과 한 열을 모두 훑는 패턴이 나왔다. 두 예제 모두 글로벌 메모리만 쓰는 단순 버전이라 성능은 아직 빛나지 않는다. 4장에서 그 성능이 왜 안 나오는지 ─ GPU 안에서 실제로 어떤 일이 일어나는지 ─ 를 들여다보고, 5장에서 공유 메모리로 드라마틱한 도약을 만든다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>dim3로 1D/2D/3D 그리드와 블록을 자유롭게 구성. 한 블록 최대 1024 스레드.</li>
+      <li>관례: .x = 열(column), .y = 행(row). 인접 워프 스레드가 연속 열을 만지면 메모리 합치기에 유리.</li>
+      <li>2D 평탄화 인덱스: <code>row * W + col</code> (행 우선). 3D는 <code>z*H*W + y*W + x</code>.</li>
+      <li>경계 검사 <code>if (col &lt; W &amp;&amp; row &lt; H)</code>는 그리드를 천장으로 잡았을 때 필수.</li>
+      <li>3×3 블러: 한 출력당 이웃 9개 읽기. 인접 스레드끼리 데이터 중복 → 5장에서 공유 메모리로 해결.</li>
+      <li>naive 행렬 곱 커널은 산술 강도 ~0.25로 메모리 바운드. 이 책의 단골 손님이며 5/6장에서 점진적으로 진화.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch02.html">
+      <span class="dir">← 이전</span>
+      <span>이질 데이터 병렬 컴퓨팅과 CUDA 첫걸음</span>
+    </a>
+    <a href="ch04.html" class="next">
+      <span class="dir">다음 →</span>
+      <span>GPU 아키텍처와 워프 스케줄링</span>
+    </a>
+  </nav>
+</article>
+</body>
+</html>

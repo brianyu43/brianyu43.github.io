@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이산수학 노트 — Mathematics for Computer Science (한글판)</title>
+<style>
+  /* ───────────── 변수 / 테마 ───────────── */
+  :root {
+    --bg: #fafaf7;
+    --bg-elev: #ffffff;
+    --bg-side: #f3f1ec;
+    --text: #1f2937;
+    --text-mute: #6b7280;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --border: #e5e7eb;
+    --shadow: 0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.04);
+    --def-bg: #eef4ff;
+    --def-bd: #4f81d8;
+    --thm-bg: #f3effd;
+    --thm-bd: #6b46c1;
+    --lemma-bg: #f7f3fd;
+    --lemma-bd: #8b5cf6;
+    --corollary-bg: #f1edfb;
+    --corollary-bd: #7c3aed;
+    --example-bg: #ecfaf2;
+    --example-bd: #16a34a;
+    --proof-bg: #f5f5f4;
+    --proof-bd: #a8a29e;
+    --note-bg: #fef9e7;
+    --note-bd: #d97706;
+    --problem-bg: #fdf2f8;
+    --problem-bd: #db2777;
+    --code-bg: #f3f4f6;
+    --code-text: #111827;
+  }
+  [data-theme="dark"] {
+    --bg: #0f172a;
+    --bg-elev: #1e293b;
+    --bg-side: #0b1220;
+    --text: #e5e7eb;
+    --text-mute: #9ca3af;
+    --accent: #818cf8;
+    --accent-soft: #312e81;
+    --border: #334155;
+    --shadow: 0 1px 3px rgba(0,0,0,.4);
+    --def-bg: #1e293b;
+    --def-bd: #60a5fa;
+    --thm-bg: #2a2347;
+    --thm-bd: #a78bfa;
+    --lemma-bg: #2a2347;
+    --lemma-bd: #c4b5fd;
+    --corollary-bg: #2a2347;
+    --corollary-bd: #a78bfa;
+    --example-bg: #1c2e23;
+    --example-bd: #4ade80;
+    --proof-bg: #1c2128;
+    --proof-bd: #6b7280;
+    --note-bg: #2d2410;
+    --note-bd: #fbbf24;
+    --problem-bg: #2a1a23;
+    --problem-bd: #f472b6;
+    --code-bg: #0b1220;
+    --code-text: #e5e7eb;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                 'Noto Sans KR', 'Segoe UI', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ───────────── 레이아웃 ───────────── */
+  #app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ───────────── 사이드바 ───────────── */
+  #sidebar {
+    background: var(--bg-side);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 1.5rem 1.25rem 2rem;
+    font-size: 0.92rem;
+  }
+  #sidebar header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+  }
+  #sidebar header .subtitle {
+    margin: 0.25rem 0 1.25rem;
+    font-size: 0.78rem;
+    color: var(--text-mute);
+  }
+  #sidebar .toolbar {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+  }
+  #search {
+    flex: 1;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elev);
+    color: var(--text);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search:focus { border-color: var(--accent); }
+  #theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    border-radius: 6px;
+    padding: 0 0.6rem;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  #theme-toggle:hover { background: var(--accent-soft); }
+
+  #sidebar nav details {
+    margin-bottom: 0.6rem;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  #sidebar nav summary {
+    cursor: pointer;
+    padding: 0.45rem 0.5rem;
+    font-weight: 600;
+    color: var(--text);
+    list-style: none;
+    user-select: none;
+    border-radius: 5px;
+    transition: background 0.1s;
+  }
+  #sidebar nav summary::-webkit-details-marker { display: none; }
+  #sidebar nav summary:hover { background: var(--accent-soft); }
+  #sidebar nav summary::before {
+    content: "▸";
+    display: inline-block;
+    margin-right: 0.4rem;
+    font-size: 0.75em;
+    color: var(--text-mute);
+    transition: transform 0.15s;
+  }
+  #sidebar nav details[open] summary::before { transform: rotate(90deg); }
+  #sidebar nav .part-tag {
+    font-size: 0.7em;
+    color: var(--text-mute);
+    margin-right: 0.4rem;
+    font-weight: 700;
+  }
+  #sidebar nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.2rem 0 0.4rem 0.4rem;
+  }
+  #sidebar nav li a {
+    display: block;
+    padding: 0.32rem 0.55rem 0.32rem 1.6rem;
+    color: var(--text-mute);
+    text-decoration: none;
+    border-radius: 5px;
+    position: relative;
+    line-height: 1.4;
+    font-size: 0.88rem;
+    transition: background 0.1s, color 0.1s;
+  }
+  #sidebar nav li a .n {
+    position: absolute;
+    left: 0.5rem;
+    top: 0.32rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-mute);
+    font-size: 0.78em;
+    font-weight: 600;
+  }
+  #sidebar nav li a:hover {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+  #sidebar nav li a.active {
+    background: var(--accent);
+    color: white;
+  }
+  #sidebar nav li a.active .n { color: rgba(255,255,255,0.8); }
+  #sidebar nav li.hidden { display: none; }
+
+  #sidebar .attrib {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem;
+    color: var(--text-mute);
+    line-height: 1.5;
+  }
+  #sidebar .attrib p { margin: 0.3rem 0; }
+
+  /* ───────────── 본문 ───────────── */
+  #content {
+    overflow-x: hidden;
+    padding: 3rem 3rem 6rem;
+  }
+  #content > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .chapter, .welcome { display: none; }
+  .chapter.active, .welcome.active { display: block; }
+
+  .welcome {
+    text-align: center;
+    padding-top: 5vh;
+  }
+  .welcome h2 {
+    font-size: 2.4rem;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.03em;
+  }
+  .welcome .lead {
+    font-size: 1.15rem;
+    color: var(--text-mute);
+    max-width: 540px;
+    margin: 0 auto 2rem;
+  }
+  .welcome .parts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 2.5rem 0;
+    text-align: left;
+  }
+  .welcome .part-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.2rem;
+    box-shadow: var(--shadow);
+  }
+  .welcome .part-card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .welcome .part-card .name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+  }
+  .welcome .part-card .summary {
+    font-size: 0.85rem;
+    color: var(--text-mute);
+    line-height: 1.6;
+  }
+
+  /* 챕터 헤더 */
+  .ch-header {
+    margin: 0 0 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .part-label {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .ch-title {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .ch-title .ch-num {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .ch-title .ch-en {
+    font-size: 0.9rem;
+    color: var(--text-mute);
+    font-weight: 500;
+    font-style: italic;
+  }
+  .ch-intro {
+    margin: 1rem 0 0;
+    font-size: 1.05rem;
+    color: var(--text-mute);
+    line-height: 1.7;
+  }
+
+  /* 섹션 헤더 */
+  .sec { margin: 2.5rem 0 0; scroll-margin-top: 2rem; }
+  .sec-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.9rem;
+    line-height: 1.35;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+  .sec-title .sec-num {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+  }
+  .sec-title .sec-en {
+    font-size: 0.78rem;
+    color: var(--text-mute);
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  /* 본문 단락 */
+  .chapter p { margin: 0.85rem 0; }
+  .chapter h4 { margin: 1.5rem 0 0.5rem; font-size: 1.05rem; font-weight: 700; }
+  .chapter ul, .chapter ol { padding-left: 1.5rem; }
+  .chapter li { margin: 0.3rem 0; }
+
+  /* Callout */
+  .callout {
+    margin: 1.2rem 0;
+    padding: 0.9rem 1.1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--def-bd);
+    background: var(--def-bg);
+  }
+  .callout p { margin: 0.4rem 0; }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-label {
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.3rem !important;
+    color: var(--def-bd);
+  }
+  .callout.thm { background: var(--thm-bg); border-color: var(--thm-bd); }
+  .callout.thm .callout-label { color: var(--thm-bd); }
+  .callout.lemma { background: var(--lemma-bg); border-color: var(--lemma-bd); }
+  .callout.lemma .callout-label { color: var(--lemma-bd); }
+  .callout.corollary { background: var(--corollary-bg); border-color: var(--corollary-bd); }
+  .callout.corollary .callout-label { color: var(--corollary-bd); }
+  .callout.example { background: var(--example-bg); border-color: var(--example-bd); }
+  .callout.example .callout-label { color: var(--example-bd); }
+  .callout.proof { background: var(--proof-bg); border-color: var(--proof-bd); }
+  .callout.proof .callout-label { color: var(--proof-bd); font-style: italic; }
+  .callout.note { background: var(--note-bg); border-color: var(--note-bd); }
+  .callout.note .callout-label { color: var(--note-bd); }
+  .callout.problem { background: var(--problem-bg); border-color: var(--problem-bd); }
+  .callout.problem .callout-label { color: var(--problem-bd); }
+  .qed { text-align: right; font-size: 1.1em; margin-top: 0.4rem !important; }
+
+  /* 코드 / pre */
+  code {
+    font-family: 'JetBrains Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 0.9rem 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+  pre.ascii { white-space: pre; line-height: 1.3; }
+
+  /* 표 */
+  .tbl {
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+  }
+  .tbl th, .tbl td {
+    border: 1px solid var(--border);
+    padding: 0.45rem 0.8rem;
+    text-align: center;
+  }
+  .tbl th {
+    background: var(--bg-side);
+    font-weight: 700;
+  }
+
+  /* MathJax 디스플레이 수식 양 옆 여백 */
+  mjx-container[display="true"] { margin: 1rem 0 !important; }
+
+  /* 챕터 하단 네비게이션 */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 4rem 0 0;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav button {
+    flex: 1;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.1s;
+    font-family: inherit;
+  }
+  .chapter-nav button:hover:not(:disabled) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .chapter-nav button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .chapter-nav .label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-mute);
+    margin-bottom: 0.2rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .chapter-nav .title-line { font-weight: 600; }
+
+  /* 모바일 */
+  #menu-toggle { display: none; }
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 1fr; }
+    #sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      width: 86%;
+      max-width: 320px;
+      transform: translateX(-100%);
+      transition: transform 0.2s;
+      z-index: 50;
+      box-shadow: 8px 0 24px rgba(0,0,0,0.15);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #menu-toggle {
+      display: block;
+      position: fixed;
+      top: 1rem; left: 1rem;
+      z-index: 60;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem 0.7rem;
+      font-size: 1.1rem;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    #content { padding: 4rem 1.2rem 4rem; }
+    .ch-title { font-size: 1.5rem; }
+  }
+
+  /* 인쇄 */
+  @media print {
+    #sidebar, .chapter-nav, #menu-toggle { display: none; }
+    #content { padding: 0; }
+    .chapter { display: block !important; page-break-after: always; }
+    .welcome { display: none !important; }
+  }
+
+  /* placeholder for missing chapter */
+  .chapter.placeholder {
+    text-align: center;
+    color: var(--text-mute);
+    padding: 4rem 1rem;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    margin-top: 2rem;
+  }
+</style>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['\\[', '\\]']],
+      processEscapes: true
+    },
+    svg: { fontCache: 'global' },
+    options: {
+      renderActions: {
+        addMenu: []
+      }
+    }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+<button id="menu-toggle" aria-label="메뉴 열기">☰</button>
+<div id="app">
+  <aside id="sidebar">
+    <header>
+      <h1>이산수학</h1>
+      <p class="subtitle">MCS 한글 학습 노트 · 22 chapters</p>
+    </header>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="챕터 검색..." />
+      <button id="theme-toggle" aria-label="테마 전환" title="테마 전환">🌓</button>
+    </div>
+    <nav>
+      <details open>
+        <summary><span class="part-tag">I</span>증명</summary>
+        <ul>
+          <li><a href="#ch1" data-ch="1"><span class="n">1</span>증명이란 무엇인가</a></li>
+          <li><a href="#ch2" data-ch="2"><span class="n">2</span>정렬 원리</a></li>
+          <li><a href="#ch3" data-ch="3"><span class="n">3</span>논리식</a></li>
+          <li><a href="#ch4" data-ch="4"><span class="n">4</span>수학적 데이터 타입</a></li>
+          <li><a href="#ch5" data-ch="5"><span class="n">5</span>수학적 귀납법</a></li>
+          <li><a href="#ch6" data-ch="6"><span class="n">6</span>상태 기계</a></li>
+          <li><a href="#ch7" data-ch="7"><span class="n">7</span>재귀적 데이터 타입</a></li>
+          <li><a href="#ch8" data-ch="8"><span class="n">8</span>무한 집합</a></li>
+        </ul>
+      </details>
+      <details open>
+        <summary><span class="part-tag">II</span>구조</summary>
+        <ul>
+          <li><a href="#ch9" data-ch="9"><span class="n">9</span>정수론</a></li>
+          <li><a href="#ch10" data-ch="10"><span class="n">10</span>유향 그래프와 부분 순서</a></li>
+          <li><a href="#ch11" data-ch="11"><span class="n">11</span>통신 네트워크</a></li>
+          <li><a href="#ch12" data-ch="12"><span class="n">12</span>단순 그래프</a></li>
+          <li><a href="#ch13" data-ch="13"><span class="n">13</span>평면 그래프</a></li>
+        </ul>
+      </details>
+      <details open>
+        <summary><span class="part-tag">III</span>세기</summary>
+        <ul>
+          <li><a href="#ch14" data-ch="14"><span class="n">14</span>합과 점근</a></li>
+          <li><a href="#ch15" data-ch="15"><span class="n">15</span>기수 규칙</a></li>
+          <li><a href="#ch16" data-ch="16"><span class="n">16</span>생성함수</a></li>
+        </ul>
+      </details>
+      <details open>
+        <summary><span class="part-tag">IV</span>확률</summary>
+        <ul>
+          <li><a href="#ch17" data-ch="17"><span class="n">17</span>사건과 확률공간</a></li>
+          <li><a href="#ch18" data-ch="18"><span class="n">18</span>조건부 확률</a></li>
+          <li><a href="#ch19" data-ch="19"><span class="n">19</span>확률변수</a></li>
+          <li><a href="#ch20" data-ch="20"><span class="n">20</span>평균에서의 이탈</a></li>
+          <li><a href="#ch21" data-ch="21"><span class="n">21</span>임의 보행</a></li>
+        </ul>
+      </details>
+      <details open>
+        <summary><span class="part-tag">V</span>점화식</summary>
+        <ul>
+          <li><a href="#ch22" data-ch="22"><span class="n">22</span>점화식</a></li>
+        </ul>
+      </details>
+    </nav>
+    <footer class="attrib">
+      <p>본 문서는 MIT의 <em>Mathematics for Computer Science</em>
+        (Lehman, Leighton, Meyer, CC&nbsp;BY-SA&nbsp;3.0)를 토대로
+        Claude가 한국어로 다시 풀어 쓴 적응작입니다.</p>
+      <p>같은 라이선스(CC&nbsp;BY-SA&nbsp;3.0)로 배포 가능.</p>
+    </footer>
+  </aside>
+
+  <main id="content">
+    <section id="welcome" class="welcome active">
+      <h2>이산수학 노트</h2>
+      <p class="lead">증명, 그래프, 세기, 확률, 점화식 — 컴퓨터과학을 떠받치는 다섯 기둥을 한 권에.</p>
+      <div class="parts-grid">
+        <div class="part-card">
+          <h3>Part I</h3>
+          <div class="name">증명</div>
+          <div class="summary">명제, 귀납, 상태기계, 재귀, 무한집합 — "왜 이 알고리즘이 옳은가?"의 도구함.</div>
+        </div>
+        <div class="part-card">
+          <h3>Part II</h3>
+          <div class="name">구조</div>
+          <div class="summary">정수론과 그래프. RSA, 위상정렬, 4색 정리, 다면체. 이산 세계의 골격.</div>
+        </div>
+        <div class="part-card">
+          <h3>Part III</h3>
+          <div class="name">세기</div>
+          <div class="summary">합과 점근, 카운팅, 생성함수. 알고리즘 분석의 산수.</div>
+        </div>
+        <div class="part-card">
+          <h3>Part IV</h3>
+          <div class="name">확률</div>
+          <div class="summary">표본공간부터 임의 보행까지. 무작위 알고리즘과 데이터 과학의 뼈대.</div>
+        </div>
+        <div class="part-card">
+          <h3>Part V</h3>
+          <div class="name">점화식</div>
+          <div class="summary">분할정복부터 마스터 정리까지. 재귀의 비용을 손에 쥐는 법.</div>
+        </div>
+      </div>
+      <p style="font-size:0.9rem;color:var(--text-mute);margin-top:2rem;">
+        왼쪽 사이드바에서 챕터를 고르거나, 검색창에 키워드를 입력해 보세요.
+        예: <em>증명</em>, <em>RSA</em>, <em>몬티홀</em>, <em>피보나치</em>.
+      </p>
+    </section>
+
+    <!-- CHAPTERS_INSERTED_HERE -->
+
+    <nav class="chapter-nav" id="chapter-nav" hidden>
+      <button id="prev-ch" type="button">
+        <span class="label">이전</span>
+        <span class="title-line" id="prev-ch-title">—</span>
+      </button>
+      <button id="next-ch" type="button">
+        <span class="label">다음</span>
+        <span class="title-line" id="next-ch-title">—</span>
+      </button>
+    </nav>
+  </main>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // 챕터 메타데이터 (사이드바 항목과 동기화)
+  const CHAPTERS = Array.from(document.querySelectorAll('#sidebar nav li a'))
+    .map(a => ({
+      id: a.getAttribute('href').slice(1),
+      n: parseInt(a.dataset.ch, 10),
+      title: a.textContent.replace(/^\d+/, '').trim(),
+      el: a
+    }));
+  CHAPTERS.sort((x, y) => x.n - y.n);
+
+  const content = document.getElementById('content');
+  const welcome = document.getElementById('welcome');
+  const sidebar = document.getElementById('sidebar');
+  const navBar = document.getElementById('chapter-nav');
+  const prevBtn = document.getElementById('prev-ch');
+  const nextBtn = document.getElementById('next-ch');
+  const prevTitle = document.getElementById('prev-ch-title');
+  const nextTitle = document.getElementById('next-ch-title');
+
+  // MathJax 챕터별로 한 번만 typeset
+  const typeset = new Set();
+  function typesetIfNeeded(el) {
+    if (!el || typeset.has(el.id)) return;
+    typeset.add(el.id);
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([el]).catch(err => console.warn('MathJax', err));
+    }
+  }
+
+  function showChapter(hash) {
+    document.querySelectorAll('.chapter, .welcome').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
+
+    let target = null;
+    if (hash && hash !== 'welcome') {
+      target = document.getElementById(hash);
+    }
+    if (!target) {
+      welcome.classList.add('active');
+      navBar.hidden = true;
+      document.title = '이산수학 노트 — MCS 한글판';
+      return;
+    }
+    target.classList.add('active');
+    typesetIfNeeded(target);
+
+    // 사이드바 활성화
+    const link = document.querySelector('#sidebar nav a[href="#' + hash + '"]');
+    if (link) {
+      link.classList.add('active');
+      // 부모 details 열기
+      const det = link.closest('details');
+      if (det && !det.open) det.open = true;
+      // 모바일 사이드바 닫기
+      if (window.innerWidth <= 900) sidebar.classList.remove('open');
+    }
+
+    // 이전/다음 버튼
+    const idx = CHAPTERS.findIndex(c => c.id === hash);
+    if (idx >= 0) {
+      navBar.hidden = false;
+      const prev = CHAPTERS[idx - 1];
+      const next = CHAPTERS[idx + 1];
+      prevBtn.disabled = !prev;
+      nextBtn.disabled = !next;
+      prevTitle.textContent = prev ? `${prev.n}. ${prev.title}` : '—';
+      nextTitle.textContent = next ? `${next.n}. ${next.title}` : '—';
+      prevBtn.onclick = () => prev && (location.hash = '#' + prev.id);
+      nextBtn.onclick = () => next && (location.hash = '#' + next.id);
+      document.title = `${idx+1}. ${CHAPTERS[idx].title} — 이산수학 노트`;
+    } else {
+      navBar.hidden = true;
+    }
+
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  window.addEventListener('hashchange', () => {
+    showChapter(decodeURIComponent(location.hash.slice(1)));
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    showChapter(decodeURIComponent(location.hash.slice(1)) || 'welcome');
+  });
+
+  // 검색
+  const search = document.getElementById('search');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(li => {
+      const txt = li.textContent.toLowerCase();
+      li.classList.toggle('hidden', q && !txt.includes(q));
+    });
+    // 결과 있는 details 자동 펼침
+    if (q) {
+      document.querySelectorAll('#sidebar nav details').forEach(d => {
+        const has = Array.from(d.querySelectorAll('li')).some(li => !li.classList.contains('hidden'));
+        d.open = has;
+      });
+    }
+  });
+
+  // 테마 토글
+  const themeBtn = document.getElementById('theme-toggle');
+  const setTheme = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('mcs-theme', theme); } catch (e) {}
+  };
+  let initialTheme = 'light';
+  try {
+    initialTheme = localStorage.getItem('mcs-theme') ||
+      (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } catch (e) {}
+  setTheme(initialTheme);
+  themeBtn.addEventListener('click', () => {
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+
+  // 모바일 메뉴
+  document.getElementById('menu-toggle').addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  // 키보드 단축키: ←/→ 챕터 이동, / 검색 포커스
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === '/') { e.preventDefault(); search.focus(); }
+    else if (e.key === 'ArrowLeft' && !prevBtn.disabled && !navBar.hidden) prevBtn.click();
+    else if (e.key === 'ArrowRight' && !nextBtn.disabled && !navBar.hidden) nextBtn.click();
+  });
+
+  // 외부 사이드바 클릭으로 모바일 닫기
+  content.addEventListener('click', () => {
+    if (window.innerWidth <= 900) sidebar.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

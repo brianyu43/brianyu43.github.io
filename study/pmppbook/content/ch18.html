@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18장. 케이스 스터디 — 정전 포텐셜 맵 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 18</p>
+    <h1>케이스 스터디 — 정전 포텐셜 맵</h1>
+    <p class="subtitle">분자 위 격자 점에 쿨롱 합을 뿌리는 가장 깔끔한 방법</p>
+  </header>
+
+  <h2>18.1 배경: 분자 시뮬레이션과 ion placement</h2>
+  <p>단백질 분자 동역학(MD, molecular dynamics) 시뮬레이션을 시작하려면, 가장 먼저 시뮬레이션 박스를 물로 가득 채우고 적절한 곳에 이온(Na<sup>+</sup>, Cl<sup>−</sup> 등)을 배치해 전하 균형을 맞춰야 한다. 어디에 두어야 할까? 답은 의외로 간단하다. <strong>정전 포텐셜이 가장 낮은(또는 가장 높은) 곳에 두면 된다</strong>. 양이온은 음의 포텐셜에, 음이온은 양의 포텐셜에 끌린다.</p>
+  <p>그러려면 박스 안에 3차원 격자(grid)를 깔고, 단백질의 모든 원자가 만들어내는 정전 포텐셜을 격자 위에서 계산해야 한다. 이 격자에 컬러맵을 입혀 시각화하는 도구가 VMD(Visual Molecular Dynamics) 같은 프로그램이다. 격자가 충분히 조밀하면 — 0.5 Å 간격, 100 Å 박스라면 200<sup>3</sup> = 8백만 점 — 부드러운 등전위면(isosurface)이 분자 표면 위에 그려진다.</p>
+
+  <p>가장 정직한 계산법이 <strong>direct Coulomb summation</strong>이다. 격자점 g에서의 전위는</p>
+  <p style="text-align:center;font-style:italic">V(g) = Σ<sub>a</sub> q<sub>a</sub> / r<sub>a,g</sub></p>
+  <p>여기서 a는 원자 인덱스, q<sub>a</sub>는 그 전하, r<sub>a,g</sub>는 원자와 격자점의 거리. 원자 N<sub>a</sub>개, 격자점 N<sub>g</sub>개라면 비용은 O(N<sub>a</sub> · N<sub>g</sub>)다. 단백질 큰 거 잡으면 원자가 수만~수십만, 격자점이 수백만이니 곱하면 10<sup>11</sup>~10<sup>12</sup> 회 연산. CPU로는 농담이고, GPU에 잘 태우면 분 단위에 끝난다. 잘 태우는 게 우리 일이다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>정전 포텐셜 계산은 17장 MRI의 F<sup>H</sup>D와 골격이 똑같다. 모든 m(원자/샘플)에서 모든 n(격자점/픽셀)으로의 합. 다만 커널 안 함수가 sin/cos 대신 <code>1/r</code>이고, 데이터 사이즈가 더 커질 수 있어 비닝(binning) 같은 새 도구가 필요해진다.</p>
+  </div>
+
+  <h2>18.2 scatter vs gather — 또 다시</h2>
+  <p>17장과 같은 분기점이다. 두 매핑 중 어느 쪽?</p>
+  <ul>
+    <li><strong>scatter(원자 기준):</strong> 스레드 하나가 원자 a를 맡아, a가 모든 격자점에 만들어내는 기여를 격자에 누적한다. <code>atomicAdd(V[g], ...)</code>가 매 격자점마다 필요하다. 격자점은 수백만 개라, 같은 격자점에 동시 충돌할 확률은 낮지만 — 그래도 atomic이다. atomic 자체의 latency, 그리고 같은 캐시라인에 떨어지는 격자점에 대한 false sharing이 누적된다.</li>
+    <li><strong>gather(격자점 기준):</strong> 스레드 하나가 격자점 g를 맡아, 모든 원자 a를 훑으며 자기 V[g]에 누적한다. atomic 없음. 출력은 자기 자신만 쓴다.</li>
+  </ul>
+  <p>GPU에서는 격자점이 원자보다 훨씬 많고(수백만 vs 수만), gather가 atomic 없이 깔끔하다. <strong>gather를 디폴트로 잡는다</strong>.</p>
+
+  <pre><code>struct Atom { float x, y, z, q; };
+
+__constant__ Atom g_atoms[ATOMS_PER_PASS];   // ~4K개 atoms를 한 번에
+
+__global__ void coulomb_gather(
+    float* __restrict__ V, int Nx, int Ny, int Nz,
+    float h,                       // grid spacing
+    int n_atoms_chunk)
+{
+    int gx = blockIdx.x * blockDim.x + threadIdx.x;
+    int gy = blockIdx.y * blockDim.y + threadIdx.y;
+    int gz = blockIdx.z;
+    if (gx &gt;= Nx || gy &gt;= Ny || gz &gt;= Nz) return;
+
+    float x = gx * h, y = gy * h, z = gz * h;
+    float v = V[(gz*Ny + gy)*Nx + gx];   // 이전 청크 누적
+
+    for (int a = 0; a &lt; n_atoms_chunk; ++a) {
+        float dx = x - g_atoms[a].x;
+        float dy = y - g_atoms[a].y;
+        float dz = z - g_atoms[a].z;
+        float r2 = dx*dx + dy*dy + dz*dz;
+        v += g_atoms[a].q * rsqrtf(r2);
+    }
+    V[(gz*Ny + gy)*Nx + gx] = v;
+}
+</code></pre>
+
+  <p>17장 MRI 커널과 골격이 똑같다. <code>__constant__</code>에 atom을 올리고, 한 번에 못 올리는 양은 <strong>chunking</strong>한다. 베이스라인이 V100급에서 <strong>약 30 GFLOPS</strong> 수준. <code>rsqrtf</code>(역제곱근)는 SFU 인트린식이라 한 사이클에 끝난다. 그래서 17장의 sin/cos 단계 같은 별도 인트린식 단계는 여기서는 이미 디폴트로 들어가 있다.</p>
+
+  <h2>18.3 스레드 코어스닝 — 한 스레드, 여러 격자점</h2>
+  <p>위 커널의 한 가지 비효율은 inner-loop 안에서 <code>g_atoms[a]</code>를 16바이트씩 읽는다는 점이다. 모든 스레드가 같은 a를 동시에 읽으니 broadcast로 해결되어 좋긴 하다. 그러나 같은 atom 데이터를 <strong>스레드마다</strong> 자기 레지스터로 끌어올리는 비용이 매번 든다. 격자점을 1 스레드에 1점이 아니라 <strong>여러 점을 묶어 1 스레드</strong>에 줘 보자.</p>
+  <p>이게 <strong>thread coarsening</strong>이다. 한 스레드가 인접한 격자점 4개(예: gx, gx+1, gx+2, gx+3)를 동시에 처리하면, 같은 atom 데이터를 한 번 레지스터에 올린 뒤 4번 재사용할 수 있다. 레지스터 데이터 재사용률이 4배가 된다.</p>
+
+  <pre><code>__global__ void coulomb_gather_coarse4(
+    float* __restrict__ V, int Nx, int Ny, int Nz, float h, int n_atoms_chunk)
+{
+    int gx0 = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+    int gy  =  blockIdx.y * blockDim.y + threadIdx.y;
+    int gz  =  blockIdx.z;
+    if (gx0 &gt;= Nx || gy &gt;= Ny || gz &gt;= Nz) return;
+
+    float x0 = gx0 * h, y = gy * h, z = gz * h;
+    int base = (gz*Ny + gy)*Nx + gx0;
+
+    float v0 = V[base+0], v1 = V[base+1], v2 = V[base+2], v3 = V[base+3];
+
+    for (int a = 0; a &lt; n_atoms_chunk; ++a) {
+        float ax = g_atoms[a].x, ay = g_atoms[a].y, az = g_atoms[a].z, q = g_atoms[a].q;
+        float dy = y - ay, dz = z - az;
+        float dyz2 = dy*dy + dz*dz;
+
+        float dx0 = x0       - ax;  v0 += q * rsqrtf(dx0*dx0 + dyz2);
+        float dx1 = x0 + h   - ax;  v1 += q * rsqrtf(dx1*dx1 + dyz2);
+        float dx2 = x0 + 2*h - ax;  v2 += q * rsqrtf(dx2*dx2 + dyz2);
+        float dx3 = x0 + 3*h - ax;  v3 += q * rsqrtf(dx3*dx3 + dyz2);
+    }
+    V[base+0]=v0; V[base+1]=v1; V[base+2]=v2; V[base+3]=v3;
+}
+</code></pre>
+
+  <p>이 변환의 효과는 보통 <strong>1.4~1.8배</strong>다. 4배가 안 나오는 이유는, 메모리 트래픽 절감보다는 ALU 효율(특히 dy, dz 차이를 한 번만 계산해 재사용)의 이득이 크고, 그 이득은 4배가 아니기 때문이다. 코어스닝을 8, 16으로 더 늘리면 레지스터 압력이 올라가 occupancy가 떨어지고, 어느 시점부터 손해다. 보통 4가 sweet spot이고, 카드에 따라 8까지 간다.</p>
+
+  <div class="callout warn">
+    <div class="label">너무 굵으면 미끄러진다</div>
+    <p>코어스닝 인자(coarsening factor)를 무한정 키우면, 한 스레드의 레지스터 사용량이 폭증해 SM에 동시에 올라가는 워프 수가 줄고, 결국 메모리 latency를 가릴 워프가 부족해진다. "코어스닝 → speedup → 어느 지점부터 다시 감속"의 종형 곡선이 일반적이다.</p>
+  </div>
+
+  <h2>18.4 메모리 코얼레싱 — 격자 인덱싱을 어떻게 잡을까</h2>
+  <p>위 코드에서 <code>V[base+0..3]</code>는 X축 따라 인접한 4점이다. 워프의 32스레드는 X 방향으로 연속한 32×4 = 128점에 쓰는 셈이고, 이는 정렬되어 있다면 4개의 128B 코얼레스드 트랜잭션으로 처리된다. 좋다.</p>
+  <p>주의해야 할 건 <strong>격자 인덱싱 순서</strong>다. <code>idx = (gz·Ny + gy)·Nx + gx</code>라면 gx가 가장 안쪽 차원, 메모리상 stride 1이다. 워프가 X축에 정렬되어 일하면 쓰기가 코얼레스된다. 만약 인덱싱을 <code>(gx·Ny + gy)·Nz + gz</code>로 잘못 잡으면, 워프 32 스레드가 X 방향으로 32간격 stride로 쓰게 되고 코얼레스가 깨진다. 같은 문제, 같은 알고리즘인데 인덱싱 한 줄에 따라 4~8배 차이가 나는 흔한 함정이다.</p>
+  <p>또 한 가지: <code>blockDim.x</code>를 32의 배수로, X 방향으로 잡는 것이 자연스럽다. 한 워프가 X축으로 정렬되도록. 코어스닝 인자가 4면 워프가 커버하는 X 범위는 32×4 = 128이다. <code>Nx</code>가 128의 배수가 아니라면 가장자리 처리가 까다로워지는데, 이건 일반적으로 패딩(padding)으로 해결한다.</p>
+
+  <h2>18.5 컷오프 비닝 — 데이터가 커질 때의 확장성</h2>
+  <p>지금까지의 알고리즘 비용은 O(N<sub>a</sub> · N<sub>g</sub>). 단백질이 작고 격자도 적당하면 괜찮다. 그런데 시뮬레이션 박스가 커지고 원자가 수십만 개로 늘면 어떻게 될까? GPU가 아무리 빨라도, 박스가 커지면 격자점 수도 함께 커지므로(부피에 비례) 곱셈 비용은 부피의 제곱으로 폭증한다.</p>
+  <p>물리적 직관으로 돌아가자. 멀리 있는 원자의 기여 q/r은 r이 커지면 작아진다. 일정 거리 r<sub>cut</sub> 이상의 원자는 무시해도 영상에 거의 변화가 없다. 이 발상이 <strong>컷오프 비닝(cutoff binning)</strong>이다.</p>
+
+  <p>방법은 이렇다. 박스를 한 변 r<sub>cut</sub>인 작은 격자(spatial bins)로 나눈다. 각 bin 안에 포함되는 원자 인덱스 리스트를 만들어 둔다. 격자점 g를 처리할 때, g가 속한 bin과 그 이웃 bin(3D면 27개)만 순회한다. 각 bin 안에서 r &lt; r<sub>cut</sub> 조건을 추가로 걸어 자른다.</p>
+
+  <div class="figure">
+<pre>
+        bin (i-1, j+1)   bin (i, j+1)   bin (i+1, j+1)
+              |               |               |
+              +-------+-------+-------+-------+
+                      |               |
+        bin (i-1, j)  | bin (i, j)    |  bin (i+1, j)
+              +-------+-------+-------+-------+
+                      |       *g      |
+                      |               |
+        bin (i-1, j-1)| bin (i, j-1)  | bin (i+1, j-1)
+              +-------+-------+-------+-------+
+
+  격자점 *g 는 자기 bin과 8개(3D면 26개) 이웃 bin의
+  원자만 본다. 그 외는 r &gt; r_cut 으로 컷.
+</pre>
+  </div>
+  <p class="figure-caption">그림 18.1 — 2D 단순화. 3D에서는 격자점 하나당 27개 bin만 순회.</p>
+
+  <p>비닝은 비용 구조를 바꾼다. 각 bin 안의 평균 원자 수가 K개라면, 격자점 1개당 비용은 27·K 정도. 박스가 커져도 이 K는 (밀도가 일정하다면) 일정하다. 즉 비용이 <strong>O(N<sub>g</sub>)으로 선형화</strong>된다. r<sub>cut</sub>을 키우면 정확도는 좋아지지만 K가 r<sub>cut</sub><sup>3</sup>으로 늘어 비용이 다시 커진다. 보통 단백질 환경에서 r<sub>cut</sub> = 12 Å 정도가 무난한 경험치다.</p>
+
+  <pre><code>// bin 구조: 각 bin에 atom들을 평탄화해 저장
+struct BinTable {
+    int   bin_start[NX*NY*NZ];   // bin 시작 오프셋
+    int   bin_count[NX*NY*NZ];   // bin 안 atom 수
+    Atom* atom_pool;             // 모든 atom들을 bin 순서로 정렬
+};
+
+__global__ void coulomb_cutoff(
+    float* V, int Nx, int Ny, int Nz, float h,
+    int Bx, int By, int Bz, float bsize,
+    const int* bin_start, const int* bin_count,
+    const Atom* atom_pool, float rcut2)
+{
+    int gx = blockIdx.x*blockDim.x + threadIdx.x;
+    int gy = blockIdx.y*blockDim.y + threadIdx.y;
+    int gz = blockIdx.z;
+    if (gx&gt;=Nx || gy&gt;=Ny || gz&gt;=Nz) return;
+
+    float x = gx*h, y = gy*h, z = gz*h;
+    int bi = (int)(x / bsize);
+    int bj = (int)(y / bsize);
+    int bk = (int)(z / bsize);
+
+    float v = 0.0f;
+    for (int dk=-1; dk&lt;=1; ++dk)
+    for (int dj=-1; dj&lt;=1; ++dj)
+    for (int di=-1; di&lt;=1; ++di) {
+        int i=bi+di, j=bj+dj, k=bk+dk;
+        if (i&lt;0||j&lt;0||k&lt;0||i&gt;=Bx||j&gt;=By||k&gt;=Bz) continue;
+        int b = (k*By + j)*Bx + i;
+        int s = bin_start[b], n = bin_count[b];
+        for (int idx=0; idx&lt;n; ++idx) {
+            Atom a = atom_pool[s+idx];
+            float dx=x-a.x, dy=y-a.y, dz=z-a.z;
+            float r2 = dx*dx + dy*dy + dz*dz;
+            if (r2 &lt; rcut2) v += a.q * rsqrtf(r2);
+        }
+    }
+    V[(gz*Ny + gy)*Nx + gx] = v;
+}
+</code></pre>
+
+  <p>비닝의 정량 효과. 100 Å 박스 / 50K atoms / 200<sup>3</sup> grid 기준, naive O(N<sub>a</sub>·N<sub>g</sub>) = 4×10<sup>11</sup>회. 컷오프 12 Å 비닝은 격자점당 평균 ~600 atom (3D 27 bins × ~22 atoms/bin)이라 총 ~5×10<sup>9</sup>회. <strong>약 80배 감소</strong>다. 박스가 두 배 커지면 naive는 8배 비싸지지만 비닝은 8배(부피 비례). 즉 큰 시스템일수록 비닝의 이점이 더 커진다.</p>
+
+  <div class="callout good">
+    <div class="label">두 길의 만남</div>
+    <p>작은 시스템은 chunked constant-memory + coarsening 방식이 단순하고 빠르다. 큰 시스템은 비닝이 알고리즘 차원에서 이긴다. 둘 다 도구로 가지고 있다가 데이터 사이즈를 보고 고르는 게 실전이다.</p>
+  </div>
+
+  <h2>18.6 정리</h2>
+  <p>17장과 18장은 같은 사고 흐름을 다른 도메인에 두 번 적용한 셈이다. scatter→gather로 atomic을 없애고, 코어스닝과 코얼레싱으로 메모리/ALU 효율을 끌어올리고, constant memory로 broadcast를 활용한다. 거기에 18장에서는 <strong>알고리즘 차원의 무기</strong>를 하나 더 꺼냈다 — 비닝이라는 공간적 자료구조다.</p>
+  <p>핵심 메시지는 두 가지다. 첫째, 같은 도구 박스가 다른 문제에서도 통한다. 둘째, 데이터가 충분히 커지면 마이크로 최적화로는 한계가 있고 알고리즘을 갈아엎어야 한다. 컷오프 비닝은 정확도를 약간 양보하고 확장성을 얻는, 19장에서 다룰 "알고리즘 선택" 의 좋은 예다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>direct Coulomb summation은 격자점 기준 gather 매핑이 atomic을 회피하는 가장 깔끔한 방법.</li>
+      <li>원자 데이터는 constant memory에 chunk 단위로 올려 broadcast 효과를 얻는다.</li>
+      <li>thread coarsening으로 atom 데이터의 레지스터 재사용을 키운다. 보통 4~8이 sweet spot.</li>
+      <li>격자 인덱싱 순서가 코얼레싱을 결정. 가장 안쪽 차원을 X로, blockDim.x를 32의 배수로.</li>
+      <li>대형 시스템은 컷오프 비닝으로 O(N<sub>g</sub>) 선형 비용으로 떨어뜨릴 수 있다 — 알고리즘 차원의 결정.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch17.html"><span class="dir">← 이전</span><span>17장. 케이스 스터디 — 반복적 MRI 재구성</span></a>
+    <a href="ch19.html" class="next"><span class="dir">다음 →</span><span>19장. 병렬 프로그래밍과 컴퓨테이셔널 씽킹</span></a>
+  </nav>
+</article>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>컴파일러 엔지니어링 — 한국어 해설판</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section class="hero">
+  <h1>컴파일러 엔지니어링</h1>
+  <p class="tagline">Engineering a Compiler (2nd Edition) — 재치있게 풀어쓴 한국어 해설판</p>
+  <p class="author">원저: Keith D. Cooper · Linda Torczon (Rice University) · Morgan Kaufmann, 2012</p>
+  <p>이 사이트는 영어 원서를 한국어로 풀어 정리한 학습용 해설입니다. 1대1 직역이 아니라, 핵심 개념을 한국어 독자의 직관에 맞게 다시 짠 강의 노트에 가깝습니다. 챕터별로 들어가서 읽어보세요.</p>
+</section>
+
+<div class="toc-grid">
+
+  <div class="toc-card section-divider"><span class="label">Part I — 프론트엔드</span></div>
+
+  <a class="toc-card" href="chapter-1.html">
+    <div class="num">Chapter 1</div>
+    <div class="title">컴파일 개관</div>
+    <div class="summary">컴파일러는 뭐고, 왜 만들고, 어떤 부품들로 굴러가는가. 큰 그림 한 장.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-2.html">
+    <div class="num">Chapter 2</div>
+    <div class="title">스캐너 (어휘 분석)</div>
+    <div class="summary">소스 코드를 토큰으로 자르는 부품. 정규표현식, NFA, DFA, 그리고 Hopcroft 최소화.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-3.html">
+    <div class="num">Chapter 3</div>
+    <div class="title">파서 (구문 분석)</div>
+    <div class="summary">토큰 흐름에서 문장 구조를 발견하기. 문맥 자유 문법, LL(1), LR(1)의 세계.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-4.html">
+    <div class="num">Chapter 4</div>
+    <div class="title">문맥 의존 분석</div>
+    <div class="summary">타입 시스템, 속성 문법, 의미 분석. "이 문장 문법은 맞는데, 말이 되니?" 검사.</div>
+  </a>
+
+  <div class="toc-card section-divider"><span class="label">Part II — 미들엔드</span></div>
+
+  <a class="toc-card" href="chapter-5.html">
+    <div class="num">Chapter 5</div>
+    <div class="title">중간 표현 (IR)</div>
+    <div class="summary">트리, 그래프, 3-주소 코드, SSA 폼. 컴파일러가 머릿속에 그림 그리는 방식들.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-6.html">
+    <div class="num">Chapter 6</div>
+    <div class="title">프로시저 추상화</div>
+    <div class="summary">함수 호출, 활성 레코드, 이름 공간, 객체 지향 런타임. 스택과 힙의 정치학.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-7.html">
+    <div class="num">Chapter 7</div>
+    <div class="title">코드 모양 만들기</div>
+    <div class="summary">표현식, 배열, 문자열, 제어 흐름, 호출까지 — 소스 구조를 IR로 옮기는 디테일.</div>
+  </a>
+
+  <div class="toc-card section-divider"><span class="label">Part III — 최적화</span></div>
+
+  <a class="toc-card" href="chapter-8.html">
+    <div class="num">Chapter 8</div>
+    <div class="title">최적화 입문</div>
+    <div class="summary">왜 최적화를 하는가, 어디서 어떻게. 지역/지역간/전역/프로시저간 스코프 정리.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-9.html">
+    <div class="num">Chapter 9</div>
+    <div class="title">데이터 흐름 분석</div>
+    <div class="summary">"이 변수 살아있나? 죽었나?" 반복 알고리즘과 SSA 구축, dominance frontier.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-10.html">
+    <div class="num">Chapter 10</div>
+    <div class="title">스칼라 최적화</div>
+    <div class="summary">죽은 코드 제거, 코드 이동, 강도 감소, 특수화. 컴파일러가 하는 잔손질의 백과사전.</div>
+  </a>
+
+  <div class="toc-card section-divider"><span class="label">Part IV — 백엔드</span></div>
+
+  <a class="toc-card" href="chapter-11.html">
+    <div class="num">Chapter 11</div>
+    <div class="title">명령어 선택</div>
+    <div class="summary">트리 패턴 매칭, peephole 최적화. 추상 IR을 실제 ISA로 사상하는 작업.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-12.html">
+    <div class="num">Chapter 12</div>
+    <div class="title">명령어 스케줄링</div>
+    <div class="summary">파이프라인 hazard 피하기. List 스케줄링, trace 스케줄링, software pipelining.</div>
+  </a>
+
+  <a class="toc-card" href="chapter-13.html">
+    <div class="num">Chapter 13</div>
+    <div class="title">레지스터 할당</div>
+    <div class="summary">유한한 레지스터, 무한한 변수. 그래프 색칠하기와 spill 비용의 미학.</div>
+  </a>
+
+  <div class="toc-card section-divider"><span class="label">부록</span></div>
+
+  <a class="toc-card" href="appendix-a.html">
+    <div class="num">Appendix A</div>
+    <div class="title">ILOC 의사 어셈블리</div>
+    <div class="summary">책 전체에서 쓰는 가짜 ISA. RISC 스타일의 깔끔한 학습용 명령어 집합.</div>
+  </a>
+
+  <a class="toc-card" href="appendix-b.html">
+    <div class="num">Appendix B</div>
+    <div class="title">자료 구조</div>
+    <div class="summary">집합 표현, IR 자료구조, 해시 테이블, 심볼 테이블 설계.</div>
+  </a>
+
+</div>
+
+<footer>
+  <p>이 문서는 학습용 한국어 해설입니다. 원서 저작권은 Elsevier / Morgan Kaufmann에 있습니다.</p>
+  <p>웹서버 없이 동작하는 정적 사이트 — 그냥 <code>index.html</code>을 브라우저에 던져 넣으면 됩니다.</p>
+</footer>
+
+</body>
+</html>

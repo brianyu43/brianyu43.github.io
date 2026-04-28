@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>1장 컴파일 개관 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html" class="active">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+
+<main class="content">
+<h1>1장. 컴파일 개관</h1>
+<p class="lead">컴파일러는 뭐고, 왜 만들고, 어떤 부품들로 굴러가는가 — 큰 그림 한 장.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 1–23</span>
+<span><strong>키워드:</strong> compiler, interpreter, front end, optimizer, back end</span>
+</div>
+
+<h2>1.1 들어가며: 컴파일러란 결국 무엇인가</h2>
+
+<p>책 전체를 한 줄로 요약하라면 이렇다. <strong>컴파일러(compiler)는 어떤 언어로 쓰인 프로그램을 다른 언어로 번역하는 프로그램이다.</strong> 그게 다다. 그런데 이 "그게 다"라는 한 줄 뒤에는 수십만 줄의 코드, 수십 개의 알고리즘, 그리고 60년 넘는 시행착오가 쌓여 있다.</p>
+
+<p>왜 굳이 번역이 필요할까? 우리가 작성하는 프로그래밍 언어는 사람이 사고하는 추상 수준에 맞춰 설계되어 있다. "파일에 숫자를 출력해라" 같은 한 문장이 그 예다. 반면 프로세서(processor)가 실제로 실행할 수 있는 연산은 훨씬 더 낮은 수준이다. 그 한 문장을 실제로 굴리려면 수백 개의 기계 명령어가 필요하다. 그 사이의 간극을 메우는 도구가 바로 컴파일러다.</p>
+
+<div class="figure">
+<pre>
+   소스 프로그램  ──▶  ┌──────────┐  ──▶  타깃 프로그램
+                       │ Compiler │
+                       └──────────┘
+</pre>
+<span class="figure-caption">컴파일러를 블랙박스로 본 모습. 들어가는 건 소스, 나오는 건 타깃.</span>
+</div>
+
+<div class="term-box">
+<span class="term">컴파일러</span> <span class="en">(compiler)</span> — 다른 컴퓨터 프로그램을 번역해주는 컴퓨터 프로그램. 보통은 <em>실행 준비</em>를 시켜주는 단계까지 책임진다.
+</div>
+
+<h3>컴파일러 vs 인터프리터</h3>
+
+<p>컴파일러의 사촌 격에 <strong>인터프리터(interpreter)</strong>가 있다. 둘 다 입력 프로그램을 분석해서 의미를 이해하지만, 결과물이 다르다.</p>
+
+<ul>
+<li><strong>컴파일러</strong>: 입력 → "<em>실행 가능한 다른 프로그램</em>"을 만들어준다. 식당으로 치면 레시피를 다른 언어로 번역해주는 사람이다. 요리는 나중에.</li>
+<li><strong>인터프리터</strong>: 입력 → "<em>실행 결과</em>"를 곧장 만들어준다. 레시피 보고 그 자리에서 요리해서 접시에 담아주는 사람이다.</li>
+</ul>
+
+<p>현실에서는 이 둘이 칼같이 갈리지 않는다. 자바(Java)가 대표적인데, 소스를 일단 <em>바이트코드(bytecode)</em>라는 컴팩트한 중간 형태로 컴파일한 다음, JVM이라는 인터프리터 위에서 그 바이트코드를 해석해서 실행한다. 거기에 더해 자주 실행되는 코드는 JIT 컴파일러(just-in-time compiler)가 런타임에 네이티브 코드로 또 한 번 번역한다. 컴파일과 인터프리트가 한 시스템 안에 동거하는 셈이다.</p>
+
+<div class="callout note">
+<div class="callout-title">소스 투 소스 변환기도 컴파일러다</div>
+조판 프로그램이 PostScript를 출력한다면? 그것도 컴파일러다. C로 출력하는 컴파일러? 역시 컴파일러다. 입력이 실행 가능한 명세이고 출력도 실행 가능한 명세라면, 부르는 이름은 자유다. 이런 식으로 사람이 읽을 수 있는 다른 언어를 출력하는 도구를 <em>source-to-source translator</em>라 부른다.
+</div>
+
+<h3>왜 컴파일러를 공부할까</h3>
+
+<p>"요즘 누가 컴파일러를 직접 만드냐"는 회의가 들 수 있다. 그런데 컴파일러 공부의 진짜 가치는 <em>컴파일러를 만들기 위해서</em>가 아니라 <strong>컴퓨터과학의 아이디어가 한 자리에 모이는 곳</strong>이라는 점이다. 한 권 안에 다음이 다 들어 있다.</p>
+
+<ul>
+<li>그리디(greedy) 알고리즘 — 레지스터 할당</li>
+<li>휴리스틱 탐색 — list scheduling</li>
+<li>그래프 알고리즘 — 죽은 코드 제거</li>
+<li>동적 계획법 — 명령어 선택</li>
+<li>유한/푸시다운 오토마타 — 스캐닝과 파싱</li>
+<li>고정점(fixed-point) 알고리즘 — 데이터 흐름 분석</li>
+</ul>
+
+<p>거기에 동적 메모리 할당, 동기화, 지역성, 이름 관리, 메모리 계층, 파이프라인 스케줄링까지. <strong>컴퓨터과학의 축소판</strong>이라 불릴 만하다. 이론이 실제 문제 해결에 어떻게 쓰이는지 보고 싶다면, 컴파일러만큼 좋은 교재가 드물다.</p>
+
+<h3>컴파일러가 지켜야 할 두 가지 원칙</h3>
+
+<div class="callout">
+<div class="callout-title">제1원칙 — 의미 보존</div>
+<strong>컴파일러는 컴파일하는 프로그램의 의미를 반드시 보존해야 한다.</strong>
+</div>
+
+<p>이건 깨질 수 없는 약속이다. 컴파일러가 의미를 자기 마음대로 바꿀 수 있다면, 그냥 <code>nop</code>(아무것도 안 하기)이나 <code>return</code>을 출력해도 되지 않겠는가? 사용자와 컴파일러 작성자 사이의 사회 계약 같은 거다.</p>
+
+<div class="callout">
+<div class="callout-title">제2원칙 — 식별 가능한 개선</div>
+<strong>컴파일러는 입력 프로그램을 식별 가능한 어떤 방식으로든 개선해야 한다.</strong>
+</div>
+
+<p>전통적인 의미에서는 "타깃 머신에서 직접 실행 가능하게" 만들어주는 것이 개선이다. 다른 종류의 컴파일러도 있다. 예를 들어 <code>tpic</code>는 <code>pic</code>으로 쓰인 그림을 LaTeX로 바꿔주는데, 그 "개선"은 LaTeX 환경에서 더 보편적으로 쓸 수 있다는 점이다. 어쨌든 입력보다 어떤 의미로든 나아져야 한다. 안 그러면 왜 굳이 돌리겠는가?</p>
+
+<h2>1.2 컴파일러의 구조</h2>
+
+<p>컴파일러를 한 덩어리 박스로 그렸지만, 실제로는 그 박스 안이 꽤 시끌벅적하다. 사람들이 1955년부터 컴파일러를 만들어 왔고, 그 누적된 경험이 정착시킨 구조가 있다.</p>
+
+<h3>두 단계 구조: 프론트엔드 + 백엔드</h3>
+
+<p>가장 자연스러운 분업은 두 부분으로 나누는 것이다.</p>
+
+<div class="figure">
+<pre>
+                 ┌──────────┐  IR  ┌──────────┐
+   소스 프로그램 ─▶│ Front End├─────▶│ Back End │─▶ 타깃 프로그램
+                 └──────────┘      └──────────┘
+</pre>
+<span class="figure-caption">두 단계 컴파일러: 프론트엔드는 소스를, 백엔드는 타깃을 담당.</span>
+</div>
+
+<ul>
+<li><strong>프론트엔드(front end)</strong>: 소스 언어를 이해하는 데만 집중한다. 문법 검사, 의미 검사, 자료 구조 만들기.</li>
+<li><strong>백엔드(back end)</strong>: 타깃 머신에 코드를 사상(매핑)하는 데만 집중한다. 명령어 선택, 레지스터 할당, 스케줄링.</li>
+</ul>
+
+<p>이 둘을 잇는 다리가 <strong>중간 표현(intermediate representation, IR)</strong>이다. 프론트엔드는 자기가 이해한 내용을 IR로 적어두고, 백엔드는 그 IR만 보고 일한다.</p>
+
+<div class="term-box">
+<span class="term">중간 표현 (IR)</span> <span class="en">(intermediate representation)</span> — 컴파일러가 처리 중인 코드를 표현하는 자료 구조. 프론트엔드와 백엔드가 IR을 통해서만 대화하기 때문에, 한쪽을 바꿔도 다른 쪽이 영향을 받지 않는다.
+</div>
+
+<p>이 분리가 가져다주는 이점은 셋이다.</p>
+
+<ol>
+<li><strong>다중 패스(multi-pass)가 가능해진다.</strong> IR을 여러 번 훑으면서 분석을 깊게 할 수 있다.</li>
+<li><strong>리타기팅(retargeting)이 쉬워진다.</strong> 같은 프론트엔드에 백엔드만 갈아끼우면 새 프로세서를 지원할 수 있다.</li>
+<li><strong>다중 언어 지원이 쉬워진다.</strong> 같은 백엔드에 프론트엔드만 갈아끼우면 다른 언어를 지원할 수 있다.</li>
+</ol>
+
+<h3>세 단계 구조: 가운데 옵티마이저 끼워 넣기</h3>
+
+<p>두 단계 사이에 IR이 있다는 사실이 또 하나의 가능성을 연다. <em>IR을 받아서 더 나은 IR을 내놓는</em> 단계를 끼워 넣을 수 있는 것이다. 이게 <strong>옵티마이저(optimizer)</strong>다.</p>
+
+<div class="figure">
+<pre>
+              ┌─────────┐ IR ┌──────────┐ IR ┌─────────┐
+   소스 ─────▶│Front End├────▶│Optimizer ├────▶│Back End │─────▶ 타깃
+              └─────────┘    └──────────┘    └─────────┘
+</pre>
+<span class="figure-caption">세 단계 컴파일러: 프론트엔드 → 옵티마이저 → 백엔드.</span>
+</div>
+
+<p>옵티마이저는 IR을 입력으로 받아 의미적으로 동등한 IR을 출력한다. 즉 <em>그 자체로도 컴파일러</em>다(우리 정의에 따르면). 일반적으로 프론트엔드와 백엔드를 건드리지 않고 옵티마이저만 추가/수정할 수 있는데, 이는 IR이 인터페이스 역할을 해주기 때문이다.</p>
+
+<div class="callout note">
+<div class="callout-title">"최적화"라는 말의 함정</div>
+"optimization"이라고 하지만, 실제로 <em>최적해</em>를 찾는 게 아니다. 코드 품질에 영향을 주는 변수가 너무 많고, 단계들 사이의 상호작용이 복잡해서 최적해는 사실상 불가능하다. 좋은 옵티마이저는 그저 "최적화 안 한 것보다 나은" 코드를 안정적으로 내놓을 뿐이다. 이름이 약간의 거짓말이라는 걸 잊지 말자.
+</div>
+
+<h3>각 단계 안의 패스들</h3>
+
+<p>실제 컴파일러에서는 각 단계가 또 여러 개의 <em>패스(pass)</em>로 쪼개진다. 책에서 나오는 전형적인 그림은 이렇다.</p>
+
+<div class="figure">
+<pre>
+┌─Front End──────────┐ ┌─Optimizer────────────┐ ┌─Back End────────────────┐
+│ Scanner            │ │ Optimization 1        │ │ Instruction Selection   │
+│ Parser             │ │ Optimization 2        │ │ Instruction Scheduling  │
+│ Elaboration        │ │ ...                   │ │ Register Allocation     │
+└────────────────────┘ └──────────────────────┘ └─────────────────────────┘
+                       Infrastructure (공통 자료구조 / 유틸)
+</pre>
+<span class="figure-caption">Figure 1.1 — 전형적인 컴파일러의 구조.</span>
+</div>
+
+<p>여기서 단계마다의 책임이 바로 이 책의 목차가 된다. 2장은 스캐너, 3장은 파서, 4장은 문맥 의존 분석 — 이게 프론트엔드. 8~10장은 옵티마이저. 11~13장은 백엔드. 큰 그림을 미리 머릿속에 박아두면, 뒷장에서 길을 잃지 않는다.</p>
+
+<h2>1.3 번역의 흐름 따라가보기</h2>
+
+<p>이제 추상적인 박스 그림에 살을 붙일 차례다. 책은 다음 식 하나를 끝까지 끌고 가면서 컴파일러의 모든 단계를 보여준다.</p>
+
+<pre><code>a ← a × 2 × b × c × d</code></pre>
+
+<p>여기서 <code>←</code>는 대입, <code>×</code>는 곱셈이다. 이 한 줄이 어떻게 실행 가능한 기계어가 되는지, 단계별로 따라가보자.</p>
+
+<h3>1.3.1 프론트엔드 — 문법과 의미 검사</h3>
+
+<p>프론트엔드는 두 가지를 한다. 코드의 <strong>형태(syntax, 구문)</strong>와 <strong>의미(semantics)</strong>가 올바른지 검사하는 것. 그리고 올바르다면 IR로 옮긴다.</p>
+
+<h4>스캐너 — 글자에서 단어로</h4>
+
+<p>"Compilers are engineered objects."라는 문장을 이해하려면 먼저 단어를 끊어야 한다. 그게 <strong>스캐너(scanner)</strong>의 일이다. 글자의 흐름을 받아서 분류된 단어의 흐름으로 바꾼다.</p>
+
+<pre><code>(noun, "Compilers"), (verb, "are"), (adjective, "engineered"),
+(noun, "objects"), (endmark, ".")</code></pre>
+
+<p>각 단어에 품사 같은 분류 라벨이 붙는다. 이게 토큰(token) 스트림이다. (실제로는 단어 자체는 해시 테이블에 넣어두고 정수 인덱스로 표현하는 게 일반적이다 — 비교가 빨라지니까.)</p>
+
+<div class="term-box">
+<span class="term">스캐너</span> <span class="en">(scanner)</span> — 글자 스트림을 분류된 단어 스트림으로 변환하는 컴파일러 패스. 어휘 분석(lexical analysis)이라고도 한다.
+</div>
+
+<h4>파서 — 단어에서 문장 구조로</h4>
+
+<p>단어를 잘랐다고 해서 문장이 이해된 건 아니다. <strong>파서(parser)</strong>는 토큰 스트림이 언어의 문법(grammar)에 맞는지 확인하면서, 그 구조를 <em>유도(derivation)</em>로 풀어낸다.</p>
+
+<p>가령 영어 문법 일부를 적어보면:</p>
+
+<pre><code>1  Sentence  →  Subject verb Object endmark
+2  Subject   →  noun
+3  Subject   →  Modifier noun
+4  Object    →  noun
+5  Object    →  Modifier noun
+6  Modifier  →  adjective</code></pre>
+
+<p>"Compilers are engineered objects."는 다음 유도를 따라간다.</p>
+
+<pre><code>—  Sentence
+1  Subject verb Object endmark
+2  noun verb Object endmark
+5  noun verb Modifier noun endmark
+6  noun verb adjective noun endmark</code></pre>
+
+<p>마지막 줄이 스캐너가 만든 토큰 스트림과 정확히 일치한다. 즉 이 문장은 우리 문법의 일원이다. 이런 유도를 자동으로 찾아주는 작업이 <strong>파싱(parsing)</strong>이다.</p>
+
+<div class="term-box">
+<span class="term">파서</span> <span class="en">(parser)</span> — 토큰 스트림이 소스 언어의 문장에 해당하는지 판정하는 컴파일러 패스. 보통 그 과정에서 트리 형태의 구조도 만든다.
+</div>
+
+<h4>타입 검사 — 의미가 통하는지</h4>
+
+<p>문법은 맞는데 말이 안 되는 문장도 있다. "Rocks are green vegetables."는 영어 문법으로는 완벽하지만, 의미는 엉터리다. 컴파일러도 비슷한 일을 한다. <code>a ← a × 2 × b × c × d</code>라는 식이 구문상 멀쩡해도, 만약 <code>b</code>와 <code>d</code>가 문자열이라면 곱셈은 말이 안 된다.</p>
+
+<div class="term-box">
+<span class="term">타입 검사</span> <span class="en">(type checking)</span> — 입력 프로그램에서 이름들이 타입에 맞게 사용되었는지 확인하는 컴파일러 패스.
+</div>
+
+<p>타입 외에도 차원이나 인자 개수 같은 일관성도 본다. 배열을 선언된 차원만큼 인덱싱하고 있는지, 함수 호출의 인자 개수가 정의와 맞는지 등. 자세한 건 4장에서.</p>
+
+<h4>중간 표현 만들기</h4>
+
+<p>프론트엔드의 마지막 일은 검사를 통과한 코드를 IR로 옮기는 것이다. 종류는 다양한데, 그래프 형태도 있고 어셈블리 비슷한 순차적 형태도 있다. 우리 예제 식을 저수준 순차 IR로 적어보면:</p>
+
+<pre><code>t0 ← a × 2
+t1 ← t0 × b
+t2 ← t1 × c
+t3 ← t2 × d
+a  ← t3</code></pre>
+
+<p>임시 변수 <code>t0, t1, ...</code>를 도입해 큰 식을 작은 단계로 쪼갰다. 이런 형태를 <em>3-주소 코드(three-address code)</em>라고 부른다. 한 명령에 최대 세 개의 주소(피연산자 둘 + 결과 하나)가 들어간다는 뜻이다.</p>
+
+<h3>1.3.2 옵티마이저 — 문맥을 보고 다듬기</h3>
+
+<p>프론트엔드가 만든 IR은 한 문장씩 정직하게 옮긴 결과다. 즉 <em>주변 문맥</em>을 전혀 활용하지 않는다. 옵티마이저는 그 문맥을 살펴서 같은 답을 더 효율적으로 계산하는 코드로 다시 쓴다.</p>
+
+<p>예를 들어 우리 식이 다음 같은 루프 안에 있다고 해보자.</p>
+
+<div class="figure">
+<pre>
+(a) 원본                       (b) 개선
+b ← ...                       b ← ...
+c ← ...                       c ← ...
+a ← 1                         a ← 1
+for i = 1 to n                t ← 2 × b × c
+  read d                      for i = 1 to n
+  a ← a × 2 × b × c × d         read d
+  end                           a ← a × d × t
+                                end
+</pre>
+<span class="figure-caption">Figure 1.2 — 문맥이 차이를 만든다.</span>
+</div>
+
+<p>루프 안에서 <code>2</code>, <code>b</code>, <code>c</code>는 변하지 않는다. 그러니 <code>2 × b × c</code>는 루프 밖에서 한 번만 계산해서 임시 변수 <code>t</code>에 넣어두면 된다. 곱셈 횟수가 <code>4n</code>에서 <code>2n + 2</code>로 줄어든다. <code>n</code>이 클수록 더 빨라진다.</p>
+
+<div class="callout note">
+<div class="callout-title">분석과 변환의 짝</div>
+대부분의 최적화는 <strong>분석(analysis)</strong>과 <strong>변환(transformation)</strong>의 두 단계로 이루어진다. 분석이 "이 변환을 안전하게/이득 있게 적용할 수 있나?"를 따지고, 변환이 실제로 코드를 다시 쓴다. 데이터 흐름 분석(data-flow analysis), 의존성 분석(dependence analysis) 같은 도구들이 분석 쪽의 주력 무기다. 9장에서 자세히 다룬다.
+</div>
+
+<p>"효율"이라는 말 자체도 다양한 의미를 가진다. 실행 시간을 줄이는 게 고전적이지만, 코드 크기, 소비 전력, 페이지 폴트 횟수까지 — 어떤 것이든 최적화의 목표가 될 수 있다.</p>
+
+<h3>1.3.3 백엔드 — 진짜 기계로 내려가기</h3>
+
+<p>백엔드는 IR을 실제 타깃 머신의 명령어로 옮긴다. 책 전체에서는 <strong>ILOC</strong>이라는 학습용 가짜 ISA를 쓴다. RISC 스타일의 깔끔한 어셈블리 언어라고 생각하면 된다.</p>
+
+<div class="callout">
+<div class="callout-title">ILOC 한눈에 보기</div>
+연산자, 피연산자, 화살표, 결과 순서로 적는다. 예: <code>add r1, r2 ⇒ r3</code>는 "<code>r1</code>과 <code>r2</code>를 더해서 <code>r3</code>에"라는 뜻. 화살표 <code>⇒</code>는 "왼쪽에서 오른쪽으로 흐른다"는 시각적 단서. 메모리 접근은 <code>loadAI</code>(load with address immediate), <code>storeAI</code> 같은 명령으로. 부록 A에 전체 명세가 있다.
+</div>
+
+<h4>명령어 선택 — IR을 ILOC으로</h4>
+
+<p>우리 예제 IR을 ILOC으로 옮기면 대략 이렇게 된다.</p>
+
+<pre><code>loadAI  rarp, @a ⇒ ra      // 'a' 적재
+loadI   2        ⇒ r2      // 상수 2
+loadAI  rarp, @b ⇒ rb      // 'b' 적재
+loadAI  rarp, @c ⇒ rc      // 'c' 적재
+loadAI  rarp, @d ⇒ rd      // 'd' 적재
+mult    ra, r2   ⇒ ra      // ra ← a × 2
+mult    ra, rb   ⇒ ra      // ra ← (a × 2) × b
+mult    ra, rc   ⇒ ra      // ra ← (a × 2 × b) × c
+mult    ra, rd   ⇒ ra      // ra ← (a × 2 × b × c) × d
+storeAI ra       ⇒ rarp, @a // 결과 저장</code></pre>
+
+<p><code>rarp</code>는 활성 레코드(activation record)의 시작 주소가 들어 있는 레지스터고, <code>@a</code>는 거기에서 변수 <code>a</code>까지의 오프셋이다. 이 단계에서는 <strong>가상 레지스터(virtual register)</strong>를 무한히 가정한다. 실제 레지스터 개수는 다음 단계가 책임진다.</p>
+
+<p>똑똑한 명령어 선택기라면 <code>loadI 2</code>와 <code>mult ra, r2</code>를 합쳐서 <code>multI ra, 2 ⇒ ra</code>(상수 곱셈) 한 줄로 줄일 수도 있다. 이런 패턴 매칭이 11장 주제다.</p>
+
+<h4>레지스터 할당 — 무한 가정에서 현실로</h4>
+
+<p>가상 레지스터를 6개 썼다고 해서 실제 레지스터를 6개 점유해야 하는 건 아니다. 이름은 다르지만 <em>동시에 살아있지 않으면</em> 같은 레지스터에 매핑할 수 있다. 레지스터 할당기(register allocator)는 이 매핑을 책임진다.</p>
+
+<p>잘 짜면 같은 코드를 3개 레지스터로도 표현할 수 있다.</p>
+
+<pre><code>loadAI  rarp, @a ⇒ r1
+add     r1, r1   ⇒ r1      // r1 ← a × 2
+loadAI  rarp, @b ⇒ r2
+mult    r1, r2   ⇒ r1      // (a × 2) × b
+loadAI  rarp, @c ⇒ r2
+mult    r1, r2   ⇒ r1
+loadAI  rarp, @d ⇒ r2
+mult    r1, r2   ⇒ r1
+storeAI r1       ⇒ rarp, @a</code></pre>
+
+<div class="callout warn">
+<div class="callout-title">레지스터 줄이기가 항상 좋은 건 아니다</div>
+레지스터 사용을 최소화하면 다른 최적화 기회를 막을 수 있다. 예컨대 근처에서 <code>a × 2</code>를 또 쓴다면, 값을 레지스터에 보존해 두는 편이 재계산보다 낫다. 레지스터 할당은 단순한 절약이 아니라 <em>균형</em>의 문제다. 13장에서 그래프 색칠 기반 알고리즘으로 풀어낸다.
+</div>
+
+<h4>명령어 스케줄링 — 시간을 절약하기</h4>
+
+<p>명령어마다 실행 시간이 다르다. 메모리 접근은 수십~수백 사이클이 걸릴 수 있고, 곱셈/나눗셈은 몇 사이클, 단순 산술은 한 사이클. 게다가 현대 프로세서는 여러 명령어를 겹쳐서 실행할 수 있다 — 다만 <em>의존성</em>이 없을 때 얘기다.</p>
+
+<p>책 예제에서 <code>loadAI</code>를 3사이클, <code>mult</code>를 2사이클, 나머지를 1사이클로 가정하면, 위 코드는 22사이클이 든다. 그런데 똑같은 결과를 내면서 명령어 순서만 바꾸면…</p>
+
+<pre><code>loadAI  rarp, @a ⇒ r1     // cycle 1-3
+loadAI  rarp, @b ⇒ r2     // cycle 2-4
+loadAI  rarp, @c ⇒ r3     // cycle 3-5
+add     r1, r1   ⇒ r1     // cycle 4
+mult    r1, r2   ⇒ r1     // cycle 5-6
+loadAI  rarp, @d ⇒ r2     // cycle 6-8
+mult    r1, r3   ⇒ r1     // cycle 7-8
+mult    r1, r2   ⇒ r1     // cycle 9-10
+storeAI r1       ⇒ rarp, @a // cycle 11-13</code></pre>
+
+<p>13사이클로 줄어든다. <strong>적재(load)를 일찍 시작</strong>해서 그 결과가 필요해질 때쯤이면 도착해 있도록 줄세운 것이다. 이게 <strong>명령어 스케줄링(instruction scheduling)</strong>이다. 12장 주제.</p>
+
+<h4>코드 생성 단계들의 상호작용</h4>
+
+<p>여기서 진짜 어려운 문제가 드러난다. <em>이 세 단계가 서로 영향을 준다</em>는 점이다.</p>
+
+<ul>
+<li>스케줄러가 <code>load</code>를 일찍 빼면 그 값이 살아있는 구간이 길어진다 → 레지스터를 더 오래 쓴다.</li>
+<li>레지스터 할당이 같은 레지스터를 재사용하면 가짜 의존성(false dependence)이 생긴다 → 스케줄러가 명령어를 못 옮긴다.</li>
+</ul>
+
+<p>한 단계의 최선이 다른 단계의 발목을 잡는다. 그래서 백엔드 설계는 항상 트레이드오프 게임이다.</p>
+
+<h2>1.4 요약과 관점</h2>
+
+<p>컴파일러는 단순한 변환기가 아니다. 형식 언어 이론, 알고리즘, 인공지능, 시스템 설계, 컴퓨터 구조, 프로그래밍 언어 이론 — 컴퓨터과학 거의 모든 분야가 모이는 교차로다.</p>
+
+<p>이 모든 걸 정리하기 위해 우리는 컴파일러를 세 단계로 본다.</p>
+
+<table>
+<thead>
+<tr><th>단계</th><th>주된 일</th><th>주력 무기</th><th>다루는 장</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>프론트엔드</strong></td><td>소스를 IR로</td><td>형식 언어 이론, 타입 이론</td><td>2~4</td></tr>
+<tr><td><strong>옵티마이저</strong></td><td>IR을 더 좋은 IR로</td><td>분석, 변환, 데이터 흐름</td><td>8~10</td></tr>
+<tr><td><strong>백엔드</strong></td><td>IR을 실제 ISA로</td><td>매칭, 할당, 스케줄링</td><td>11~13</td></tr>
+</tbody>
+</table>
+
+<p>5~7장은 이 셋을 잇는 받침대 역할이다. 중간 표현, 프로시저 추상화, 코드 모양 — 본격적인 최적화와 코드 생성에 들어가기 전에 알아둬야 할 토대들이다.</p>
+
+<div class="callout">
+<div class="callout-title">앞으로의 여정</div>
+1장은 박물관 입구의 안내판 같은 거다. 뒤따라올 12개 장은 각각 박물관의 한 방을 깊이 있게 보여줄 것이다. 큰 그림이 흐려지면 언제든 이 1장으로 돌아오자. 분류함의 라벨 같은 역할을 해줄 거다.
+</div>
+
+<h3>한 줄 요약</h3>
+
+<p><strong>컴파일러 = (프론트엔드: 이해) + (옵티마이저: 다듬기) + (백엔드: 기계로 내리기)</strong>. 그리고 이 셋을 IR이라는 다리가 잇는다. 다음 장부터는 이 다리의 양쪽 끝을 하나씩 파헤쳐 보자.</p>
+
+<div class="chapter-nav">
+<a href="index.html"><span class="label">← 목차</span><span>전체 목록</span></a>
+<a href="chapter-2.html" class="next-link"><span class="label">다음 →</span><span>2장. 스캐너</span></a>
+</div>
+
+</main>
+</div>
+
+</body>
+</html>

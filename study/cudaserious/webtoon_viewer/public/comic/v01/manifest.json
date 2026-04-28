@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-04-24T04:35:24.855Z",
+  "id": "V01",
+  "title": "GPU 부서 첫 출근",
+  "subtitle": "CUDA Programming Model · Thread · Block · Grid",
+  "totalPanels": 20,
+  "panels": [
+    {
+      "index": 1,
+      "title": "V01. GPU 부서 첫 출근",
+      "src": "/comic/v01/final/001.webp",
+      "base": "/comic/v01/base/001.png",
+      "point": "CUDA의 첫 감각: 병렬화 = 많은 실행자 + 정확한 주소 계산."
+    },
+    {
+      "index": 2,
+      "title": "CPU 길 vs GPU 도시",
+      "src": "/comic/v01/final/002.webp",
+      "base": "/comic/v01/base/002.png",
+      "point": "CPU는 latency-oriented, GPU는 throughput-oriented."
+    },
+    {
+      "index": 3,
+      "title": "SPMD: 같은 명령, 다른 데이터",
+      "src": "/comic/v01/final/003.webp",
+      "base": "/comic/v01/base/003.png",
+      "point": "kernel 코드는 하나지만 각 thread의 좌표가 다른 데이터를 선택한다."
+    },
+    {
+      "index": 4,
+      "title": "CUDA 프로그램 5단계",
+      "src": "/comic/v01/final/004.webp",
+      "base": "/comic/v01/base/004.png",
+      "point": "처음엔 API보다 흐름을 외우는 게 빠르다: allocate → copy → launch → copy → free."
+    },
+    {
+      "index": 5,
+      "title": "Grid · Block · Thread",
+      "src": "/comic/v01/final/005.webp",
+      "base": "/comic/v01/base/005.png",
+      "point": "CUDA 좌표계는 계층적이다. gridDim, blockDim, blockIdx, threadIdx."
+    },
+    {
+      "index": 6,
+      "title": "1D Global Index",
+      "src": "/comic/v01/final/006.webp",
+      "base": "/comic/v01/base/006.png",
+      "point": "대부분의 CUDA 입문 버그는 index 계산에서 시작한다."
+    },
+    {
+      "index": 7,
+      "title": "Warp는 32-thread 실행 묶음",
+      "src": "/comic/v01/final/007.webp",
+      "base": "/comic/v01/base/007.png",
+      "point": "thread를 하나씩 상상하지 말고 warp 단위로 실행을 상상하자."
+    },
+    {
+      "index": 8,
+      "title": "Branch Divergence",
+      "src": "/comic/v01/final/008.webp",
+      "base": "/comic/v01/base/008.png",
+      "point": "warp 내부 분기는 가능한 한 같은 방향으로 맞추는 것이 좋다."
+    },
+    {
+      "index": 9,
+      "title": "Occupancy와 지연 숨기기",
+      "src": "/comic/v01/final/009.webp",
+      "base": "/comic/v01/base/009.png",
+      "point": "occupancy는 목표가 아니라 지연을 숨기는 수단이다."
+    },
+    {
+      "index": 10,
+      "title": "Memory Hierarchy",
+      "src": "/comic/v01/final/010.webp",
+      "base": "/comic/v01/base/010.png",
+      "point": "GPU 최적화의 절반은 데이터를 어디에 둘지 정하는 일이다."
+    },
+    {
+      "index": 11,
+      "title": "Coalescing",
+      "src": "/comic/v01/final/011.webp",
+      "base": "/comic/v01/base/011.png",
+      "point": "global memory 접근은 coalesced access가 기본 목표다."
+    },
+    {
+      "index": 12,
+      "title": "Shared Memory Tiling",
+      "src": "/comic/v01/final/012.webp",
+      "base": "/comic/v01/base/012.png",
+      "point": "tiling은 bandwidth를 줄이고 data reuse를 늘리는 대표 패턴이다."
+    },
+    {
+      "index": 13,
+      "title": "Bank Conflict",
+      "src": "/comic/v01/final/013.webp",
+      "base": "/comic/v01/base/013.png",
+      "point": "shared memory도 공짜가 아니다. bank conflict를 확인하자."
+    },
+    {
+      "index": 14,
+      "title": "Convolution · Stencil",
+      "src": "/comic/v01/final/014.webp",
+      "base": "/comic/v01/base/014.png",
+      "point": "neighbor access 패턴은 shared memory tile과 잘 어울린다."
+    },
+    {
+      "index": 15,
+      "title": "Reduction",
+      "src": "/comic/v01/final/015.webp",
+      "base": "/comic/v01/base/015.png",
+      "point": "reduction은 병렬 primitive의 기본기다."
+    },
+    {
+      "index": 16,
+      "title": "Prefix Sum · Scan",
+      "src": "/comic/v01/final/016.webp",
+      "base": "/comic/v01/base/016.png",
+      "point": "scan은 ‘누적 위치 계산’이 필요한 곳에서 반복해서 나온다."
+    },
+    {
+      "index": 17,
+      "title": "Histogram · Atomic",
+      "src": "/comic/v01/final/017.webp",
+      "base": "/comic/v01/base/017.png",
+      "point": "atomic은 correctness 도구이지만 contention을 줄여야 성능이 산다."
+    },
+    {
+      "index": 18,
+      "title": "V01 핵심 정리",
+      "src": "/comic/v01/final/018.webp",
+      "base": "/comic/v01/base/018.png",
+      "point": "입문자의 목표: index, warp, memory hierarchy를 한 장면으로 떠올리기."
+    },
+    {
+      "index": 19,
+      "title": "다음 문: SM 내부",
+      "src": "/comic/v01/final/019.webp",
+      "base": "/comic/v01/base/019.png",
+      "point": "V02 예고: GPU architecture를 정량적으로 보기."
+    },
+    {
+      "index": 20,
+      "title": "Cliffhanger",
+      "src": "/comic/v01/final/020.webp",
+      "base": "/comic/v01/base/020.png",
+      "point": "다음 에피소드: V02 GPU Architecture."
+    }
+  ]
+}

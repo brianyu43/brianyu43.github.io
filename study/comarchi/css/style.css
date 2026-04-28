@@ -1,0 +1,546 @@
+/* ============================================
+   컴퓨터 구조 RISC-V판 - 전체 스타일
+   ============================================ */
+
+:root {
+  --bg: #fafaf7;
+  --bg-elev: #ffffff;
+  --bg-soft: #f1efe8;
+  --text: #1c1c1c;
+  --text-muted: #5a5a5a;
+  --accent: #c0392b;
+  --accent-soft: #fef0ee;
+  --border: #e2ddd1;
+  --code-bg: #2d2a26;
+  --code-text: #f5e9c8;
+  --warn-bg: #fff8e1;
+  --warn-border: #f0c14b;
+  --info-bg: #e8f4fd;
+  --info-border: #5fa8d3;
+  --success-bg: #e7f6ec;
+  --success-border: #4caf50;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  --radius: 10px;
+  --max-w: 880px;
+}
+
+[data-theme="dark"] {
+  --bg: #16181d;
+  --bg-elev: #1f2228;
+  --bg-soft: #262a31;
+  --text: #e8e6e1;
+  --text-muted: #a0a0a0;
+  --accent: #ff7a6c;
+  --accent-soft: #3a1f1c;
+  --border: #2f343c;
+  --code-bg: #0e1014;
+  --code-text: #f5e9c8;
+  --warn-bg: #3a3416;
+  --warn-border: #b58a30;
+  --info-bg: #16303f;
+  --info-border: #4a90c2;
+  --success-bg: #15331f;
+  --success-border: #3a7c4a;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  font-size: 16.5px;
+  transition: background .25s ease, color .25s ease;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+  transition: border-color .15s ease;
+}
+a:hover { border-bottom-color: var(--accent); }
+
+/* ============================================
+   상단 네비게이션
+   ============================================ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand {
+  font-weight: 700;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  border: none;
+}
+.brand .badge {
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.nav-links {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.nav-links a {
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  transition: background .15s ease, color .15s ease;
+}
+.nav-links a:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.nav-links a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.nav-links a.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.theme-toggle {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background .15s ease;
+}
+.theme-toggle:hover { background: var(--border); }
+
+/* ============================================
+   메인 레이아웃
+   ============================================ */
+main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 40px 24px 120px;
+}
+
+.hero {
+  padding: 60px 0 40px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 50px;
+}
+.hero h1 {
+  font-size: 42px;
+  margin: 0 0 12px;
+  letter-spacing: -0.5px;
+}
+.hero .subtitle {
+  color: var(--text-muted);
+  font-size: 18px;
+  margin: 0;
+}
+.hero .quote {
+  margin-top: 30px;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+/* ============================================
+   챕터 카드 (인덱스 페이지)
+   ============================================ */
+.chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 30px;
+}
+.chapter-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  border-bottom: 1px solid var(--border);
+}
+.chapter-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+}
+.chapter-card.coming-soon {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.chapter-card.coming-soon:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border);
+}
+.chapter-card .num {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.chapter-card h3 {
+  margin: 6px 0 10px;
+  font-size: 19px;
+}
+.chapter-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.chapter-card .tag {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 11px;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.chapter-card.available .tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ============================================
+   챕터 본문 타이포그래피
+   ============================================ */
+.chapter-header {
+  padding-bottom: 28px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 36px;
+}
+.chapter-header .ch-num {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.chapter-header h1 {
+  font-size: 36px;
+  margin: 8px 0 6px;
+  letter-spacing: -0.5px;
+}
+.chapter-header .ch-subtitle {
+  color: var(--text-muted);
+  font-size: 17px;
+  margin: 0;
+}
+
+h2 {
+  font-size: 26px;
+  margin: 60px 0 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+  letter-spacing: -0.3px;
+}
+h2:first-of-type { border-top: none; padding-top: 0; }
+
+h3 {
+  font-size: 19px;
+  margin: 36px 0 12px;
+  color: var(--text);
+}
+
+h4 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+p { margin: 0 0 18px; }
+
+ul, ol { padding-left: 24px; }
+li { margin-bottom: 6px; }
+
+strong { color: var(--text); font-weight: 700; }
+
+/* ============================================
+   인용/콜아웃 박스
+   ============================================ */
+blockquote {
+  margin: 24px 0;
+  padding: 14px 20px;
+  border-left: 4px solid var(--accent);
+  background: var(--bg-soft);
+  font-style: italic;
+  color: var(--text-muted);
+  border-radius: 0 6px 6px 0;
+}
+blockquote cite {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--text-muted);
+}
+
+.callout {
+  margin: 24px 0;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border-left: 4px solid;
+}
+.callout-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.callout p:last-child { margin-bottom: 0; }
+
+.callout.principle {
+  background: var(--info-bg);
+  border-left-color: var(--info-border);
+}
+.callout.principle .callout-title { color: var(--info-border); }
+
+.callout.hwsw {
+  background: var(--success-bg);
+  border-left-color: var(--success-border);
+}
+.callout.hwsw .callout-title { color: var(--success-border); }
+
+.callout.bigpic {
+  background: var(--warn-bg);
+  border-left-color: var(--warn-border);
+}
+.callout.bigpic .callout-title { color: #b58a30; }
+
+.callout.check {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+.callout.check .callout-title { color: var(--accent); }
+
+.callout.witty {
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg-soft));
+  border-left-color: var(--accent);
+  font-size: 15px;
+}
+.callout.witty .callout-title { color: var(--accent); }
+
+/* ============================================
+   코드 블록
+   ============================================ */
+code {
+  font-family: 'JetBrains Mono', 'D2Coding', 'SF Mono', Menlo, monospace;
+  font-size: 14px;
+  background: var(--bg-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 18px 0;
+}
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+.code-comment { color: #8a9b80; font-style: italic; }
+.code-keyword { color: #ffb86c; }
+.code-reg     { color: #82aaff; }
+.code-num     { color: #f78c6c; }
+
+/* ============================================
+   표
+   ============================================ */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 20px 0;
+  font-size: 14px;
+  background: var(--bg-elev);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+th, td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  background: var(--bg-soft);
+  font-weight: 700;
+  color: var(--text);
+}
+tr:last-child td { border-bottom: none; }
+
+.fmt-table {
+  font-family: 'JetBrains Mono', monospace;
+  text-align: center;
+  font-size: 13px;
+}
+.fmt-table th, .fmt-table td {
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+/* ============================================
+   용어 정의
+   ============================================ */
+.term {
+  background: var(--bg-soft);
+  padding: 14px 18px;
+  border-radius: 6px;
+  margin: 16px 0;
+  border-left: 3px solid var(--accent);
+}
+.term dt {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+.term dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   목차 (사이드)
+   ============================================ */
+.toc {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin: 0 0 40px;
+}
+.toc-title {
+  font-weight: 700;
+  margin-bottom: 10px;
+  font-size: 15px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.toc ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.toc li { margin-bottom: 4px; }
+.toc a {
+  color: var(--text);
+  border-bottom: none;
+  font-size: 14.5px;
+}
+.toc a:hover { color: var(--accent); }
+
+/* ============================================
+   챕터 푸터 네비
+   ============================================ */
+.chapter-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 80px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  gap: 16px;
+}
+.chapter-nav a {
+  flex: 1;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  transition: border-color .15s ease, transform .15s ease;
+}
+.chapter-nav a:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.chapter-nav a.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.chapter-nav .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.chapter-nav .title { font-weight: 600; margin-top: 4px; }
+.chapter-nav .next { text-align: right; }
+
+/* ============================================
+   사이트 푸터
+   ============================================ */
+.site-footer {
+  text-align: center;
+  padding: 30px 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+
+/* ============================================
+   반응형
+   ============================================ */
+@media (max-width: 640px) {
+  .hero h1 { font-size: 32px; }
+  .chapter-header h1 { font-size: 28px; }
+  h2 { font-size: 22px; }
+  main { padding: 30px 18px 80px; }
+  .topbar-inner { padding: 12px 18px; }
+  .nav-links { gap: 2px; }
+  .nav-links a { padding: 5px 8px; font-size: 13px; }
+}

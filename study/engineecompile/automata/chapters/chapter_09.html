@@ -1,0 +1,189 @@
+<article class="chapter" data-chapter="9" id="ch-9">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 9</span>
+    <h2 class="chapter-title">환원성 — 결정 불가능성의 전염</h2>
+    <p class="chapter-subtitle">A<sub>TM</sub>이라는 한 알의 잉크가 어떻게 계산 이론 전체를 물들이는가</p>
+  </header>
+
+  <section>
+    <h3>1. 환원이라는 사고방식</h3>
+    <p>지난 강의에서 우리는 A<sub>TM</sub> = { ⟨M, w⟩ : M이 w를 수락한다 }가 결정 불가능함을 대각선 논법으로 증명하였다. 그러나 결정 불가능한 문제가 세상에 단 하나뿐일 리는 없다. 만약 어떤 새로운 문제 B를 마주쳤을 때 또다시 대각선 논법을 처음부터 펼쳐야 한다면, 이론은 매우 비효율적인 학문이 될 것이다. 다행히 우리에게는 더 영리한 무기가 있다 — 바로 <strong>환원(reduction)</strong>이다.</p>
+
+    <p>환원의 직관은 이중적이다. 한편으로는 "어려운 문제를 쉬운 문제로 풀어버리기"이고, 다른 한편으로는 "쉬운 문제의 결정 불가능성을 어려운 문제로 끌어올리기"이다. 일상에서 길을 잃었을 때 우리는 도로 주소를 GPS 좌표로 환원해 길찾기 알고리즘에 넘긴다. 알고리즘 설계자에게 환원은 도구이지만, 결정 불가능성을 증명하려는 우리에게 환원은 무기다. 만약 A를 푸는 일이 B를 푸는 일로 변환된다면, B를 푸는 기계가 있을 경우 A도 풀 수 있다. 따라서 A가 풀리지 않는다면 B도 풀릴 수 없다. 한 줄의 대우가 결정 불가능성을 폭포처럼 퍼뜨린다.</p>
+
+    <div class="aside">
+      <p>"문제 A는 문제 B만큼 어렵다"라는 일상어를 형식화한 것이 환원이다. 정확히는 "A는 B만큼 어렵거나 그보다 쉽다"이다. 부등호의 방향에 늘 주의하자 — 학생들이 가장 자주 헷갈리는 지점이다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>2. 매핑 환원의 정의</h3>
+    <p>여러 종류의 환원 가운데 가장 깔끔한 것이 매핑 환원이다. 입력을 입력으로 변환하는 단순한 함수 하나로 모든 의미가 끝난다.</p>
+
+    <div class="definition">
+      <p><strong>정의 9.1 (계산 가능 함수).</strong> 함수 f : Σ* → Σ*가 <em>계산 가능(computable)</em>하다는 것은, 모든 입력 w에 대해 f(w)를 테이프에 남기고 정지하는 튜링 기계 M<sub>f</sub>가 존재함을 의미한다.</p>
+    </div>
+
+    <div class="definition">
+      <p><strong>정의 9.2 (매핑 환원, ≤<sub>m</sub>).</strong> 언어 A가 언어 B로 <em>매핑 환원 가능</em>하다는 것은, 다음 조건을 만족하는 계산 가능 함수 f : Σ* → Σ*가 존재함을 뜻한다.</p>
+      <p style="text-align:center;">w ∈ A ⇔ f(w) ∈ B (모든 w에 대하여)</p>
+      <p>이때 f를 A로부터 B로의 <em>환원(reduction)</em>이라 부르고, A ≤<sub>m</sub> B로 표기한다.</p>
+    </div>
+
+    <p>핵심은 동치(⇔)이다. 단순히 "w가 A에 있으면 f(w)가 B에 있다"만 보장하면 부족하다. 반대 방향, 즉 "w가 A에 없으면 f(w)도 B에 없다"가 함께 성립해야 환원이 의미를 갖는다. 이 양방향 보장이 없다면 환원은 정보를 잃어버린 데이터 압축에 불과하다.</p>
+
+    <div class="theorem">
+      <p><strong>정리 9.3 (환원의 핵심 정리).</strong> A ≤<sub>m</sub> B라 하자.</p>
+      <ol>
+        <li>B가 결정 가능하면 A도 결정 가능하다.</li>
+        <li>B가 튜링 인식 가능하면 A도 튜링 인식 가능하다.</li>
+      </ol>
+      <p>대우로 표현하면 더 유용하다.</p>
+      <ol>
+        <li>A가 결정 불가능하면 B도 결정 불가능하다.</li>
+        <li>A가 튜링 인식 불가능하면 B도 튜링 인식 불가능하다.</li>
+      </ol>
+    </div>
+
+    <div class="proof">
+      <p><strong>증명 (1).</strong> M<sub>B</sub>를 B의 결정자, M<sub>f</sub>를 f를 계산하는 기계라 하자. A의 결정자 M<sub>A</sub>는 다음과 같다. 입력 w에 대해 M<sub>f</sub>를 돌려 f(w)를 얻고, M<sub>B</sub>를 f(w)에 대해 돌린 후 그 결과를 그대로 출력한다. 정의에 의해 w ∈ A ⇔ f(w) ∈ B이므로 M<sub>A</sub>는 정확히 A를 결정한다. (2)도 같은 구성에서 M<sub>B</sub>가 결정자 대신 인식자일 뿐이다. ∎</p>
+    </div>
+
+    <div class="aside">
+      <p>이 정리는 마치 도미노와 같다. 한 번 A를 결정 불가능한 문제로 세워두면, A ≤<sub>m</sub> B를 보일 때마다 B가 도미노처럼 넘어진다. 이번 강의의 나머지는 그 도미노 행렬이다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>3. HALT<sub>TM</sub> — 정지 문제</h3>
+    <p>가장 유명한 결정 불가능 문제, 정지 문제부터 시작한다.</p>
+
+    <div class="definition">
+      <p><strong>정의 9.4.</strong> HALT<sub>TM</sub> = { ⟨M, w⟩ : M이 입력 w에서 정지한다 }.</p>
+    </div>
+
+    <div class="theorem">
+      <p><strong>정리 9.5.</strong> HALT<sub>TM</sub>은 결정 불가능하다.</p>
+    </div>
+
+    <div class="proof">
+      <p><strong>증명 (A<sub>TM</sub> ≤<sub>m</sub> HALT<sub>TM</sub>).</strong> 환원 함수 f를 다음과 같이 정의한다. 입력 ⟨M, w⟩에 대해 새 기계 M'을 만든다.</p>
+      <p>M' = "입력 x에 대해: M을 w에 대해 시뮬레이션한다. M이 수락하면 수락한다. M이 거부하면 무한 루프에 진입한다."</p>
+      <p>그리고 f(⟨M, w⟩) = ⟨M', w⟩로 정한다 (입력 부분은 사실 무엇이든 상관없으나, 형식을 맞춘다).</p>
+      <p>이제 검증하자.</p>
+      <ul>
+        <li>⟨M, w⟩ ∈ A<sub>TM</sub>이면 M이 w를 수락하므로 M'은 정지(수락으로) → ⟨M', w⟩ ∈ HALT<sub>TM</sub>.</li>
+        <li>⟨M, w⟩ ∉ A<sub>TM</sub>이면 M이 거부하거나 루프 → 거부 시 M'은 의도적으로 루프에 빠짐, 루프 시 M'도 그대로 멈추지 않음 → ⟨M', w⟩ ∉ HALT<sub>TM</sub>.</li>
+      </ul>
+      <p>f는 명백히 계산 가능하다(M의 기술에 거부 상태 처리 코드 한 줄을 덧붙이는 일이다). 따라서 A<sub>TM</sub> ≤<sub>m</sub> HALT<sub>TM</sub>이고, A<sub>TM</sub>이 결정 불가능하므로 HALT<sub>TM</sub> 또한 결정 불가능하다. ∎</p>
+    </div>
+
+    <p>주목할 만한 트릭이 있다. M'은 M이 거부할 때 일부러 영원히 루프에 빠진다. "이상하다 — 거부도 정지의 한 형태가 아닌가?"라고 물을 수 있다. 그렇다. 그래서 우리가 HALT를 가두려면 거부를 "비정지"로 바꿔야 한다. 환원이란 본질적으로 의미를 약간씩 비틀어 모양을 맞추는 일이다.</p>
+  </section>
+
+  <section>
+    <h3>4. E<sub>TM</sub> — 빈 언어 문제</h3>
+    <div class="definition">
+      <p><strong>정의 9.6.</strong> E<sub>TM</sub> = { ⟨M⟩ : L(M) = ∅ }.</p>
+    </div>
+
+    <p>빈 언어 문제는 환원의 방향성을 흥미롭게 보여준다. 자연스럽게 시도하면 A<sub>TM</sub> ≤<sub>m</sub> E<sub>TM</sub>를 보이고 싶지만, 막상 만들면 부등호 방향이 뒤집어진다. 그래서 우리는 차라리 A<sub>TM</sub>의 여집합과 E<sub>TM</sub>를 연결한다.</p>
+
+    <div class="theorem">
+      <p><strong>정리 9.7.</strong> E<sub>TM</sub>은 결정 불가능하다. 더 나아가, E<sub>TM</sub>은 튜링 인식조차 불가능하다.</p>
+    </div>
+
+    <div class="proof">
+      <p><strong>증명.</strong> A<sub>TM</sub>의 여집합을 코A<sub>TM</sub>이라 쓰고, 코A<sub>TM</sub> ≤<sub>m</sub> E<sub>TM</sub>를 보인다. 입력 ⟨M, w⟩에 대해 다음 M'을 구성한다.</p>
+      <p>M' = "입력 x에 대해: x ≠ w이면 거부한다. x = w이면 M을 w에 대해 시뮬레이션하여 그 결과를 따라간다."</p>
+      <p>이렇게 하면 L(M')은 다음과 같이 양분된다. M이 w를 수락하면 L(M') = {w}, 그렇지 않으면 L(M') = ∅이다.</p>
+      <ul>
+        <li>⟨M, w⟩ ∈ 코A<sub>TM</sub> ⇔ M이 w를 수락하지 않음 ⇔ L(M') = ∅ ⇔ ⟨M'⟩ ∈ E<sub>TM</sub>.</li>
+      </ul>
+      <p>따라서 코A<sub>TM</sub> ≤<sub>m</sub> E<sub>TM</sub>이다. A<sub>TM</sub>은 인식 가능하지만 코A<sub>TM</sub>은 인식 불가능하다(이는 별도의 논증을 필요로 하나, A<sub>TM</sub>도 인식 가능하고 코A<sub>TM</sub>도 인식 가능하면 A<sub>TM</sub>이 결정 가능하게 됨을 활용한다). 그러므로 E<sub>TM</sub>도 인식 불가능하고, 자연히 결정 불가능하다. ∎</p>
+    </div>
+
+    <div class="aside">
+      <p>여집합으로 환원을 잡는 것은 인식 가능성까지 함께 부순다는 점에서 특별히 가치가 있다. 결정 불가능성보다 인식 불가능성이 한 단계 더 강한 결론이다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>5. REGULAR<sub>TM</sub> — TM이 정규 언어를 생성하는가</h3>
+    <div class="definition">
+      <p><strong>정의 9.8.</strong> REGULAR<sub>TM</sub> = { ⟨M⟩ : L(M)이 정규 언어이다 }.</p>
+    </div>
+
+    <p>이 문제는 일견 풀릴 법도 하다. 우리에게는 펌핑 보조정리도 있고, DFA의 깔끔한 구조도 있지 않은가. 그러나 임의의 TM에 대해 그 인식 언어가 정규인지 묻는 일은 결정 불가능하다.</p>
+
+    <div class="theorem">
+      <p><strong>정리 9.9.</strong> REGULAR<sub>TM</sub>은 결정 불가능하다.</p>
+    </div>
+
+    <div class="proof">
+      <p><strong>증명 (A<sub>TM</sub> ≤<sub>m</sub> REGULAR<sub>TM</sub>).</strong> 우리는 정규 언어와 비정규 언어의 대표 한 쌍을 사용한다. {0<sup>n</sup>1<sup>n</sup> : n ≥ 0}은 비정규, Σ*는 정규이다. 환원 함수는 다음 M'을 만든다.</p>
+      <p>M' = "입력 x에 대해: x가 0<sup>n</sup>1<sup>n</sup>의 형태이면 수락한다. 그렇지 않으면 M을 w에 대해 시뮬레이션하여, M이 수락할 경우에만 수락한다."</p>
+      <p>L(M')의 모습을 따져보자.</p>
+      <ul>
+        <li>M이 w를 수락한다면, M'은 모든 입력을 수락하게 된다(0<sup>n</sup>1<sup>n</sup> 검사를 통과하지 못한 입력도 결국 M의 수락을 보고 통과). 따라서 L(M') = Σ* — 정규.</li>
+        <li>M이 w를 수락하지 않는다면, M'은 정확히 0<sup>n</sup>1<sup>n</sup>꼴 입력만 수락한다(다른 입력은 시뮬레이션에 빠져 영원히 끝나지 않거나 거부). 따라서 L(M') = {0<sup>n</sup>1<sup>n</sup> : n ≥ 0} — 비정규.</li>
+      </ul>
+      <p>그러므로 ⟨M, w⟩ ∈ A<sub>TM</sub> ⇔ ⟨M'⟩ ∈ REGULAR<sub>TM</sub>이다. ∎</p>
+    </div>
+
+    <div class="example">
+      <p><strong>예제.</strong> M이 입력 w를 받으면 머리를 한 번 움직이고 정지한다고 하자. 그러면 M은 명백히 결정 가능한 단순 기계이지만, 위 환원 구성에 의해 만들어진 M'의 언어가 정규인지 결정할 수 없다고 단정 지을 수 없다 — 이 질문은 ⟨M, w⟩가 무엇이었는지에 따라 달라진다. 환원은 일반적인 결정 불가능성에 관한 것이지, 특정 사례의 어려움에 관한 것이 아님을 명심하자.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>6. EQ<sub>TM</sub> — 두 TM이 같은 언어를 인식하는가</h3>
+    <div class="definition">
+      <p><strong>정의 9.10.</strong> EQ<sub>TM</sub> = { ⟨M<sub>1</sub>, M<sub>2</sub>⟩ : L(M<sub>1</sub>) = L(M<sub>2</sub>) }.</p>
+    </div>
+
+    <div class="theorem">
+      <p><strong>정리 9.11.</strong> EQ<sub>TM</sub>은 결정 불가능하다.</p>
+    </div>
+
+    <div class="proof">
+      <p><strong>증명 (E<sub>TM</sub> ≤<sub>m</sub> EQ<sub>TM</sub>).</strong> M<sub>∅</sub>을 모든 입력을 거부하는 고정된 TM이라 하자(L(M<sub>∅</sub>) = ∅). 함수 f를 f(⟨M⟩) = ⟨M, M<sub>∅</sub>⟩로 정의한다.</p>
+      <p>그러면 ⟨M⟩ ∈ E<sub>TM</sub> ⇔ L(M) = ∅ ⇔ L(M) = L(M<sub>∅</sub>) ⇔ ⟨M, M<sub>∅</sub>⟩ ∈ EQ<sub>TM</sub>이다. f는 매우 단순하게 계산 가능하다 — M의 기술 옆에 미리 정해둔 M<sub>∅</sub>의 기술을 갖다 붙일 뿐이다. ∎</p>
+    </div>
+
+    <p>이 환원의 매력은 뻔뻔스러운 단순함에 있다. 빈 언어 검사기가 있다면 동치성 검사기는 자명하게 만들 수 있고, 동치성 검사기가 있다면 빈 언어 검사기도 마찬가지다. 두 문제는 사실상 같은 문제의 두 얼굴이다.</p>
+  </section>
+
+  <section>
+    <h3>7. 라이스 정리 — 의미의 결정 불가능성</h3>
+    <p>지금까지 본 모든 결정 불가능 문제는 공통점이 있다. REGULAR, E, EQ — 모두 TM의 <em>코드</em>가 아니라 그 <em>의미(언어)</em>에 관한 질문이다. 라이스(Henry G. Rice)는 1953년 이 패턴을 정리 하나로 일반화하였다.</p>
+
+    <div class="theorem">
+      <p><strong>정리 9.12 (라이스의 정리, 비공식).</strong> P를 TM이 인식하는 언어들의 어떤 성질이라 하자. 즉 P ⊆ {모든 튜링 인식 가능 언어}이다. P가 <em>비자명(non-trivial)</em>하다는 것은 P가 공집합도 아니고 모든 인식 가능 언어의 집합도 아님을 의미한다. 그러면 다음 문제는 결정 불가능하다.</p>
+      <p style="text-align:center;">L<sub>P</sub> = { ⟨M⟩ : L(M) ∈ P }</p>
+    </div>
+
+    <p>다시 말해, "TM이 어떤 성질의 언어를 받아들이는가"라는 형태의 질문은 — 그 성질이 자명한 두 극단(아무것도 아니거나 모든 것)이 아닌 한 — 알고리즘으로 결코 답할 수 없다.</p>
+
+    <div class="example">
+      <p><strong>라이스 정리로 즉시 따라오는 결정 불가능 문제들.</strong></p>
+      <ul>
+        <li>L(M)이 정규인가? (P = 정규 언어)</li>
+        <li>L(M)이 유한한가? (P = 유한 언어)</li>
+        <li>L(M)이 결정 가능한가?</li>
+        <li>L(M)에 문자열 "01010"이 속하는가?</li>
+        <li>L(M)이 회문(palindrome)들로 이루어져 있는가?</li>
+      </ul>
+      <p>반면 라이스 정리가 적용되지 <em>않는</em> 질문도 있다 — 예를 들어 "M이 5단계 안에 정지하는가?"는 의미가 아니라 구문(syntax)에 관한 질문이라 결정 가능할 수 있다.</p>
+    </div>
+
+    <div class="aside">
+      <p>라이스 정리의 정확한 증명은 본질적으로 환원이지만, 비자명성에서 모순을 끌어내는 멋진 추상화가 들어 있다. 흥미가 있는 학생은 이 정리를 회귀 정리(강의 11)와 함께 다시 만나게 된다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>8. 마무리</h3>
+    <p>환원이라는 한 단어로 우리는 결정 불가능성의 행성계 전체를 그릴 수 있게 되었다. A<sub>TM</sub>이 태양이라면, HALT<sub>TM</sub>·E<sub>TM</sub>·REGULAR<sub>TM</sub>·EQ<sub>TM</sub>은 그 주위를 도는 행성들이다. 라이스 정리는 더 멀리, "TM의 의미적 성질이라면 무엇이든"이라는 광활한 영역을 한꺼번에 어둠 속으로 밀어 넣는다. 다음 강의에서는 환원의 도구함을 한 단계 키운다 — 계산 이력이라는 강력한 무기를 손에 넣고 LBA, CFG, 도미노 게임에까지 결정 불가능성의 영향을 확장한다.</p>
+  </section>
+</article>

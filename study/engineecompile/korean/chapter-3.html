@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>3장 파서 — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html" class="active">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+
+<main class="content">
+<h1>3장. 파서</h1>
+<p class="lead">토큰 흐름에서 문장 구조를 발견하기. 문맥 자유 문법, LL(1), LR(1)의 세계.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 83–160</span>
+<span><strong>키워드:</strong> CFG, derivation, top-down parsing, LL(1), bottom-up parsing, LR(1), shift-reduce</span>
+</div>
+
+<h2>3.1 들어가며 — 파서가 하는 일</h2>
+
+<p>스캐너는 문자열을 단어로 잘라줬다. 이제 파서가 그 단어들을 받아서 <em>“이 단어 흐름이 이 언어의 진짜 문장이 맞나?”</em>를 따져야 한다. 영어로 치면 스캐너는 형태소 분석기, 파서는 문법 검사기다.</p>
+
+<p>파서의 임무는 두 가지로 정리된다.</p>
+<ol>
+<li><strong>합법성 판정</strong> — 토큰 흐름이 문법에 맞는 문장인가?</li>
+<li><strong>구조 발견</strong> — 맞다면, 어떤 규칙으로 어떻게 만들어졌는가? (이 “어떻게”가 바로 <em>유도, derivation</em>이다.)</li>
+</ol>
+
+<p>이때 사용하는 도구가 <strong>문맥 자유 문법(context-free grammar, CFG)</strong>이다. 정규 표현식이 스캐너의 무기였다면, CFG는 파서의 무기다. 그리고 두 가지 큰 전략이 있다.</p>
+
+<ul>
+<li><strong>탑다운(top-down) 파서</strong> — 트리의 뿌리부터 잎으로 내려가며 “다음에 어떤 규칙을 쓸까?”를 예측한다. <em>위에서부터 트리를 그리는 사람</em>.</li>
+<li><strong>바텀업(bottom-up) 파서</strong> — 잎부터 시작해 토큰을 쌓아가다가 “어, 이 패턴은 어떤 규칙의 우변이네”라고 깨달으면 줄여 올린다. <em>바닥부터 벽돌을 쌓는 벽돌공</em>.</li>
+</ul>
+
+<p>이 장에서는 두 전략의 대표 주자인 <strong>LL(1)</strong>과 <strong>LR(1)</strong>을 다룬다. 둘 다 입력 길이에 비례하는 시간(O(n))에 동작하므로 컴파일러에 쓰기 충분히 빠르다.</p>
+
+<h2>3.2 문법을 표현하는 법</h2>
+
+<h3>3.2.1 정규 표현식으로 안 되나?</h3>
+
+<p>정규 표현식(RE)은 스캐너에서 잘 통했다. 그럼 그냥 RE로 프로그래밍 언어 전체를 묘사하면 안 될까? 안 된다. 왜?</p>
+
+<p>예를 들어 변수와 + - × ÷ 연산자로 이루어진 수식을 RE로 써 보자.</p>
+
+<pre><code>variable: [a-z]([a-z]|[0-9])*
+expr:     variable ((+|-|×|÷) variable)*</code></pre>
+
+<p>이 RE는 <code>a+b×c</code>나 <code>fee÷fie×foe</code>를 잘 매칭한다. 그런데 이 RE는 <strong>연산자 우선순위</strong>를 표현하지 못한다. <code>a+b×c</code>를 <code>(a+b)×c</code>로 읽을지 <code>a+(b×c)</code>로 읽을지 RE 자신은 모른다.</p>
+
+<p>괄호를 추가해 보자. 시작 괄호와 닫는 괄호 옵션을 잘 배치하면 “괄호로 감싼 식”까지는 어찌어찌 표현할 수 있다. 하지만 <strong>중첩된 괄호</strong>—<code>a+(b×c)</code> 같은 것—는 절대 RE로 못 표현한다.</p>
+
+<div class="callout warn">
+<div class="callout-title">근본적 한계</div>
+<p>괄호 짝맞춤(균형 잡힌 괄호) 같은 것은 RE의 능력 밖이다. RE에 대응하는 DFA는 상태 수가 유한해서 “셀 수”가 없기 때문이다. 언어 <code>(<sup>m</sup> )<sup>n</sup></code>에서 <code>m = n</code>인 부분을 인식하려면 셈이 필요한데, DFA는 셈을 못 한다.</p>
+<p><code>begin/end</code>, <code>then/else</code> 같은 짝짓기 구조는 거의 모든 언어에 등장하므로, 더 강력한 도구가 필요하다.</p>
+</div>
+
+<h3>3.2.2 문맥 자유 문법(CFG)</h3>
+
+<div class="term-box">
+<span class="term">문맥 자유 문법(Context-Free Grammar, CFG)</span><br>
+언어 <em>L</em>의 문장을 만드는 규칙들의 집합. 각 규칙은 “이 비단말 기호는 이런 모양으로 다시 쓸 수 있다”를 표현한다.
+</div>
+
+<p>CFG의 가장 단순한 예: 양들의 합창.</p>
+
+<div class="figure">
+<pre><code>SheepNoise → baa SheepNoise
+            | baa</code></pre>
+<span class="figure-caption">규칙 1: SheepNoise는 baa 다음에 또 SheepNoise가 올 수 있다. 규칙 2: 그냥 baa로 끝낼 수도 있다.</span>
+</div>
+
+<p>핵심 용어를 정리하자.</p>
+
+<ul>
+<li><strong>생성 규칙(production)</strong> — CFG의 각 규칙. <code>좌변 → 우변</code> 모양.</li>
+<li><strong>비단말(nonterminal)</strong> — <em>SheepNoise</em>처럼 다른 기호로 다시 쓸 수 있는 추상 기호. 보통 이탤릭으로 쓴다.</li>
+<li><strong>단말(terminal)</strong> — <code>baa</code>처럼 더 이상 쪼갤 수 없는 실제 단어. 스캐너가 돌려주는 토큰의 종류와 같다.</li>
+<li><strong>시작 기호(goal/start symbol)</strong> — 유도가 출발하는 비단말. 위 예에서는 <em>SheepNoise</em>.</li>
+</ul>
+
+<p>형식적으로 CFG는 <code>G = (T, NT, S, P)</code>의 4-튜플이다. <code>T</code>는 단말 집합, <code>NT</code>는 비단말 집합, <code>S ∈ NT</code>는 시작 기호, <code>P</code>는 생성 규칙 집합이다.</p>
+
+<div class="callout note">
+<div class="callout-title">BNF — 같은 이야기, 다른 표기</div>
+<p>전통적으로 CFG는 <strong>Backus-Naur Form (BNF)</strong>로 적었다. 비단말은 <code>&lt;꺽쇠&gt;</code>, “파생한다”는 <code>::=</code>, 대안은 <code>|</code>로. 1950년대 말 라인프린터 시대의 산물이다. 이 책은 현대화된 표기를 쓴다 — 비단말은 이탤릭, 단말은 <code>typewriter</code>, 파생은 <code>→</code>.</p>
+</div>
+
+<h4>유도란 무엇인가</h4>
+
+<p>유도는 시작 기호에서 출발해 규칙을 거듭 적용해 가면서, 비단말이 모두 사라지고 단말만 남을 때까지 다시 쓰는 과정이다. 중간 단계에 등장하는 (단말 + 비단말) 혼합 문자열을 <strong>문장형(sentential form)</strong>이라 한다.</p>
+
+<p>예: <code>SheepNoise</code> ⇒ <code>baa SheepNoise</code> ⇒ <code>baa baa</code>. 이러면 “SheepNoise는 baa baa를 유도한다”가 된다.</p>
+
+<h3>3.2.3 좀 더 복잡한 예 — 수식</h3>
+
+<p>괄호와 사칙연산을 가진 수식 문법을 보자.</p>
+
+<div class="figure">
+<pre><code>1  Expr → ( Expr )
+2       | Expr Op name
+3       | name
+4  Op   → +
+5       | -
+6       | ×
+7       | ÷</code></pre>
+<span class="figure-caption">단순 수식 문법. name은 변수 토큰을 의미.</span>
+</div>
+
+<p><code>(a+b)×c</code>를 만들어 보자. 규칙을 (2, 6, 1, 2, 4, 3)의 순서로 적용한다.</p>
+
+<table>
+<tr><th>규칙</th><th>문장형</th></tr>
+<tr><td></td><td><em>Expr</em></td></tr>
+<tr><td>2</td><td><em>Expr Op</em> name</td></tr>
+<tr><td>6</td><td><em>Expr</em> × name</td></tr>
+<tr><td>1</td><td>( <em>Expr</em> ) × name</td></tr>
+<tr><td>2</td><td>( <em>Expr Op</em> name ) × name</td></tr>
+<tr><td>4</td><td>( <em>Expr</em> + name ) × name</td></tr>
+<tr><td>3</td><td>( name + name ) × name</td></tr>
+</table>
+
+<p>위 표는 <strong>최우 유도(rightmost derivation)</strong>다 — 매 단계마다 가장 오른쪽 비단말을 다시 썼다. 반대로 가장 왼쪽 비단말을 매번 다시 쓰면 <strong>최좌 유도(leftmost derivation)</strong>다. 같은 문장을 만들지만 적용 순서가 다르다.</p>
+
+<p>유도는 그래프로 그릴 수 있다. 이 그래프를 <strong>파스 트리(parse tree)</strong> 또는 <strong>구문 트리(syntax tree)</strong>라 한다. 트리는 “어떤 규칙을 썼는가”만 표현하고, “어떤 순서로 썼는가”는 표현하지 않는다. 그래서 최좌 유도와 최우 유도가 같은 파스 트리를 낳을 수 있다.</p>
+
+<h4>모호함(Ambiguity)이라는 골칫거리</h4>
+
+<div class="term-box">
+<span class="term">모호한 문법 (ambiguous grammar)</span><br>
+어떤 문장에 대해 서로 다른 최좌(또는 최우) 유도가 둘 이상 존재하는 문법.
+</div>
+
+<p>고전적인 예가 <strong>매달린 else (dangling else)</strong> 문제다.</p>
+
+<pre><code>1  Statement → if Expr then Statement else Statement
+2            | if Expr then Statement
+3            | Assignment
+4            | … 다른 문장들 …</code></pre>
+
+<p>이 문법으로 <code>if Expr₁ then if Expr₂ then A₁ else A₂</code>를 파싱하면, <code>else</code>가 안쪽 <code>if</code>에 붙는 트리 하나, 바깥 <code>if</code>에 붙는 트리 하나, 총 <strong>두 개의 다른 의미</strong>가 가능하다. 컴파일러는 어떤 게 진짜인지 알 수 없다.</p>
+
+<p>해결책은 문법을 다시 쓰는 것. <code>else</code>의 짝이 되는 <code>if</code>는 “else를 가진 문장만 then 부분에 올 수 있다”는 식으로 제약한다.</p>
+
+<pre><code>1  Statement → if Expr then Statement
+2            | if Expr then WithElse else Statement
+3            | Assignment
+4  WithElse  → if Expr then WithElse else WithElse
+5            | Assignment</code></pre>
+
+<p>이렇게 하면 <code>else</code>는 항상 가장 가까운(아직 짝 없는) <code>if</code>와 결합한다. 모호함이 사라졌다.</p>
+
+<h3>3.2.4 의미를 구조에 새기기 — 우선순위</h3>
+
+<p>앞의 단순 수식 문법으로 <code>a+b×c</code>를 파싱하면 트리의 후위 순회가 <code>(a+b)×c</code>로 평가된다. 우리가 원하는 <code>a+(b×c)</code>가 아니다. 모든 연산자를 한 비단말 <em>Op</em>로 묶었으니 우선순위 정보가 사라진 것이다.</p>
+
+<p>해결책: <strong>우선순위마다 비단말을 따로 만든다.</strong> 이게 그 유명한 <em>고전 수식 문법(classic expression grammar)</em>이다.</p>
+
+<div class="figure">
+<pre><code>0  Goal   → Expr
+1  Expr   → Expr + Term
+2         | Expr - Term
+3         | Term
+4  Term   → Term × Factor
+5         | Term ÷ Factor
+6         | Factor
+7  Factor → ( Expr )
+8         | num
+9         | name</code></pre>
+<span class="figure-caption">그림 3.1 고전 수식 문법. + -는 Expr 레벨, × ÷는 Term 레벨, ( )와 원자값은 Factor 레벨.</span>
+</div>
+
+<p>이제 <code>a+b×c</code>의 파스 트리는 <code>b×c</code>를 먼저 만들고 그 위에 <code>a+</code>를 얹는 모양이 된다. 후위 순회로 평가하면 정확히 우리가 원하는 표준 우선순위가 나온다. <em>구조에 의미를 새겼다.</em></p>
+
+<p>이 패턴은 일반적이다 — 배열 첨자는 산술보다 높은 우선순위, 타입 캐스트는 산술보다 높지만 괄호보다 낮음, 대입은 가장 낮음 같은 규칙도 비단말 추가로 표현한다.</p>
+
+<h3>3.2.5 입력 문자열의 유도를 발견하기</h3>
+
+<p>지금까지는 문법 G가 주어졌을 때 “문장을 만드는 법”을 보았다. 컴파일러는 거꾸로—입력 문장이 주어졌을 때 “이게 G로부터 어떻게 만들어졌는지”를 발견해야 한다. 이게 <strong>파싱(parsing)</strong>이다.</p>
+
+<p>파스 트리를 만든다고 생각하자. 뿌리는 시작 기호로 정해져 있고, 잎은 스캐너가 준 토큰들로 정해져 있다. 어려운 부분은 <em>중간을 채우는 것</em>이다.</p>
+
+<ol>
+<li><strong>탑다운</strong>: 뿌리부터 시작해 잎쪽으로 트리를 자란다. 매 단계 어떤 비단말에 어떤 규칙을 적용할지 고른다.</li>
+<li><strong>바텀업</strong>: 잎부터 시작해 뿌리쪽으로 자란다. 매 단계 “현재 잎열의 어떤 부분이 어떤 규칙의 우변에 해당하나”를 찾는다.</li>
+</ol>
+
+<div class="callout">
+<div class="callout-title">CFG의 계급 사다리</div>
+<p>모든 CFG가 효율적으로 파싱되지는 않는다. 안쪽부터 차례로:</p>
+<ul>
+<li><strong>정규 문법(RG)</strong> — RE와 동치. DFA로 인식.</li>
+<li><strong>LL(1) 문법</strong> — 탑다운 + 1토큰 룩어헤드. 가장 다루기 쉬움.</li>
+<li><strong>LR(1) 문법</strong> — 바텀업 + 1토큰 룩어헤드. 모호하지 않은 CFG의 큰 부분집합 포괄. “모두의 즐겨쓰는 파서.”</li>
+<li><strong>임의 CFG</strong> — Earley 알고리즘 같은 걸로 O(n³) 시간에 파싱 가능. 너무 느려서 잘 안 씀.</li>
+</ul>
+<p>대부분의 프로그래밍 언어 구문은 LR(1)에 들어가고, 많은 경우 LL(1)에도 들어간다.</p>
+</div>
+
+<h2>3.3 탑다운 파싱</h2>
+
+<p>탑다운 파서는 뿌리 = 시작 기호에서 출발해, 트리의 “아래쪽 가장자리(fringe)” 비단말 중 하나를 골라서 어떤 규칙으로 펼칠지(expand) 결정한다. 이 결정이 잘못되면 어떻게 할까? <strong>백트래킹(backtracking)</strong>—되돌아가서 다른 규칙을 시도한다. 백트래킹은 비싸다. 그래서 “백트래킹 없이 단번에 맞는 규칙을 고르자”가 탑다운 파싱의 핵심 아이디어다.</p>
+
+<h3>탑다운 파서 골격 알고리즘</h3>
+
+<pre><code>root  ← 시작 기호 S에 대한 노드
+focus ← root
+push(null)
+word  ← NextWord()
+
+while (true) do
+   <span class="kw">if</span> (focus가 비단말) <span class="kw">then begin</span>
+      A → β₁β₂…βₙ 규칙을 고른다;
+      β₁…βₙ을 focus의 자식으로 만든다;
+      push(βₙ, βₙ₋₁, …, β₂);
+      focus ← β₁;
+   <span class="kw">end</span>
+   <span class="kw">else if</span> (word가 focus와 일치) <span class="kw">then begin</span>
+      word ← NextWord();
+      focus ← pop();
+   <span class="kw">end</span>
+   <span class="kw">else if</span> (word == eof <span class="kw">and</span> focus == null) <span class="kw">then</span>
+      입력을 받아들이고 root 반환;
+   <span class="kw">else</span>
+      backtrack;
+<span class="kw">end</span>;</code></pre>
+
+<h3>3.3.1 탑다운 파싱을 위한 문법 변환</h3>
+
+<p>고전 수식 문법은 그대로 탑다운 파싱에 못 쓴다. 두 가지 문제가 있다.</p>
+
+<h4>좌재귀(left recursion) — 영원히 끝나지 않는 함정</h4>
+
+<div class="term-box">
+<span class="term">좌재귀(left recursion)</span><br>
+규칙 우변의 가장 왼쪽 기호가 좌변과 같거나, 좌변을 유도할 수 있을 때.
+</div>
+
+<p>예를 들어 <code>Expr → Expr + Term</code>은 좌재귀다. 탑다운 파서가 <em>Expr</em>을 만나면 항상 이 규칙을 적용해 버리고… 또 <em>Expr</em>을 만나고… 무한히. 입력 단어를 한 번도 소비하지 않고 무한 루프에 빠진다.</p>
+
+<p>해결책: <strong>우재귀(right recursion)로 바꾼다.</strong> 기계적인 변환이다.</p>
+
+<div class="figure">
+<pre><code>좌재귀 (원본)              →  우재귀 (변환)
+Fee → Fee α | β              Fee  → β Fee'
+                              Fee' → α Fee'
+                                   | ε</code></pre>
+<span class="figure-caption">새 비단말 Fee'을 도입하고 ε(빈 문자열)로 끝낸다.</span>
+</div>
+
+<p>고전 수식 문법에 적용하면 다음과 같다.</p>
+
+<pre><code>0  Goal  → Expr
+1  Expr  → Term Expr'
+2  Expr' → + Term Expr'
+3        | - Term Expr'
+4        | ε
+5  Term  → Factor Term'
+6  Term' → × Factor Term'
+7        | ÷ Factor Term'
+8        | ε
+9  Factor → ( Expr )
+10        | num
+11        | name</code></pre>
+
+<p>이게 <strong>우재귀 수식 문법</strong>이다. 같은 언어를 표현하지만 탑다운 파싱이 가능하다.</p>
+
+<p>간접 좌재귀(<code>α → β</code>, <code>β → γ</code>, <code>γ → α δ</code>처럼 사이클이 있는 경우)도 위험한데, 이건 쉽게 눈에 안 띈다. 이를 잡는 알고리즘은 비단말에 임의 순서를 매기고, <em>A<sub>i</sub> → A<sub>j</sub> γ</em> 형태(<em>j &lt; i</em>)를 모두 풀어서 직접 좌재귀로 환원한 뒤 위 변환을 적용한다.</p>
+
+<h4>백트래킹 없는 파싱 — FIRST 집합</h4>
+
+<p>좌재귀를 없애도 “어떤 규칙을 고를까” 문제는 남는다. 핵심은 <strong>한 토큰만 미리 보면(룩어헤드) 답이 정해지는</strong> 문법을 만드는 것이다.</p>
+
+<div class="term-box">
+<span class="term">FIRST 집합</span><br>
+문법 기호 α에 대해, FIRST(α)는 α로부터 유도되는 어떤 문자열의 <em>첫 번째 단말</em>이 될 수 있는 단말들의 집합.
+</div>
+
+<p>FIRST 집합 계산 알고리즘:</p>
+
+<pre><code><span class="cm">// 단말, ε, eof는 자기 자신으로 초기화</span>
+<span class="kw">for each</span> α ∈ T ∪ {eof, ε} <span class="kw">do</span> FIRST(α) ← {α};
+<span class="kw">for each</span> A ∈ NT <span class="kw">do</span> FIRST(A) ← ∅;
+
+<span class="kw">while</span> (FIRST 집합이 변하는 동안) <span class="kw">do</span>
+   <span class="kw">for each</span> 규칙 p: A → β₁β₂…βₖ <span class="kw">do</span>
+      rhs ← FIRST(β₁) - {ε};
+      i ← 1;
+      <span class="kw">while</span> (ε ∈ FIRST(βᵢ) <span class="kw">and</span> i ≤ k-1) <span class="kw">do</span>
+         rhs ← rhs ∪ (FIRST(βᵢ₊₁) - {ε});
+         i ← i + 1;
+      <span class="kw">end</span>;
+      <span class="kw">if</span> (i == k <span class="kw">and</span> ε ∈ FIRST(βₖ)) <span class="kw">then</span>
+         rhs ← rhs ∪ {ε};
+      FIRST(A) ← FIRST(A) ∪ rhs;
+   <span class="kw">end</span>;
+<span class="kw">end</span>;</code></pre>
+
+<p>고정점에 도달할 때까지 반복한다.</p>
+
+<h4>FOLLOW 집합 — ε 규칙을 위한 보충 정보</h4>
+
+<p>ε 규칙(예: <code>Expr' → ε</code>)은 까다롭다. FIRST(ε) = {ε}인데, 스캐너는 절대 ε을 돌려주지 않는다. 그럼 언제 ε 규칙을 적용해야 할까? 답: <strong>그 비단말 다음에 올 수 있는 단말들이 보일 때.</strong> 이 정보를 <strong>FOLLOW 집합</strong>이라 부른다.</p>
+
+<div class="term-box">
+<span class="term">FOLLOW(α)</span><br>
+문장 안에서 α 바로 뒤에 등장할 수 있는 단말들의 집합.
+</div>
+
+<pre><code><span class="kw">for each</span> A ∈ NT <span class="kw">do</span> FOLLOW(A) ← ∅;
+FOLLOW(S) ← {eof};
+
+<span class="kw">while</span> (FOLLOW 집합이 변하는 동안) <span class="kw">do</span>
+   <span class="kw">for each</span> 규칙 A → β₁β₂…βₖ <span class="kw">do</span>
+      TRAILER ← FOLLOW(A);
+      <span class="kw">for</span> i ← k <span class="kw">downto</span> 1 <span class="kw">do</span>
+         <span class="kw">if</span> (βᵢ ∈ NT) <span class="kw">then begin</span>
+            FOLLOW(βᵢ) ← FOLLOW(βᵢ) ∪ TRAILER;
+            <span class="kw">if</span> (ε ∈ FIRST(βᵢ))
+               <span class="kw">then</span> TRAILER ← TRAILER ∪ (FIRST(βᵢ) - {ε});
+               <span class="kw">else</span> TRAILER ← FIRST(βᵢ);
+         <span class="kw">end</span>;
+         <span class="kw">else</span> TRAILER ← FIRST(βᵢ);   <span class="cm">// {βᵢ}</span>
+      <span class="kw">end</span>;
+   <span class="kw">end</span>;
+<span class="kw">end</span>;</code></pre>
+
+<h4>FIRST<sup>+</sup> 집합과 백트래킹 없는 조건</h4>
+
+<p>FIRST와 FOLLOW를 합쳐 <strong>증강 FIRST 집합 FIRST<sup>+</sup></strong>를 정의한다.</p>
+
+<pre><code>FIRST⁺(A → β) = ┌ FIRST(β)              if ε ∉ FIRST(β)
+                └ FIRST(β) ∪ FOLLOW(A)  otherwise</code></pre>
+
+<p>그러면 백트래킹 없는 문법의 조건은 단순하다.</p>
+
+<div class="callout">
+<div class="callout-title">백트래킹 없는 조건</div>
+<p>비단말 A의 모든 우변 쌍 (A → β<sub>i</sub>), (A → β<sub>j</sub>) (i ≠ j)에 대해:</p>
+<pre><code>FIRST⁺(A → βᵢ) ∩ FIRST⁺(A → βⱼ) = ∅</code></pre>
+<p>즉, 어느 두 우변도 “시작할 수 있는 단말” 집합이 겹치지 않으면 룩어헤드 한 토큰만 보고 어떤 규칙을 쓸지 단번에 결정할 수 있다. 이를 <strong>예측 문법(predictive grammar)</strong>이라고도 부른다.</p>
+</div>
+
+<h4>좌인수 분해(Left Factoring)</h4>
+
+<p>모든 문법이 그 자체로 백트래킹이 없는 건 아니다. 함수 호출, 배열 첨자를 추가한다고 해 보자.</p>
+
+<pre><code>11  Factor → name
+12        | name [ ArgList ]
+13        | name ( ArgList )</code></pre>
+
+<p>세 우변 모두 <code>name</code>으로 시작하므로 FIRST<sup>+</sup>가 겹친다. 해결책: 공통 접두사를 새 비단말로 뽑아낸다.</p>
+
+<pre><code>11  Factor    → name Arguments
+12  Arguments → [ ArgList ]
+13            | ( ArgList )
+14            | ε</code></pre>
+
+<p>이 변환을 <strong>좌인수 분해(left factoring)</strong>라 한다. 결정은 한 단계 미뤄지고, 그 시점에는 다음 토큰이 <code>[</code>인지 <code>(</code>인지 다른 무엇인지로 깔끔히 갈린다.</p>
+
+<h3>3.3.2 재귀 하강 파서(Recursive-Descent)</h3>
+
+<p>백트래킹 없는 문법이 있으면 손코딩으로 단순하고 빠른 파서를 만들 수 있다. <strong>재귀 하강 파서</strong>는 비단말마다 함수 하나씩—그 비단말을 인식하는 함수다. 함수들끼리 서로를 호출하며 트리를 따라 내려간다. <em>문법 자체가 코드의 뼈대가 된다.</em></p>
+
+<p>예를 들어 <code>Expr' → + Term Expr' | - Term Expr' | ε</code>를 인식하는 함수는:</p>
+
+<pre><code>EPrime()
+   <span class="cm">/* Expr' → + Term Expr' | - Term Expr' */</span>
+   <span class="kw">if</span> (word == + <span class="kw">or</span> word == -) <span class="kw">then begin</span>
+      word ← NextWord();
+      <span class="kw">if</span> (Term())
+         <span class="kw">then return</span> EPrime();
+         <span class="kw">else return</span> false;
+   <span class="kw">end</span>
+   <span class="kw">else if</span> (word == ) <span class="kw">or</span> word == eof)
+      <span class="cm">/* Expr' → ε */</span>
+      <span class="kw">then return</span> true;
+   <span class="kw">else begin</span>
+      구문 오류 보고;
+      <span class="kw">return</span> false;
+   <span class="kw">end</span>;</code></pre>
+
+<p>각 함수는 FIRST<sup>+</sup>를 보고 어떤 우변을 시도할지 정한다. 일치하면 진행, 아니면 오류. 비단말 호출은 그냥 함수 호출. 단말 매칭은 토큰 비교 + <code>NextWord()</code>. <strong>간결하고 직관적이며 빠르다.</strong></p>
+
+<p>오류 메시지를 사람 친화적으로 만들기에도 좋다 — 어디서 무엇을 기대했는지 정확히 그 자리에 코드가 있으니까.</p>
+
+<h3>3.3.3 표 기반 LL(1) 파서</h3>
+
+<p>재귀 하강을 자동화하면? 같은 일을 표(table)로 푸는 방식이 <strong>LL(1) 파서</strong>다. 이름의 뜻은:</p>
+
+<ul>
+<li><strong>L</strong>eft-to-right scan — 왼쪽에서 오른쪽으로 입력을 읽고</li>
+<li><strong>L</strong>eftmost derivation — 최좌 유도를 만들며</li>
+<li><strong>1</strong> 토큰 룩어헤드</li>
+</ul>
+
+<p>골격 LL(1) 파서는 작은 인터프리터에 가깝다.</p>
+
+<pre><code>word ← NextWord();
+push eof onto Stack;
+push 시작 기호 S onto Stack;
+focus ← top of Stack;
+
+<span class="kw">loop forever</span>;
+   <span class="kw">if</span> (focus == eof <span class="kw">and</span> word == eof)
+      <span class="kw">then</span> 성공 보고; <span class="kw">break</span>;
+   <span class="kw">else if</span> (focus ∈ T <span class="kw">or</span> focus == eof) <span class="kw">then begin</span>
+      <span class="kw">if</span> focus matches word <span class="kw">then begin</span>
+         pop Stack;
+         word ← NextWord();
+      <span class="kw">end</span>
+      <span class="kw">else</span> 단말 불일치 오류;
+   <span class="kw">end</span>
+   <span class="kw">else begin</span>   <span class="cm">// focus는 비단말</span>
+      <span class="kw">if</span> Table[focus, word] == (A → B₁B₂…Bₖ) <span class="kw">then begin</span>
+         pop Stack;
+         <span class="kw">for</span> i ← k <span class="kw">downto</span> 1 <span class="kw">do</span>
+            <span class="kw">if</span> Bᵢ ≠ ε <span class="kw">then</span> push Bᵢ onto Stack;
+         <span class="kw">end</span>;
+      <span class="kw">end</span>
+      <span class="kw">else</span> 비단말 확장 오류;
+   <span class="kw">end</span>;
+   focus ← top of Stack;
+<span class="kw">end</span>;</code></pre>
+
+<p>핵심은 <code>Table[A, w]</code>—비단말 A와 룩어헤드 w를 받아 “이 우변을 써라”를 돌려주는 표. 표 만드는 알고리즘은 다음과 같다.</p>
+
+<pre><code>FIRST, FOLLOW, FIRST⁺ 집합 계산;
+
+<span class="kw">for each</span> 비단말 A <span class="kw">do</span>
+   <span class="kw">for each</span> 단말 w <span class="kw">do</span>
+      Table[A, w] ← error;
+   <span class="kw">end</span>;
+   <span class="kw">for each</span> 규칙 p: A → β <span class="kw">do</span>
+      <span class="kw">for each</span> 단말 w ∈ FIRST⁺(A → β) <span class="kw">do</span>
+         Table[A, w] ← p;
+      <span class="kw">end</span>;
+      <span class="kw">if</span> eof ∈ FIRST⁺(A → β)
+         <span class="kw">then</span> Table[A, eof] ← p;
+   <span class="kw">end</span>;
+<span class="kw">end</span>;</code></pre>
+
+<p>문법이 백트래킹 없는 조건을 만족하면 한 칸에 한 규칙만 들어간다. 만족 안 하면 한 칸에 여러 규칙이 충돌—그러면 LL(1)이 아니다.</p>
+
+<div class="callout note">
+<div class="callout-title">손코딩 vs 도구 생성, 무엇을 선택할까</div>
+<ul>
+<li><strong>재귀 하강(손코딩)</strong>: 작은 문법에 빠르게 대응. 오류 메시지 자유자재. 룩어헤드를 임시로 두 토큰까지 슬쩍 늘리는 트릭도 가능.</li>
+<li><strong>LL(1) 도구 생성</strong>: 문법 명세에서 자동 생성. 공식적이고 빠짐없음. 유지보수가 깔끔.</li>
+</ul>
+</div>
+
+<h2>3.4 바텀업 파싱</h2>
+
+<p>바텀업 파서는 잎부터 시작한다. 스캐너가 토큰을 줄 때마다 트리 잎으로 추가하고, “이 잎열의 어느 부분이 어떤 규칙의 우변이지?”를 찾아 그 위에 부모 노드를 얹는다. 이 부모 얹기를 <strong>리덕션(reduction)</strong>이라 부른다.</p>
+
+<div class="term-box">
+<span class="term">손잡이(handle)</span><br>
+쌍 ⟨A → β, k⟩. 현재 트리의 위쪽 가장자리(frontier)에서 위치 k에 β가 나타나며, β를 A로 바꾸는 것이 유도의 다음(역방향) 단계가 되는 경우.<br>
+바텀업 파싱 = <em>매 단계 핸들 찾기</em>.
+</div>
+
+<p>바텀업 파싱은 <strong>역방향 최우 유도</strong>를 만든다. 최우 유도 <code>Goal = γ₀ → γ₁ → … → γₙ = 문장</code>에서, 파서는 γ<sub>n</sub>(문장)부터 시작해 γ<sub>n-1</sub>, γ<sub>n-2</sub>… 순으로 거슬러 올라간다.</p>
+
+<h3>3.4.1 LR(1) 파싱 알고리즘</h3>
+
+<p>이름의 뜻:</p>
+<ul>
+<li><strong>L</strong>eft-to-right scan</li>
+<li><strong>R</strong>everse rightmost derivation — 역방향 최우 유도</li>
+<li><strong>1</strong> 토큰 룩어헤드</li>
+</ul>
+
+<p>LR(1) 파서는 <strong>스택</strong>과 두 표—<code>Action</code>, <code>Goto</code>—를 쓴다. 스택에는 (기호, 상태)들이 쌓인다. 스택 꼭대기의 상태가 “지금까지 본 입력의 요약”을 담고, 다음 토큰(룩어헤드)과 함께 <code>Action</code> 표를 찾아 다음 행동을 결정한다.</p>
+
+<p>가능한 행동은 4가지다.</p>
+
+<ul>
+<li><strong>shift sᵢ</strong> — 룩어헤드를 스택에 넣고 새 상태 sᵢ를 얹는다. (=핸들 후보를 더 모음)</li>
+<li><strong>reduce A → β</strong> — 스택 꼭대기 |β|개 (기호, 상태)를 떼어내고, 그 자리에 (A, Goto[새꼭대기상태, A])를 얹는다. (=핸들 발견, 줄임)</li>
+<li><strong>accept</strong> — 성공.</li>
+<li><strong>error</strong> — 구문 오류.</li>
+</ul>
+
+<h4>LR(1) 골격 파서</h4>
+
+<pre><code>push $;
+push 시작 상태 s₀;
+word ← NextWord();
+
+<span class="kw">while</span> (true) <span class="kw">do</span>
+   state ← top of Stack;
+   <span class="kw">if</span> Action[state, word] == "reduce A → β" <span class="kw">then begin</span>
+      pop 2×|β| symbols;
+      state ← top of Stack;
+      push A;
+      push Goto[state, A];
+   <span class="kw">end</span>
+   <span class="kw">else if</span> Action[state, word] == "shift sᵢ" <span class="kw">then begin</span>
+      push word;
+      push sᵢ;
+      word ← NextWord();
+   <span class="kw">end</span>
+   <span class="kw">else if</span> Action[state, word] == "accept" <span class="kw">then break</span>;
+   <span class="kw">else</span> Fail();
+<span class="kw">end</span>;
+성공 보고;</code></pre>
+
+<h4>예: 균형 잡힌 괄호 문법</h4>
+
+<pre><code>1  Goal → List
+2  List → List Pair
+3       | Pair
+4  Pair → ( Pair )
+5       | ( )</code></pre>
+
+<p>입력 <code>( )</code>에 대해 LR(1) 파서가 어떻게 움직이는지 추적해 보자.</p>
+
+<table>
+<tr><th>반복</th><th>상태</th><th>토큰</th><th>스택</th><th>핸들</th><th>행동</th></tr>
+<tr><td>초기</td><td>—</td><td>(</td><td>$ 0</td><td>—</td><td>—</td></tr>
+<tr><td>1</td><td>0</td><td>(</td><td>$ 0</td><td>—</td><td>shift 3</td></tr>
+<tr><td>2</td><td>3</td><td>)</td><td>$ 0 ( 3</td><td>—</td><td>shift 7</td></tr>
+<tr><td>3</td><td>7</td><td>eof</td><td>$ 0 ( 3 ) 7</td><td>( )</td><td>reduce 5</td></tr>
+<tr><td>4</td><td>2</td><td>eof</td><td>$ 0 Pair 2</td><td>Pair</td><td>reduce 3</td></tr>
+<tr><td>5</td><td>1</td><td>eof</td><td>$ 0 List 1</td><td>List</td><td>accept</td></tr>
+</table>
+
+<p>두 번 shift, 세 번 reduce, 한 번 accept. 핸들이 항상 스택 꼭대기에 있다는 점이 핵심이다 — 스택 자체가 “핸들이 어디 있는지”의 정보를 압축해서 가지고 다닌다.</p>
+
+<h4>잘못된 입력은 어떻게 잡나?</h4>
+
+<p>입력 <code>( ) )</code>를 보자. 두 번째 <code>)</code>를 만나는 순간, 파서는 상태 7에서 <code>)</code>로 가는 칸을 보는데… 거기에 shift도 reduce도 accept도 없다. 즉시 오류 보고. 이게 LR 파서의 강점이다 — <strong>문법적으로 더 진행할 수 없는 그 지점에서 즉시 오류를 잡아낸다.</strong></p>
+
+<h3>3.4.2 LR(1) 표 만들기</h3>
+
+<p>이제 본론이다. <code>Action</code>과 <code>Goto</code> 표를 어떻게 자동 생성할까? 답은 <strong>LR(1) 아이템(item)</strong>이라는 자료구조와 그것들의 정규 컬렉션이다.</p>
+
+<div class="term-box">
+<span class="term">LR(1) 아이템</span><br>
+<code>[A → β • γ, a]</code> — 규칙 <code>A → βγ</code>와 점(•) 위치, 그리고 룩어헤드 단말 a.<br>
+점은 “지금까지 β를 인식했다, γ는 아직”을 뜻한다.
+</div>
+
+<p>아이템의 의미는 점의 위치에 따라 셋 중 하나다.</p>
+
+<ol>
+<li><strong>가능성(possibility)</strong> — <code>[A → •βγ, a]</code>: 점이 맨 왼쪽. “이제 β를 인식하면 A로 가는 길이 시작된다.”</li>
+<li><strong>부분 완성(partially complete)</strong> — <code>[A → β•γ, a]</code>: 점이 가운데. “β까지 인식했고, γ가 남았다.”</li>
+<li><strong>완성(complete) = 핸들</strong> — <code>[A → βγ•, a]</code>: 점이 맨 오른쪽. “룩어헤드가 a라면 βγ를 A로 줄일 핸들이다.”</li>
+</ol>
+
+<p>파서의 <strong>각 상태는 LR(1) 아이템들의 집합</strong>이다. 모든 상태의 모음을 <strong>정규 컬렉션(canonical collection) CC = {cc₀, cc₁, …, ccₙ}</strong>이라 한다. 이것이 핸들 인식 자동기(handle-recognizing DFA)의 모델이다. (서브셋 구성을 NFA→DFA 변환에서 본 것과 비슷한 발상이다.)</p>
+
+<h4>두 핵심 함수: closure와 goto</h4>
+
+<p><strong>closure(s)</strong>: 아이템 집합 s에 “함의되는” 아이템들을 모두 추가한다. <code>[A → β • Cδ, a]</code>가 s에 있고 C가 비단말이라면, C의 모든 우변에 대한 시작 아이템 <code>[C → •γ, b]</code>를 추가해야 한다. 단, b는 FIRST(δa)에 들어가야 한다.</p>
+
+<pre><code>closure(s)
+   <span class="kw">while</span> (s가 변하는 동안)
+      <span class="kw">for each</span> 아이템 [A → β • Cδ, a] ∈ s
+         <span class="kw">for each</span> 규칙 C → γ ∈ P
+            <span class="kw">for each</span> b ∈ FIRST(δa)
+               s ← s ∪ {[C → •γ, b]}
+   <span class="kw">return</span> s</code></pre>
+
+<p><strong>goto(s, x)</strong>: 상태 s에서 기호 x를 인식하면 어떤 상태가 되는가? s 안에서 점 바로 뒤에 x가 있는 아이템들을 골라서 점을 x 너머로 옮긴 뒤 closure를 취한다.</p>
+
+<pre><code>goto(s, x)
+   moved ← ∅;
+   <span class="kw">for each</span> 아이템 i ∈ s
+      <span class="kw">if</span> i가 [α → β • x δ, a]의 모양이면
+         moved ← moved ∪ {[α → βx • δ, a]};
+   <span class="kw">return</span> closure(moved);</code></pre>
+
+<h4>정규 컬렉션 CC 만들기</h4>
+
+<pre><code>cc₀ ← closure({[S' → •S, eof]});
+CC ← {cc₀};
+
+<span class="kw">while</span> (새 집합이 CC에 추가되는 동안)
+   <span class="kw">for each</span> 처리되지 않은 ccᵢ ∈ CC
+      mark ccᵢ as processed;
+      <span class="kw">for each</span> 점 뒤에 등장하는 기호 x in ccᵢ
+         temp ← goto(ccᵢ, x);
+         <span class="kw">if</span> temp ∉ CC
+            <span class="kw">then</span> CC ← CC ∪ {temp};
+         ccᵢ에서 temp로 x에 의한 전이를 기록;
+      <span class="kw">end</span>
+   <span class="kw">end</span></code></pre>
+
+<p>CC는 monotonic하게 자라고, LR(1) 아이템 수가 유한하므로 반드시 끝난다. (이론적 상한은 2<sup>|아이템|</sup>지만, 실제로는 훨씬 작다.)</p>
+
+<h4>표 채우기</h4>
+
+<p>CC가 완성되면, 각 ccᵢ가 표의 한 행이 된다. 아이템 모양에 따라 entry를 채운다.</p>
+
+<pre><code><span class="kw">for each</span> ccᵢ ∈ CC
+   <span class="kw">for each</span> 아이템 I ∈ ccᵢ
+      <span class="kw">if</span> I == [A → β • c γ, a] <span class="kw">and</span> goto(ccᵢ, c) == ccⱼ
+         <span class="kw">then</span> Action[i, c] ← "shift j";       <span class="cm">// 단말 c</span>
+      <span class="kw">else if</span> I == [A → β •, a]
+         <span class="kw">then</span> Action[i, a] ← "reduce A → β";
+      <span class="kw">else if</span> I == [S' → S •, eof]
+         <span class="kw">then</span> Action[i, eof] ← "accept";
+   <span class="kw">end</span>
+   <span class="kw">for each</span> 비단말 n
+      <span class="kw">if</span> goto(ccᵢ, n) == ccⱼ
+         <span class="kw">then</span> Goto[i, n] ← j;
+<span class="kw">end</span></code></pre>
+
+<p>괄호 문법은 11개 상태(cc₀..cc₁₁)와 12개 entry로 끝난다. 작지만 알고리즘의 모든 면을 보여주는 좋은 예다.</p>
+
+<h3>3.4.3 표 구성에서 발생하는 오류 — 충돌(Conflict)</h3>
+
+<p>같은 칸 <code>Action[i, a]</code>에 두 개 이상의 행동이 들어가면 충돌이다.</p>
+
+<h4>shift-reduce 충돌</h4>
+
+<p>고전적인 매달린 else 문법으로 LR(1) 표를 만들어 보면 어떤 상태에서 다음 두 아이템이 동시에 나타난다.</p>
+
+<pre><code>1. [Stmt → if expr then Stmt •, else]   <span class="cm">// reduce</span>
+3. [Stmt → if expr then Stmt • else Stmt, else]  <span class="cm">// shift</span></code></pre>
+
+<p>룩어헤드 <code>else</code>를 만나면 reduce할지 shift할지 모호하다. 이게 <strong>shift-reduce 충돌</strong>이다. 모호한 문법의 직접적 증상이다.</p>
+
+<p>관습적 해결: <em>shift를 우선시한다.</em> 그러면 <code>else</code>가 가장 가까운 <code>if</code>에 묶이는 결과가 된다.</p>
+
+<h4>reduce-reduce 충돌</h4>
+
+<p>두 규칙이 같은 우변을 가지면 (예: <code>A → γδ</code>와 <code>B → γδ</code>) 핸들을 줄일 때 어느 좌변으로 줄일지 모호하다. 같은 룩어헤드에 두 reduce 행동이 들어가면 <strong>reduce-reduce 충돌</strong>이 된다. 이것 역시 문법의 모호함을 가리킨다 — 컴파일러 작성자가 문법을 다시 써야 한다.</p>
+
+<div class="callout warn">
+<div class="callout-title">충돌 = 문법의 결함</div>
+<p>표 생성기는 충돌을 만나면 멈춰서 보고한다. 이때 받게 되는 “LR(1) 아이템들”을 들여다보면 어떤 두 규칙이 다투는지 알 수 있고, 거기서부터 문법을 고치면 된다. 이게 LR(1) 표 구성을 직접 공부할 가치다 — 실무에서 충돌 메시지를 디버깅할 줄 알아야 한다.</p>
+</div>
+
+<h2>3.5 실전에서 만나는 문제들</h2>
+
+<h3>3.5.1 오류 복구(Error Recovery)</h3>
+
+<p>지금까지 본 파서들은 오류를 만나면 즉시 멈춘다. 한 번 컴파일에 한 개의 오류만 보고한다는 뜻이다. 실전에서는 한 번에 가능한 한 많은 오류를 잡고 싶다 — 안 그러면 프로그래머가 “고치고-컴파일하고-한 줄 위에서 또 막힘”을 100번 반복해야 한다.</p>
+
+<p>흔한 전략: <strong>동기화 토큰(synchronizing word)</strong>으로 점프하기. Algol 계열 언어에서는 보통 세미콜론(<code>;</code>)을 동기화 토큰으로 쓴다. 오류를 만나면 다음 <code>;</code>까지 스캐너를 진행시키고, 파서 상태를 “문장이 막 끝난 것처럼” 리셋한 뒤 계속한다.</p>
+
+<ul>
+<li>재귀 하강 파서: 그냥 토큰을 버리다가 <code>;</code> 만나면 statement 함수에서 return. C의 <code>setjmp/longjmp</code>를 쓰면 더 깔끔.</li>
+<li>LR(1) 파서: 좀 복잡하다. 입력에서 <code>;</code>까지 진행한 뒤, 스택을 거꾸로 훑으며 <code>Goto[s, Statement]</code>가 유효한 상태 s를 찾는다. 그 위쪽을 모두 버리고 <code>Statement</code> 상태를 푸시해 다시 출발.</li>
+</ul>
+
+<p>표 생성기에 “오류 생성 규칙(error production)”을 명시하면 자동 생성도 가능하다. 단, 오류가 한 번이라도 발생한 컴파일 단위는 <em>최적화나 코드 생성을 시도하면 안 된다</em>—구문 오류 너머에 의미 있는 코드는 없다.</p>
+
+<h3>3.5.2 단항 연산자(Unary Operators)</h3>
+
+<p>고전 수식 문법은 이항 연산자만 다뤘다. 절댓값 <code>||</code>같은 단항 연산자를 추가해 보자. 절댓값은 × ÷보다 우선순위가 높지만 괄호보다는 낮아야 한다.</p>
+
+<pre><code>0  Goal   → Expr
+1  Expr   → Expr + Term
+2         | Expr - Term
+3         | Term
+4  Term   → Term × Value
+5         | Term ÷ Value
+6         | Value
+7  Value  → || Factor
+8         | Factor
+9  Factor → ( Expr )
+10        | num
+11        | name</code></pre>
+
+<p>새 비단말 <em>Value</em>를 도입했다. <code>||x - 3</code>은 <code>(||x) - 3</code>으로 파싱되고, <code>|||x</code>는 거부된다 (수학적으로 무의미하니까). 하지만 <code>||(||x)</code>는 허용된다.</p>
+
+<p>같은 발상으로 C의 <code>**p</code>(이중 역참조) 같은 것도 처리할 수 있다 — <code>Value → * Value</code>를 추가하면 된다. 이항 <code>×</code>와 단항 <code>*</code>가 같은 토큰이지만, 문맥에 따라 문법이 둘을 분리해서 처리한다.</p>
+
+<h3>3.5.3 문맥 의존 모호함(Context-Sensitive Ambiguity)</h3>
+
+<p>한 단어가 두 의미를 가지면 구문 모호함이 생긴다. FORTRAN, PL/I, Ada는 함수 호출과 배열 인덱스를 모두 괄호 <code>()</code>로 표기했다. <code>fee(i, j)</code>는 함수 호출인가 2차원 배열 접근인가? 답은 <strong>fee의 선언된 타입</strong>에 달려 있다 — 이건 구문 정보가 아니다.</p>
+
+<p>문법으로 표현하면:</p>
+
+<pre><code>FunctionReference → name ( ArgList )
+ArrayReference    → name ( ArgList )</code></pre>
+
+<p>두 우변이 똑같다 → reduce-reduce 충돌 확정.</p>
+
+<p>해결책 두 가지:</p>
+<ol>
+<li><strong>구문에서는 합치고 나중에 푼다</strong>: 두 우변을 한 비단말로 합쳐서 일단 파싱하고, 의미 분석 단계에서 선언 정보를 보고 함수 호출/배열 참조로 분기.</li>
+<li><strong>스캐너가 구분한다</strong>: 선언이 사용보다 먼저 온다는 규칙(define-before-use)이 있으면, 파서가 심볼 테이블을 채워가며 스캐너에게 “fee는 함수다”/“배열이다”를 알려주는 식. 그러면 스캐너가 <code>function-name</code>과 <code>variable-name</code>을 다른 토큰 종류로 분류해서 돌려준다.</li>
+</ol>
+
+<p>두 번째가 더 깔끔하다. C가 배열에 <code>[]</code>를 쓰고 함수에 <code>()</code>를 쓰는 건 이런 모호함을 처음부터 차단하기 위한 설계 결정이다.</p>
+
+<h3>3.5.4 좌재귀 vs 우재귀</h3>
+
+<p>탑다운 파서는 좌재귀를 못 다루고 우재귀를 써야 한다. 바텀업 파서는 둘 다 가능하다. 그럼 LR(1)에서는 어느 쪽을 고를까?</p>
+
+<h4>스택 깊이</h4>
+
+<p><strong>좌재귀가 스택을 덜 쓴다.</strong> 5원소 리스트를 예로 보자.</p>
+
+<div class="figure">
+<pre><code>(a) 좌재귀:                    (b) 우재귀:
+List → List elt                 List → elt List
+     | elt                            | elt</code></pre>
+</div>
+
+<p>좌재귀: <code>elt₁</code> shift, 즉시 List로 reduce. <code>elt₂</code> shift, <code>List elt₂</code>를 List로 reduce… 스택은 항상 깊이 2 정도. 평균 깊이 ≈ 5/3.</p>
+
+<p>우재귀: 5개의 elt를 모두 stack에 쌓은 뒤, <code>elt₅</code>를 List로 reduce하고, 그 다음 거꾸로 합쳐 올라간다. 최대 깊이 5, 평균 깊이 ≈ 10/3.</p>
+
+<p>긴 명령문 리스트(수백 개의 직선 코드)에서 우재귀는 스택을 수백 칸 잡아먹지만 좌재귀는 두세 칸이면 끝. <strong>가능하면 좌재귀를 쓰자.</strong></p>
+
+<h4>결합성(Associativity)</h4>
+
+<p>좌재귀는 자연스럽게 <em>좌결합</em>을 만들고 우재귀는 <em>우결합</em>을 만든다. 리스트라면 무관하지만 산술 연산에서는 결정적이다.</p>
+
+<pre><code>x₁ + x₂ + x₃ + x₄ + x₅</code></pre>
+
+<p>좌재귀 → ((((x₁+x₂)+x₃)+x₄)+x₅) — 좌→우 평가.<br>
+우재귀 → (x₁+(x₂+(x₃+(x₄+x₅)))) — 우→좌 평가.</p>
+
+<p>부동소수점 산술에서는 두 결과가 다를 수 있다 (덧셈이 결합법칙을 만족하지 않으니까). <code>x₁ - x₂ + x₃</code>의 경우 좌결합은 <code>(x₁-x₂)+x₃</code>로 우리가 원하는 답을 주지만, 우결합은 <code>x₁-(x₂+x₃)</code>로 잘못된 답을 준다. <strong>뺄셈이 섞이면 좌결합이 정답이다.</strong></p>
+
+<h2>3.6 고급 주제</h2>
+
+<h3>3.6.1 문법 최적화</h3>
+
+<p>구문 분석이 컴파일 시간의 큰 부분을 더 이상 차지하진 않지만, 파스 트리가 작을수록 reduce/expand 횟수도 줄어 빨라진다. 작은 최적화가 가능하다.</p>
+
+<p>고전 수식 문법의 <code>a+2×b</code>는 14개 노드짜리 트리를 만든다. <em>Factor</em>는 자식이 하나뿐인 “쓸데없는 중간층”을 만든다. <em>Factor</em>의 우변들을 <em>Term</em>의 우변으로 펴서 합치면 한 층을 없앨 수 있다.</p>
+
+<pre><code>4  Term → Term × ( Expr )
+5       | Term × name
+6       | Term × num
+7       | Term ÷ ( Expr )
+8       | Term ÷ name
+9       | Term ÷ num
+10      | ( Expr )
+11      | name
+12      | num</code></pre>
+
+<p><em>Term</em>의 우변이 3배로 늘었지만 트리가 한 층 얇아진다. LR(1) 파서에서 reduce 횟수가 줄고, 파싱이 빨라진다.</p>
+
+<p>일반적으로 우변이 단일 기호인 “쓸모없는 생성 규칙(useless production)”은 접어 없앨 수 있다. 단, 표 크기는 늘 수 있으니 트레이드오프다.</p>
+
+<h3>3.6.2 LR(1) 표 크기 줄이기</h3>
+
+<p>고전 수식 문법의 LR(1) 표는 32×8 정도다. 큰 언어에서는 수천×수백이 된다. 줄이는 법:</p>
+
+<ol>
+<li><strong>같은 행/열 합치기</strong> — 표에서 동일한 행/열들을 발견하면 한 번만 저장하고 매핑한다. 행 인덱스를 한 번 더 거치는 비용은 있지만 메모리는 크게 절약된다.</li>
+<li><strong>문법 줄이기</strong> — <code>num</code>과 <code>name</code>처럼 통합 가능한 단말은 한 토큰 종류 <code>val</code>로 합치고, <code>×</code>와 <code>÷</code>는 <code>muldiv</code>로, <code>+</code>와 <code>-</code>는 <code>addsub</code>로 합친다. 행과 열이 동시에 줄어든다. 단, 스캐너가 협조해서 같은 syntactic 카테고리를 돌려줘야 한다.</li>
+<li><strong>표를 직접 코드로 인코딩</strong> — 골격 파서 + 표 대신, 각 상태를 if-else 분기로 펼친 함수로 만든다. 메모리 접근이 사라지고 명령어 캐시 친화적이다. 사람이 읽기는 어렵지만 빠르다.</li>
+<li><strong>다른 구성 알고리즘 쓰기</strong> — <strong>SLR(1)</strong>(Simple LR)은 룩어헤드 없이 FOLLOW 집합으로 처리해 표가 더 작다. <strong>LALR(1)</strong>(Lookahead LR)은 LR(1) 아이템들을 “핵심 아이템” 기준으로 합쳐 SLR(1)과 같은 크기의 표를 만든다. 받아들이는 문법 클래스가 약간 좁지만 거의 모든 실용 언어를 다룬다. (yacc/bison이 LALR(1)이다.)</li>
+</ol>
+
+<div class="callout note">
+<div class="callout-title">LR(1) 가족의 흥미로운 관계</div>
+<p>받아들이는 언어 클래스는 LR(1) = LALR(1) = SLR(1)이지만, 같은 언어를 표현하는 LR(1) 문법이 LALR(1) 문법보다 더 복잡할 수 있다. 그러니까 “표는 작고 빠르지만 문법을 더 다듬어야 한다”의 트레이드오프다.</p>
+</div>
+
+<h2>3.7 정리하며</h2>
+
+<p>거의 모든 컴파일러는 파서를 가진다. 수십 년의 연구 끝에 결정론적 LR(1)/LALR(1)/SLR(1) 표 생성기가 표준이 되었고, yacc, bison, ANTLR 같은 도구가 흔하다.</p>
+
+<p>두 큰 흐름을 비교하자.</p>
+
+<table>
+<tr><th></th><th>탑다운 LL(1) / 재귀 하강</th><th>바텀업 LR(1)</th></tr>
+<tr><td>방향</td><td>뿌리 → 잎 (예측)</td><td>잎 → 뿌리 (인식)</td></tr>
+<tr><td>유도</td><td>최좌</td><td>최우의 역방향</td></tr>
+<tr><td>좌재귀</td><td>못 다룸 (변환 필요)</td><td>OK</td></tr>
+<tr><td>우재귀</td><td>OK</td><td>OK (스택 깊이는 늘어남)</td></tr>
+<tr><td>오류 메시지</td><td>손코딩으로 정밀화 쉬움</td><td>표 기반이라 다소 일반적</td></tr>
+<tr><td>구현</td><td>손코딩이 자연스러움</td><td>도구 생성이 정석</td></tr>
+<tr><td>속도</td><td>잘 만든 재귀 하강은 LR보다 빠를 수 있음</td><td>빠르지만 표 룩업 비용</td></tr>
+</table>
+
+<p><strong>실용적 조언</strong>:</p>
+<ul>
+<li>LR(1) 도구가 손에 있다면 그걸로 시작하라. 처음부터 만들지 마라.</li>
+<li>키워드를 식별자로 허용하는 등 문법이 까다로우면 재귀 하강이 유연하다. (PL/I, 옛날 FORTRAN…)</li>
+<li>오류 메시지에 진심이면 재귀 하강이 좋다.</li>
+</ul>
+
+<p>대부분의 프로그래밍 언어 구문은 LR(1) 또는 LL(1) 형태로 표현 가능하다. 그래서 일반화된 O(n³) 알고리즘(Earley, CYK 등)은 컴파일러에 잘 안 쓰인다 — 정밀하지만 너무 느리다.</p>
+
+<div class="callout">
+<div class="callout-title">한 줄 요약</div>
+<p>스캐너는 글자를 단어로, 파서는 단어를 문장으로. CFG가 언어, FIRST/FOLLOW가 룩어헤드, 핸들이 줄임의 단위, 그리고 LL(1)이든 LR(1)이든 “한 토큰만 보고 결정”이 모든 비밀이다.</p>
+</div>
+
+<div class="chapter-nav">
+<a href="chapter-2.html"><span class="label">← 이전</span><span>2장. 스캐너</span></a>
+<a href="chapter-4.html" class="next-link"><span class="label">다음 →</span><span>4장. 문맥 의존 분석</span></a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

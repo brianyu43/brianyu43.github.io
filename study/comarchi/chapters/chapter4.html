@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4장. 프로세서 · 컴퓨터 구조 위트 가이드</title>
+<meta name="description" content="패터슨·헤네시의 RISC-V판 4장 — 데이터패스, 제어, 파이프라이닝, 해저드, 분기 예측까지 한국어로 위트 있게 풀어쓴 학습 노트.">
+<link rel="stylesheet" href="../css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="../index.html" class="brand">
+      <span class="badge">RV64</span>
+      컴퓨터 구조 위트 가이드
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">홈</a>
+      <a href="chapter2.html">2장</a>
+      <a href="chapter3.html">3장</a>
+      <a href="chapter4.html" class="active">4장</a>
+      <a href="chapter5.html">5장</a>
+      <a href="chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">🌙 다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="chapter-header">
+    <div class="ch-num">Chapter 4</div>
+    <h1>프로세서</h1>
+    <p class="ch-subtitle">명령어가 칩 안에서 살아 움직이는 5단계 컨베이어 벨트</p>
+  </section>
+
+  <blockquote>
+    중요한 일에는, 사소한 디테일이 없다.
+    <cite>— 프랑스 속담</cite>
+  </blockquote>
+
+  <div class="toc">
+    <h3>이 장의 목차</h3>
+    <ol>
+      <li><a href="#s1">4.1 도입 — 성능 방정식 다시 보기</a></li>
+      <li><a href="#s2">4.2 논리 설계 규칙</a></li>
+      <li><a href="#s3">4.3 데이터패스 만들기</a></li>
+      <li><a href="#s4">4.4 단순 구현 (Single-Cycle)</a></li>
+      <li><a href="#s5">4.5 파이프라이닝 — 김밥 공장의 깨달음</a></li>
+      <li><a href="#s6">4.5+ 파이프라인 해저드</a></li>
+      <li><a href="#s7">4.6 파이프라인 데이터패스와 제어</a></li>
+      <li><a href="#s8">4.7 데이터 해저드: 포워딩과 스톨</a></li>
+      <li><a href="#s9">4.8 제어 해저드와 분기 예측</a></li>
+      <li><a href="#s10">4.9 예외 처리</a></li>
+      <li><a href="#s11">4.10 명령어 수준 병렬성 (ILP)</a></li>
+      <li><a href="#s12">4.11 실제 사례 — Cortex-A53 vs Core i7</a></li>
+      <li><a href="#s13">4.12 가속 — DGEMM with ILP</a></li>
+      <li><a href="#s14">4.14 오류와 함정</a></li>
+      <li><a href="#s15">4.15 결론</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">4.1 도입 — 성능 방정식 다시 보기</h2>
+  <p>
+    1장에서 우리는 컴퓨터의 속도를 결정하는 세 친구를 만났습니다. 다시 한 번 인사 나눠보죠.
+  </p>
+  <ul>
+    <li><strong>명령어 개수 (Instruction Count, IC)</strong> — 컴파일러와 ISA 설계자가 책임지는 영역.</li>
+    <li><strong>CPI (Cycles Per Instruction)</strong> — 프로세서 구현이 책임지는 영역.</li>
+    <li><strong>클럭 주기 시간 (Clock Cycle Time)</strong> — 회로 설계자와 프로세서 구현이 같이 책임지는 영역.</li>
+  </ul>
+  <p>
+    이 장의 주인공은 두 번째와 세 번째입니다. <em>같은 명령어를 어떻게 만들면 더 빨리 돌릴 수 있을까?</em>
+    이게 바로 「프로세서 구현」이라는 학문의 한 줄 요약이에요.
+  </p>
+
+  <div class="callout bigpic">
+    <strong>큰 그림.</strong>
+    명령어가 메모리에서 튀어나와 결과를 남기기까지, 어떤 회로들을 통과하는지 직접 그려봅니다.
+    먼저 <em>한 사이클에 한 명령어</em> 끝내는 단순 버전을 만들고, 그게 너무 느리니
+    <em>5단계 파이프라인</em>으로 갈아끼우고, 그 과정에서 생기는 온갖 사고(해저드)들을
+    포워딩·스톨·분기 예측으로 막아내는 — 이 장은 그 90페이지짜리 액션 영화입니다.
+  </div>
+
+  <h3>RISC-V 부분 집합으로 단순화</h3>
+  <p>
+    실제 RISC-V는 명령어가 수백 개지만, 4장에서는 <strong>아주 작은 집합</strong>만 다룹니다.
+    핵심 패턴만 잡으면 나머지는 거의 자동이거든요.
+  </p>
+  <ul>
+    <li>메모리 접근: <code class="code-keyword">ld</code>, <code class="code-keyword">sd</code></li>
+    <li>R-type 산술/논리: <code class="code-keyword">add</code>, <code class="code-keyword">sub</code>, <code class="code-keyword">and</code>, <code class="code-keyword">or</code></li>
+    <li>조건 분기: <code class="code-keyword">beq</code></li>
+  </ul>
+  <p>
+    딱 7개입니다. 이 7개로 데이터패스를 짜면, 거기에 다른 명령어를 끼워 넣는 건 거의 「복붙 후 살짝 수정」 수준이에요.
+    교과서가 친절한 게 아니라, 진짜 그렇습니다.
+  </p>
+
+  <h3>모든 명령어가 공유하는 패턴</h3>
+  <p>
+    어떤 명령어든, 프로세서 입장에서는 같은 의식을 치러야 합니다.
+  </p>
+  <ol>
+    <li><strong>Fetch</strong> — PC가 가리키는 주소에서 명령어를 꺼낸다.</li>
+    <li><strong>Decode</strong> — 어떤 명령어인지, 레지스터는 뭘 쓰는지 파악한다.</li>
+    <li><strong>Execute</strong> — 실제 일을 한다 (덧셈, 메모리 접근, 분기 결정 등).</li>
+  </ol>
+  <p>
+    이걸 5단계로 잘게 쪼갠 게 나중에 보게 될 IF/ID/EX/MEM/WB 파이프라인입니다. 일단 지금은
+    “세 단계를 한 사이클에 다 끝내자”는 무모한 계획으로 시작합니다.
+  </p>
+
+  <div class="callout witty">
+    <strong>한 줄 요약.</strong>
+    PC가 <em>어디 보냐</em>, ALU가 <em>뭘 계산하냐</em>, 결과가 <em>어디 들어가냐</em> —
+    이 세 가지만 끝까지 따라가면 4장은 사실상 끝난 겁니다.
+  </div>
+
+  <h2 id="s2">4.2 논리 설계 규칙</h2>
+  <p>
+    데이터패스를 만들기 전에, 디지털 회로의 「공중도덕」 두 가지를 짚고 갑니다. 이걸 안 지키면
+    회로가 발작합니다 (메타스테이블이라고 합니다, 진짜로).
+  </p>
+
+  <dl class="term">
+    <dt>조합 회로 (Combinational Logic)</dt>
+    <dd>
+      입력만 보고 즉시 출력을 결정하는 회로. 기억력이 없어요. ALU, 멀티플렉서, 디코더, 가산기 같은 것들.
+      입력이 흔들리면 출력도 같이 흔들립니다.
+    </dd>
+    <dt>상태 소자 (State Element)</dt>
+    <dd>
+      값을 「붙잡아두는」 회로. 레지스터, 메모리, 플립플롭이 여기에 해당합니다. 클럭이 올 때만 값이 갈아엎어집니다.
+      말하자면 디지털 회로의 「냉장고」 — 클럭이 와야만 문을 엽니다.
+    </dd>
+  </dl>
+
+  <h3>클러킹 방법론 — Edge-Triggered</h3>
+  <p>
+    이 책이 채택한 디자인은 <strong>edge-triggered clocking</strong>입니다. 풀어쓰면 이렇게 됩니다.
+  </p>
+  <ul>
+    <li>클럭은 0과 1을 왕복하는데, 우리는 그중 <em>한쪽 가장자리</em>(보통 상승 엣지)에만 관심을 둡니다.</li>
+    <li>그 순간, 모든 상태 소자가 동시에 값을 갱신합니다. 입력은 「엣지 직전의 값」으로 굳어지고, 출력은 「엣지 직후의 새 값」이 됩니다.</li>
+    <li>한 클럭 사이클 동안 조합 회로는 충분한 시간을 갖고 새 입력을 처리해 다음 엣지 전까지 안정화돼야 합니다.</li>
+  </ul>
+  <p>
+    덕분에 「읽기와 쓰기를 같은 사이클에 안전하게」 할 수 있어요. 사이클 시작에 읽고 → 일하고 → 사이클 끝(다음 엣지)에 씁니다.
+    같은 레지스터를 한 사이클에 읽고 쓰는 일이 자주 일어나는데, 이게 가능한 이유가 바로 이 클러킹 규약 덕분입니다.
+  </p>
+
+  <div class="callout principle">
+    <strong>설계 원리.</strong> <em>안정될 시간을 주어라.</em>
+    한 사이클의 길이는 <strong>가장 느린 경로</strong>(critical path)가 안정화되는 데 걸리는 시간 이상이어야 합니다.
+    너무 짧게 잡으면 회로가 「아직 다 안 익었어요!」 하면서 잘못된 값을 저장합니다.
+  </div>
+
+  <h3>Asserted vs Deasserted</h3>
+  <p>
+    제어 신호 1비트는 둘 중 하나입니다.
+  </p>
+  <ul>
+    <li><strong>asserted</strong> = 활성, 보통 1. “하라”는 뜻.</li>
+    <li><strong>deasserted</strong> = 비활성, 보통 0. “하지 마라” 또는 “관심 없음”.</li>
+  </ul>
+  <p>
+    가끔 active-low(0이 활성) 신호도 있는데, 그땐 <code>RegWrite#</code>처럼 #이나 막대를 붙여서 표시합니다.
+    헷갈리니까 일단 active-high만 쓰겠습니다.
+  </p>
+
+  <h3>제어 신호 vs 데이터 신호</h3>
+  <p>
+    회로 안의 선들은 두 종류로 나뉩니다.
+  </p>
+  <ul>
+    <li><strong>데이터 신호</strong> — 실제 값(레지스터 값, 메모리 값, ALU 결과). 보통 폭이 넓습니다 (32비트, 64비트).</li>
+    <li><strong>제어 신호</strong> — “이 멀티플렉서는 위쪽 입력을 골라라”, “레지스터에 써라” 같은 명령. 보통 1~몇 비트짜리 가는 선.</li>
+  </ul>
+
+  <div class="callout check">
+    <strong>혼자 점검 — 안정될 시간.</strong>
+    클럭 주기가 너무 짧으면 어떤 일이 벌어질까요? 너무 길면요?
+    <details><summary>답</summary>
+    너무 짧으면 조합 회로가 다 안정되기 전에 다음 엣지가 와서 <em>틀린 값</em>이 레지스터에 저장됩니다.
+    너무 길면 단순히 성능 손해 — 회로는 진작 끝났는데 다음 엣지를 멍하니 기다립니다.</details>
+  </div>
+
+  <h2 id="s3">4.3 데이터패스 만들기</h2>
+  <p>
+    이제 진짜로 회로를 그립니다. 한 번에 다 그리면 어지러우니까, 명령어 종류를 하나씩 늘려가며 부품을 추가해봅시다.
+  </p>
+
+  <h3>3.1 기본 부품들</h3>
+  <dl class="term">
+    <dt>PC (Program Counter)</dt>
+    <dd>다음에 실행할 명령어 주소를 들고 있는 레지스터. 매 사이클 4를 더해서 갱신됩니다 (RISC-V는 명령어가 4바이트).</dd>
+    <dt>Instruction Memory</dt>
+    <dd>PC를 입력받아 그 주소의 32비트 명령어를 뱉는 메모리. 4장에선 “읽기 전용”으로 가정해서 단순화합니다.</dd>
+    <dt>Register File</dt>
+    <dd>32개의 64비트 레지스터를 들고 있는 작은 메모리. <em>읽기 포트 2개 + 쓰기 포트 1개</em>가 기본 사양입니다. 대부분의 명령어가 두 개 읽고 한 개 쓰니까요.</dd>
+    <dt>ALU</dt>
+    <dd>덧셈, 뺄셈, AND, OR, 그리고 비교용 「Zero」 신호까지 뱉는 만능 계산기. 4비트 ALU 제어 입력으로 무슨 연산을 할지 정합니다.</dd>
+    <dt>Sign-Extend 유닛</dt>
+    <dd>12비트나 13비트짜리 즉시값을 64비트로 「부호 확장」해주는 회로. 음수도 음수답게 늘려줘야죠.</dd>
+    <dt>Branch Target Adder</dt>
+    <dd><code>beq</code>처럼 분기 주소를 계산할 때 PC와 즉시값을 더해주는 또 하나의 가산기. ALU 본체가 그동안 다른 일을 해야 해서 별도 가산기를 둡니다.</dd>
+  </dl>
+
+  <h3>3.2 R-type만 있는 작은 세상</h3>
+  <p>
+    가장 단순한 시나리오부터. <code>add x5, x6, x7</code> 같은 R-type 명령어만 있다고 칩시다.
+    필요한 흐름은 이렇습니다.
+  </p>
+  <ol>
+    <li>PC → Instruction Memory → 32비트 명령어를 가져온다.</li>
+    <li>명령어에서 <code>rs1</code>, <code>rs2</code>, <code>rd</code> 필드를 뽑아 레지스터 파일에 입력으로 준다.</li>
+    <li>레지스터 파일이 <code>rs1</code>, <code>rs2</code>의 값을 두 포트로 동시에 읽어 ALU에 넣는다.</li>
+    <li>ALU가 계산하고, 결과를 다시 레지스터 파일의 <code>rd</code>에 쓴다 (RegWrite=1).</li>
+    <li>PC ← PC + 4.</li>
+  </ol>
+
+  <h3>3.3 ld / sd 추가하기</h3>
+  <p>
+    이제 메모리 접근이 끼어듭니다. <code>ld x5, 8(x6)</code>은 “<code>x6</code>에 8을 더한 주소에서 8바이트 읽어 <code>x5</code>에 넣어라”라는 뜻이죠.
+    뭐가 새로 필요할까요?
+  </p>
+  <ul>
+    <li><strong>Sign-extend된 즉시값</strong>이 ALU의 두 번째 입력으로 들어가야 합니다. R-type일 땐 <code>rs2</code>가 들어가야 하고요.
+        그래서 <strong>멀티플렉서</strong>가 필요합니다 (제어 신호 이름: <code>ALUSrc</code>).</li>
+    <li>ALU가 계산한 주소로 <strong>Data Memory</strong>를 읽거나(MemRead) 써야(MemWrite) 합니다.</li>
+    <li><code>ld</code>의 경우 메모리에서 읽은 값을 <code>rd</code>에 써야 하고, R-type의 경우 ALU 결과를 써야 합니다.
+        또 <strong>멀티플렉서</strong>가 필요합니다 (<code>MemtoReg</code>).</li>
+  </ul>
+  <p>
+    멀티플렉서는 「자원 공유」의 핵심 부품이에요. 두 종류의 데이터가 같은 목적지로 가야 할 때, 적절한 쪽을 골라주는 ‘교통경찰’입니다.
+  </p>
+
+  <h3>3.4 beq 추가하기</h3>
+  <p>
+    <code>beq x5, x6, label</code>은 “두 레지스터가 같으면 PC를 label로, 아니면 PC+4로”라는 뜻입니다.
+    필요한 추가 부품은 다음과 같습니다.
+  </p>
+  <ul>
+    <li>ALU가 두 레지스터를 빼고, 결과가 0이면 <code>Zero</code> 신호를 뱉어 「같다」를 알린다.</li>
+    <li>분기 타깃 주소 = PC + (sign-extend(immediate) « 1). 별도 가산기로 계산.</li>
+    <li>PC의 다음 값은 <code>(PC+4)</code> 또는 <code>분기 타깃</code> 중 하나 — 이건 <code>Branch &amp;&amp; Zero</code> 신호로 멀티플렉서가 결정.</li>
+  </ul>
+
+  <div class="callout witty">
+    <strong>멀티플렉서가 너무 자주 등장해서 거의 주인공.</strong>
+    이 장의 진짜 영웅은 ALU도 PC도 아니고, “이거 할까 저거 할까” 결정해주는 멀티플렉서일지도 몰라요.
+    이름이 너무 길어서 다들 「먹스(mux)」라고 부릅니다. 친근감 ↑.
+  </div>
+
+  <h2 id="s4">4.4 단순 구현 (Single-Cycle)</h2>
+  <p>
+    부품들을 다 모아서 「<strong>한 사이클에 명령어 하나</strong>」 끝내는 가장 단순한 프로세서를 만듭니다.
+    이 디자인의 매력은 정말 단순하다는 것 — 한 명령어 = 한 사이클 = CPI 1.0. 끝.
+  </p>
+
+  <h3>ALU 제어 — 4비트, 두 단계</h3>
+  <p>
+    ALU는 4비트짜리 제어 입력으로 어떤 연산을 할지 결정합니다. R-type은 funct 필드를 보고, ld/sd는 무조건 덧셈, beq는 무조건 뺄셈이죠.
+    그런데 메인 제어가 이걸 다 알 필요는 없습니다. 두 단계로 나누면 깔끔해져요.
+  </p>
+  <ul>
+    <li>메인 제어는 <strong>ALUOp</strong>(2비트)만 내보냄. “R-type처럼 굴어”, “덧셈만 해”, “뺄셈만 해” 같은 큰 분류.</li>
+    <li>그러면 <strong>ALU 제어 회로</strong>가 ALUOp + funct 필드를 보고 진짜 4비트 ALU 제어 신호를 만든다.</li>
+  </ul>
+  <p>
+    ALUOp 인코딩 예시:
+  </p>
+  <table class="fmt-table">
+    <thead>
+      <tr><th>명령어</th><th>ALUOp</th><th>해석</th><th>최종 4비트</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>ld / sd</td><td>00</td><td>무조건 덧셈</td><td>0010</td></tr>
+      <tr><td>beq</td><td>01</td><td>무조건 뺄셈</td><td>0110</td></tr>
+      <tr><td>add</td><td>10</td><td>funct 보고 결정</td><td>0010</td></tr>
+      <tr><td>sub</td><td>10</td><td>funct 보고 결정</td><td>0110</td></tr>
+      <tr><td>and</td><td>10</td><td>funct 보고 결정</td><td>0000</td></tr>
+      <tr><td>or</td><td>10</td><td>funct 보고 결정</td><td>0001</td></tr>
+    </tbody>
+  </table>
+
+  <h3>메인 제어 유닛 — 7개의 신호</h3>
+  <p>
+    명령어의 opcode를 보고, 데이터패스의 모든 멀티플렉서·메모리·레지스터 파일에게 “이번 사이클은 이렇게 굴러가”라고 지시하는 회로입니다.
+    제어 신호 한 줄씩 살펴봅시다.
+  </p>
+
+  <table class="fmt-table">
+    <thead>
+      <tr><th>신호</th><th>0일 때</th><th>1일 때</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>RegWrite</td><td>레지스터 파일에 쓰지 않음</td><td>WB 단계에서 rd에 씀</td></tr>
+      <tr><td>ALUSrc</td><td>ALU 두 번째 입력 = rs2 값</td><td>ALU 두 번째 입력 = sign-extended immediate</td></tr>
+      <tr><td>MemRead</td><td>데이터 메모리 읽지 않음</td><td>ALU 결과 주소에서 읽음</td></tr>
+      <tr><td>MemWrite</td><td>데이터 메모리 쓰지 않음</td><td>rs2 값을 ALU 결과 주소에 씀</td></tr>
+      <tr><td>MemtoReg</td><td>레지스터에 쓸 값 = ALU 결과</td><td>레지스터에 쓸 값 = 메모리에서 읽은 값</td></tr>
+      <tr><td>Branch</td><td>분기 명령 아님</td><td>분기 명령 (Zero와 AND해서 PC를 결정)</td></tr>
+      <tr><td>ALUOp (2비트)</td><td colspan="2">위 표 참고</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    그러면 명령어별 제어 신호는 다음처럼 정리됩니다.
+  </p>
+  <table class="fmt-table">
+    <thead>
+      <tr><th>명령</th><th>RegWrite</th><th>ALUSrc</th><th>MemRead</th><th>MemWrite</th><th>MemtoReg</th><th>Branch</th><th>ALUOp</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>R-type</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>10</td></tr>
+      <tr><td>ld</td><td>1</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>00</td></tr>
+      <tr><td>sd</td><td>0</td><td>1</td><td>0</td><td>1</td><td>X</td><td>0</td><td>00</td></tr>
+      <tr><td>beq</td><td>0</td><td>0</td><td>0</td><td>0</td><td>X</td><td>1</td><td>01</td></tr>
+    </tbody>
+  </table>
+  <p>
+    X는 “돈 케어(don’t care)” — 어차피 그 신호의 결과가 안 쓰이는 상황이라 0/1 아무거나 좋다는 뜻입니다.
+    하드웨어 설계에선 이 X들을 잘 활용하면 회로가 더 작아지기도 해요.
+  </p>
+
+  <h3>왜 single-cycle은 멸종했을까?</h3>
+  <p>
+    한 사이클에 모든 명령어를 끝내려면, 클럭 주기를 <strong>가장 느린 명령어</strong>에 맞춰야 합니다.
+    여기서 가장 느린 친구는 보통 <code>ld</code>입니다 — IF → 레지스터 읽기 → ALU(주소 계산) → 데이터 메모리 읽기 → WB까지 다 한 사이클에 해야 하니까요.
+  </p>
+  <p>
+    그런데 <code>add</code>는 데이터 메모리 단계가 필요 없잖아요? 그걸 <code>ld</code>의 사이클 시간만큼 기다려주는 건 <em>너무 손해</em>입니다.
+    한 줄로 요약: <strong>“가장 느린 친구가 모든 친구의 속도를 결정한다.”</strong>
+  </p>
+
+  <div class="callout witty">
+    <strong>회식의 비유.</strong>
+    여덟 명이 회식하는데 그중 한 명만 30분 걸리는 안주를 시키면, 모두가 그 30분을 기다립니다.
+    싱글사이클 프로세서가 딱 그래요. 모두가 가장 느린 친구의 식성을 맞춰주죠.
+  </div>
+
+  <p>
+    그래서 진짜 프로세서는 single-cycle을 쓰지 않습니다. 대신 <strong>파이프라이닝</strong>이라는 더 영리한 트릭을 씁니다.
+    드디어 4장의 진짜 주제로 넘어가요.
+  </p>
+
+  <h2 id="s5">4.5 파이프라이닝 — 김밥 공장의 깨달음</h2>
+
+  <div class="callout witty">
+    <strong>김밥 공장의 깨달음.</strong>
+    당신이 학교 앞에서 김밥집을 차렸다고 해봅시다. 한 줄을 만드는 데:
+    <ol>
+      <li>밥 깔기 — 1분</li>
+      <li>속재료 올리기 — 1분</li>
+      <li>김으로 말기 — 1분</li>
+      <li>썰기 — 1분</li>
+      <li>포장하기 — 1분</li>
+    </ol>
+    총 5분. 하루에 김밥 100줄을 만들면 500분이 걸립니다. 손이 모자라죠.
+    어느 날 아르바이트 4명이 더 와서 각자 한 단계씩만 맡기로 합니다.
+    1번 알바가 첫 김밥의 밥을 깔고 넘기면, 2번 알바가 속을 올리는 동안 1번 알바는 두 번째 김밥의 밥을 깝니다.
+    1분이 지날 때마다 한 줄이 「뚝딱」 완성돼요. 한 줄당 시간(latency)은 여전히 5분이지만, 처리량(throughput)은 5배가 됐습니다.
+    이게 바로 파이프라이닝입니다. 김밥이 단계 사이를 지나가는 컨베이어 벨트 — 그게 명령어 파이프라인.
+  </div>
+
+  <h3>RISC-V의 5단계</h3>
+  <p>
+    이 책의 모든 RISC-V 파이프라인은 5단계입니다. 외워두면 평생 우려먹습니다.
+  </p>
+  <ol>
+    <li><strong>IF (Instruction Fetch)</strong> — 명령어를 메모리에서 가져온다.</li>
+    <li><strong>ID (Instruction Decode)</strong> — 명령어를 해독하고 레지스터를 읽는다.</li>
+    <li><strong>EX (Execute)</strong> — ALU가 일한다 (산술 연산, 주소 계산, 분기 비교 등).</li>
+    <li><strong>MEM (Memory Access)</strong> — 데이터 메모리를 읽거나 쓴다.</li>
+    <li><strong>WB (Write Back)</strong> — 결과를 레지스터에 다시 쓴다.</li>
+  </ol>
+
+  <h3>처리량(throughput) vs 지연시간(latency)</h3>
+  <p>
+    파이프라이닝이 빨라지는 이유를 정확히 이해하려면 두 단어를 구분해야 합니다.
+  </p>
+  <ul>
+    <li><strong>지연시간 (latency)</strong> — 한 명령어가 IF에 들어가서 WB까지 끝나기까지 걸린 시간. 5단계니까 5사이클.</li>
+    <li><strong>처리량 (throughput)</strong> — 단위 시간당 끝나는 명령어 수. 이상적으로 매 사이클 1개씩 — 즉, IPC = 1, CPI = 1.</li>
+  </ul>
+  <p>
+    파이프라이닝은 <em>지연시간을 줄여주지 않습니다</em>. 한 명령어 자체의 처리 시간은 비슷하거나 오히려 늘어요(파이프라인 레지스터 오버헤드).
+    대신 <strong>여러 명령어를 동시에 처리</strong>해서 처리량을 끌어올립니다. CPU 광고에 “3GHz, IPC 3”이라고 적힌 거, 다 이거 얘기예요.
+  </p>
+
+  <h3>RISC-V는 파이프라이닝을 위해 태어났다</h3>
+  <p>
+    예전 CISC 명령어 집합(8086, VAX 같은 친구들)으로 파이프라인을 만들면 머리가 폭발합니다. 명령어 길이가 다 다르고,
+    한 명령어가 메모리를 두세 번 만지고, 부작용이 따로 있고… 반면 RISC-V는 처음부터 파이프라이닝을 염두에 두고 설계됐어요.
+  </p>
+  <ul>
+    <li><strong>모든 명령어가 같은 길이 (32비트).</strong> IF 단계가 단순해집니다 — 무조건 4바이트 가져오면 끝.</li>
+    <li><strong>포맷 종류가 적다.</strong> ID 단계에서 <code>rs1</code>, <code>rs2</code>가 항상 같은 위치라 디코딩이 빠릅니다.</li>
+    <li><strong>메모리 접근은 ld/sd만.</strong> 다른 명령어는 메모리를 안 만지니까, MEM 단계가 한가할 때가 많고 자료 의존성도 단순합니다.</li>
+    <li><strong>피연산자는 항상 정렬.</strong> 메모리 접근 단계에서 두 워드를 걸치는 경우가 없어서 회로가 단순해집니다.</li>
+  </ul>
+
+  <div class="callout hwsw">
+    <strong>HW/SW 인터페이스.</strong>
+    ISA 설계와 마이크로아키텍처는 한 몸입니다. 명령어 집합을 깔끔하게 만들면 하드웨어가 편해지고,
+    하드웨어가 빨라지면 컴파일러도 좋은 코드를 뽑기 쉬워집니다.
+    RISC가 RISC-V로 진화한 이유 중 8할이 이 파이프라이닝 친화성이에요.
+  </div>
+
+  <h2 id="s6">4.5+ 파이프라인 해저드</h2>
+  <p>
+    김밥 공장이 항상 매끄럽게 굴러가면 좋겠지만, 현실은 그렇지 않습니다. 알바들 사이에 「충돌」이 생기죠.
+    이걸 파이프라인 해저드(hazard)라고 부릅니다. 세 종류가 있어요.
+  </p>
+
+  <h3>1) 구조적 해저드 (Structural Hazard)</h3>
+  <p>
+    같은 자원을 두 단계가 동시에 쓰려고 할 때 발생합니다. 예컨대 명령어 메모리와 데이터 메모리가 하나로 통합돼 있으면,
+    IF가 명령어를 가져오는 동안 MEM이 데이터를 못 가져오죠.
+  </p>
+  <p>
+    RISC-V 5단계 파이프라인은 처음부터 <strong>명령어 메모리와 데이터 메모리를 분리</strong>해서(또는 캐시를 둘로 나눠서) 이 문제를 피합니다.
+    레지스터 파일도 「한 사이클에 두 번 읽고 한 번 쓰기」가 가능하게 설계해서, ID(읽기)와 WB(쓰기)가 같은 사이클에 일어나도 충돌 안 납니다.
+  </p>
+
+  <div class="callout witty">
+    <strong>김밥 공장 비유.</strong>
+    써는 도마와 마는 도마가 한 개뿐이면, 마는 알바와 써는 알바가 도마를 두고 싸웁니다.
+    해결법: 도마 두 개 사. 비유 끝.
+  </div>
+
+  <h3>2) 데이터 해저드 (Data Hazard)</h3>
+  <p>
+    앞 명령어의 결과를 뒤 명령어가 필요로 할 때, 그 결과가 아직 레지스터 파일에 안 들어갔으면 문제가 됩니다.
+  </p>
+<pre><code><span class="code-keyword">add</span>  <span class="code-reg">x1</span>, <span class="code-reg">x2</span>, <span class="code-reg">x3</span>   <span class="code-comment">// x1 = x2 + x3 (결과는 5사이클 후 WB에 기록)</span>
+<span class="code-keyword">sub</span>  <span class="code-reg">x4</span>, <span class="code-reg">x1</span>, <span class="code-reg">x5</span>   <span class="code-comment">// 그런데 sub은 ID에서 x1을 읽으려 함</span></code></pre>
+  <p>
+    <code>add</code>의 결과는 4사이클 뒤에야 레지스터 파일에 들어갑니다. 그런데 <code>sub</code>은 바로 다음 사이클에 ID 단계에 들어가서
+    <code>x1</code>을 읽으려 하죠. 망했습니다.
+  </p>
+
+  <h4>포워딩(Forwarding) — 일명 「먼저 알려주기」</h4>
+  <p>
+    멋진 트릭입니다. <code>add</code>의 결과는 사실 EX 단계 끝나면 이미 ALU 출력에 떠 있어요. 굳이 WB까지 기다릴 필요가 없죠.
+    그래서 <strong>EX/MEM 파이프라인 레지스터에서 직접 ALU 입력으로 보내주기</strong>로 합니다. 이게 포워딩(forwarding) 또는 바이패싱(bypassing)이에요.
+  </p>
+  <p>
+    포워딩 덕분에 대부분의 「뒤따르는 명령어가 앞 결과를 쓰는」 상황은 <em>스톨 없이</em> 해결됩니다.
+    더 자세한 규칙은 <a href="#s8">4.7</a>에서 봅시다.
+  </p>
+
+  <h4>로드-사용 해저드 (Load-Use Hazard) — 포워딩으로도 안 되는 경우</h4>
+  <p>
+    그런데 <code>ld</code>의 결과는 EX가 아니라 MEM 단계가 끝나야 나옵니다. 그래서 바로 다음 명령어가 그 값을 쓰려고 하면
+    포워딩만으로는 부족해요. 한 사이클은 <strong>버블(bubble)</strong>을 끼워서 기다려야 합니다.
+  </p>
+<pre><code><span class="code-keyword">ld</span>   <span class="code-reg">x1</span>, 0(<span class="code-reg">x2</span>)    <span class="code-comment">// MEM 끝에야 x1이 준비됨</span>
+<span class="code-keyword">add</span>  <span class="code-reg">x3</span>, <span class="code-reg">x1</span>, <span class="code-reg">x4</span>   <span class="code-comment">// 1사이클 stall 필요</span></code></pre>
+  <p>
+    이 경우 컴파일러가 <code>ld</code>와 <code>add</code> 사이에 무관한 명령어를 끼워 넣으면 stall이 사라집니다. <strong>코드 재정렬</strong>이라고 해요.
+    똑똑한 컴파일러는 이걸 자동으로 합니다.
+  </p>
+
+  <div class="callout witty">
+    <strong>비유.</strong>
+    배달원이 택배를 가지고 오는 중인데(MEM 단계), 받자마자 풀어서 써야 하는 친구가 줄을 서 있으면, 그 친구는 한 사이클 멍 때려야 합니다.
+    아니면 그 사이에 다른 일을 시키든가요. “택배 오는 동안 빨래 돌려봐” — 이게 컴파일러의 역할이에요.
+  </div>
+
+  <h3>3) 제어 해저드 (Control Hazard)</h3>
+  <p>
+    분기 명령(<code>beq</code> 같은 친구)의 결과는 EX(또는 더 늦은) 단계에서 나옵니다. 그런데 IF는 매 사이클 다음 명령어를 가져와야 하잖아요?
+    분기가 어디로 갈지 모르는 동안 어떻게 할까요?
+  </p>
+  <ul>
+    <li><strong>예측 안 함 (stall)</strong> — 그냥 멈춤. 가장 안전하지만 느림.</li>
+    <li><strong>Predict Not-Taken</strong> — “안 분기할 거야”라고 가정하고 PC+4를 계속 가져옴. 틀리면 그동안 가져온 명령어 버리기(flush).</li>
+    <li><strong>Predict Taken</strong> — “분기할 거야”라고 가정. 단, 분기 타깃 주소를 일찍 알아야 의미 있음.</li>
+    <li><strong>Dynamic Prediction</strong> — 과거 기록을 보고 학습. 1비트 / 2비트 예측기, BTB, 상관 예측기 등 — 4.8에서 자세히.</li>
+    <li><strong>Delayed Branch</strong> — 옛날 MIPS가 쓰던 방식. 분기 명령 바로 뒤의 「분기 지연 슬롯」 명령어는 분기 결과와 무관하게 항상 실행. 컴파일러가 그 자리에 안전한 명령어를 끼움. RISC-V는 안 씁니다.</li>
+  </ul>
+
+  <div class="callout bigpic">
+    <strong>큰 그림.</strong>
+    해저드는 결국 <strong>“정보가 늦게 도착해서 생기는 문제”</strong>입니다.
+    데이터 해저드는 값이 늦게 오고, 제어 해저드는 다음 PC가 늦게 오죠.
+    해결법은 두 갈래 — <em>일찍 보내거나(forwarding, 분기 결정을 ID로 옮기기)</em>, <em>예측해서 굴려보거나(분기 예측)</em>.
+  </div>
+
+  <h2 id="s7">4.6 파이프라인 데이터패스와 제어</h2>
+  <p>
+    이제 single-cycle 데이터패스를 잘게 썰어서 5단계 파이프라인으로 변신시킬 차례입니다.
+    핵심 아이디어는 <strong>파이프라인 레지스터</strong>예요.
+  </p>
+
+  <h3>파이프라인 레지스터 — 단계 사이의 「임시 보관함」</h3>
+  <p>
+    각 단계 사이마다 큰 레지스터를 끼워 넣습니다.
+    한 단계가 만들어낸 모든 정보(데이터 + 제어 신호)를 다음 단계가 쓸 수 있게 다음 사이클까지 들고 있어주는 사물함이에요.
+  </p>
+  <ul>
+    <li><strong>IF/ID</strong> — 가져온 명령어와 PC+4 값을 보관.</li>
+    <li><strong>ID/EX</strong> — 디코딩한 레지스터 값들, 즉시값(부호확장 후), 그리고 EX/MEM/WB에서 쓸 제어 신호.</li>
+    <li><strong>EX/MEM</strong> — ALU 결과, Zero 비트, 메모리에 쓸 데이터, 그리고 MEM/WB 제어 신호.</li>
+    <li><strong>MEM/WB</strong> — 메모리에서 읽은 값, ALU 결과(R-type일 때), WB 제어 신호.</li>
+  </ul>
+
+  <h3>제어 신호의 「행진」</h3>
+  <p>
+    재미있는 건 <strong>제어 신호도 같이 흘러간다</strong>는 점입니다. ID 단계에서 메인 제어가 신호 한 묶음을 만들어내면,
+    그중 EX에서 쓸 건 EX 단계로, MEM에서 쓸 건 MEM 단계로, WB에서 쓸 건 WB 단계로 — 마치 회사 인수인계 문서가 단계별로 넘어가듯
+    파이프라인 레지스터에 실려 「행진」합니다.
+  </p>
+  <p>
+    한 사이클에 여러 명령어가 동시에 진행 중이라, <em>각 명령어마다 자기만의 제어 신호 묶음</em>이 따라다녀야 하거든요. 그래서 이 행진이 필수입니다.
+  </p>
+
+  <table class="fmt-table">
+    <thead>
+      <tr><th>단계</th><th>이 단계에서 쓰는 신호</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>EX</td><td>ALUOp, ALUSrc</td></tr>
+      <tr><td>MEM</td><td>Branch, MemRead, MemWrite</td></tr>
+      <tr><td>WB</td><td>RegWrite, MemtoReg</td></tr>
+    </tbody>
+  </table>
+
+  <h3>파이프라인 다이어그램 — 시간 vs 단계</h3>
+  <p>
+    파이프라인을 시각화할 때는 보통 가로축이 시간(사이클), 세로축이 명령어인 표를 그립니다.
+  </p>
+  <table class="fmt-table">
+    <thead>
+      <tr><th>명령어</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>I1</td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td><td></td></tr>
+      <tr><td>I2</td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td></tr>
+      <tr><td>I3</td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td></tr>
+      <tr><td>I4</td><td></td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td></tr>
+    </tbody>
+  </table>
+  <p>
+    한 사이클에 다섯 단계가 동시에 진행 중인 게 보이시죠? 5단계 파이프라인의 진가는 이 「대각선의 미학」에 있습니다.
+  </p>
+
+  <h2 id="s8">4.7 데이터 해저드: 포워딩 vs 스톨</h2>
+  <p>
+    이제 가장 유명한 해저드를 정밀하게 들여다봅시다. 「누가 누구한테 값을 보내야 하는가」 — 이 질문 하나가 4.7의 전부예요.
+  </p>
+
+  <h3>포워딩 유닛의 두 가지 케이스</h3>
+  <p>
+    EX 단계에 있는 명령어가 ALU 입력으로 두 레지스터를 받는데, 그 값이 정말 레지스터 파일에서 읽은 「오래된 값」인지,
+    아니면 앞 명령어가 만든 「최신 값」인지 따져봐야 합니다. 가능한 경우는 두 가지뿐이에요.
+  </p>
+  <ul>
+    <li><strong>EX 해저드</strong> — 바로 직전 명령어(현재 EX/MEM 사이에 있는)가 ALU 결과를 만들었고, 그 결과 레지스터가 지금 EX 단계의 rs1 또는 rs2와 같다.
+        → EX/MEM 파이프라인 레지스터의 ALU 결과를 ALU 입력으로 직접 포워딩.</li>
+    <li><strong>MEM 해저드</strong> — 두 사이클 전 명령어(현재 MEM/WB 사이에 있는)의 결과가 지금 EX 단계의 rs1 또는 rs2와 같다.
+        → MEM/WB 파이프라인 레지스터의 값(ALU 결과 또는 메모리에서 읽은 값)을 포워딩.</li>
+  </ul>
+  <p>
+    포워딩 유닛은 4비트 멀티플렉서 제어 신호 두 개(<code>ForwardA</code>, <code>ForwardB</code>)를 만들어,
+    ALU 입력 멀티플렉서가 「레지스터 파일 / EX/MEM / MEM/WB」 셋 중 어디서 값을 가져올지 결정하게 합니다.
+  </p>
+
+  <h4>EX 해저드 조건</h4>
+<pre><code><span class="code-keyword">if</span> (EX/MEM.RegWrite
+    <span class="code-keyword">and</span> (EX/MEM.RegisterRd ≠ 0)
+    <span class="code-keyword">and</span> (EX/MEM.RegisterRd == ID/EX.RegisterRs1))
+  ForwardA = 10  <span class="code-comment">// EX/MEM에서 가져와</span></code></pre>
+
+  <h4>MEM 해저드 조건 — 그리고 우선순위</h4>
+<pre><code><span class="code-keyword">if</span> (MEM/WB.RegWrite
+    <span class="code-keyword">and</span> (MEM/WB.RegisterRd ≠ 0)
+    <span class="code-keyword">and</span> <span class="code-keyword">not</span> (EX/MEM.RegWrite <span class="code-keyword">and</span> EX/MEM.RegisterRd == ID/EX.RegisterRs1)
+    <span class="code-keyword">and</span> (MEM/WB.RegisterRd == ID/EX.RegisterRs1))
+  ForwardA = 01  <span class="code-comment">// MEM/WB에서 가져와</span></code></pre>
+  <p>
+    여기서 중요한 게 <strong>최신 값 우선 규칙</strong>입니다. 만약 가까운 앞 명령어(EX/MEM)와 더 앞 명령어(MEM/WB)가 둘 다 같은 레지스터에 쓰는 경우,
+    당연히 더 최근의 값(EX/MEM)을 써야죠. 그래서 MEM 해저드 조건에는 <em>“EX 해저드가 아닐 때만”</em>이라는 조건이 붙습니다.
+  </p>
+  <p>
+    또 <code>x0</code>(RISC-V의 zero 레지스터)는 영원히 0이라, 거기에 쓰는 척하는 명령어가 있어도 포워딩하면 안 됩니다.
+    그래서 <code>RegisterRd ≠ 0</code> 조건이 들어가요.
+  </p>
+
+  <h3>해저드 검출 유닛 — 로드-사용은 stall이 답이다</h3>
+  <p>
+    포워딩으로도 안 되는 경우가 하나 남았죠. <code>ld</code>의 결과는 MEM 끝에야 나오므로, 바로 다음 명령어가 그 값을 EX에서 쓰려 하면
+    <em>아직 값이 없는 상태</em>예요. 미래에서 가져올 수는 없으니, 한 사이클 기다리는 수밖에 없습니다.
+  </p>
+  <p>
+    해저드 검출 유닛은 ID 단계에서 다음 조건을 검사합니다.
+  </p>
+<pre><code><span class="code-keyword">if</span> (ID/EX.MemRead
+    <span class="code-keyword">and</span> ((ID/EX.RegisterRd == IF/ID.RegisterRs1)
+         <span class="code-keyword">or</span> (ID/EX.RegisterRd == IF/ID.RegisterRs2)))
+  stall_pipeline()</code></pre>
+  <p>
+    이 조건이 참이면, 한 사이클 동안 다음 일이 벌어집니다.
+  </p>
+  <ul>
+    <li>PC와 IF/ID 레지스터를 <strong>그대로 유지</strong>(=같은 명령어를 한 번 더 가져옴, 또는 그냥 멈춤).</li>
+    <li>ID/EX 레지스터의 모든 제어 신호를 <strong>0으로 만든다</strong> — “아무 일도 하지 마”의 NOP 버블을 끼우는 셈.</li>
+  </ul>
+  <p>
+    한 사이클 뒤에는 <code>ld</code>가 MEM/WB로 넘어가, 평소처럼 MEM 해저드 포워딩으로 처리할 수 있게 됩니다.
+  </p>
+
+  <div class="callout principle">
+    <strong>설계 원리.</strong>
+    포워딩은 빠르고 자유롭다. stall은 비싸지만 가끔 어쩔 수 없다. 그래서 모든 데이터 해저드는 다음 둘 중 하나로 분류된다 —
+    <em>“포워딩으로 해결되는 것”</em>과 <em>“1사이클 버블을 감수해야 하는 것(load-use)”</em>.
+    그 외 케이스는 ISA가 잘 디자인되면 거의 나타나지 않습니다.
+  </div>
+
+  <h3>코드 재정렬로 stall 줄이기</h3>
+  <p>
+    컴파일러는 영리해서 load 결과가 즉시 필요하지 않게 코드를 살짝 비틀어 놓습니다.
+  </p>
+<pre><code><span class="code-comment">// 원본 — load-use stall 1번 발생</span>
+<span class="code-keyword">ld</span>   <span class="code-reg">x1</span>, 0(<span class="code-reg">x10</span>)
+<span class="code-keyword">add</span>  <span class="code-reg">x2</span>, <span class="code-reg">x1</span>, <span class="code-reg">x3</span>
+<span class="code-keyword">ld</span>   <span class="code-reg">x4</span>, 8(<span class="code-reg">x10</span>)
+<span class="code-keyword">add</span>  <span class="code-reg">x5</span>, <span class="code-reg">x4</span>, <span class="code-reg">x6</span>
+
+<span class="code-comment">// 재정렬 — load 둘을 앞당겨 stall 0번</span>
+<span class="code-keyword">ld</span>   <span class="code-reg">x1</span>, 0(<span class="code-reg">x10</span>)
+<span class="code-keyword">ld</span>   <span class="code-reg">x4</span>, 8(<span class="code-reg">x10</span>)
+<span class="code-keyword">add</span>  <span class="code-reg">x2</span>, <span class="code-reg">x1</span>, <span class="code-reg">x3</span>
+<span class="code-keyword">add</span>  <span class="code-reg">x5</span>, <span class="code-reg">x4</span>, <span class="code-reg">x6</span></code></pre>
+  <p>
+    똑같은 결과인데 stall이 사라졌어요. 이런 「실행 순서 바꾸기」를 <strong>instruction scheduling</strong>이라고 합니다.
+    한국어로는 그냥 「명령어 스케줄링」이라고 부르는 편이에요.
+  </p>
+
+  <h2 id="s9">4.8 제어 해저드와 분기 예측</h2>
+  <p>
+    분기 명령은 파이프라인의 골치 거리입니다. <em>다음에 어디로 가야 할지</em>를 결정하기 전에는 IF 단계가 무엇을 가져와야 하는지 알 수 없거든요.
+    가장 단순한 단계까지로 미루면 분기는 EX 단계 끝에야 결정되고, 그동안 3사이클이 그냥 날아갑니다. 너무 비싸요.
+  </p>
+
+  <h3>분기 결정을 ID 단계로 옮기기</h3>
+  <p>
+    가장 직접적인 해결책은 <strong>분기를 더 일찍 결정</strong>하는 겁니다. 두 레지스터의 동등성 비교는 사실 빼기 안 해도 되거든요 — XOR 게이트로 충분합니다.
+    그래서 ID 단계 안에 작은 비교기와 분기 타깃 가산기를 추가합니다.
+  </p>
+  <p>
+    그러면 분기는 ID 끝에 결정되고, 잘못 페치된 명령어는 IF 한 개뿐입니다. flush 비용이 1사이클로 줄어요.
+    물론 ID 단계 자체는 약간 무거워지지만, 보통 이 트레이드오프는 이득입니다.
+  </p>
+
+  <div class="callout witty">
+    <strong>비유.</strong>
+    “회식 갈래?”를 묻고 5초 후에 답하면 다 같이 5초 기다리는데, 1초 만에 답하면 1초 기다리면 돼요.
+    분기 결정을 EX → ID로 옮기는 게 딱 그렇습니다.
+  </div>
+
+  <h3>예측이 틀렸을 때 — Flush</h3>
+  <p>
+    분기 예측이 틀리면, 잘못 가져온 명령어들을 파이프라인에서 「취소」해야 합니다. 이걸 <strong>flush</strong>라고 합니다.
+    구체적으로는 IF/ID, ID/EX 같은 파이프라인 레지스터의 제어 신호를 0으로 만들어서, 그 명령어들이 아무 일도 안 하게 만듭니다 — 「버블화」시키는 거예요.
+  </p>
+
+  <h3>1비트 분기 예측기 — 가장 단순한 학습</h3>
+  <p>
+    “이 분기 명령은 지난번에 분기했지? 그럼 이번에도 분기할 거야”라는 단순한 신뢰의 알고리즘입니다.
+    각 분기 명령어 주소마다 1비트 「최근 결과 기록」을 들고 있어요.
+  </p>
+  <ul>
+    <li>비트가 1이면 분기 예측 = taken (PC ← target)</li>
+    <li>비트가 0이면 분기 예측 = not taken (PC ← PC+4)</li>
+    <li>실제 결과가 나오면 비트를 그 결과로 갱신</li>
+  </ul>
+  <p>
+    문제는, 루프 끝에서 빠져나갈 때처럼 분기 패턴이 “TTTTTN”인 경우 마지막 N에서 틀리고, 다음 루프 첫 번째 T에서도 틀립니다.
+    한 번의 예외가 두 번의 오예측을 낳는 셈이죠. 그래서 1비트 예측기는 정확도가 90% 안팎에서 한계입니다.
+  </p>
+
+  <h3>2비트 분기 예측기 — “두 번 틀려야 마음 바꾼다”</h3>
+  <p>
+    아이디어는 단순합니다. 「관성」을 추가해요. 한 번의 예외로는 예측을 안 바꾸고, 두 번 연속 틀려야 비로소 마음을 바꿉니다.
+    이걸 4상태 FSM(유한 상태 기계)으로 표현해요.
+  </p>
+
+  <table class="fmt-table">
+    <thead>
+      <tr><th>상태</th><th>예측</th><th>actual = T일 때</th><th>actual = N일 때</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Strongly Taken (11)</td><td>Taken</td><td>Strongly Taken (11)</td><td>Weakly Taken (10)</td></tr>
+      <tr><td>Weakly Taken (10)</td><td>Taken</td><td>Strongly Taken (11)</td><td>Weakly Not Taken (01)</td></tr>
+      <tr><td>Weakly Not Taken (01)</td><td>Not Taken</td><td>Weakly Taken (10)</td><td>Strongly Not Taken (00)</td></tr>
+      <tr><td>Strongly Not Taken (00)</td><td>Not Taken</td><td>Weakly Not Taken (01)</td><td>Strongly Not Taken (00)</td></tr>
+    </tbody>
+  </table>
+  <p>
+    루프 종료 같은 경우, 종료 시 한 번 틀리지만 상태는 “Weakly Taken”에서만 살짝 흔들리고 다음 루프엔 곧장 Taken을 예측해 맞힙니다.
+    오예측이 1번에서 끝나니 1비트 예측기보다 훨씬 좋아요.
+  </p>
+
+  <h3>분기 타깃 버퍼 (BTB)</h3>
+  <p>
+    예측이 “taken”이라면 다음 PC를 분기 타깃으로 바꿔야 하는데, 타깃 주소를 ID에서 계산하면 또 1사이클이 늦어요.
+    그래서 <strong>BTB(Branch Target Buffer)</strong>라는 작은 캐시를 두고, 분기 명령어 주소를 키로 「예측된 타깃 주소」를 IF 단계에서 바로 꺼냅니다.
+    예측이 맞으면 분기에 패널티가 거의 0이에요.
+  </p>
+
+  <h3>상관 예측기 (Correlating Predictor)</h3>
+  <p>
+    개별 분기의 과거뿐 아니라, <em>최근 분기들의 패턴</em>까지 같이 보는 친구입니다.
+    예를 들어, “직전 두 분기가 TT였으면 이 분기는 N”처럼 글로벌 히스토리와 결합해서 예측 정확도를 끌어올려요.
+    이름하여 (m, n) 예측기 — 최근 m개의 분기 결과를 기억하고, 각 패턴마다 n비트 예측기를 둡니다.
+  </p>
+
+  <h3>토너먼트 예측기 (Tournament Predictor)</h3>
+  <p>
+    한 가지 예측기로는 모든 분기를 잘 맞히기 힘듭니다. 어떤 분기는 지역적 패턴을, 어떤 분기는 전역 패턴을 따르거든요.
+    그래서 두 가지 예측기를 동시에 돌리고, 각 분기마다 “요즘 어느 예측기가 더 잘 맞히지?”를 또 다른 예측기가 학습해 골라줍니다.
+    이게 토너먼트 예측기 — 사람으로 치면 “회의에서 의견 두 명 듣고 그중 평소 잘 맞히는 사람 손 들어주기”입니다.
+  </p>
+
+  <h3>지연 분기 (Delayed Branch) — 옛날 얘기</h3>
+  <p>
+    MIPS 같은 옛 ISA는 분기 명령 바로 뒤의 「지연 슬롯」 명령어를 무조건 실행하기로 약속해뒀습니다. 컴파일러가 그 자리에 분기 결과와 무관한 안전한 명령어를 끼워 넣으면
+    분기 패널티를 0으로 만들 수 있죠. 그런데 깊은 파이프라인이나 슈퍼스칼라에서는 슬롯 하나로는 부족하고, ISA에 못 박혀 있으니 후세의 짐이 됩니다.
+    그래서 RISC-V는 <strong>지연 분기를 안 씁니다</strong>. 그냥 분기 예측에 베팅하는 게 더 깔끔하다는 결론이에요.
+  </p>
+
+  <div class="callout check">
+    <strong>혼자 점검 — 예측의 가치.</strong>
+    분기 명령이 전체 명령어의 20%이고, 분기 오예측 패널티가 3사이클, 예측기 정확도가 90%일 때 평균 CPI 증가는?
+    <details><summary>답</summary>0.20 × 0.10 × 3 = 0.06사이클. CPI가 1.0에서 1.06으로 늘어요. 같은 조건에서 1비트 → 2비트로 정확도를 95%로 올리면 0.03사이클로 줄고, 그게 누적되면 큰 차이가 됩니다.</details>
+  </div>
+
+  <h2 id="s10">4.9 예외 처리</h2>
+  <p>
+    파이프라인이 매끄럽게 굴러가다가도, 가끔 예상 밖의 사건이 터집니다. <strong>예외(exception)</strong>는 프로그램 내부에서,
+    <strong>인터럽트(interrupt)</strong>는 외부에서 발생하는 「프로그램 흐름의 강제 일시정지」예요.
+    실은 둘 다 비슷한 메커니즘으로 처리합니다.
+  </p>
+
+  <h3>예외의 종류</h3>
+  <ul>
+    <li><strong>정의되지 않은 명령어</strong> — 디코더가 “이게 뭐야”라며 거부.</li>
+    <li><strong>산술 오버플로우</strong> — ALU 결과가 표현 범위를 넘었을 때 (RISC-V는 기본적으로 signal 안 함, 옵션).</li>
+    <li><strong>페이지 폴트</strong> — 메모리 접근하려는데 가상 메모리에 매핑이 없을 때.</li>
+    <li><strong>I/O 인터럽트</strong> — 키보드, 디스크, 네트워크 카드가 “저 좀 봐주세요” 신호를 보냄.</li>
+    <li><strong>시스템 콜</strong> — 사용자 프로그램이 OS 서비스 요청.</li>
+  </ul>
+
+  <h3>핸들러 호출 — 예외 처리 절차</h3>
+  <p>
+    예외가 발생하면, 프로세서는 사실상 「특이한 분기」를 합니다. 다음 단계를 거쳐요.
+  </p>
+  <ol>
+    <li>예외를 일으킨 명령어와 그 뒤 명령어들을 모두 <strong>flush</strong>한다.</li>
+    <li>예외 원인을 <code>SCAUSE</code> 같은 시스템 레지스터에 기록한다 (RISC-V CSR).</li>
+    <li>예외 발생 시점의 PC를 <code>SEPC</code>에 저장한다.</li>
+    <li>PC를 <strong>핸들러 주소</strong>로 점프시킨다.</li>
+    <li>핸들러가 처리 후 <code>sret</code>으로 원래 위치로 복귀.</li>
+  </ol>
+
+  <h3>벡터드 vs 단일 진입</h3>
+  <ul>
+    <li><strong>단일 진입(single entry)</strong> — 예외 종류 무관하게 한 주소로 점프, 핸들러가 SCAUSE 보고 분기.</li>
+    <li><strong>벡터드(vectored)</strong> — 예외 종류별로 미리 정해진 주소로 바로 점프. 더 빠르지만 메모리 차지.</li>
+  </ul>
+
+  <h3>Precise vs Imprecise Exception</h3>
+  <p>
+    파이프라인에서는 한 사이클에 여러 명령어가 다른 단계에 떠 있어요. 그래서 “정확히 누가 예외를 일으켰나”를 분명히 하지 않으면
+    OS가 어떻게 복구해야 할지 헷갈립니다.
+  </p>
+  <ul>
+    <li><strong>Precise exception</strong> — 예외를 일으킨 명령어 직전까지의 모든 변경은 완료, 그 이후 명령어의 변경은 없음. 직관적이고 디버깅 쉬움.</li>
+    <li><strong>Imprecise</strong> — 일부 「뒷 명령어」가 이미 부분 실행됐을 수 있음. 빠르지만 OS 입장에선 악몽. 현대 ISA는 거의 다 precise를 보장합니다.</li>
+  </ul>
+
+  <div class="callout principle">
+    <strong>설계 원리.</strong>
+    Precise exception은 「되감기 가능」해야 한다. 그래서 명령어가 결과를 「영구 반영」하는 시점은 가능한 한 늦어야(WB) 하고,
+    out-of-order 실행 같은 고급 기법에서는 reorder buffer로 「커밋 순서를 강제」합니다.
+    이 원리는 4.10에서 또 만나요.
+  </div>
+
+  <h2 id="s11">4.10 명령어 수준 병렬성 (ILP)</h2>
+  <p>
+    5단계 파이프라인은 매 사이클 명령어 하나씩 처리해서 CPI를 1로 만들었습니다. 야망 있는 설계자는 여기서 멈추지 않아요. <em>한 사이클에 여러 명령어를 동시에</em> 시작하면 어떨까?
+    이게 <strong>다중 발행(multiple issue)</strong>의 출발점입니다.
+  </p>
+
+  <h3>정적(Static) vs 동적(Dynamic) 다중 발행</h3>
+  <ul>
+    <li><strong>정적</strong> — 컴파일러가 컴파일 시점에 어떤 명령어들을 같이 발행할지 결정. 하드웨어는 컴파일러를 믿고 단순.</li>
+    <li><strong>동적</strong> — 하드웨어가 런타임에 발행 여부를 결정. 회로는 복잡하지만 컴파일러가 모르는 정보(캐시 미스, 분기 결과)를 활용 가능.</li>
+  </ul>
+
+  <h3>VLIW — “묶음 명령어”</h3>
+  <p>
+    Very Long Instruction Word. 한 명령어 안에 여러 연산을 슬롯별로 박아 넣고, 컴파일러가 그 슬롯을 채워주는 방식이에요.
+    하드웨어는 그냥 슬롯대로 병렬 실행하면 끝입니다. <strong>Itanium</strong>이 이 길로 갔는데, 현실의 코드 패턴이 컴파일러 예측을 자주 빗나가서 결국 시장에서 졌습니다.
+  </p>
+
+  <h3>루프 언롤링 — 컴파일러의 무기</h3>
+<pre><code><span class="code-comment">// 원래</span>
+for (i = 0; i &lt; n; i++) a[i] = a[i] + s;
+
+<span class="code-comment">// 4번 언롤링</span>
+for (i = 0; i &lt; n; i += 4) {
+  a[i  ] = a[i  ] + s;
+  a[i+1] = a[i+1] + s;
+  a[i+2] = a[i+2] + s;
+  a[i+3] = a[i+3] + s;
+}</code></pre>
+  <p>
+    네 번을 한 덩어리로 펼치면 분기 오버헤드가 1/4로 줄고, 안의 네 연산은 서로 독립적이라 병렬 실행하기도 좋습니다.
+    하지만 같은 레지스터를 네 번 재사용하면 가짜 의존성이 생기는데, 그건 다음 친구가 해결합니다.
+  </p>
+
+  <h3>레지스터 리네이밍 — 가짜 의존성을 지우는 마법</h3>
+  <p>
+    소스 코드에서 같은 변수 <code>x</code>가 여러 번 나오면, 어셈블리에선 같은 레지스터에 반복해서 쓰여요.
+    그런데 「이름이 같다」는 이유만으로 의존성이 생기는 건 가짜 의존성(이름 의존성)이지, 진짜 데이터 흐름은 아닙니다.
+    하드웨어가 「논리 레지스터」를 「물리 레지스터」로 매핑해 매번 새 이름을 주면 이 가짜 의존성이 사라집니다. 이게 register renaming이에요.
+  </p>
+
+  <h3>슈퍼스칼라 (Superscalar)</h3>
+  <p>
+    한 사이클에 두 개 이상의 명령어를 발행할 수 있는 동적 다중 발행 프로세서. 발행 폭(issue width)이 4면 이론상 IPC 4까지 가능합니다.
+    실제로는 의존성 때문에 그 절반도 못 가는 경우가 많아요.
+  </p>
+
+  <h3>Out-of-Order 실행</h3>
+  <p>
+    프로그래머가 적은 순서대로 실행할 필요가 없습니다. 의존성만 안 어기면 어떤 순서로도 OK죠.
+    그래서 현대 고성능 CPU는 다음 흐름을 따릅니다.
+  </p>
+  <ol>
+    <li><strong>Fetch &amp; Decode</strong> — 명령어를 in-order로 읽고 해독한다.</li>
+    <li><strong>Issue / Dispatch</strong> — 적당한 실행 유닛 옆 「예약 스테이션(reservation station)」에 명령어를 보낸다.</li>
+    <li><strong>Execute</strong> — 예약 스테이션은 자기 명령어의 피연산자가 다 도착한 순간 실행 유닛으로 보낸다. 의존성이 풀린 순서대로!</li>
+    <li><strong>Write Result</strong> — 결과를 공통 데이터 버스(CDB)로 뿌려, 같은 값을 기다리는 다른 예약 스테이션에 즉시 도착시킨다.</li>
+    <li><strong>Commit</strong> — Reorder Buffer(ROB)가 명령어를 <em>원래 프로그램 순서</em>로 「커밋」해, 사용자에게 보이는 상태(레지스터, 메모리)는 in-order로 갱신한다.</li>
+  </ol>
+
+  <div class="callout bigpic">
+    <strong>큰 그림 — In-order, Out-of-order, In-order.</strong>
+    들어올 땐 줄 서서, 안에선 자유롭게, 나갈 땐 다시 줄 서서. 카페테리아랑 비슷해요. 메뉴 받는 줄은 in-order,
+    음식 받는 순서는 out-of-order, 계산은 in-order. 이게 commit 단계의 의미입니다.
+    Precise exception을 보장하려면 commit이 in-order여야만 합니다.
+  </div>
+
+  <h3>예약 스테이션과 ROB의 협주</h3>
+  <ul>
+    <li><strong>Reservation Station</strong> — 각 실행 유닛 옆 대기실. 「피연산자가 다 도착한 명령어」가 발사 대기.</li>
+    <li><strong>Reorder Buffer</strong> — 발행된 모든 명령어가 결과를 저장하는 큐. 가장 오래된 친구부터 차례로 commit.</li>
+    <li><strong>Commit Unit</strong> — ROB 머리에서 한 명씩 끌어내려 진짜 레지스터/메모리를 갱신. 분기 오예측이나 예외가 생기면 이 시점에서 ROB 뒷부분을 통째로 버린다.</li>
+  </ul>
+
+  <h2 id="s12">4.11 실제 사례 — Cortex-A53 vs Core i7</h2>
+  <p>
+    교과서식 5단계는 학습용이고, 진짜 칩들은 어떨까요?
+  </p>
+
+  <h3>ARM Cortex-A53 — 「전기 적게 먹는 모범생」</h3>
+  <ul>
+    <li>2-issue, in-order, 8단계 파이프라인.</li>
+    <li>모바일·임베디드 시장의 단골. ARMv8-A 64비트.</li>
+    <li>분기 예측은 갖췄지만 OoO는 없음. 컴파일러가 어느 정도 일을 떠맡아야 함.</li>
+    <li>면적과 전력 효율이 1순위. 성능은 그다음.</li>
+  </ul>
+
+  <h3>Intel Core i7 — 「뭐든 다 욱여넣는 슈퍼카」</h3>
+  <ul>
+    <li>4~6-issue 슈퍼스칼라, out-of-order, 14~19단계 파이프라인.</li>
+    <li>대형 ROB(수백 개), 다중 분기 예측기, 다단계 캐시, SMT(하이퍼스레딩).</li>
+    <li>x86 ISA를 받아 마이크로옵(uop)으로 변환 후 그걸 OoO 파이프라인에 흘려보냄.</li>
+    <li>전력은 폭발적이지만 성능 한계까지 끌어올림.</li>
+  </ul>
+
+  <div class="callout witty">
+    <strong>한 줄 비교.</strong>
+    Cortex-A53가 「하루 8시간 정시 출근하는 성실한 직원」이라면, Core i7은 「밤샘하더라도 분기 예측 18종 다 돌리는 워커홀릭 슈퍼스타」.
+    어느 쪽이 좋은지는 들고 있는 배터리 용량에 달려 있습니다.
+  </div>
+
+  <h2 id="s13">4.12 가속 — DGEMM with ILP</h2>
+  <p>
+    DGEMM은 행렬 곱(double-precision GEMM) 루틴인데, 과학 계산의 「밥」이라 부를 만큼 자주 등장합니다.
+    이걸 빨리 돌리는 게 성능 최적화의 시금석이에요.
+  </p>
+  <ul>
+    <li><strong>ILP 활용</strong> — 작은 블록 안의 여러 곱-누산을 동시에 발행해 슈퍼스칼라 자원을 채운다.</li>
+    <li><strong>SIMD/벡터</strong> — 한 명령어로 여러 double을 동시에 처리(AVX, NEON, RVV).</li>
+    <li><strong>레지스터 블로킹</strong> — 작은 행렬 블록을 레지스터에 잡아두고 외부 메모리 접근을 줄인다.</li>
+    <li><strong>루프 언롤링</strong> — 분기 오버헤드 줄이기, 의존성 체인 끊기.</li>
+  </ul>
+  <p>
+    이런 기법들을 다 적용하면 같은 하드웨어에서 처음 「naive」 코드 대비 10배 이상 빨라지는 일이 흔해요.
+    그래서 BLAS 라이브러리(OpenBLAS, MKL 등)는 사람이 손으로 어셈블리를 튜닝하는 경우가 아직도 있습니다.
+  </p>
+
+  <h2 id="s14">4.14 오류와 함정</h2>
+
+  <h3>함정 1 — “더 깊은 파이프라인은 무조건 더 빠르다”</h3>
+  <p>
+    단계가 깊어질수록 각 단계의 일 양은 줄어 클럭은 빨라지지만, 분기 오예측 패널티는 커지고 의존성 stall도 늘어납니다.
+    Pentium 4의 31단계는 결국 Core 2의 14단계에 졌어요. 깊이는 약이자 독.
+  </p>
+
+  <h3>함정 2 — “파이프라이닝이 latency를 줄인다”</h3>
+  <p>
+    아닙니다. 파이프라이닝은 처리량(throughput)을 늘리는 기법이지, 한 명령어의 처리 시간(latency)은 오히려 살짝 늘어요.
+    파이프라인 레지스터 통과 비용 + 단계 사이 균형 맞추기 손실 때문입니다.
+  </p>
+
+  <h3>함정 3 — “슈퍼스칼라면 IPC가 발행 폭만큼”</h3>
+  <p>
+    이론과 현실은 다릅니다. 진짜 코드는 의존성, 분기 오예측, 캐시 미스로 자원을 다 못 채워요.
+    4-issue 프로세서가 평균 IPC 1.5만 찍어도 잘 한 거라는 게 업계 통설입니다.
+  </p>
+
+  <h3>오류 — “단순 구현이 충분히 빠르다”</h3>
+  <p>
+    단순 single-cycle 구현은 「가장 느린 명령어」에 클럭이 묶여 매우 느립니다.
+    교육용으로는 좋지만, 실제 칩에서는 거의 무가치해요. 파이프라이닝과 캐시는 선택이 아니라 필수입니다.
+  </p>
+
+  <h2 id="s15">4.15 결론</h2>
+  <p>
+    이 장은 한 가지 큰 이야기였어요. <strong>“명령어 하나를 어떻게 더 빨리 돌리지?”</strong>에서 시작해
+    파이프라이닝, 해저드, 분기 예측, 다중 발행, 동적 스케줄링까지 옷장 속 옷을 다 꺼내 입혀봤습니다.
+  </p>
+  <p>
+    핵심을 다시 한 줄로 정리하면 이렇습니다.
+  </p>
+  <ul>
+    <li><strong>Single-cycle</strong>은 단순하지만 가장 느린 명령어에 묶인다.</li>
+    <li><strong>Pipelining</strong>은 매 사이클 명령어 하나씩 「졸업」시켜 throughput을 N배로 끌어올린다.</li>
+    <li>그 대가로 <strong>해저드</strong>가 생기고, <strong>포워딩·stall·분기 예측</strong>으로 막아낸다.</li>
+    <li>여전히 욕심나면 <strong>슈퍼스칼라·OoO·ROB</strong>로 IPC를 1 위로 올린다.</li>
+    <li>모든 단계에서 ISA 설계, 컴파일러, 마이크로아키텍처는 한 팀으로 움직인다.</li>
+  </ul>
+
+  <div class="callout bigpic">
+    <strong>큰 그림으로 마무리.</strong>
+    프로세서는 결국 「데이터를 어떤 순서로 누구에게 보내느냐」를 결정하는 거대한 교통 정리망이에요.
+    데이터패스가 도로, 제어 신호가 신호등, 파이프라인 레지스터가 톨게이트, 분기 예측이 내비게이션입니다.
+    이 장을 다 읽고 나면, “3GHz 슈퍼스칼라 OoO 8-wide”라는 광고문구가 더 이상 외계어가 아니게 됩니다.
+    축하합니다 — 당신은 이제 칩 안의 일을 본 사람이에요.
+  </div>
+
+  <p>
+    다음 5장에서는 이 모든 명령어들이 「어디서 데이터를 가져오는가」를 깊게 들여다봅니다.
+    레지스터 32개로는 부족하니까요. 캐시, TLB, 가상 메모리의 세계가 기다리고 있어요.
+  </p>
+
+  <nav class="chapter-nav">
+    <a href="chapter3.html">
+      <div class="label">← 이전</div>
+      <div class="title">3장. 컴퓨터를 위한 산술</div>
+    </a>
+    <a href="chapter5.html" class="next">
+      <div class="label">다음 →</div>
+      <div class="title">5장. 메모리 계층</div>
+    </a>
+  </nav>
+</main>
+
+<footer class="site-footer">
+  © Comarchi Korean Notes · 원서: Patterson &amp; Hennessy, <em>Computer Organization and Design (RISC-V Edition)</em>, Morgan Kaufmann
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2장 · 애플리케이션 계층 — 네트워크 한 입에</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="index.html" class="brand">📡 네트워크 한 입에</a>
+    <nav>
+      <a href="chapter01.html">1</a>
+      <a href="chapter02.html" class="current">2</a>
+      <a href="chapter03.html">3</a>
+      <a href="chapter04.html">4</a>
+      <a href="chapter05.html">5</a>
+      <a href="chapter06.html">6</a>
+      <a href="chapter07.html">7</a>
+      <a href="chapter08.html">8</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="toc">
+      <h3>이 챕터 목차</h3>
+      <ol>
+        <li><a href="#sec-2-1">2.1 애플리케이션은 어떻게 통신하는가</a></li>
+        <li><a href="#sec-2-2">2.2 웹과 HTTP/1.1</a></li>
+        <li><a href="#sec-2-3">2.3 HTTP/2와 HTTP/3</a></li>
+        <li><a href="#sec-2-4">2.4 DNS — 인터넷의 전화번호부</a></li>
+        <li><a href="#sec-2-5">2.5 이메일과 영상 스트리밍/CDN</a></li>
+        <li><a href="#sec-2-6">2.6 소켓 프로그래밍 맛보기</a></li>
+        <li><a href="#recap">한 줄 요약</a></li>
+      </ol>
+    </aside>
+
+    <article>
+      <h1><span class="num">Chapter 02</span>애플리케이션 계층</h1>
+
+      <p>1장에서 우리는 인터넷을 위에서 한 번 내려다봤다. 호스트가 있고, 그 사이를 패킷이 헤엄쳐 다닌다는 큰 그림. 이제 본격적으로 가장 위층, 즉 사용자가 매일 만나는 <strong>애플리케이션 계층</strong>으로 들어가 보자. 브라우저 주소창에 URL을 치고 엔터를 누르는 그 순간, 영상 플레이어가 갑자기 해상도를 낮추는 그 순간, 친구에게 메일이 0.3초 만에 도착하는 그 순간 — 모두 이 층에서 벌어지는 일이다.</p>
+
+      <p>톱다운 책답게 우리는 응용부터 본다. HTTP의 세 가지 버전이 어떻게 진화했는지, DNS가 어떻게 도메인 이름을 IP 주소로 둔갑시키는지, 영상 스트리밍 사이트가 어떻게 끊김 없이 영상을 흘려보내는지. 그리고 마지막에는 직접 소켓을 열어 보면서 "프로토콜은 결국 메시지 약속이구나"를 손으로 느껴 본다.</p>
+
+      <h2 id="sec-2-1">2.1 애플리케이션은 어떻게 통신하는가</h2>
+
+      <p>네트워크 애플리케이션이라는 단어는 거창하지만, 알맹이는 단순하다. <strong>서로 다른 두 호스트의 두 프로세스가 메시지를 주고받는 것</strong>이다. 운영체제 입장에서 프로세스란 그냥 실행 중인 프로그램이고, 두 프로세스가 같은 컴퓨터 안에 있다면 IPC(파이프, 공유 메모리 등)를 쓰면 된다. 하지만 서로 다른 컴퓨터에 있다면? 그때부터 우리에게 필요한 게 네트워크다.</p>
+
+      <h3>클라이언트-서버 vs P2P</h3>
+
+      <p>두 프로세스가 통신하는 구도는 크게 두 가지로 나뉜다.</p>
+
+      <ul>
+        <li><strong>클라이언트-서버 (Client-Server)</strong>: 한쪽은 항상 켜져 있는 <em>서버</em>(고정 IP, 늘 대기 중), 다른 한쪽은 그때그때 접속해 들어오는 <em>클라이언트</em>. 웹, 이메일, 게임 매치메이커, 거의 모든 SaaS가 이 구조다. 서버 한 대가 수많은 클라이언트를 상대한다.</li>
+        <li><strong>P2P (Peer-to-Peer)</strong>: 모든 노드가 동등하다. 누군가 콘텐츠를 가지고 있으면 다른 노드가 거기서 받아 가고, 받은 노드는 다시 다른 노드에게 나눠준다. BitTorrent, 일부 분산 메신저, 옛날 Skype 코어 등이 대표적. 자원이 사용자 수에 비례해 늘어난다는 게 큰 매력.</li>
+      </ul>
+
+      <p>실전에서는 둘이 섞여 있는 경우가 많다. 예를 들어 화상회의는 시그널링은 서버를 거치지만 미디어는 가능하면 P2P로 직접 흘려보낸다(NAT를 못 뚫으면 TURN 서버로 우회한다).</p>
+
+      <div class="ascii-diagram">    [Client-Server]                 [P2P]
+
+      Client A                     Peer A
+         |                          /  \
+         |                         /    \
+         v                        /      \
+   +-----------+              Peer B --- Peer C
+   |  Server   |                |        /
+   +-----------+               Peer D---+
+         ^
+         |
+      Client B
+
+   서버가 모든 트래픽의 허브       모두가 서로의 서버이자 클라이언트</div>
+
+      <h3>프로세스, 소켓, 그리고 주소</h3>
+
+      <p>두 프로세스가 메시지를 주고받으려면 몇 가지가 필요하다. 첫째, 호스트를 식별할 <strong>IP 주소</strong>. 둘째, 그 호스트 안에서 정확히 어느 프로세스에게 메시지를 줄지 정하는 <strong>포트 번호</strong>. 셋째, 프로세스가 운영체제에게 "여기로 들어오는 메시지는 나한테 줘"라고 신청해두는 창구 — 그게 바로 <strong>소켓 (socket)</strong>이다.</p>
+
+      <p>소켓은 곧잘 "문"으로 비유된다. 프로세스가 자기 집(호스트) 안에 있고, 메시지가 우편으로 배달되어 온다고 치면, 소켓은 우편함이다. 운영체제는 IP+포트를 보고 어느 우편함에 넣어 줄지 결정한다. 애플리케이션 입장에서 소켓은 그냥 파일 디스크립터처럼 다뤄지는 핸들이고, <code>read</code>/<code>write</code> 비슷한 호출로 메시지를 흘려보낸다.</p>
+
+      <div class="callout">
+        <span class="label">한 줄 정리</span>
+        <p><strong>소켓</strong>은 애플리케이션과 트랜스포트 계층 사이의 API. 위로는 애플리케이션이 메시지를 던져 넣고, 아래로는 트랜스포트(TCP/UDP)가 그걸 받아 패킷으로 쪼개 내보낸다.</p>
+      </div>
+
+      <h3>트랜스포트가 제공하는 네 가지 서비스</h3>
+
+      <p>애플리케이션이 트랜스포트 계층에게 요구할 수 있는 것은 보통 네 가지로 정리된다.</p>
+
+      <ul>
+        <li><strong>신뢰성 있는 데이터 전송</strong>: 보낸 바이트가 손실 없이, 순서대로 도착할 것. 파일 전송이나 웹은 이게 필수다. 영상 스트리밍이나 실시간 게임 일부는 살짝 손실이 나도 차라리 빨리 오는 게 낫다.</li>
+        <li><strong>처리율(Throughput)</strong>: 초당 몇 비트를 보장해 주는가. 음성 통화는 일정 처리율이 안 되면 끊긴다.</li>
+        <li><strong>타이밍(지연)</strong>: 보낸 바이트가 N ms 안에 도착할 것. 게임, 화상회의에 결정적이다.</li>
+        <li><strong>보안</strong>: 도청·변조 방지. 오늘날 거의 모든 인터넷 트래픽은 TLS로 감싸져 있다.</li>
+      </ul>
+
+      <p>그런데 슬프게도 인터넷의 트랜스포트 계층은 이 중 일부만 직접 보장한다. <strong>TCP</strong>는 신뢰성과 흐름·혼잡 제어를 주지만 타이밍 보장은 없다. <strong>UDP</strong>는 신뢰성도 안 주는 대신 가볍고 빠르다. 처리율과 타이밍은 결국 인터넷이라는 환경 자체의 사정에 달린 일이라, 애플리케이션이 적당히 적응(adaptive)해야 한다.</p>
+
+      <div class="callout tip">
+        <span class="label">실전 팁</span>
+        <p>"타이밍을 보장하는 인터넷 트랜스포트가 없다"는 사실은 곧 영상/음성 앱이 자체적으로 버퍼링·재전송·코덱 비트레이트 조절 같은 트릭을 써야 한다는 뜻. 2.5절의 DASH가 바로 그 응답이다.</p>
+      </div>
+
+      <h2 id="sec-2-2">2.2 웹과 HTTP/1.1</h2>
+
+      <p>웹은 1990년대 초 CERN의 한 물리학자 손에서 태어나 인터넷을 일상으로 끌어내린 결정적 계기가 됐다. 그 핵심 프로토콜이 <strong>HTTP (HyperText Transfer Protocol)</strong>다. 동작 원리는 의외로 단순하다. 클라이언트(브라우저)가 서버에게 "이 URL의 자원 좀 줘"라고 <strong>요청</strong>을 보내고, 서버가 "여기 있어"라고 <strong>응답</strong>을 돌려준다. 그게 끝이다. 끝인데, 이 단순함 위에 30년 동안 온갖 살이 붙었다.</p>
+
+      <h3>요청과 응답의 형식</h3>
+
+      <p>HTTP 메시지는 사람이 읽을 수 있는 텍스트(HTTP/1.x 한정)로 되어 있다. 한 번 raw로 들여다보자.</p>
+
+      <pre><code>GET /index.html HTTP/1.1
+Host: example.com
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X)
+Accept: text/html,application/xhtml+xml
+Accept-Language: ko-KR,ko;q=0.9
+Connection: keep-alive
+
+</code></pre>
+
+      <p>첫 줄은 <strong>요청 라인</strong>: 메서드 + URL 경로 + HTTP 버전. 그 아래는 <strong>헤더</strong>들이다. 헤더가 끝나면 빈 줄이 오고(이 빈 줄이 헤더와 본문의 경계다), 필요하면 본문이 따라붙는다. GET 요청은 보통 본문이 없다.</p>
+
+      <p>서버 응답은 이렇게 생겼다.</p>
+
+      <pre><code>HTTP/1.1 200 OK
+Date: Sat, 25 Apr 2026 09:30:00 GMT
+Server: nginx/1.25.0
+Content-Type: text/html; charset=utf-8
+Content-Length: 1342
+Cache-Control: max-age=3600
+Connection: keep-alive
+
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;...&lt;/html&gt;
+</code></pre>
+
+      <p>첫 줄은 <strong>상태 라인</strong>: HTTP 버전 + 상태 코드 + 사람이 읽을 수 있는 짧은 문구. 이어서 헤더, 빈 줄, 본문 순. 단순하고, 그래서 디버깅하기 좋다.</p>
+
+      <h3>메서드: GET, POST, 그리고 친구들</h3>
+
+      <p>HTTP 메서드는 자원에 어떤 동작을 할지를 알려준다. 가장 흔한 것들:</p>
+
+      <ul>
+        <li><strong>GET</strong>: 자원을 가져오기. 부작용이 없어야 한다(safe, idempotent). 같은 GET을 여러 번 보내도 결과가 같다는 약속.</li>
+        <li><strong>POST</strong>: 새 자원 생성, 또는 본문 데이터를 서버에 제출. 폼 전송, 글쓰기, 결제 같은 것들.</li>
+        <li><strong>PUT</strong>: 지정한 URL에 자원을 통째로 덮어쓰기. 멱등(idempotent)하다.</li>
+        <li><strong>DELETE</strong>: 자원 삭제.</li>
+        <li><strong>HEAD</strong>: GET과 같지만 본문은 받지 않음. 헤더만 빨리 확인하고 싶을 때.</li>
+        <li><strong>OPTIONS</strong>: 이 자원에 어떤 메서드를 쓸 수 있는지 묻기. CORS preflight에서 자주 본다.</li>
+      </ul>
+
+      <h3>상태 코드: 세 자리 숫자의 외교술</h3>
+
+      <p>응답의 첫 줄에 있는 세 자리 숫자가 상태 코드다. 백엔드 개발자라면 평생 200, 400, 500 사이를 오가며 살게 된다. 분류는 첫 자리로 결정된다.</p>
+
+      <table>
+        <thead>
+          <tr><th>대분류</th><th>의미</th><th>대표 코드</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1xx</td><td>정보성 — "받았어, 계속해"</td><td>100 Continue, 101 Switching Protocols</td></tr>
+          <tr><td>2xx</td><td>성공</td><td>200 OK, 201 Created, 204 No Content</td></tr>
+          <tr><td>3xx</td><td>리다이렉트 — "다른 데로 가봐"</td><td>301 Moved Permanently, 304 Not Modified, 307 Temporary Redirect</td></tr>
+          <tr><td>4xx</td><td>클라이언트 잘못</td><td>400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 429 Too Many Requests</td></tr>
+          <tr><td>5xx</td><td>서버 잘못</td><td>500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout</td></tr>
+        </tbody>
+      </table>
+
+      <h3>비영속 vs 영속 연결</h3>
+
+      <p>HTTP/1.0 시절에는 한 요청마다 새 TCP 연결을 열고, 응답을 받으면 닫았다. 이를 <strong>비영속(non-persistent) 연결</strong>이라 한다. 페이지 하나에 이미지 100개가 박혀 있으면 TCP 연결도 100번. 매번 3-way handshake에 1 RTT를 쓰니, 단순 계산으로도 페이지당 100 RTT가 핸드셰이크에만 새는 셈이다. 비효율의 끝판왕이었다.</p>
+
+      <p>HTTP/1.1은 기본을 <strong>영속(persistent) 연결</strong>로 바꿨다. TCP 연결을 한 번 열면 여러 요청을 그 위에서 연달아 보낸다. 거기에 <strong>파이프라이닝(pipelining)</strong>이라는 기법까지 더해, 응답을 기다리지 않고 요청을 줄줄이 보낼 수도 있다. 다만 응답은 보낸 순서대로 와야 한다는 제약이 남는데 — 이게 바로 다음 절에서 등장할 HOL 블로킹의 씨앗이다.</p>
+
+      <h3>쿠키: 상태 없는 프로토콜에 상태를 입히기</h3>
+
+      <p>HTTP는 본래 <strong>무상태(stateless)</strong>다. 서버가 이 요청을 보낸 사람이 좀 전에 왔던 그 사람인지 모른다. 그러면 로그인 세션 같은 건 어떻게 할까? 그래서 등장한 게 쿠키다.</p>
+
+      <p>흐름은 이렇다. 서버가 첫 응답에 <code>Set-Cookie: sid=abc123</code> 같은 헤더를 끼워 보낸다. 브라우저는 이걸 저장해두고, 같은 도메인으로 요청할 때마다 <code>Cookie: sid=abc123</code> 헤더를 자동으로 붙인다. 서버는 그 sid로 데이터베이스에서 사용자를 식별한다. 별것 아닌 듯하지만, 이 작은 트릭이 오늘날 모든 로그인·장바구니·맞춤 광고의 토대다.</p>
+
+      <div class="callout warn">
+        <span class="label">조심</span>
+        <p>쿠키가 강력한 만큼 보안 위험도 따라온다. <code>Secure</code>(HTTPS에서만 전송), <code>HttpOnly</code>(JS에서 못 읽음), <code>SameSite</code>(다른 사이트가 보낼 때 제한) 같은 속성을 빼먹으면 세션 탈취·CSRF 같은 공격에 무방비가 된다.</p>
+      </div>
+
+      <h3>웹 캐시(프록시)</h3>
+
+      <p>같은 자원을 매번 원 서버까지 다녀오기엔 인터넷이 너무 아깝다. 그래서 학교/회사 내부에 <strong>웹 캐시</strong>를 둔다. 클라이언트가 캐시에게 요청하면, 캐시가 갖고 있으면 바로 돌려주고(hit), 없으면 원 서버에 대신 다녀와서 결과를 캐시에 저장한 뒤 클라이언트에게 전달한다(miss).</p>
+
+      <p>문제는 "캐시 안의 사본이 아직 신선한가?"다. 이걸 확인하는 우아한 방법이 <strong>조건부 GET</strong>이다. 캐시는 자기가 가진 사본의 마지막 수정 시각을 <code>If-Modified-Since</code> 헤더에 담아 원 서버에 묻는다. 서버는 그 사이 자원이 안 바뀌었으면 본문 없이 <strong>304 Not Modified</strong>만 돌려준다. 헤더 한 줄로 트래픽을 절약하는 멋진 약속이다.</p>
+
+      <h2 id="sec-2-3">2.3 HTTP/2와 HTTP/3</h2>
+
+      <p>HTTP/1.1은 1999년에 정착해 약 15년을 군림했지만, 그 사이 웹은 끔찍하게 무거워졌다. 페이지 하나에 수십, 수백 개의 작은 자원이 박힌다. 1.1의 영속 연결만으로는 부족하다는 인식이 점점 커져갔고, 그 한가운데 <strong>HOL(Head-of-Line) 블로킹</strong>이라는 골칫거리가 있었다.</p>
+
+      <h3>HTTP/1.1의 한계: HOL 블로킹</h3>
+
+      <p>파이프라이닝을 켰다고 해보자. 클라이언트는 R1, R2, R3을 줄줄이 보낸다. 서버도 응답을 R1, R2, R3 순서로 보내야 한다. 만약 R1 처리가 오래 걸리면? R2, R3는 이미 준비됐어도 R1 뒤에서 멍하니 줄을 서 있어야 한다. 이게 애플리케이션 계층의 HOL 블로킹이다.</p>
+
+      <p>현실에서는 브라우저가 한 도메인당 TCP 연결을 6개씩 동시에 여는 식으로 회피했지만, 이건 우아한 해법이 아니라 일종의 도핑이다. TCP 연결 6개를 다 열고 핸드셰이크하는 비용이 만만치 않고, 그래도 한 연결 안에서의 줄세우기 문제는 그대로다.</p>
+
+      <h3>HTTP/2: 한 연결 위에 여러 스트림</h3>
+
+      <p>2015년에 표준이 된 HTTP/2는 이 문제를 정면 돌파한다. 핵심은 <strong>한 TCP 연결 위에 여러 개의 논리적 스트림을 만들고, 각 스트림을 작은 프레임으로 잘라 인터리브해서 보내는 것</strong>이다. 즉 R1의 응답을 보내는 도중에도 R2, R3의 응답 프레임을 끼워 넣을 수 있다. 한 자원이 굼떠도 다른 자원은 슝슝 흘러간다.</p>
+
+      <div class="ascii-diagram">  HTTP/1.1 (한 연결, 직렬)
+  +----+----+----+----+----+----+----+
+  | R1 | R1 | R1 | R2 | R2 | R3 | R3 |   ← R1이 끝나야 R2 시작
+  +----+----+----+----+----+----+----+
+
+  HTTP/2 (한 연결, 인터리빙)
+  +----+----+----+----+----+----+----+
+  | R1 | R2 | R1 | R3 | R2 | R1 | R3 |   ← 프레임 단위로 섞임
+  +----+----+----+----+----+----+----+
+       Stream 1  Stream 2  Stream 3</div>
+
+      <p>여기에 더해 HTTP/2는 두 가지 무기를 더 들고 왔다.</p>
+
+      <ul>
+        <li><strong>헤더 압축 (HPACK)</strong>: HTTP 헤더는 요청마다 거의 똑같은 게 반복된다(<code>User-Agent</code>, <code>Cookie</code>, <code>Accept</code>...). HPACK은 정적 테이블 + 동적 테이블 + 허프만 인코딩 조합으로 헤더를 작게 줄인다. 헤더만 1KB 넘던 게 수십 바이트가 되기도 한다.</li>
+        <li><strong>서버 푸시 (Server Push)</strong>: 클라이언트가 요청하기 전에 서버가 "이거 어차피 필요할 거잖아?"하고 자원을 미리 보내주는 기능. 예: HTML을 보내며 그 안에 박힌 CSS도 같이. 단, 실제로는 캐시 정합성이나 우선순위 문제 때문에 효용이 기대만큼 크지 않아서, 최근에는 거의 죽은 기능 취급이다.</li>
+      </ul>
+
+      <p>HTTP/2의 멀티플렉싱은 애플리케이션 계층의 HOL은 깔끔히 풀었다. 그런데 그 아래 TCP에는 여전히 HOL 문제가 남아 있다.</p>
+
+      <h3>TCP의 HOL과 HTTP/3의 등장</h3>
+
+      <p>TCP는 바이트 스트림을 순서대로 보장한다. 한 패킷이 손실되면, 그 뒤에 도착한 패킷들은 운영체제 버퍼에 잡혀 있고 애플리케이션에게 올라오지 못한다. HTTP/2가 한 TCP 위에 여러 스트림을 얹어도, 한 패킷이 빠지면 그 패킷이 재전송될 때까지 <strong>모든 스트림이 같이 멈춘다</strong>. 멀티플렉싱의 좋은 효과를 TCP가 망가뜨리는 셈이다.</p>
+
+      <p>해법은? 트랜스포트를 통째로 갈아 끼우는 것이다. 그게 <strong>QUIC</strong>이고, 그 위에서 도는 HTTP가 <strong>HTTP/3</strong>(2022년 RFC 9114)이다. QUIC은 UDP 위에서 동작하는 새 트랜스포트 프로토콜로, 다음을 한꺼번에 제공한다.</p>
+
+      <ul>
+        <li>스트림이 트랜스포트 계층의 1급 시민. 한 스트림이 손실 나도 다른 스트림은 막히지 않는다 → TCP HOL 해결.</li>
+        <li>TLS 1.3이 트랜스포트 핸드셰이크에 통합. 연결 수립 + 암호화 키 교환을 1 RTT에 끝낸다.</li>
+        <li><strong>0-RTT</strong> 재접속: 한 번 통신했던 서버에는, 다음에 접속할 때 <em>핸드셰이크 RTT 없이</em> 첫 패킷에 데이터까지 실어 보낼 수 있다. 모바일처럼 연결이 자주 끊기는 환경에서 큰 이득이다(단, 0-RTT 데이터는 재전송 공격 위험이 있어 멱등 요청에만 권장된다).</li>
+        <li>연결 ID 기반 마이그레이션. 와이파이에서 LTE로 전환해도 같은 연결을 이어갈 수 있다.</li>
+      </ul>
+
+      <div class="callout">
+        <span class="label">왜 UDP 위에?</span>
+        <p>커널의 TCP 스택을 바꾸는 건 거의 불가능하다(서버, 라우터, NAT, 미들박스 모두 협조해야 한다). 그래서 QUIC은 "어차피 다 통과시키는" UDP 위에 새 트랜스포트를 사용자 공간에서 새로 짠다. 덕분에 브라우저·서버 업데이트만으로 배포가 가능했다.</p>
+      </div>
+
+      <h2 id="sec-2-4">2.4 DNS — 인터넷의 전화번호부</h2>
+
+      <p>당신은 <code>www.example.com</code>이라고 친다. 하지만 패킷은 <code>93.184.216.34</code>(가상의 IPv4 주소) 같은 숫자가 있어야 길을 찾는다. 이름과 숫자 사이의 다리를 놓아주는 시스템이 <strong>DNS (Domain Name System)</strong>다. 인터넷의 전화번호부, 라고 흔히 부른다.</p>
+
+      <p>DNS의 미덕은 세 가지다. 첫째, <strong>분산</strong>되어 있다 — 한 곳이 죽어도 인터넷이 통째로 멈추지 않는다. 둘째, <strong>계층적</strong>이다 — 전 세계의 도메인을 한 서버가 다 알 필요가 없다. 셋째, <strong>캐시가 핵심</strong>이다 — 같은 질의를 매번 루트까지 보내지 않는다.</p>
+
+      <h3>계층 구조: 루트 → TLD → 권한 서버</h3>
+
+      <p>DNS 네임스페이스는 트리다. 가장 위에 <strong>루트(root)</strong>가 있다. 전 세계에 13개의 논리 루트 서버가 있고(실제로는 애니캐스트로 수백 개의 물리 서버가 그 자리를 나눠 갖는다), 이들이 TLD 서버의 위치를 알려준다.</p>
+
+      <p>그 아래가 <strong>TLD (Top-Level Domain) 서버</strong>다. <code>.com</code>, <code>.org</code>, <code>.kr</code>, <code>.io</code> 같은 최상위 도메인을 책임진다. <code>.com</code> TLD 서버는 <code>example.com</code>의 <strong>권한(authoritative) 서버</strong>가 어디에 있는지 알려준다.</p>
+
+      <p>마지막으로 권한 서버가 실제로 <code>www.example.com</code>의 IP가 무엇인지 답해 준다. 도메인을 사면 보통 같이 받는 게 이 권한 서버 운영 권한이다.</p>
+
+      <div class="ascii-diagram">                    +-------------+
+                    |    Root     |   "."  ← 13개의 논리 루트
+                    +------+------+
+                           |
+              +------------+------------+
+              |            |            |
+          +---v---+   +---v---+    +---v---+
+          |  .com |   |  .kr  |    |  .org |    ← TLD
+          +---+---+   +-------+    +-------+
+              |
+        +-----+------+
+        |            |
+   example.com   google.com   ← 권한(authoritative) 서버
+        |
+   www  api  mail              ← 호스트 레코드</div>
+
+      <h3>로컬 DNS 서버와 두 가지 질의 방식</h3>
+
+      <p>실제로 당신의 컴퓨터는 루트에 직접 묻지 않는다. 거의 모두 <strong>로컬 DNS 서버 (resolver)</strong>를 거친다. ISP가 운영하거나, Google의 <code>8.8.8.8</code>, Cloudflare의 <code>1.1.1.1</code> 같은 공용 리졸버를 쓴다.</p>
+
+      <p>리졸버가 답을 찾는 방식은 두 가지다.</p>
+
+      <ul>
+        <li><strong>재귀(Recursive) 질의</strong>: 클라이언트 → 로컬 DNS 한 번 요청, 그러면 로컬 DNS가 답이 나올 때까지 알아서 다 처리해준다. 클라이언트는 마음 편하다.</li>
+        <li><strong>반복(Iterative) 질의</strong>: 로컬 DNS가 루트, TLD, 권한 서버에 차례차례 묻는다. 각 단계에서 "나는 모르겠고, 다음엔 저기 가봐"라는 응답(referral)을 받으며 트리를 따라 내려간다. 보통 클라이언트→로컬DNS는 재귀, 로컬DNS↔상위 서버들은 반복이다.</li>
+      </ul>
+
+      <h3>캐시와 TTL</h3>
+
+      <p>모든 DNS 응답에는 <strong>TTL (Time To Live)</strong>이 붙어 있다. "이 답을 N초 동안은 캐시해도 좋다"는 뜻이다. 한 번 답을 받은 로컬 DNS는 그 시간 동안은 같은 질문에 자기 캐시로 답한다. 그래서 인기 사이트의 IP 질의는 거의 다 로컬에서 끝나고, 루트 서버는 의외로 한가하다.</p>
+
+      <p>TTL은 양날의 검이다. 짧게 잡으면 변경 사항이 빨리 퍼지지만 트래픽이 늘고, 길게 잡으면 트래픽은 줄지만 IP 변경이 전 세계에 반영되는 데 시간이 걸린다. 마이그레이션 전에 TTL을 미리 짧게 줄여두는 게 운영자의 상식.</p>
+
+      <h3>레코드 종류</h3>
+
+      <p>DNS는 단순히 "이름 → IP"만 답하는 게 아니다. 여러 종류의 <strong>리소스 레코드 (RR)</strong>를 다룬다.</p>
+
+      <table>
+        <thead>
+          <tr><th>레코드</th><th>용도</th><th>예</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>A</strong></td><td>도메인 이름 → IPv4 주소</td><td><code>www.example.com → 93.184.216.34</code></td></tr>
+          <tr><td><strong>AAAA</strong></td><td>도메인 이름 → IPv6 주소</td><td><code>www.example.com → 2606:2800:220:1::</code></td></tr>
+          <tr><td><strong>CNAME</strong></td><td>다른 도메인의 별칭(canonical name)</td><td><code>blog.example.com → ghs.googlehosted.com</code></td></tr>
+          <tr><td><strong>MX</strong></td><td>이 도메인의 메일 수신 서버 + 우선순위</td><td><code>example.com → 10 mail.example.com</code></td></tr>
+          <tr><td><strong>NS</strong></td><td>이 도메인의 권한 서버 목록</td><td><code>example.com → ns1.example.com</code></td></tr>
+          <tr><td>TXT</td><td>임의 문자열 (SPF, DKIM 등 검증용)</td><td><code>"v=spf1 include:_spf.google.com ~all"</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout tip">
+        <span class="label">실전 팁</span>
+        <p>리눅스/맥에서 <code>dig www.example.com</code>이나 <code>dig +trace</code>를 쳐 보자. 어떤 서버가 어떤 답을 했는지 한 눈에 보인다. 윈도우는 <code>nslookup</code>, 또는 PowerShell의 <code>Resolve-DnsName</code>.</p>
+      </div>
+
+      <h2 id="sec-2-5">2.5 이메일과 영상 스트리밍/CDN</h2>
+
+      <h3>이메일: SMTP, 그리고 IMAP</h3>
+
+      <p>이메일은 인터넷의 가장 오래된 킬러 앱이다. 구조는 세 인물로 정리된다.</p>
+
+      <ul>
+        <li><strong>MUA (Mail User Agent)</strong>: 우리가 쓰는 메일 클라이언트(Gmail 웹, Outlook, Apple Mail).</li>
+        <li><strong>MTA (Mail Transfer Agent)</strong>: 메일을 인터넷 위로 실어 나르는 서버.</li>
+        <li><strong>MDA (Mail Delivery Agent)</strong>: 최종적으로 받는 사람 메일함에 떨어뜨리는 서버.</li>
+      </ul>
+
+      <p>발신자의 MUA가 자기 메일 서버에 메일을 던진다. 보내는 쪽 서버는 받는 쪽 서버에게 <strong>SMTP (Simple Mail Transfer Protocol)</strong>로 메일을 전달한다. 받는 쪽 서버에 도착한 메일은 그 사람의 메일함에 저장된다. 받는 사람의 MUA는 나중에 적당한 때 <strong>IMAP</strong>(혹은 옛날엔 POP3) 프로토콜로 메일을 읽으러 들어온다.</p>
+
+      <p>SMTP는 메일을 <em>보내는</em> 데 쓰고, IMAP은 메일함에 <em>접속해서 읽는</em> 데 쓴다. 두 일이 다르기 때문에 프로토콜도 다르다. 받는 쪽 서버를 어디에 둘지는 그 도메인의 MX 레코드가 결정한다 — 앞 절의 DNS가 여기서 다시 등장한다.</p>
+
+      <div class="ascii-diagram">  Alice(MUA)         Alice's MTA          Bob's MTA          Bob(MUA)
+      |                    |                    |                  |
+      |--- 메일 작성 -----&gt;|                    |                  |
+      |                    |---- SMTP 전송 ----&gt;|                  |
+      |                    |                    | (Bob's mailbox에  |
+      |                    |                    |   저장)           |
+      |                    |                    |&lt;--- IMAP 접속 ---|
+      |                    |                    |---- 메일 다운 ---&gt;|</div>
+
+      <h3>적응 스트리밍: DASH</h3>
+
+      <p>YouTube, Netflix, 트위치 같은 영상 사이트는 어떻게 사용자의 회선 상태에 맞춰 매끄럽게 영상을 흘려보낼까? 답은 <strong>HTTP 위의 적응 스트리밍 (DASH, Dynamic Adaptive Streaming over HTTP)</strong>이다.</p>
+
+      <p>아이디어는 단순하면서도 영리하다.</p>
+
+      <ol>
+        <li>서버는 영상을 여러 가지 비트레이트(예: 360p, 720p, 1080p, 4K)로 미리 인코딩해 둔다.</li>
+        <li>각 버전을 짧은 <strong>청크(chunk)</strong>로 잘라 둔다. 보통 2~10초 단위.</li>
+        <li>청크들의 목록과 메타데이터를 담은 <strong>매니페스트(manifest)</strong> 파일을 만든다.</li>
+        <li>클라이언트가 매니페스트를 받아, 자기 회선 상태를 보면서 다음 청크를 어느 비트레이트로 받을지 매번 결정한다.</li>
+        <li>모든 청크는 그냥 평범한 HTTP GET으로 받는다 → CDN, 캐시, 방화벽 모두와 친하다.</li>
+      </ol>
+
+      <p>회선이 좋을 땐 4K 청크를 받고, 와이파이가 흔들리기 시작하면 슬쩍 720p 청크로 갈아탄다. 사용자는 해상도가 살짝 흐려졌다 정도만 느끼지, 영상은 끊기지 않는다. 똑똑한 트릭이다.</p>
+
+      <h3>CDN: 콘텐츠를 사용자 가까이로</h3>
+
+      <p>한 가지 문제가 남는다. 서버가 미국에 있는데 한국 사용자가 4K 영상을 받는다고 치자. 빛조차 한국까지 오는 데 100ms 이상 걸리는 거리다. 매번 그 먼 길을 다녀오면 첫 청크가 시작되기까지 오래 걸리고, 트래픽도 폭증한다. 해법이 <strong>CDN (Content Delivery Network)</strong>이다.</p>
+
+      <p>CDN은 전 세계 곳곳에 <strong>엣지 서버(edge server)</strong>를 두고, 인기 콘텐츠를 미리 그곳에 복제해둔다. 사용자는 자기에게 가까운 엣지 서버에서 콘텐츠를 받는다. 1ms 거리에서 받으니 100ms 거리에서 받는 것보다 비교가 안 되게 빠르고, 원 서버(origin)의 부담도 거의 없다.</p>
+
+      <p>"가까운 엣지를 어떻게 찾아주지?"가 흥미롭다. 보통은 <strong>DNS 트릭</strong>으로 푼다. 사용자가 <code>video.example.com</code>을 질의하면, CDN의 권한 DNS가 사용자의 위치(보통 사용자의 로컬 DNS 서버 IP, 또는 EDNS Client Subnet 정보)를 보고 가까운 엣지의 IP를 동적으로 골라 답해준다. 똑같은 도메인이 어디서 묻느냐에 따라 다른 IP를 돌려준다.</p>
+
+      <div class="ascii-diagram">           +----------------+
+           |  Origin (US)   |   ← 원본 콘텐츠
+           +-------+--------+
+                   |
+        +----------+----------+
+        |          |          |
+   +----v---+ +----v---+ +----v---+
+   | Edge KR| | Edge JP| | Edge EU|   ← 각 지역 엣지 서버
+   +----+---+ +--------+ +--------+
+        |
+   +----v---+
+   | 사용자  |   ← 가까운 엣지에서 받음 (낮은 RTT)
+   +--------+</div>
+
+      <div class="callout">
+        <span class="label">왜 인기 영상은 항상 빠를까</span>
+        <p>인기 영상의 청크는 거의 모든 엣지에 캐시되어 있다. 잘 안 보는 영상은 첫 사용자만 원 서버까지 다녀오고(이 사용자는 살짝 느릴 수 있다), 이후 사용자는 엣지에서 빠르게 받는다. CDN 운영의 핵심은 "어떤 콘텐츠를 어느 엣지에 얼마나 오래 둘 것인가"라는 캐시 정책이다.</p>
+      </div>
+
+      <h2 id="sec-2-6">2.6 소켓 프로그래밍 맛보기</h2>
+
+      <p>이론은 이쯤 해두고, 손으로 한 번 만져보자. 트랜스포트의 두 얼굴 — TCP와 UDP — 를 소켓 API로 어떻게 다루는지 의사코드로 살펴본다. 진짜 코드는 아니지만, Python의 <code>socket</code> 모듈과 거의 똑같이 생겼다.</p>
+
+      <h3>TCP 소켓의 흐름</h3>
+
+      <p>TCP는 연결 지향이다. 서버가 먼저 자리에 앉아서 손님을 기다리고, 클라이언트가 연결을 신청하면 악수(3-way handshake)를 거쳐 가상 회선이 만들어진다. 그 다음에야 데이터가 오간다.</p>
+
+      <pre><code># --- TCP 서버 ---
+import socket
+
+server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_sock.bind(("0.0.0.0", 12000))   # 모든 인터페이스의 12000번 포트
+server_sock.listen(5)                   # 최대 5개까지 대기열에 쌓기
+
+print("서버 준비 완료. 손님 대기 중...")
+
+while True:
+    conn, client_addr = server_sock.accept()        # blocking, 연결 들어오면 깨어남
+    print(f"연결: {client_addr}")
+    msg = conn.recv(1024).decode()                  # 메시지 받기
+    reply = msg.upper()                             # 대문자로 바꿔서 돌려주기
+    conn.send(reply.encode())
+    conn.close()
+
+# --- TCP 클라이언트 ---
+import socket
+
+client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_sock.connect(("server.example.com", 12000)) # 3-way handshake 발생
+
+client_sock.send("hello, server!".encode())
+reply = client_sock.recv(1024).decode()
+print("서버가 보낸 답:", reply)
+client_sock.close()
+</code></pre>
+
+      <p>핵심 동선: 서버는 <code>socket → bind → listen → accept → recv/send → close</code>. 클라이언트는 <code>socket → connect → send/recv → close</code>. <code>accept</code>가 새 소켓 객체를 반환한다는 점이 중요하다. 원래 듣는 소켓(<code>server_sock</code>)은 계속 다음 손님을 받고, 진짜 데이터 통신은 <code>conn</code>에서 일어난다.</p>
+
+      <h3>UDP 소켓의 흐름</h3>
+
+      <p>UDP는 무연결(connectionless)이다. 악수도 없고, 한 패킷이 곧 한 메시지(datagram)다. 그래서 코드도 더 단순하다.</p>
+
+      <pre><code># --- UDP 서버 ---
+import socket
+
+server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+server_sock.bind(("0.0.0.0", 12000))
+
+while True:
+    msg, client_addr = server_sock.recvfrom(1024)   # 한 데이터그램 받기
+    reply = msg.decode().upper().encode()
+    server_sock.sendto(reply, client_addr)          # 누구한테 보낼지 매번 명시
+
+# --- UDP 클라이언트 ---
+import socket
+
+client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+client_sock.sendto("hello, server!".encode(), ("server.example.com", 12000))
+reply, _ = client_sock.recvfrom(1024)
+print("서버가 보낸 답:", reply.decode())
+client_sock.close()
+</code></pre>
+
+      <p>차이점이 보이는가? UDP는 <code>listen</code>도 <code>accept</code>도 없다. 서버는 그냥 한 소켓에 대고 <code>recvfrom</code>을 부르고, 그 함수가 <em>누구에게서</em> 왔는지를 같이 알려준다. 응답할 때도 <code>sendto</code>로 매번 목적지를 적어 보낸다. 가벼운 만큼 신뢰성은 직접 챙겨야 한다 — 손실, 순서 뒤바뀜, 중복 모두 애플리케이션의 몫.</p>
+
+      <div class="callout warn">
+        <span class="label">한 가지 더</span>
+        <p>실전 서버는 위 의사코드처럼 한 손님씩 처리하지 않는다. 동시에 수천, 수만 연결을 처리하려면 <code>select</code>, <code>epoll</code>, <code>kqueue</code> 같은 I/O 다중화 또는 비동기 I/O를 쓴다. 한 번에 한 클라이언트만 처리하면 다른 손님은 기약 없이 줄을 서야 한다는 점을 잊지 말자.</p>
+      </div>
+
+      <h2 id="recap">한 줄 요약</h2>
+
+      <ul>
+        <li><strong>애플리케이션 통신은 결국 두 프로세스 간 메시지 교환</strong>이고, 그 창구가 소켓이며, 트랜스포트는 신뢰성/처리율/타이밍/보안 중 일부만 보장한다.</li>
+        <li><strong>HTTP는 단순한 요청-응답 텍스트 프로토콜</strong>로 시작해, 영속 연결과 파이프라이닝, 쿠키, 캐시까지 단계적으로 진화했다.</li>
+        <li><strong>HTTP/2는 한 TCP 연결 안에서 여러 스트림을 멀티플렉싱</strong>해 애플리케이션 HOL을 풀고, HPACK으로 헤더를 압축했다.</li>
+        <li><strong>HTTP/3는 UDP 위 QUIC을 트랜스포트로 채택</strong>해 TCP HOL까지 없애고, TLS 통합과 0-RTT 재접속이라는 보너스까지 얻었다.</li>
+        <li><strong>DNS는 분산·계층·캐시</strong>로 도메인 이름을 IP로 풀어주고, 같은 원리가 CDN의 엣지 선택에도 그대로 쓰인다.</li>
+        <li><strong>영상 스트리밍은 HTTP 위 청크 단위 적응(DASH)</strong>으로, CDN의 엣지가 그 청크를 사용자 코앞까지 옮겨 둔다.</li>
+      </ul>
+
+      <nav class="chapter-nav">
+        <a href="chapter01.html">
+          <span class="label">← 이전</span>
+          <span class="title">1장 · 컴퓨터 네트워크와 인터넷</span>
+        </a>
+        <a href="chapter03.html" class="next">
+          <span class="label">다음 →</span>
+          <span class="title">3장 · 트랜스포트 계층</span>
+        </a>
+      </nav>
+    </article>
+  </div>
+</body>
+</html>

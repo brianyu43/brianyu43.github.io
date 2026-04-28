@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-04-24T07:22:17.440Z",
+  "id": "V01-landscape",
+  "title": "GPU 부서 첫 출근",
+  "subtitle": "CUDA Programming Model",
+  "format": "landscape educational manga page",
+  "totalPanels": 20,
+  "panels": [
+    {
+      "index": 1,
+      "title": "첫 질문: 왜 GPU인가?",
+      "src": "/comic/v01_landscape/final/001.webp",
+      "base": "/comic/v01_landscape/base/001.png",
+      "takeaway": "CUDA의 첫 감각: 병렬화 = 많은 실행자 + 정확한 주소 계산."
+    },
+    {
+      "index": 2,
+      "title": "CPU 길 vs GPU 도시",
+      "src": "/comic/v01_landscape/final/002.webp",
+      "base": "/comic/v01_landscape/base/002.png",
+      "takeaway": "GPU는 한 일을 빨리 끝내는 기계라기보다, 많은 일을 한꺼번에 밀어내는 기계다."
+    },
+    {
+      "index": 3,
+      "title": "SPMD: 같은 코드, 다른 데이터",
+      "src": "/comic/v01_landscape/final/003.webp",
+      "base": "/comic/v01_landscape/base/003.png",
+      "takeaway": "코드는 하나지만 각 thread의 좌표가 다르기 때문에 서로 다른 원소를 처리한다."
+    },
+    {
+      "index": 4,
+      "title": "CUDA 프로그램 5단계",
+      "src": "/comic/v01_landscape/final/004.webp",
+      "base": "/comic/v01_landscape/base/004.png",
+      "takeaway": "입문 단계에서는 API 암기보다 allocate → copy → launch → copy → free 흐름이 먼저다."
+    },
+    {
+      "index": 5,
+      "title": "Grid · Block · Thread",
+      "src": "/comic/v01_landscape/final/005.webp",
+      "base": "/comic/v01_landscape/base/005.png",
+      "takeaway": "CUDA 좌표계는 thread/block/grid 계층을 한 번에 떠올릴 때 가장 잘 보인다."
+    },
+    {
+      "index": 6,
+      "title": "1D Global Index",
+      "src": "/comic/v01_landscape/final/006.webp",
+      "base": "/comic/v01_landscape/base/006.png",
+      "takeaway": "대부분의 CUDA 입문 버그는 index 계산과 범위 체크에서 시작한다."
+    },
+    {
+      "index": 7,
+      "title": "Warp: 32명이 한 박자",
+      "src": "/comic/v01_landscape/final/007.webp",
+      "base": "/comic/v01_landscape/base/007.png",
+      "takeaway": "성능을 볼 때 thread 하나보다 warp 하나를 상상하는 편이 정확하다."
+    },
+    {
+      "index": 8,
+      "title": "Branch Divergence",
+      "src": "/comic/v01_landscape/final/008.webp",
+      "base": "/comic/v01_landscape/base/008.png",
+      "takeaway": "warp 내부 분기는 가능한 한 같은 방향으로 맞추는 것이 좋다."
+    },
+    {
+      "index": 9,
+      "title": "Occupancy와 지연 숨기기",
+      "src": "/comic/v01_landscape/final/009.webp",
+      "base": "/comic/v01_landscape/base/009.png",
+      "takeaway": "occupancy는 목표가 아니라 지연을 숨기는 수단이다."
+    },
+    {
+      "index": 10,
+      "title": "Memory Hierarchy",
+      "src": "/comic/v01_landscape/final/010.webp",
+      "base": "/comic/v01_landscape/base/010.png",
+      "takeaway": "GPU 최적화의 절반은 데이터를 어디에 두고 얼마나 재사용하는지 결정하는 일이다."
+    },
+    {
+      "index": 11,
+      "title": "Coalescing",
+      "src": "/comic/v01_landscape/final/011.webp",
+      "base": "/comic/v01_landscape/base/011.png",
+      "takeaway": "global memory 접근은 coalesced access가 기본 목표다."
+    },
+    {
+      "index": 12,
+      "title": "Shared Memory Tiling",
+      "src": "/comic/v01_landscape/final/012.webp",
+      "base": "/comic/v01_landscape/base/012.png",
+      "takeaway": "tiling은 bandwidth를 줄이고 data reuse를 늘리는 대표 패턴이다."
+    },
+    {
+      "index": 13,
+      "title": "Bank Conflict",
+      "src": "/comic/v01_landscape/final/013.webp",
+      "base": "/comic/v01_landscape/base/013.png",
+      "takeaway": "shared memory는 빠르지만, bank conflict가 생기면 빠름이 사라진다."
+    },
+    {
+      "index": 14,
+      "title": "Convolution · Stencil",
+      "src": "/comic/v01_landscape/final/014.webp",
+      "base": "/comic/v01_landscape/base/014.png",
+      "takeaway": "주변부를 반복해서 읽는 패턴은 shared memory tile과 잘 어울린다."
+    },
+    {
+      "index": 15,
+      "title": "Reduction",
+      "src": "/comic/v01_landscape/final/015.webp",
+      "base": "/comic/v01_landscape/base/015.png",
+      "takeaway": "reduction은 병렬 primitive의 기본기다."
+    },
+    {
+      "index": 16,
+      "title": "Prefix Sum · Scan",
+      "src": "/comic/v01_landscape/final/016.webp",
+      "base": "/comic/v01_landscape/base/016.png",
+      "takeaway": "scan은 ‘누적 위치 계산’이 필요한 곳에서 반복해서 나온다."
+    },
+    {
+      "index": 17,
+      "title": "Histogram · Atomic",
+      "src": "/comic/v01_landscape/final/017.webp",
+      "base": "/comic/v01_landscape/base/017.png",
+      "takeaway": "atomic은 correctness 도구이지만 contention을 줄여야 성능이 산다."
+    },
+    {
+      "index": 18,
+      "title": "V01 핵심 지도",
+      "src": "/comic/v01_landscape/final/018.webp",
+      "base": "/comic/v01_landscape/base/018.png",
+      "takeaway": "입문자의 목표: index, warp, memory hierarchy를 한 장면으로 떠올리기."
+    },
+    {
+      "index": 19,
+      "title": "다음 문: SM 내부",
+      "src": "/comic/v01_landscape/final/019.webp",
+      "base": "/comic/v01_landscape/base/019.png",
+      "takeaway": "V02에서는 GPU architecture를 정량적으로 본다."
+    },
+    {
+      "index": 20,
+      "title": "V01 END",
+      "src": "/comic/v01_landscape/final/020.webp",
+      "base": "/comic/v01_landscape/base/020.png",
+      "takeaway": "다음 에피소드: V02 GPU Architecture."
+    }
+  ]
+}

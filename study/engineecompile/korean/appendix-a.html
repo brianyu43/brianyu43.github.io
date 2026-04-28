@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>부록 A ILOC — 컴파일러 엔지니어링</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<h1><a href="index.html" style="color:inherit;text-decoration:none">컴파일러 엔지니어링</a></h1>
+<div class="subtitle">Engineering a Compiler 2/e — 한국어 해설</div>
+<nav>
+<div class="nav-section">Part I — 프론트엔드</div>
+<ul>
+<li><a href="chapter-1.html">1. 컴파일 개관</a></li>
+<li><a href="chapter-2.html">2. 스캐너</a></li>
+<li><a href="chapter-3.html">3. 파서</a></li>
+<li><a href="chapter-4.html">4. 문맥 의존 분석</a></li>
+</ul>
+<div class="nav-section">Part II — 미들엔드</div>
+<ul>
+<li><a href="chapter-5.html">5. 중간 표현</a></li>
+<li><a href="chapter-6.html">6. 프로시저 추상화</a></li>
+<li><a href="chapter-7.html">7. 코드 모양</a></li>
+</ul>
+<div class="nav-section">Part III — 최적화</div>
+<ul>
+<li><a href="chapter-8.html">8. 최적화 입문</a></li>
+<li><a href="chapter-9.html">9. 데이터 흐름 분석</a></li>
+<li><a href="chapter-10.html">10. 스칼라 최적화</a></li>
+</ul>
+<div class="nav-section">Part IV — 백엔드</div>
+<ul>
+<li><a href="chapter-11.html">11. 명령어 선택</a></li>
+<li><a href="chapter-12.html">12. 명령어 스케줄링</a></li>
+<li><a href="chapter-13.html">13. 레지스터 할당</a></li>
+</ul>
+<div class="nav-section">부록</div>
+<ul>
+<li><a href="appendix-a.html" class="active">A. ILOC</a></li>
+<li><a href="appendix-b.html">B. 자료 구조</a></li>
+</ul>
+</nav>
+</aside>
+<main class="content">
+<h1>부록 A. ILOC</h1>
+<p class="lead">책 전체에서 쓰는 가짜 ISA — RISC 스타일의 깔끔한 학습용 명령어 집합.</p>
+
+<div class="chapter-meta">
+<span><strong>원서 범위:</strong> pp. 725–736</span>
+<span><strong>키워드:</strong> ILOC, ISA, RISC, three-address code, control flow</span>
+</div>
+
+<h2>A.1 들어가며: 책에 등장하는 그 어셈블리</h2>
+
+<p>책을 한 장이라도 넘겨봤다면 <code>loadAI</code>, <code>addI</code>, <code>cbr</code> 같은 낯선 단어들을 봤을 것이다. 이게 바로 <strong>ILOC</strong>이다. ILOC은 Rice 대학교의 Massively Scalar Compiler Project에서 만든 중간 표현(intermediate representation)을 책에 맞게 깎아낸 버전이다. 책에서는 두 가지 역할을 동시에 한다.</p>
+
+<ul>
+<li><strong>최적화기(optimizer)의 IR로</strong> — 데이터 흐름 분석, SSA, 스칼라 최적화 같은 미들엔드 알고리즘을 설명할 때 입력/출력으로 등장.</li>
+<li><strong>코드 생성의 단순화된 타깃으로</strong> — 코드 모양, 명령어 선택, 스케줄링, 레지스터 할당 같은 백엔드 챕터에서 "가상의 기계어"로 등장.</li>
+</ul>
+
+<div class="warn-box">
+<strong>오해 주의 — ILOC은 진짜 CPU가 아니다.</strong> ILOC은 학습과 알고리즘 설명을 위한 추상 기계의 어셈블리다. 실제 칩에서 돌아가는 ISA가 아니라, "RISC가 이상적으로 깔끔했다면 이렇게 생겼을 것"이라는 일종의 사고 실험에 가깝다. 그래서 데이터 타입은 정수 하나로 통일되어 있고, 레지스터 개수도 무한이라고 가정한다.
+</div>
+
+<h3>추상 기계의 가정</h3>
+
+<p>ILOC이 그리는 가상 머신은 단순하다.</p>
+
+<ul>
+<li><strong>레지스터는 무한히 있다.</strong> <code>r1</code>, <code>r2</code>, ..., <code>r1776</code> 같이 그냥 끝없이 쓸 수 있다고 가정한다. (현실에서 레지스터는 부족한 자원이라는 점은 13장 레지스터 할당에서 다룬다.)</li>
+<li><strong>3-주소 형식의 레지스터-투-레지스터(register-to-register) 연산.</strong> 두 소스 레지스터를 읽어 결과를 한 타깃 레지스터에 쓴다.</li>
+<li><strong>load/store가 메모리를 만지는 유일한 통로.</strong> 산술 연산은 메모리에 직접 닿지 못한다 — 전형적인 RISC 스타일.</li>
+<li><strong>주소 모드는 네 가지뿐</strong> — direct, address+offset, address+immediate, immediate. 단순 그 자체.</li>
+<li><strong>실행 모델</strong>은 사이클 단위. 소스 피연산자는 사이클 시작에 읽고, 결과는 사이클 끝에 쓴다. 별 말 없으면 단일 기능 단위가 명령어를 나열된 순서대로 실행한다고 보면 된다.</li>
+</ul>
+
+<h3>프로그램의 골격</h3>
+
+<p>ILOC 프로그램은 명령어를 한 줄씩 쭉 늘어놓은 텍스트다. 각 명령어 앞에는 라벨(label)이 붙을 수 있고, 라벨과 명령어는 콜론(<code>:</code>)으로 분리한다. 라벨은 그냥 알파벳/숫자/하이픈으로 된 문자열이다. 한 명령어에 라벨이 두 개 이상 필요하면? <code>nop</code>(아무 일도 안 하는 명령어)을 끼워서 라벨을 분산시킨다 — 가짜 ISA의 사치라고 할 수 있다.</p>
+
+<p>한 줄에 연산이 하나면 그냥 적고, 여러 연산을 한 사이클에 묶고 싶으면 대괄호로 감싸고 세미콜론으로 구분한다. 후자는 12장(명령어 스케줄링)에서 다중 발행(multi-issue) 기계를 설명할 때 쓴다.</p>
+
+<div class="figure">
+<pre>
+       loadAI rarp,@x => r1     // 단일 연산 명령어
+       [ add r1,r2 => r3 ; load r4 => r5 ]   // 두 연산을 한 사이클에 묶음
+L1:    sub r3,r5 => r6
+</pre>
+<span class="figure-caption">단일 연산과 다중 연산 명령어가 섞인 모습. 대괄호 안의 연산들은 같은 사이클에 발행된다.</span>
+</div>
+
+<h3>피연산자 표기와 화살표</h3>
+
+<p>한 연산은 <em>opcode</em>, 콤마로 구분된 <em>소스</em> 목록, 콤마로 구분된 <em>타깃</em> 목록으로 이루어진다. 소스와 타깃은 화살표로 분리하는데, 이 화살표가 ILOC만의 작은 디테일이다.</p>
+
+<ul>
+<li><strong><code>=&gt;</code> ("into")</strong> — 일반 연산. 결과가 우측 타깃에 정의된다는 뜻.
+<br><code>add r1,r2 =&gt; r3</code> — "r1과 r2를 더해서 r3에 넣어라"</li>
+<li><strong><code>-&gt;</code></strong> — 제어 흐름 연산(분기, 점프). 타깃 라벨은 PC를 옮기는 곳일 뿐 "정의"되는 값이 아니라서 화살표 모양도 다르다.</li>
+</ul>
+
+<p>피연산자는 <code>register</code>, <code>num</code>(정수 상수), <code>label</code> 셋 중 하나다. 라벨은 항상 <code>l</code>(소문자 엘)로 시작하게 적어서 한눈에 알아보게 한다 — 강제 규칙은 아니지만 책 전체가 따르는 관습이다.</p>
+
+<h2>A.2 명명 관습 — 변수, 레지스터, 그리고 ARP</h2>
+
+<p>예제 코드에는 같은 패턴이 반복적으로 나오는데, 그 안에 깔린 약속이 셋이다.</p>
+
+<ol>
+<li><strong>변수의 메모리 오프셋은 <code>@</code> 접두사로 표기.</strong> 즉 <code>@x</code>는 "변수 <code>x</code>가 활성 레코드 안에서 차지하는 오프셋(상수값)"이다.</li>
+<li><strong>레지스터는 무제한이며 <code>r</code>로 시작.</strong> 숫자 이름(<code>r1776</code>)이든 기호 이름(<code>ri</code>)이든 둘 다 가능.</li>
+<li><strong><code>rarp</code>는 예약 레지스터.</strong> 현재 활성 레코드(activation record)를 가리키는 포인터로 고정되어 있다. 6장에서 다룬 ARP다.</li>
+</ol>
+
+<p>이 셋을 합치면 책에서 가장 자주 보는 패턴이 나온다.</p>
+
+<div class="figure">
+<pre>
+loadAI rarp,@x => r1
+</pre>
+<span class="figure-caption">"활성 레코드 시작점(rarp)에서 변수 x의 오프셋(@x)만큼 떨어진 메모리 슬롯에서 값을 읽어 r1에 넣어라."</span>
+</div>
+
+<p>주석은 <code>//</code>로 시작해서 줄 끝까지. 스캐너가 떼어낸다고 가정하므로 문법에는 등장하지 않는다.</p>
+
+<h2>A.3 개별 연산들</h2>
+
+<p>ILOC의 명령어 집합은 일부러 작게 유지되어 있다. 책 전체에서 다음 다섯 묶음만 알면 어떤 예제든 읽을 수 있다.</p>
+
+<h3>A.3.1 산술 연산 (Arithmetic)</h3>
+
+<p>전형적인 3-주소 레지스터-투-레지스터 산술. 소스가 둘, 타깃이 하나. 즉시값(immediate) 형태도 함께 제공되는데, 이건 "두 번째 피연산자가 상수"라는 뜻으로 opcode 끝에 <code>I</code>를 붙인다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>add</code></td><td>r1, r2</td><td>r3</td><td>r1 + r2 → r3</td></tr>
+<tr><td><code>sub</code></td><td>r1, r2</td><td>r3</td><td>r1 − r2 → r3</td></tr>
+<tr><td><code>mult</code></td><td>r1, r2</td><td>r3</td><td>r1 × r2 → r3</td></tr>
+<tr><td><code>div</code></td><td>r1, r2</td><td>r3</td><td>r1 ÷ r2 → r3</td></tr>
+<tr><td><code>addI</code></td><td>r1, c2</td><td>r3</td><td>r1 + c2 → r3</td></tr>
+<tr><td><code>subI</code></td><td>r1, c2</td><td>r3</td><td>r1 − c2 → r3</td></tr>
+<tr><td><code>rsubI</code></td><td>r1, c2</td><td>r3</td><td>c2 − r1 → r3 (역방향 빼기)</td></tr>
+<tr><td><code>multI</code></td><td>r1, c2</td><td>r3</td><td>r1 × c2 → r3</td></tr>
+<tr><td><code>divI</code></td><td>r1, c2</td><td>r3</td><td>r1 ÷ c2 → r3</td></tr>
+<tr><td><code>rdivI</code></td><td>r1, c2</td><td>r3</td><td>c2 ÷ r1 → r3 (역방향 나누기)</td></tr>
+</tbody>
+</table>
+
+<p>여기서 <code>rsubI</code>와 <code>rdivI</code>가 따로 있는 이유는 단순하다 — 뺄셈과 나눗셈은 교환법칙이 안 되니까, 즉시값을 어느 쪽에 두느냐에 따라 결과가 달라진다. 두 형태를 모두 두면 최적화기가 더 자연스럽게 코드를 줄일 수 있다.</p>
+
+<div class="note-box">
+<strong>왜 즉시값 형태가 따로 있나?</strong> 최적화 결과를 표현하기 좋고, 예제를 짧게 쓸 수 있고, 레지스터 압력(register pressure)을 줄일 수 있어서. 상수를 일일이 <code>loadI</code>로 레지스터에 올린 다음 <code>add</code>를 부르는 것보다 한 번에 <code>addI</code>로 끝내는 쪽이 훨씬 깔끔하다.
+</div>
+
+<p>참고로 ILOC 본문에는 데이터 타입이 정수 하나로 통일돼 있지만, 실제 ILOC 기반 처리기였다면 <code>add</code>가 정수용·부동소수점용·복소수용 등 여러 변종으로 갈래가 났을 것이다. Rice 연구 컴파일러에는 그렇게 타입별로 쪼개진 산술 연산이 따로 있었다고 책은 슬쩍 언급한다.</p>
+
+<h3>A.3.2 시프트 (Shifts)</h3>
+
+<p>왼쪽/오른쪽 산술 시프트가 레지스터 형태와 즉시값 형태로 각각 있다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>lshift</code></td><td>r1, r2</td><td>r3</td><td>r1 ≪ r2 → r3</td></tr>
+<tr><td><code>lshiftI</code></td><td>r1, c2</td><td>r3</td><td>r1 ≪ c2 → r3</td></tr>
+<tr><td><code>rshift</code></td><td>r1, r2</td><td>r3</td><td>r1 ≫ r2 → r3</td></tr>
+<tr><td><code>rshiftI</code></td><td>r1, c2</td><td>r3</td><td>r1 ≫ c2 → r3</td></tr>
+</tbody>
+</table>
+
+<p>비슷한 결로 <strong>비트 논리 연산</strong>도 있다 — <code>and</code>, <code>or</code>, <code>xor</code>과 그 즉시값 형태(<code>andI</code>, <code>orI</code>, <code>xorI</code>). 인터페이스는 산술과 똑같다.</p>
+
+<h3>A.3.3 메모리 연산 (Memory Operations)</h3>
+
+<p>RISC답게 메모리는 load/store로만 만진다. ILOC은 정수용(<code>load</code> 계열)과 문자용(<code>cload</code> 계열)을 각각 갖고 있다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>load</code></td><td>r1</td><td>r2</td><td>MEMORY(r1) → r2 (direct)</td></tr>
+<tr><td><code>loadAI</code></td><td>r1, c2</td><td>r3</td><td>MEMORY(r1 + c2) → r3 (address+immediate)</td></tr>
+<tr><td><code>loadAO</code></td><td>r1, r2</td><td>r3</td><td>MEMORY(r1 + r2) → r3 (address+offset)</td></tr>
+<tr><td><code>loadI</code></td><td>c1</td><td>r2</td><td>c1 → r2 (즉시값을 레지스터로)</td></tr>
+<tr><td><code>cload</code> / <code>cloadAI</code> / <code>cloadAO</code></td><td colspan="2">위와 동일</td><td>위와 동일하지만 문자(character) 단위</td></tr>
+</tbody>
+</table>
+
+<p>주소 모드의 차이만 잘 봐두면 된다.</p>
+
+<ul>
+<li><strong><code>load</code></strong>: 레지스터 하나가 곧 주소.</li>
+<li><strong><code>loadAI</code></strong>: 레지스터 + 즉시값 — 책에서 가장 자주 보는 형태(예: <code>loadAI rarp,@x</code>).</li>
+<li><strong><code>loadAO</code></strong>: 레지스터 + 레지스터 — 인덱스가 런타임에 계산되는 배열 접근에 적합.</li>
+<li><strong><code>loadI</code></strong>: 메모리는 안 만짐. 그냥 즉시값을 레지스터에 박는다.</li>
+</ul>
+
+<p>store는 load의 거울상이다. 다만 <strong><code>storeI</code>는 없다</strong> — 즉시값을 메모리에 직접 쓰는 연산은 정의돼 있지 않으니, 필요하면 <code>loadI</code> + <code>store</code>를 조합해야 한다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>store</code></td><td>r1</td><td>r2</td><td>r1 → MEMORY(r2)</td></tr>
+<tr><td><code>storeAI</code></td><td>r1</td><td>r2, c3</td><td>r1 → MEMORY(r2 + c3)</td></tr>
+<tr><td><code>storeAO</code></td><td>r1</td><td>r2, r3</td><td>r1 → MEMORY(r2 + r3)</td></tr>
+<tr><td><code>cstore</code> / <code>cstoreAI</code> / <code>cstoreAO</code></td><td colspan="2">위와 동일</td><td>위와 동일하지만 문자(character) 단위</td></tr>
+</tbody>
+</table>
+
+<div class="note-box">
+<strong>store는 타깃이 둘.</strong> 본문에서 강조하는 미묘한 점이다. <code>storeAI r1 =&gt; r2,4</code>에서 화살표 우측의 <code>r2,4</code>는 둘 다 "주소를 만드는 데 쓰이는" 타깃 피연산자다. 메모리에 들어가는 값은 좌측 <code>r1</code>이지만, 어디에 들어가는지는 <code>r2 + 4</code>가 결정한다. 다른 연산들은 대부분 타깃이 하나라는 점을 기억해두면 헷갈리지 않는다.
+</div>
+
+<h3>A.3.4 레지스터-투-레지스터 복사 (Register-to-Register Copy)</h3>
+
+<p>메모리를 거치지 않고 값을 옮기고 싶을 때 쓴다. 정수용, 문자용, 그리고 둘 사이를 변환하는 두 형태까지 네 가지.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>i2i</code></td><td>r1</td><td>r2</td><td>r1 → r2 (정수 복사)</td></tr>
+<tr><td><code>c2c</code></td><td>r1</td><td>r2</td><td>r1 → r2 (문자 복사)</td></tr>
+<tr><td><code>c2i</code></td><td>r1</td><td>r2</td><td>문자를 ASCII 정수로 변환</td></tr>
+<tr><td><code>i2c</code></td><td>r1</td><td>r2</td><td>정수를 ASCII 문자로 변환</td></tr>
+</tbody>
+</table>
+
+<h2>A.4 제어 흐름 연산</h2>
+
+<p>ILOC의 비교/분기는 두 가지 다른 스타일을 모두 지원한다. 책에서 어떤 경우에 어떤 스타일을 쓰는지가 7장(코드 모양) 토론의 한 축이기도 하다.</p>
+
+<h3>기본 스타일: 비교 결과를 레지스터에 담기</h3>
+
+<p>비교 연산 <code>cmp_*</code>는 두 레지스터를 비교해 결과(<code>true</code>/<code>false</code>)를 일반 레지스터에 쓴다. 그 다음 <code>cbr</code>이 이 불리언 레지스터를 보고 두 라벨 중 하나로 점프한다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>cmp_LT</code></td><td>r1, r2</td><td>r3</td><td>r1 &lt; r2 이면 true → r3, 아니면 false → r3</td></tr>
+<tr><td><code>cmp_LE</code></td><td>r1, r2</td><td>r3</td><td>r1 ≤ r2</td></tr>
+<tr><td><code>cmp_EQ</code></td><td>r1, r2</td><td>r3</td><td>r1 = r2</td></tr>
+<tr><td><code>cmp_GE</code></td><td>r1, r2</td><td>r3</td><td>r1 ≥ r2</td></tr>
+<tr><td><code>cmp_GT</code></td><td>r1, r2</td><td>r3</td><td>r1 &gt; r2</td></tr>
+<tr><td><code>cmp_NE</code></td><td>r1, r2</td><td>r3</td><td>r1 ≠ r2</td></tr>
+<tr><td><code>cbr</code></td><td>r1</td><td>l2, l3</td><td>r1 = true 면 l2 → PC, 아니면 l3 → PC</td></tr>
+</tbody>
+</table>
+
+<p><code>cbr</code>의 핵심 디자인 결정은 <strong>두 라벨을 모두 명시한다는 점</strong>이다. 한쪽은 참일 때, 다른 한쪽은 거짓일 때. 보통의 어셈블리라면 "참이면 점프, 아니면 흘러내려간다(fall-through)" 형태인데, ILOC은 일부러 fall-through를 없앴다.</p>
+
+<div class="note-box">
+<strong>왜 fall-through를 없앴나?</strong> 두 가지 이유다. 첫째, <em>분기 + 점프</em> 패턴이 사라져 코드가 더 간결해진다. 둘째, 후속 분석이 쉬워진다 — 명령어 순서에 대한 위치 의존성(positional dependence)이 없어지므로, 제어 흐름 그래프(CFG)를 만들거나 명령어를 재배치하는 일이 훨씬 자유로워진다. 학습용 IR다운 결정.
+</div>
+
+<h3>A.4.1 대안 문법: 조건 코드 스타일</h3>
+
+<p>현실의 ISA들은 비교 결과를 일반 레지스터가 아니라 <strong>조건 코드 레지스터(condition code register)</strong>에 따로 쓴다. 7장에서 이 스타일을 쓰는 칩의 코드 모양을 논하기 위해 ILOC은 대안 문법도 정의해둔다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>comp</code></td><td>r1, r2</td><td>cc3</td><td>cc3에 비교 결과를 세팅</td></tr>
+<tr><td><code>cbr_LT</code></td><td>cc1</td><td>l2, l3</td><td>cc1 = LT 면 l2, 아니면 l3</td></tr>
+<tr><td><code>cbr_LE</code> / <code>cbr_EQ</code> / <code>cbr_GE</code> / <code>cbr_GT</code> / <code>cbr_NE</code></td><td>cc1</td><td>l2, l3</td><td>각 비교 결과에 대해 동일</td></tr>
+</tbody>
+</table>
+
+<p>여기서 <code>cci</code>는 일반 레지스터가 아니라 조건 코드 전용 레지스터다. 차이의 핵심은 <strong>판단 책임의 위치</strong>다. 기본 스타일에서는 비교가 끝나고 결과 불리언만 남기지만, 조건 코드 스타일에서는 비교는 그냥 "비교했다"고만 표시하고, 어떤 관계인지(LT인가 EQ인가)는 분기 쪽에서 결정한다.</p>
+
+<h3>A.4.2 점프 (Jumps)</h3>
+
+<p>무조건 분기는 두 가지가 있다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>jumpI</code></td><td>—</td><td>l1</td><td>l1 → PC (즉시 라벨로 점프)</td></tr>
+<tr><td><code>jump</code></td><td>—</td><td>r1</td><td>r1 → PC (레지스터에 든 주소로 점프)</td></tr>
+</tbody>
+</table>
+
+<p><code>jumpI</code>는 거의 모든 예제에서 보는 일반적인 점프다. <code>jump</code>는 좀 위험한 친구다 — 점프할 곳이 컴파일 타임에는 모르는 런타임 주소이기 때문이다. 이게 왜 문제인가? 컴파일러가 그 점프가 어느 라벨로 갈 수 있는지 알아낼 수가 없으면, 제어 흐름 그래프가 흐려져서 후속 분석/최적화가 다 약해진다.</p>
+
+<p>그래서 책은 가급적 <code>jump</code>를 피하라고 권한다. 하지만 FORTRAN의 라벨 변수 점프(jump-to-label-variable) 같은 구조는 사실상 <code>jump</code>로 구현하는 게 가장 자연스럽다 — 즉시 분기들로 풀어내려면 라벨 후보마다 비교+분기를 늘어놓는 case 문 같은 모양이 되니까.</p>
+
+<h3>tbl: 점프 후의 힌트</h3>
+
+<p>이 손실을 조금 메우려고 ILOC은 의사연산(pseudo-op) <code>tbl</code>을 둔다. <code>tbl</code>은 실제로 실행되는 명령어가 아니라 <strong>컴파일러에게 주는 단서</strong>다 — "이 레지스터는 이 라벨일 가능성이 있다"고 적어두는 메모.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>tbl</code></td><td>r1, l2</td><td>—</td><td>r1이 l2를 가질 수도 있음</td></tr>
+</tbody>
+</table>
+
+<p>관습은 이렇다. <code>tbl</code>은 반드시 <code>jump</code> <em>직후에</em> 등장하고, 한 점프 뒤에 여러 <code>tbl</code>이 줄지어 있을 수 있다. 컴파일러는 그 묶음을 "이 점프가 도달할 수 있는 라벨의 후보 집합"으로 해석한다.</p>
+
+<div class="figure">
+<pre>
+       jump      -> ri          // ri로 점프
+       tbl       ri, L01        // 후보: L01
+       tbl       ri, L03        // 후보: L03
+       tbl       ri, L05        // 후보: L05
+       tbl       ri, L08        // 후보: L08
+</pre>
+<span class="figure-caption">jump-to-register 뒤에 붙은 tbl 묶음 — 점프의 도달 가능 라벨 집합을 컴파일러에 알려준다.</span>
+</div>
+
+<h2>A.5 SSA 형태의 표현 — phi 함수</h2>
+
+<p>9장과 10장에서 SSA(Static Single Assignment) 형태가 등장한다. SSA를 ILOC으로 적으려면 φ-함수를 명령어로 표현해야 하는데, ILOC은 이를 위해 <code>phi</code> 의사연산을 정의한다.</p>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>phi</code></td><td>r1, r2, ..., rk (가변)</td><td>rm</td><td>rm ← φ(r1, r2, ..., rk)</td></tr>
+</tbody>
+</table>
+
+<p>다른 ILOC 연산과 달리 <code>phi</code>는 <strong>소스의 개수가 가변</strong>이다 — 해당 기본 블록으로 합류(merge)하는 들어오는 간선 수만큼 소스를 갖는다. 타깃은 항상 하나. SSA의 본질이 "이 변수의 도달 정의(reaching definition)들 중 어느 것이 살아남는가"를 합류점에서 골라내는 함수이므로, 이 가변 사이즈는 자연스럽다.</p>
+
+<h2>한눈에 보는 요약</h2>
+
+<p>책 본문의 코드를 읽다가 막히면 다음 표를 사전처럼 펼쳐보면 된다. 부록 마지막에 실린 ILOC 연산 요약(opcode summary)을 한국어로 정리한 것이다.</p>
+
+<h3>일반 연산 모음</h3>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>nop</code></td><td>none</td><td>none</td><td>플레이스홀더용 (라벨 분리에 활용)</td></tr>
+<tr><td><code>add</code> / <code>sub</code> / <code>mult</code> / <code>div</code></td><td>r1, r2</td><td>r3</td><td>네 가지 기본 산술</td></tr>
+<tr><td><code>addI</code> / <code>subI</code> / <code>rsubI</code> / <code>multI</code> / <code>divI</code> / <code>rdivI</code></td><td>r1, c2</td><td>r3</td><td>즉시값 산술 (rsubI/rdivI는 역방향)</td></tr>
+<tr><td><code>lshift</code> / <code>lshiftI</code> / <code>rshift</code> / <code>rshiftI</code></td><td>r1, r2/c2</td><td>r3</td><td>왼/오 산술 시프트</td></tr>
+<tr><td><code>and</code> / <code>andI</code> / <code>or</code> / <code>orI</code> / <code>xor</code> / <code>xorI</code></td><td>r1, r2/c2</td><td>r3</td><td>비트 논리 연산</td></tr>
+<tr><td><code>loadI</code></td><td>c1</td><td>r2</td><td>즉시값을 레지스터에 적재</td></tr>
+<tr><td><code>load</code> / <code>loadAI</code> / <code>loadAO</code></td><td>r1 / r1,c2 / r1,r2</td><td>r2/r3</td><td>direct / addr+imm / addr+offset 로드</td></tr>
+<tr><td><code>cload</code> / <code>cloadAI</code> / <code>cloadAO</code></td><td>위와 동일</td><td>위와 동일</td><td>같은 형태의 문자(char) 로드</td></tr>
+<tr><td><code>store</code> / <code>storeAI</code> / <code>storeAO</code></td><td>r1</td><td>r2 / r2,c3 / r2,r3</td><td>direct / addr+imm / addr+offset 저장</td></tr>
+<tr><td><code>cstore</code> / <code>cstoreAI</code> / <code>cstoreAO</code></td><td>위와 동일</td><td>위와 동일</td><td>같은 형태의 문자 저장</td></tr>
+<tr><td><code>i2i</code> / <code>c2c</code></td><td>r1</td><td>r2</td><td>정수/문자 레지스터 복사</td></tr>
+<tr><td><code>c2i</code> / <code>i2c</code></td><td>r1</td><td>r2</td><td>문자↔정수 변환</td></tr>
+</tbody>
+</table>
+
+<h3>제어 흐름 모음</h3>
+
+<table class="iloc-table">
+<thead><tr><th>Opcode</th><th>Sources</th><th>Targets</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>jump</code></td><td>—</td><td>r1</td><td>r1 → PC (레지스터 점프)</td></tr>
+<tr><td><code>jumpI</code></td><td>—</td><td>l1</td><td>l1 → PC (즉시 점프)</td></tr>
+<tr><td><code>cbr</code></td><td>r1</td><td>l2, l3</td><td>r1 불리언으로 두 라벨 중 선택</td></tr>
+<tr><td><code>tbl</code></td><td>r1, l2</td><td>—</td><td>r1이 가질 수 있는 라벨 힌트 (jump 직후에만)</td></tr>
+<tr><td><code>cmp_LT</code> / <code>cmp_LE</code> / <code>cmp_EQ</code> / <code>cmp_GE</code> / <code>cmp_GT</code> / <code>cmp_NE</code></td><td>r1, r2</td><td>r3</td><td>비교 결과 불리언을 r3에 쓰기</td></tr>
+<tr><td><code>comp</code></td><td>r1, r2</td><td>cc3</td><td>조건 코드 스타일 비교 (cc3 세팅)</td></tr>
+<tr><td><code>cbr_LT</code> / <code>cbr_LE</code> / <code>cbr_EQ</code> / <code>cbr_GE</code> / <code>cbr_GT</code> / <code>cbr_NE</code></td><td>cc1</td><td>l2, l3</td><td>조건 코드 검사 후 분기</td></tr>
+<tr><td><code>phi</code></td><td>r1, ..., rk</td><td>rm</td><td>SSA의 φ-함수 (가변 소스)</td></tr>
+</tbody>
+</table>
+
+<div class="warn-box">
+<strong>마지막으로 한 번 더.</strong> ILOC은 진짜 칩의 ISA가 아니다. 이 부록의 명령어들은 책 본문이 어떤 알고리즘을 설명할 때 입력/출력을 보여주기 위한 <em>공통 언어</em>일 뿐이다. 그래서 어떤 칩에도 정확히 매핑되지 않고, 어떤 칩에도 어색하지 않다. 학습용 IR로서의 명료함이 곧 그 가치다.
+</div>
+
+<div class="chapter-nav">
+<a href="chapter-13.html"><span class="label">← 이전</span><span>13장. 레지스터 할당</span></a>
+<a href="appendix-b.html" class="next-link"><span class="label">다음 →</span><span>부록 B. 자료 구조</span></a>
+</div>
+</main>
+</div>
+</body>
+</html>

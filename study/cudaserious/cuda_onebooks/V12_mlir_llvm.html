@@ -1,0 +1,2106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V12 MLIR & LLVM for GPU 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18-VOL · TIER 4 COMPILER · A4 LANDSCAPE · 18p</div>
+    <h1>MLIR &amp; LLVM <span class="accent">for GPU</span></h1>
+    <div class="subtitle">Dialect 설계 · Progressive Lowering · NVPTX Backend · <span class="ko">linalg → PTX 전 과정</span></div>
+    <div class="meta">
+      <div><b>Volume</b> 12 / 18</div>
+      <div><b>Tier</b> T4 Compiler</div>
+      <div><b>선행</b> V11 (Triton)</div>
+      <div><b>용도</b> dialect 읽기 · lowering 추적 · NVPTX backend 이해</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1. MLIR이란 — multi-level · progressive lowering</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2. 기본 개념 — Op/Attr/Type/Region/Block/Value</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3. Dialect — namespace · TableGen ODS · interface</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">§4. 주요 dialect 계층 맵</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">§5. Pass &amp; Pattern Rewriting · DialectConversion</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6. gpu Dialect — launch · thread_id</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">§7. nvgpu Dialect — mma.sync · ldmatrix · TMA</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8. nvvm Dialect — NVVM intrinsic 박싱</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9. LLVM IR 기본 — SSA · BB · intrinsic · metadata</span><span class="p">p.10</span></div>
+        <div class="row star"><span class="t">§10. NVPTX Backend — address space · annotations</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11. NVPTX intrinsic — barrier · shfl · mma</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12. PTX 생성 설정 — sm_arch · ptxas · fast-math</span><span class="p">p.13</span></div>
+        <div class="row star"><span class="t">§13. Conversion 전체 — linalg.matmul → PTX</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">§14. IREE · Polygeist · nvfuser 지형</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">§15. Triton의 MLIR 사용 (↗ V11)</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">§16. Pattern Rewrite 작성법 · PDL</span><span class="p">p.17</span></div>
+        <div class="row star"><span class="t">§17. Cheat Sheet — dialect 계층 맵</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요·표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·개념 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 / 워크드</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·함정</span></div>
+      <div class="row"><span class="sym">★</span><span>실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>cross-ref (다른 권)</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·lowering</span></div>
+      <div class="row"><span class="sym">::</span><span>dialect namespace 구분자</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>Out-of-scope</b> non-GPU MLIR 상세 · CIRCT · 특정 프로덕션 컴파일러 (↗ V13 Inductor / ↗ V14 XLA·TVM)</div>
+    <div class="mono">MLIR docs · LLVM NVPTX · llvm-project/mlir · 18 pages</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 MLIR이란 ============================ -->
+<section class="page" data-screen-label="02 §1 MLIR이란">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — MLIR이란 · multi-level · progressive lowering</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> MLIR <span class="ko">Multi-Level IR</span>
+          <span class="mnemonic">multi · dialect · progressive</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>MLIR</mark> = 하나의 IR 프레임워크 안에서 <span class="kw">여러 abstraction level</span>이 공존한다. 각 level = <span class="kw">dialect</span>. 한 IR 모듈에 고수준 op와 저수준 op가 동시에 존재할 수 있다.
+        </div>
+        <ul>
+          <li>LLVM IR 단일 level → MLIR은 tensor · loop · hardware intrinsic 여러 level</li>
+          <li>dialect mix-in: 한 함수 body에 <code>linalg</code>·<code>scf</code>·<code>memref</code> 섞어 쓰기 가능</li>
+          <li>개발자는 새 dialect를 정의해 자기 domain 의미를 그대로 표현한다</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 왜 MLIR이 존재하는가 ★</h3>
+        <table class="compact">
+          <thead><tr><th>계층</th><th>LLVM IR만 쓸 때 문제</th><th>MLIR 해결</th></tr></thead>
+          <tbody>
+            <tr><td>Tensor</td><td>shape · layout 소실</td><td>tensor / memref type</td></tr>
+            <tr><td>Loop</td><td>scalar 루프만</td><td>affine / scf region</td></tr>
+            <tr><td>GPU</td><td>intrinsic 풀(flat)</td><td>gpu · nvgpu dialect</td></tr>
+            <tr><td>Domain</td><td>표현 불가 (FHE, sparse)</td><td>확장 dialect 작성</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">MLIR docs "Motivation" · 원 도입 2019 (Chris Lattner, Google)</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Progressive Lowering ★
+          <span class="mnemonic">high → mid → low → target</span>
+        </h3>
+        <div class="def"><span class="label">개념</span>
+          high-level op를 한 번에 target 코드로 바꾸지 않고, <mark>점진적으로</mark> (progressive) 여러 dialect를 거치며 하강시킨다. 각 단계에서 잃는 정보를 제어한다.
+        </div>
+        <pre class="ascii">tensor/linalg          ← 고수준 의미 (행렬곱 그 자체)
+    ↓ tiling
+scf + memref           ← 중수준 루프·버퍼
+    ↓ vectorize
+vector                 ← SIMD-like tile
+    ↓ gpu lowering
+gpu + nvgpu            ← GPU 추상화 · Tensor Core
+    ↓ nvvm
+nvvm                   ← NVVM intrinsic 래핑
+    ↓ translate
+llvm (NVPTX)           ← LLVM IR
+    ↓ NVPTX codegen
+PTX assembly</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> "하나의 IR" 원칙</h3>
+        <ul>
+          <li>한 <code>.mlir</code> 파일이 lowering 단계마다 다른 모양이 된다</li>
+          <li>print/parse round-trip 가능 → dump 검증 쉽다</li>
+          <li><code>mlir-opt</code>: pass pipeline 한 번에 적용</li>
+          <li><code>mlir-translate</code>: MLIR ↔ LLVM IR 변환</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 설계 철학 3-key <span class="ko">(!)</span>
+          <span class="mnemonic">재사용 · 확장 · 검증</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><b>재사용</b> (reuse): Pass/Pattern infra는 공유. 각 dialect가 op·type·interface만 추가</li>
+          <li><b>확장</b> (extensibility): 새 dialect 작성 비용 낮음 (TableGen ODS)</li>
+          <li><b>검증</b> (verification): op마다 invariant 선언 → 자동 verifier 생성</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 사용 생태계</h3>
+        <table class="compact">
+          <thead><tr><th>프로젝트</th><th>MLIR 사용</th></tr></thead>
+          <tbody>
+            <tr><td>Triton</td><td>Triton IR · TritonGPU IR <span class="xref">↗ V11</span></td></tr>
+            <tr><td>IREE</td><td>모델 → CPU/GPU backend 전체 파이프라인</td></tr>
+            <tr><td>TorchInductor</td><td>일부 통합 탐색 (주로 Triton 경유) <span class="xref">↗ V13</span></td></tr>
+            <tr><td>ONNX-MLIR</td><td>ONNX → 여러 backend</td></tr>
+            <tr><td>CIRCT</td><td>hardware design (본권 out-of-scope)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">혼동 금지</span>: MLIR = <b>프레임워크</b>, 특정 컴파일러 아님. "MLIR이 컴파일한다"는 문장은 부정확 — dialect + pass pipeline 조합이 컴파일한다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 2p</span> <span class="tiny">src: MLIR docs / LLVM Dev Mtg</span></div>
+</section>
+
+<!-- ============================ PAGE 3: §2 기본 개념 ============================ -->
+<section class="page" data-screen-label="03 §2 기본 개념">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Operation · Attribute · Type · Region · Block · Value</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 6-key IR elements ★
+          <span class="mnemonic">Op·Attr·Ty·Rgn·Blk·Val</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>요소</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Operation</mark></td><td>계산 단위 (LLVM의 instruction 일반화)</td></tr>
+            <tr><td><mark>Attribute</mark></td><td>컴파일-타임 상수 (shape, integer, string)</td></tr>
+            <tr><td><mark>Type</mark></td><td>Value의 타입 (<code>i32</code>, <code>tensor&lt;4x4xf16&gt;</code>)</td></tr>
+            <tr><td><mark>Region</mark></td><td>Block 리스트 (nested IR)</td></tr>
+            <tr><td><mark>Block</mark></td><td>Operation 시퀀스 + terminator</td></tr>
+            <tr><td><mark>Value</mark></td><td>SSA 결과 또는 Block argument</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Operation 일반 형식 ★</h3>
+        <pre class="code"><span class="cmt">// generic form</span>
+%r = <span class="kw2">"dialect.op_name"</span>(%a, %b) &lt;{attr = 42 : i32}&gt;
+     : (i32, i32) -&gt; i32
+
+<span class="cmt">// pretty form (등록된 printer)</span>
+%r = dialect.op_name %a, %b
+     {attr = 42 : i32} : i32</pre>
+        <ul>
+          <li>operand: SSA Value (입력)</li>
+          <li>result: SSA Value (출력, 0개 이상)</li>
+          <li>attribute: 상수 metadata</li>
+          <li>region: nested body (선택)</li>
+          <li>successor: block 분기 대상 (선택)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Recursive IR 구조 ★</h3>
+        <div class="def"><span class="label">개념</span>
+          Operation이 Region을 <mark>포함</mark>할 수 있고, Region 안에 Block이, Block 안에 다시 Operation이 있다. 재귀적 중첩이 핵심 — LLVM IR은 function → block → instr 고정 2단계뿐.
+        </div>
+        <pre class="ascii">ModuleOp
+  └─ Region
+      └─ Block
+          └─ func.func
+              └─ Region
+                  └─ Block (args = %arg0, %arg1)
+                      ├─ scf.for
+                      │   └─ Region
+                      │       └─ Block
+                      │           └─ ... ops ...
+                      └─ func.return</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> SSA + Block argument</h3>
+        <ul>
+          <li><code>Value</code> = OpResult 또는 BlockArgument</li>
+          <li>φ (phi) 대신 <mark>block argument</mark> 사용</li>
+          <li>분기: <code>cf.br ^bb(%x : i32)</code> → <code>^bb(%arg : i32)</code>에 바인딩</li>
+          <li>정의-사용(def-use) 체인 자동 유지</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Type 계층 예시</h3>
+        <table class="compact">
+          <thead><tr><th>Type</th><th>예</th></tr></thead>
+          <tbody>
+            <tr><td>builtin 정수</td><td><code>i1, i8, i32, i64</code></td></tr>
+            <tr><td>builtin 실수</td><td><code>f16, bf16, f32, f64</code></td></tr>
+            <tr><td>Vector</td><td><code>vector&lt;4xf32&gt;</code></td></tr>
+            <tr><td>Tensor</td><td><code>tensor&lt;?x16xf16&gt;</code> (shape 포함)</td></tr>
+            <tr><td>MemRef</td><td><code>memref&lt;32x32xf16, 3&gt;</code> (addr space)</td></tr>
+            <tr><td>LLVM</td><td><code>!llvm.ptr&lt;1&gt;</code>, <code>!llvm.struct&lt;...&gt;</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny"><code>?</code> = dynamic dim · 마지막 정수 = memory space</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Attribute 예시</h3>
+<pre class="code"><span class="cmt">// integer / float / string</span>
+{value = 3 : i32}
+{scale = 1.25 : f32}
+{name = <span class="str">"kernel_0"</span>}
+
+<span class="cmt">// dense array / affine map</span>
+{mask = dense&lt;[1,0,1,0]&gt; : vector&lt;4xi1&gt;}
+{map = affine_map&lt;(d0)-&gt;(d0 floordiv 4)&gt;}
+
+<span class="cmt">// symbol ref</span>
+{callee = @my_func}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Use vs Def</h3>
+        <div class="formula">
+          Operand = Use(Value)<br/>
+          Value.getUsers() → { Operation* }
+          <span class="legend">rewrite 시 use를 다 돌며 replace → dangling 없음</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 3p</span> <span class="tiny">src: MLIR LangRef</span></div>
+</section>
+
+<!-- ============================ PAGE 4: §3 Dialect ============================ -->
+<section class="page" data-screen-label="04 §3 Dialect">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — Dialect · namespace · ODS · interface</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Dialect 정의 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Dialect</mark> = 한 domain의 Op·Type·Attribute·Interface 모음 + 고유한 <span class="kw">namespace</span> prefix (<code>arith.addi</code>의 <code>arith</code>).
+        </div>
+        <ul>
+          <li>namespace로 op 이름 충돌 방지</li>
+          <li>dialect 간 경계 = lowering 단위</li>
+          <li>dialect는 의존 관계 선언 (upstream / downstream)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> TableGen ODS <span class="ko">op 선언 DSL</span></h3>
+<pre class="code"><span class="cmt">// .td 파일</span>
+def Arith_AddIOp : Arith_Op&lt;<span class="str">"addi"</span>,
+    [Pure, Commutative, SameOperandsAndResultType]&gt; {
+  let summary = <span class="str">"integer addition"</span>;
+  let arguments = (ins SignlessIntegerLike:$lhs,
+                       SignlessIntegerLike:$rhs);
+  let results   = (outs SignlessIntegerLike:$result);
+  let assemblyFormat =
+      <span class="str">"$lhs `,` $rhs attr-dict `:` type($result)"</span>;
+}</pre>
+        <ul>
+          <li>ODS = Operation Definition Specification</li>
+          <li>C++ 코드 자동 생성 (Op 클래스 · builder · verifier · printer · parser)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Trait · Interface ★</h3>
+        <table class="compact">
+          <thead><tr><th>개념</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Trait</mark></td><td>op 속성 tag (Pure, Commutative, Terminator)</td></tr>
+            <tr><td><mark>OpInterface</mark></td><td>동적 다형성 API (MemoryEffects, LoopLike)</td></tr>
+            <tr><td><mark>TypeInterface</mark></td><td>type 계열 공통 API (ShapedType)</td></tr>
+            <tr><td><mark>AttrInterface</mark></td><td>attribute 계열 공통 API</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">pass가 <code>isa&lt;LoopLikeOpInterface&gt;</code>로 dialect 모르고도 일반 처리</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 대표 dialect 일람 ★</h3>
+        <table class="compact">
+          <thead><tr><th>dialect</th><th>level</th><th>주요 op</th></tr></thead>
+          <tbody>
+            <tr><td><code>func</code></td><td>core</td><td><code>func.func</code>, <code>func.return</code>, <code>func.call</code></td></tr>
+            <tr><td><code>arith</code></td><td>core</td><td><code>addi</code>, <code>mulf</code>, <code>cmpi</code></td></tr>
+            <tr><td><code>scf</code></td><td>mid</td><td><code>scf.for</code>, <code>scf.if</code>, <code>scf.yield</code></td></tr>
+            <tr><td><code>affine</code></td><td>mid</td><td><code>affine.for</code>, <code>affine.load</code></td></tr>
+            <tr><td><code>memref</code></td><td>mid</td><td><code>memref.alloc</code>, <code>memref.load</code></td></tr>
+            <tr><td><code>tensor</code></td><td>high</td><td><code>tensor.empty</code>, <code>tensor.extract</code></td></tr>
+            <tr><td><code>vector</code></td><td>mid</td><td><code>vector.contract</code>, <code>vector.transfer_read</code></td></tr>
+            <tr><td><code>linalg</code></td><td>high</td><td><code>linalg.matmul</code>, <code>linalg.generic</code></td></tr>
+            <tr><td><code>gpu</code></td><td>mid</td><td><code>gpu.launch</code>, <code>gpu.thread_id</code></td></tr>
+            <tr><td><code>nvgpu</code></td><td>low</td><td><code>nvgpu.mma.sync</code>, <code>nvgpu.ldmatrix</code></td></tr>
+            <tr><td><code>nvvm</code></td><td>target</td><td><code>nvvm.barrier0</code>, <code>nvvm.mma.sync</code></td></tr>
+            <tr><td><code>llvm</code></td><td>target</td><td><code>llvm.func</code>, <code>llvm.add</code>, <code>llvm.call</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Dialect 짝 <span class="ko">in vs out</span></h3>
+        <ul>
+          <li><code>tensor</code> ↔ <code>memref</code>: value semantics ↔ reference semantics</li>
+          <li><code>linalg</code> on tensors ↔ <code>linalg</code> on memrefs (bufferization 전후)</li>
+          <li><code>affine</code> ↔ <code>scf</code>: 정규 루프 ↔ 일반 structured control flow</li>
+          <li><code>gpu</code> ↔ <code>nvgpu</code>: 벤더 중립 ↔ NVIDIA 특화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Dialect 등록 플로우</h3>
+        <pre class="ascii">1. C++ DialectRegistry에 등록
+2. mlir-opt 실행 시 필요한 dialect load
+3. parse → verify → pass → print
+4. 미등록 dialect op는 generic form으로만 print</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> In-tree vs Out-of-tree</h3>
+        <table class="compact">
+          <thead><tr><th>구분</th><th>예</th></tr></thead>
+          <tbody>
+            <tr><td>In-tree</td><td>llvm-project/mlir 내부 dialect</td></tr>
+            <tr><td>Out-of-tree</td><td>Triton · IREE · CIRCT · ONNX-MLIR</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>assemblyFormat</code>으로 pretty form을 지정했어도 dialect 미등록이면 generic form으로만 출력 — tool pipeline에 dialect 누락 자주 발생.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 4p</span> <span class="tiny">src: MLIR TableGen / ODS docs</span></div>
+</section>
+
+<!-- ============================ PAGE 5: §4 Dialect 계층 ============================ -->
+<section class="page" data-screen-label="05 §4 Dialect 계층">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — 주요 dialect 계층 맵 ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 4-tier 계층 ★
+          <span class="mnemonic">high · mid · low · target</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>tier</th><th>관심사</th><th>대표 dialect</th></tr></thead>
+          <tbody>
+            <tr><td><mark>High</mark></td><td>수학적 연산 · tensor 그 자체</td><td><code>linalg</code>, <code>tensor</code>, <code>tosa</code></td></tr>
+            <tr><td><mark>Mid</mark></td><td>loop · buffer · region</td><td><code>scf</code>, <code>affine</code>, <code>memref</code></td></tr>
+            <tr><td><mark>Low</mark></td><td>SIMD tile · device 추상</td><td><code>vector</code>, <code>gpu</code></td></tr>
+            <tr><td><mark>Target</mark></td><td>ISA intrinsic 근접</td><td><code>nvgpu</code>, <code>nvvm</code>, <code>rocdl</code>, <code>llvm</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 계층 트리 도식 ★★</h3>
+<pre class="ascii">          ┌─────────────────┐
+          │ tensor · linalg │    HIGH  (value · math)
+          │ (tosa, mhlo)    │
+          └────────┬────────┘
+                   │ tile / fuse / bufferize
+          ┌────────▼────────┐
+          │ affine / scf    │    MID   (control flow)
+          │ memref          │          (buffer addr)
+          └────────┬────────┘
+                   │ vectorize
+          ┌────────▼────────┐
+          │ vector          │    LOW   (SIMD tile)
+          │ gpu             │          (device abstr)
+          └────────┬────────┘
+                   │ nvgpu lowering
+          ┌────────▼────────┐
+          │ nvgpu           │    TARGET-near
+          │   (mma · ldmat) │
+          └────────┬────────┘
+                   │ nvvm lowering
+          ┌────────▼────────┐
+          │ nvvm            │    intrinsic wrap
+          │ (PTX-like)      │
+          └────────┬────────┘
+                   │ translate
+          ┌────────▼────────┐
+          │ llvm (NVPTX tgt)│    LLVM IR
+          └────────┬────────┘
+                   │ llc · ptxas
+                   ▼
+                PTX / SASS</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Tier 간 변환 Pass 이름</h3>
+        <table class="compact">
+          <thead><tr><th>from → to</th><th>Pass</th></tr></thead>
+          <tbody>
+            <tr><td>linalg → loops</td><td><code>convert-linalg-to-loops</code></td></tr>
+            <tr><td>tensor → memref</td><td><code>one-shot-bufferize</code></td></tr>
+            <tr><td>affine → scf</td><td><code>lower-affine</code></td></tr>
+            <tr><td>scf → cf</td><td><code>convert-scf-to-cf</code></td></tr>
+            <tr><td>vector → gpu</td><td><code>convert-vector-to-gpu</code></td></tr>
+            <tr><td>gpu → nvvm</td><td><code>convert-gpu-to-nvvm</code></td></tr>
+            <tr><td>nvgpu → nvvm</td><td><code>convert-nvgpu-to-nvvm</code></td></tr>
+            <tr><td>nvvm → llvm</td><td><code>convert-nvvm-to-llvm</code></td></tr>
+            <tr><td>llvm → LLVM IR</td><td><code>mlir-translate --mlir-to-llvmir</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Tensor ↔ Memref 차이</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th><code>tensor</code></th><th><code>memref</code></th></tr></thead>
+          <tbody>
+            <tr><td>의미</td><td>value (불변)</td><td>reference (mutable)</td></tr>
+            <tr><td>메모리</td><td>없음 (SSA)</td><td>명시적 alloc / load / store</td></tr>
+            <tr><td>addr space</td><td>없음</td><td>integer (GPU: 1, 3, ...)</td></tr>
+            <tr><td>전환</td><td colspan="2"><mark>bufferization</mark> pass가 tensor → memref</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Affine vs SCF</h3>
+        <ul>
+          <li><code>affine.for</code>: 경계·step 이 <mark>affine 식</mark>만 허용 → polyhedral 분석 대상</li>
+          <li><code>scf.for</code>: 일반 SSA 값 허용 (더 자유)</li>
+          <li>fusion / tiling 초기엔 affine, 이후 scf로 일반화</li>
+          <li><code>affine.load</code>는 <code>memref</code>에서만 동작</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Vector dialect 위치</h3>
+        <div class="def"><span class="label">역할</span>
+          hardware SIMD (CPU AVX / GPU warp-lane)에 매핑되는 tile 단위 op. CPU·GPU 모두 공유한다.
+        </div>
+        <ul>
+          <li><code>vector.contract</code>: GEMM-shape SIMD</li>
+          <li><code>vector.transfer_read/write</code>: 경계 padding 포함</li>
+          <li>gpu lowering은 <code>vector</code> → <code>nvgpu.mma.sync</code>로 매핑</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: 계층은 <b>강제 순서</b>가 아님. 프로덕션 파이프라인이 중간 단계를 뛰어넘거나 되돌아가기도 한다 (예: IREE는 <code>linalg</code>에서 바로 <code>vector</code>로).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 5p</span> <span class="tiny">src: MLIR Dialects doc · IREE design</span></div>
+</section>
+
+<!-- ============================ PAGE 6: §5 Pass & Pattern ============================ -->
+<section class="page" data-screen-label="06 §5 Pass & Pattern">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — Pass · Pattern Rewriting · DialectConversion</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Pass 구조 ★
+          <span class="mnemonic">scope · apply · preserve</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>base</th><th>scope</th></tr></thead>
+          <tbody>
+            <tr><td><code>OperationPass&lt;ModuleOp&gt;</code></td><td>모듈 전체</td></tr>
+            <tr><td><code>OperationPass&lt;func::FuncOp&gt;</code></td><td>함수 하나</td></tr>
+            <tr><td><code>OperationPass&lt;&gt;</code></td><td>any op</td></tr>
+            <tr><td><code>InterfacePass</code></td><td>특정 interface</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li><code>runOnOperation()</code> 구현</li>
+          <li>preserve analysis 선언 → pass 간 결과 공유</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Pass Pipeline 지정 <span class="ko">mlir-opt</span></h3>
+<pre class="code"><span class="cmt"># 파이프라인 문자열</span>
+mlir-opt input.mlir \
+  --pass-pipeline=<span class="str">"builtin.module(\
+    func.func(convert-linalg-to-loops,\
+              convert-vector-to-gpu),\
+    gpu.module(convert-gpu-to-nvvm))"</span> \
+  -o out.mlir</pre>
+        <p class="tiny">괄호 = nested pass manager · <code>func.func(...)</code> = 함수 단위 scope</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Pattern Rewriting 기본 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>RewritePattern</mark> = IR 조각을 매칭해 다른 조각으로 교체하는 규칙. <code>matchAndRewrite(op, rewriter)</code>에서 <code>rewriter.replaceOp</code> / <code>createOp</code> 호출.
+        </div>
+<pre class="code"><span class="ty">struct</span> AddZeroFold : OpRewritePattern&lt;AddIOp&gt; {
+  LogicalResult matchAndRewrite(
+      AddIOp op, PatternRewriter &amp;rw) <span class="kw2">const</span> {
+    <span class="kw2">if</span> (matchPattern(op.getRhs(), m_Zero())) {
+      rw.replaceOp(op, op.getLhs());
+      <span class="kw2">return</span> success();
+    }
+    <span class="kw2">return</span> failure();
+  }
+};</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Greedy vs Conversion</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>Greedy</th><th>Dialect Conversion</th></tr></thead>
+          <tbody>
+            <tr><td>목적</td><td>canonicalize / folding</td><td>한 dialect → 다른 dialect</td></tr>
+            <tr><td>종료</td><td>고정점</td><td>legal op만 남을 때</td></tr>
+            <tr><td>type 변환</td><td>불가</td><td>TypeConverter 사용</td></tr>
+            <tr><td>원자성</td><td>op 단위</td><td>그래프 전체 커밋</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Dialect Conversion 3-key ★
+          <span class="mnemonic">Target · TypeConv · Pattern</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><b>ConversionTarget</b>: 어떤 op가 <mark>legal</mark>인지 선언</li>
+          <li><b>TypeConverter</b>: 타입 변환 규칙 등록 (<code>tensor</code> → <code>memref</code>)</li>
+          <li><b>ConversionPattern</b>: op rewrite 구현 (legal 한 op만 생성)</li>
+        </ol>
+<pre class="code">target.addLegalDialect&lt;LLVM::LLVMDialect&gt;();
+target.addIllegalDialect&lt;nvvm::NVVMDialect&gt;();
+
+<span class="kw2">if</span> (failed(applyFullConversion(
+    module, target, patterns)))
+  signalPassFailure();</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Legalization 모드</h3>
+        <table class="compact">
+          <thead><tr><th>함수</th><th>동작</th></tr></thead>
+          <tbody>
+            <tr><td><code>applyFullConversion</code></td><td>모든 illegal op 제거 필수</td></tr>
+            <tr><td><code>applyPartialConversion</code></td><td>변환 가능한 만큼만</td></tr>
+            <tr><td><code>applyAnalysisConversion</code></td><td>IR 수정 없이 분석</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Canonicalization</h3>
+        <ul>
+          <li><code>-canonicalize</code> pass = 각 op의 <code>getCanonicalizationPatterns</code> 모아 greedy 적용</li>
+          <li>dead code 제거 (<code>-cse</code>와 짝)</li>
+          <li>순서: canonicalize → cse → canonicalize 반복</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 6p</span> <span class="tiny">src: MLIR PassInfra / DialectConversion docs</span></div>
+</section>
+
+<!-- ============================ PAGE 7: §6 gpu Dialect ============================ -->
+<section class="page" data-screen-label="07 §6 gpu Dialect">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — gpu Dialect · vendor-neutral 추상</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> gpu dialect 위치 ★</h3>
+        <div class="def"><span class="label">역할</span>
+          <mark>gpu</mark> = 벤더 중립 GPU 추상. CUDA·ROCm·SPIR-V 공통 개념 (kernel · thread · block · memory space)을 표현. 이후 벤더별 dialect로 lowering된다.
+        </div>
+        <ul>
+          <li>NVIDIA: <code>gpu</code> → <code>nvgpu</code> → <code>nvvm</code></li>
+          <li>AMD: <code>gpu</code> → <code>rocdl</code></li>
+          <li>Khronos: <code>gpu</code> → <code>spirv</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> gpu.module &amp; gpu.func</h3>
+<pre class="code">gpu.module @kernels {
+  gpu.func @add_kernel(
+      %a : memref&lt;?xf32&gt;,
+      %b : memref&lt;?xf32&gt;,
+      %c : memref&lt;?xf32&gt;)
+      kernel
+      attributes {gpu.known_block_size = array&lt;i32: 256,1,1&gt;} {
+    %tid = gpu.thread_id x
+    %bid = gpu.block_id  x
+    ...
+    gpu.return
+  }
+}</pre>
+        <p class="tiny"><code>kernel</code> = entry point · <code>known_block_size</code> = compile-time hint</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 주요 gpu op 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>의미</th><th>→ NVVM</th></tr></thead>
+          <tbody>
+            <tr><td><code>gpu.thread_id</code></td><td>threadIdx.{x,y,z}</td><td><code>nvvm.read.ptx.sreg.tid.*</code></td></tr>
+            <tr><td><code>gpu.block_id</code></td><td>blockIdx.*</td><td><code>nvvm.read.ptx.sreg.ctaid.*</code></td></tr>
+            <tr><td><code>gpu.block_dim</code></td><td>blockDim.*</td><td><code>nvvm.read.ptx.sreg.ntid.*</code></td></tr>
+            <tr><td><code>gpu.grid_dim</code></td><td>gridDim.*</td><td><code>nvvm.read.ptx.sreg.nctaid.*</code></td></tr>
+            <tr><td><code>gpu.barrier</code></td><td><code>__syncthreads</code></td><td><code>nvvm.barrier0</code></td></tr>
+            <tr><td><code>gpu.shuffle</code></td><td>warp shuffle</td><td><code>nvvm.shfl.sync.*</code></td></tr>
+            <tr><td><code>gpu.printf</code></td><td>device printf</td><td><code>vprintf</code></td></tr>
+            <tr><td><code>gpu.alloc</code></td><td>device alloc</td><td><code>cudaMalloc</code> 래퍼</td></tr>
+            <tr><td><code>gpu.memcpy</code></td><td>H↔D copy</td><td><code>cudaMemcpy</code></td></tr>
+            <tr><td><code>gpu.launch_func</code></td><td>kernel 호출</td><td>runtime launch</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> gpu.launch vs launch_func</h3>
+        <ul>
+          <li><code>gpu.launch</code>: region 안에 kernel body를 직접 포함 (outline 전 초기 형태)</li>
+          <li><code>gpu.launch_func</code>: 별도 <code>gpu.func</code> 참조 (outline 후 host side)</li>
+          <li>pass <code>gpu-kernel-outlining</code>이 전자 → 후자로 변환</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 예시 — gpu.launch</h3>
+<pre class="code">%grid = arith.constant 1 : index
+%block = arith.constant 256 : index
+
+gpu.launch
+    blocks(%bx, %by, %bz) in (%grid, %c1, %c1)
+    threads(%tx, %ty, %tz) in (%block, %c1, %c1) {
+  %tid  = gpu.thread_id x
+  %idx  = arith.addi %tid, %offset : index
+  %v    = memref.load %a[%idx] : memref&lt;?xf32&gt;
+  memref.store %v, %c[%idx] : memref&lt;?xf32&gt;
+  gpu.terminator
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Memory space 매핑 <span class="ko">gpu → PTX</span></h3>
+        <table class="compact">
+          <thead><tr><th>gpu space</th><th>memref addr-space</th><th>PTX</th></tr></thead>
+          <tbody>
+            <tr><td>Global</td><td>1</td><td><code>.global</code></td></tr>
+            <tr><td>Workgroup (shmem)</td><td>3</td><td><code>.shared</code></td></tr>
+            <tr><td>Private (reg/local)</td><td>5 (local)</td><td><code>.local</code></td></tr>
+            <tr><td>Constant</td><td>4</td><td><code>.const</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">§10에서 LLVM NVPTX 관점으로 재정리 (완전판)</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: <code>gpu.launch</code>의 host-side 인자가 <code>memref</code>이면 <code>gpu-async-region</code> 경로에서 lowering 중에 <code>gpu.alloc</code> / <code>gpu.memcpy</code>로 분해된다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 7p</span> <span class="tiny">src: MLIR gpu dialect · convert-gpu-to-nvvm</span></div>
+</section>
+
+<!-- ============================ PAGE 8: §7 nvgpu Dialect ============================ -->
+<section class="page" data-screen-label="08 §7 nvgpu Dialect">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — nvgpu Dialect · Tensor Core 고수준 표현 ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> nvgpu 위치 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>nvgpu</mark> = NVIDIA 특화 고수준 op 집합. <code>gpu</code>보다 아래, <code>nvvm</code>보다 위. Tensor Core · async copy · TMA 같은 기능을 <span class="kw">의미 단위</span>로 표현 (NVVM intrinsic 1:1이 아님).
+        </div>
+        <ul>
+          <li><code>gpu</code>로 표현 못 하는 NV 전용 동작</li>
+          <li><code>nvvm</code>이 풀어헤친 intrinsic보다 의도가 보존됨 (fragment layout 등)</li>
+          <li>lowering: <code>vector</code> → <code>nvgpu</code> → <code>nvvm</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> nvgpu.mma.sync ★★</h3>
+<pre class="code"><span class="cmt">// m16n8k16 FP16 → FP32</span>
+%d = nvgpu.mma.sync(%a, %b, %c)
+     { mmaShape = [16, 8, 16] }
+   : (vector&lt;4x2xf16&gt;,
+      vector&lt;2x2xf16&gt;,
+      vector&lt;2x2xf32&gt;)
+     -&gt; vector&lt;2x2xf32&gt;</pre>
+        <ul>
+          <li>operand 타입이 <mark>fragment shape</mark> 그대로</li>
+          <li>각 thread가 가지는 register tile 수가 결과 type 차원</li>
+          <li>mma 고유 layout이 type에 보존됨 <span class="xref">↗ V03 §7 mma</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> nvgpu.ldmatrix ★</h3>
+<pre class="code">%frag = nvgpu.ldmatrix
+        %smem[%i, %j]
+        { transpose = false,
+          numTiles = 4 : i32 }
+      : memref&lt;?x?xf16, 3&gt;
+     -&gt; vector&lt;4x2xf16&gt;</pre>
+        <ul>
+          <li>shmem tile → register fragment 병렬 로드</li>
+          <li><code>transpose = true</code>: ldmatrix.trans 활용</li>
+          <li><code>memref&lt;..., 3&gt;</code> = addr space 3 (shared)</li>
+          <li>하위에서 <code>nvvm.ldmatrix</code>로 하강</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> nvgpu.device_async_copy</h3>
+<pre class="code">%tok = nvgpu.device_async_copy
+       %gmem[%i], %smem[%j], 16
+     : memref&lt;?xf16&gt;  to memref&lt;?xf16, 3&gt;
+
+%g = nvgpu.device_async_create_group %tok
+nvgpu.device_async_wait %g { numGroups = 1 : i32 }</pre>
+        <ul>
+          <li>Ampere <code>cp.async</code> 추상 <span class="xref">↗ V03 §6</span></li>
+          <li>token 기반 ordering (group commit)</li>
+          <li>double-buffer 패턴 직접 표현</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Hopper 확장 op</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>매핑</th></tr></thead>
+          <tbody>
+            <tr><td><code>nvgpu.tma.async.load</code></td><td>TMA descriptor load <span class="xref">↗ V04 §4</span></td></tr>
+            <tr><td><code>nvgpu.mbarrier.create</code></td><td>smem mbarrier alloc</td></tr>
+            <tr><td><code>nvgpu.mbarrier.init</code></td><td>arrive count init</td></tr>
+            <tr><td><code>nvgpu.mbarrier.arrive</code></td><td>arrive signal</td></tr>
+            <tr><td><code>nvgpu.mbarrier.test_wait</code></td><td>try_wait.parity</td></tr>
+            <tr><td><code>nvgpu.warpgroup.mma</code></td><td>wgmma async <span class="xref">↗ V04 §5</span></td></tr>
+            <tr><td><code>nvgpu.warpgroup.mma.store</code></td><td>epilogue store</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Type family</h3>
+        <ul>
+          <li><code>!nvgpu.mma.ldmatrix.fragment</code>: fragment layout 보존</li>
+          <li><code>!nvgpu.tensormap.descriptor</code>: TMA descriptor handle</li>
+          <li><code>!nvgpu.mbarrier.group</code>: mbarrier 배열</li>
+          <li>vector / memref과 혼용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 설계 목적 <span class="ko">왜 따로?</span></h3>
+        <div class="formula">
+          <mark>고수준 의미 유지</mark> = vectorizer가 최적화하기 쉬움
+          <span class="legend">nvvm으로 바로 내리면 register layout 정보 손실 → fusion·reuse 분석 불가</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>nvgpu.mma.sync</code> operand type은 특정 shape와 dtype 조합만 유효. mismatch 시 verifier 에러 — <code>mma.sync</code> legal shape 표는 <span class="xref">↗ V03 §7</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 8p</span> <span class="tiny">src: MLIR nvgpu dialect docs</span></div>
+</section>
+
+<!-- ============================ PAGE 9: §8 nvvm Dialect ============================ -->
+<section class="page" data-screen-label="09 §8 nvvm Dialect">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — nvvm Dialect · LLVM IR 근접 계층</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> nvvm 정체성 ★
+          <span class="mnemonic">intrinsic 1:1 wrapper</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>nvvm</mark> dialect = LLVM NVPTX의 <span class="kw">intrinsic</span>을 MLIR op로 래핑한 계층. 의미는 낮고, 이름은 <code>llvm.nvvm.*</code> intrinsic과 대부분 1:1.
+        </div>
+        <ul>
+          <li>nvgpu 의미 층이 없을 때만 직접 사용</li>
+          <li>gpu 추상을 lowering한 결과도 nvvm에 착지</li>
+          <li>이후 <code>convert-nvvm-to-llvm</code>으로 LLVM IR</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 자주 쓰는 nvvm op</h3>
+        <table class="compact">
+          <thead><tr><th>nvvm op</th><th>→ LLVM intrinsic</th></tr></thead>
+          <tbody>
+            <tr><td><code>nvvm.read.ptx.sreg.tid.x</code></td><td><code>llvm.nvvm.read.ptx.sreg.tid.x</code></td></tr>
+            <tr><td><code>nvvm.read.ptx.sreg.ctaid.x</code></td><td><code>llvm.nvvm.read.ptx.sreg.ctaid.x</code></td></tr>
+            <tr><td><code>nvvm.barrier0</code></td><td><code>llvm.nvvm.barrier0</code></td></tr>
+            <tr><td><code>nvvm.shfl.sync</code></td><td><code>llvm.nvvm.shfl.sync.*</code></td></tr>
+            <tr><td><code>nvvm.ldmatrix</code></td><td><code>llvm.nvvm.ldmatrix.sync.aligned.*</code></td></tr>
+            <tr><td><code>nvvm.mma.sync</code></td><td><code>llvm.nvvm.mma.*</code></td></tr>
+            <tr><td><code>nvvm.cp.async.shared.global</code></td><td><code>llvm.nvvm.cp.async.*</code></td></tr>
+            <tr><td><code>nvvm.wmma.mma.*</code></td><td><code>llvm.nvvm.wmma.mma.*</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> nvvm.mma.sync 시그니처</h3>
+<pre class="code"><span class="cmt">// m16n8k16 FP16 → FP32</span>
+%d0, %d1, %d2, %d3 = nvvm.mma.sync
+  A[%a0, %a1, %a2, %a3]
+  B[%b0, %b1]
+  C[%c0, %c1, %c2, %c3]
+  { shape   = #nvvm.shape&lt;m = 16, n = 8, k = 16&gt;,
+    layoutA = #nvvm.mma_layout&lt;row&gt;,
+    layoutB = #nvvm.mma_layout&lt;col&gt;,
+    multiplicandAPtxType = #nvvm.mma_type&lt;f16&gt;,
+    multiplicandBPtxType = #nvvm.mma_type&lt;f16&gt;,
+    intOverflowBehavior = #nvvm.mma_int_overflow&lt;satfinite&gt; }
+: (vector&lt;2xf16&gt;, ..., f32, ...) -&gt; !llvm.struct&lt;(f32,f32,f32,f32)&gt;</pre>
+        <p class="tiny">operand가 <b>scalar · vector · struct</b> 혼합 — 이미 LLVM IR의 ABI에 가깝다</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Kernel entry annotation</h3>
+<pre class="code">llvm.func @my_kernel(%arg0: !llvm.ptr&lt;1&gt;)
+    attributes { nvvm.kernel } {
+  ...
+  llvm.return
+}</pre>
+        <ul>
+          <li><code>nvvm.kernel</code> attr = entry point 표시</li>
+          <li>lowering 시 <code>!nvvm.annotations</code> metadata 자동 생성</li>
+          <li>Host에서 launch 가능한 심볼</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> nvvm 고유 attribute</h3>
+        <table class="compact">
+          <thead><tr><th>attr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>nvvm.maxntid</code></td><td>block 당 최대 thread</td></tr>
+            <tr><td><code>nvvm.minctasm</code></td><td>SM 당 최소 CTA</td></tr>
+            <tr><td><code>nvvm.reqntid</code></td><td>정확한 block dim</td></tr>
+            <tr><td><code>nvvm.cluster_dim</code></td><td>Hopper cluster 크기</td></tr>
+            <tr><td><code>nvvm.grid_constant</code></td><td>kernel 인자 중 grid-const</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">→ LLVM metadata <code>!nvvm.annotations</code>로 flatten</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> nvgpu vs nvvm</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>nvgpu</th><th>nvvm</th></tr></thead>
+          <tbody>
+            <tr><td>의미</td><td>mma 의도</td><td>intrinsic 그대로</td></tr>
+            <tr><td>type</td><td>fragment 보존</td><td>scalar 나열</td></tr>
+            <tr><td>verify</td><td>shape 강제</td><td>느슨</td></tr>
+            <tr><td>optimization</td><td>fusion 쉬움</td><td>끝단 (거의 안 건드림)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: nvvm op는 <b>대부분 side-effect 있음</b>으로 표시 — barrier · shuffle 등을 CSE가 합치지 않도록. 잘못 purity 표기하면 race 발생.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 9p</span> <span class="tiny">src: MLIR nvvm ODS · LLVM IntrinsicsNVVM.td</span></div>
+</section>
+
+<!-- ============================ PAGE 10: §9 LLVM IR 기본 ============================ -->
+<section class="page" data-screen-label="10 §9 LLVM IR">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — LLVM IR 기본 · SSA · BB · intrinsic · metadata</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> LLVM IR 구조 ★
+          <span class="mnemonic">Module·Func·BB·Instr</span>
+        </h3>
+        <pre class="ascii">Module
+  └─ Function (sig + attrs)
+      └─ BasicBlock
+          ├─ Instruction (SSA)
+          └─ Terminator (br, ret, switch, ...)</pre>
+        <ul>
+          <li>SSA: 각 <code>%tmp</code> 정확히 한 번 정의</li>
+          <li>phi = predecessor별 값 병합</li>
+          <li>각 BB는 정확히 하나의 terminator로 끝</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 instruction 예</h3>
+<pre class="code">define i32 @add(i32 %a, i32 %b) {
+entry:
+  %s = add nsw i32 %a, %b
+  ret i32 %s
+}
+
+define i32 @loop(i32 %n) {
+entry:
+  br label %header
+header:
+  %i = phi i32 [0, %entry], [%i.n, %body]
+  %c = icmp slt i32 %i, %n
+  br i1 %c, label %body, label %exit
+body:
+  %i.n = add i32 %i, 1
+  br label %header
+exit:
+  ret i32 %i
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Type system 요약</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>예</th></tr></thead>
+          <tbody>
+            <tr><td>정수</td><td><code>i1, i8, i16, i32, i64</code></td></tr>
+            <tr><td>실수</td><td><code>half, bfloat, float, double</code></td></tr>
+            <tr><td>vector</td><td><code>&lt;4 x float&gt;</code></td></tr>
+            <tr><td>pointer</td><td><code>ptr addrspace(1)</code> <span class="ko">opaque ptr</span></td></tr>
+            <tr><td>struct</td><td><code>{ i32, float }</code></td></tr>
+            <tr><td>array</td><td><code>[256 x i8]</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">opaque pointer (2023~) → typed ptr 대신 <code>ptr</code> 한 종류</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Intrinsic ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>intrinsic</mark> = LLVM이 아는 특수 함수. <code>@llvm.*</code> prefix. backend가 단일 instruction으로 낮추거나 라이브러리 호출로 확장.
+        </div>
+        <ul>
+          <li><code>@llvm.memcpy.p0.p0.i64</code></li>
+          <li><code>@llvm.fma.f32</code></li>
+          <li><code>@llvm.nvvm.barrier0</code> ← NVPTX 전용</li>
+          <li>intrinsic은 선언만, 정의 없음</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Metadata 시스템 ★</h3>
+<pre class="code"><span class="cmt">; 예: branch weight</span>
+%c = icmp slt i32 %i, %n, !prof !0
+!0 = !{!"branch_weights", i32 99, i32 1}
+
+<span class="cmt">; NVPTX annotation (kernel 표시)</span>
+!nvvm.annotations = !{!10}
+!10 = !{ptr @my_kernel, !"kernel", i32 1}</pre>
+        <ul>
+          <li>metadata node = <code>!N</code> 으로 참조</li>
+          <li>backend · middle-end가 힌트로 사용</li>
+          <li>IR 의미엔 영향 없지만 codegen에 영향</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Function / Arg attribute</h3>
+        <table class="compact">
+          <thead><tr><th>attr</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>nounwind</code></td><td>예외 없음</td></tr>
+            <tr><td><code>readonly</code></td><td>mem 수정 안 함</td></tr>
+            <tr><td><code>noalias</code></td><td>ptr 간 별칭 없음</td></tr>
+            <tr><td><code>align N</code></td><td>ptr 정렬</td></tr>
+            <tr><td><code>dereferenceable(N)</code></td><td>최소 N byte 역참조 가능</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> mlir→llvm 변환</h3>
+        <ul>
+          <li><code>llvm</code> dialect IR → <code>mlir-translate --mlir-to-llvmir</code></li>
+          <li>pure text <code>.ll</code> 생성</li>
+          <li><code>opt -O3</code>로 추가 최적화 → NVPTX backend</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: opaque ptr 이후 <code>bitcast</code>가 pointer 간엔 불필요 · 타입은 <b>instruction</b>이 결정한다 (<code>load i32, ptr %p</code>).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 10p</span> <span class="tiny">src: LLVM LangRef</span></div>
+</section>
+
+<!-- ============================ PAGE 11: §10 NVPTX Backend ============================ -->
+<section class="page" data-screen-label="11 §10 NVPTX Backend">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — NVPTX Backend · address space · annotations ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> NVPTX backend 역할 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>NVPTX</mark> = LLVM의 NVIDIA target backend. LLVM IR (with NVPTX intrinsic/metadata) → PTX assembly 텍스트 출력. <span class="kw">PTX는 virtual ISA</span>, ptxas가 다시 SASS로 JIT/AOT 컴파일.
+        </div>
+        <ul>
+          <li>triple: <code>nvptx64-nvidia-cuda</code></li>
+          <li>data layout: <code>e-i64:64-i128:128-v16:16-v32:32-n16:32:64</code></li>
+          <li>출력 = 텍스트 <code>.ptx</code>, object 아님</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Address Space 매트릭스 ★★</h3>
+        <table class="compact">
+          <thead><tr><th class="num">addr<br/>space</th><th>이름</th><th>용도</th><th>PTX state</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0</td><td><mark>generic</mark></td><td>default · 어느 space든 참조</td><td>(cast 필요)</td></tr>
+            <tr><td class="num">1</td><td><mark>global</mark></td><td>HBM · device-wide</td><td><code>.global</code></td></tr>
+            <tr><td class="num">2</td><td>internal use</td><td>(예약)</td><td>—</td></tr>
+            <tr><td class="num">3</td><td><mark>shared</mark></td><td>SMEM · block 내 공유</td><td><code>.shared</code></td></tr>
+            <tr><td class="num">4</td><td><mark>const</mark></td><td>read-only 상수 뱅크</td><td><code>.const</code></td></tr>
+            <tr><td class="num">5</td><td><mark>local</mark></td><td>per-thread stack</td><td><code>.local</code></td></tr>
+            <tr><td class="num">6</td><td>(reserved)</td><td>—</td><td>—</td></tr>
+            <tr><td class="num">7</td><td><mark>param</mark></td><td>kernel 인자</td><td><code>.param</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">src: LLVM NVPTXBaseInfo · PTX ISA §5.1 state spaces</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Address space 주석 예</h3>
+<pre class="code"><span class="cmt">; shared memory buffer</span>
+@smem = internal addrspace(3)
+        global [256 x i32] undef,
+        align 16
+
+<span class="cmt">; global pointer</span>
+define void @kern(ptr addrspace(1) %X) {
+  %p = getelementptr i32,
+       ptr addrspace(1) %X, i64 %tid64
+  %v = load i32, ptr addrspace(1) %p
+  ...
+}</pre>
+        <ul>
+          <li><code>addrspace(N)</code>으로 pointer type 수식</li>
+          <li>addrspacecast로 generic(0) ↔ specific 변환</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> !nvvm.annotations ★</h3>
+<pre class="code"><span class="cmt">; named metadata</span>
+!nvvm.annotations = !{!10, !11, !12}
+
+<span class="cmt">; 각 항목 = (함수, 태그, 값)</span>
+!10 = !{ptr @kern, !"kernel",    i32 1}
+!11 = !{ptr @kern, !"maxntidx",  i32 256}
+!12 = !{ptr @kern, !"minctasm",  i32 2}</pre>
+        <table class="compact">
+          <thead><tr><th>tag</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>kernel</code></td><td>entry point 표시 (= <code>.entry</code>)</td></tr>
+            <tr><td><code>maxntidx/y/z</code></td><td>block 당 최대 thread</td></tr>
+            <tr><td><code>reqntidx</code></td><td>정확한 block dim (고정)</td></tr>
+            <tr><td><code>minctasm</code></td><td>SM 당 최소 CTA</td></tr>
+            <tr><td><code>grid_constant</code></td><td>unchanged param idx</td></tr>
+            <tr><td><code>cluster_dim_x</code></td><td>Hopper cluster (sm_90)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Target 선택</h3>
+<pre class="code"><span class="cmt"># LLVM level</span>
+llc -march=nvptx64 \
+    -mcpu=sm_80 \
+    -mattr=+ptx75 \
+    input.ll -o out.ptx
+
+<span class="cmt"># mlir-translate → llc</span>
+mlir-translate \
+  --mlir-to-llvmir out.mlir | \
+  llc -march=nvptx64 -mcpu=sm_90a</pre>
+        <ul>
+          <li><code>-mcpu</code>: sm_70/80/86/89/90/90a</li>
+          <li><code>-mattr=+ptx80</code>: PTX ISA 버전 (backward)</li>
+          <li><code>sm_90a</code> = Hopper 전용 (TMA·WGMMA) <span class="xref">↗ V04</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Codegen pipeline <span class="ko">NVPTX</span></h3>
+        <pre class="ascii">LLVM IR (NVPTX target)
+  → NVPTXLower* passes
+  → ISel (tablegen patterns)
+  → NVPTXMachineFunction
+  → NVPTXAsmPrinter
+  → .ptx (text)
+  → ptxas (외부)
+  → cubin (SASS binary)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: generic(0) pointer에서 shared(3)로 <code>addrspacecast</code> 없이 직접 <code>load</code>하면 backend가 PTX <code>ld</code>를 <b>generic load</b>로 내보내 성능 저하. 반드시 specific addrspace로 캐스팅하고 작업.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 11p</span> <span class="tiny">src: LLVM NVPTXUsage.rst · PTX ISA</span></div>
+</section>
+
+<!-- ============================ PAGE 12: §11 NVPTX intrinsic ============================ -->
+<section class="page" data-screen-label="12 §11 NVPTX intrinsic">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — NVPTX intrinsic · PTX 대응</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> intrinsic 카테고리</h3>
+        <table class="compact">
+          <thead><tr><th>group</th><th>예</th></tr></thead>
+          <tbody>
+            <tr><td>sreg (special reg)</td><td><code>tid.x</code>, <code>ctaid.x</code>, <code>laneid</code>, <code>warpid</code></td></tr>
+            <tr><td>barrier</td><td><code>barrier0</code>, <code>bar.sync</code>, <code>membar</code></td></tr>
+            <tr><td>shuffle</td><td><code>shfl.sync.{idx,up,down,bfly}</code></td></tr>
+            <tr><td>vote</td><td><code>vote.sync.{all,any,ballot}</code></td></tr>
+            <tr><td>atomic</td><td><code>atom.{add,cas,min,max,and,or,xor}</code></td></tr>
+            <tr><td>mma</td><td><code>mma.m16n8k16.*</code>, <code>wmma.mma.*</code></td></tr>
+            <tr><td>ldmatrix</td><td><code>ldmatrix.sync.aligned.*</code></td></tr>
+            <tr><td>cp.async</td><td><code>cp.async.{ca,cg}.shared.global</code></td></tr>
+            <tr><td>TMA (Hopper)</td><td><code>cp.async.bulk.tensor.*</code></td></tr>
+            <tr><td>tensor mem</td><td><code>tcgen05.*</code> (Blackwell)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Special register 읽기</h3>
+<pre class="code">declare i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
+declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
+declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.x()
+declare i32 @llvm.nvvm.read.ptx.sreg.laneid()
+declare i32 @llvm.nvvm.read.ptx.sreg.warpid()
+
+%t = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()</pre>
+        <p class="tiny">PTX: <code>mov.u32 %r, %tid.x;</code></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Barrier · fence ★</h3>
+<pre class="code"><span class="cmt">; block 전체 sync (= __syncthreads)</span>
+declare void @llvm.nvvm.barrier0()
+
+<span class="cmt">; partial barrier: arrive count 지정</span>
+declare void @llvm.nvvm.barrier(
+    i32 %barId, i32 %threadCount)
+
+<span class="cmt">; membar scope</span>
+declare void @llvm.nvvm.membar.cta()
+declare void @llvm.nvvm.membar.gl()
+declare void @llvm.nvvm.membar.sys()</pre>
+        <p class="tiny">scope 순서: cta ⊂ gl(GPU) ⊂ sys(system) <span class="xref">↗ V03 §12</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Warp shuffle</h3>
+<pre class="code">declare i32 @llvm.nvvm.shfl.sync.idx.i32(
+    i32 %mask, i32 %val,
+    i32 %srcLane, i32 %packedCfg)
+
+declare i32 @llvm.nvvm.shfl.sync.down.i32(
+    i32 %mask, i32 %val,
+    i32 %delta, i32 %packedCfg)
+
+declare i32 @llvm.nvvm.shfl.sync.bfly.i32(
+    i32 %mask, i32 %val,
+    i32 %lane, i32 %packedCfg)</pre>
+        <ul>
+          <li><code>mask</code>: 참여 lane bitmask (0xFFFFFFFF = 전체)</li>
+          <li><code>packedCfg</code>: clamp/segment bits 포함</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> mma intrinsic 예시</h3>
+<pre class="code"><span class="cmt">; m16n8k16 FP16→FP32 sync mma</span>
+declare {float, float, float, float}
+@llvm.nvvm.mma.m16n8k16.row.col.f16.f16(
+  &lt;2 x half&gt;, &lt;2 x half&gt;,   <span class="cmt">; A 4 frags → 8 half</span>
+  &lt;2 x half&gt;, &lt;2 x half&gt;,
+  &lt;2 x half&gt;, &lt;2 x half&gt;,   <span class="cmt">; B 2 frags → 4 half</span>
+  float, float, float, float) <span class="cmt">; C 4 f32</span></pre>
+        <p class="tiny">vectorized <code>&lt;N x T&gt;</code> = fragment per-thread layout <span class="xref">↗ V03 §7</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> ldmatrix · cp.async</h3>
+<pre class="code">declare {i32,i32,i32,i32}
+@llvm.nvvm.ldmatrix.sync.aligned.m8n8.x4.b16(
+    ptr addrspace(3) %smem)
+
+declare void
+@llvm.nvvm.cp.async.cg.shared.global.16(
+    ptr addrspace(3), ptr addrspace(1))
+
+declare void
+@llvm.nvvm.cp.async.commit.group()
+
+declare void
+@llvm.nvvm.cp.async.wait.group(i32)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: intrinsic 이름은 LLVM 버전별로 조금씩 다르다 (<code>bf16</code> variant 추가 등). NVPTX RST와 <code>IntrinsicsNVVM.td</code>를 버전별로 확인.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 12p</span> <span class="tiny">src: LLVM IntrinsicsNVVM.td · NVPTXUsage</span></div>
+</section>
+
+<!-- ============================ PAGE 13: §12 PTX 생성 설정 ============================ -->
+<section class="page" data-screen-label="13 §12 PTX 생성 설정">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — PTX 생성 설정 · sm_arch · ptxas · fast-math</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Arch string 매트릭스 ★</h3>
+        <table class="compact">
+          <thead><tr><th>sm_arch</th><th>GPU</th><th>PTX ISA</th><th>필수 기능</th></tr></thead>
+          <tbody>
+            <tr><td><code>sm_70</code></td><td>V100</td><td>ptx60+</td><td>wmma</td></tr>
+            <tr><td><code>sm_75</code></td><td>T4 / Turing</td><td>ptx63+</td><td>mma INT8</td></tr>
+            <tr><td><code>sm_80</code></td><td>A100</td><td>ptx70+</td><td>mma FP16, cp.async</td></tr>
+            <tr><td><code>sm_86</code></td><td>A10/A40/RTX30</td><td>ptx71+</td><td>—</td></tr>
+            <tr><td><code>sm_89</code></td><td>L40 / RTX40</td><td>ptx78+</td><td>FP8 (Ada)</td></tr>
+            <tr><td><code>sm_90</code></td><td>H100 (공통)</td><td>ptx78+</td><td>cluster · TMA (일부)</td></tr>
+            <tr><td><code>sm_90a</code></td><td>H100 전용</td><td>ptx78+</td><td><b>WGMMA · TMA</b></td></tr>
+            <tr><td><code>sm_100</code></td><td>Blackwell</td><td>ptx86+</td><td>tcgen05 · FP4</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny"><code>sm_XXa</code> suffix = architecture-specific (forward-incompatible)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> llc 옵션 매핑</h3>
+<pre class="code"><span class="cmt"># 기본 PTX 출력</span>
+llc -march=nvptx64 -mcpu=sm_80 \
+    -mattr=+ptx75 \
+    in.ll -o out.ptx
+
+<span class="cmt"># fast-math / denormal</span>
+llc -fp-contract=fast \
+    -enable-unsafe-fp-math \
+    -nvptx-f32ftz    \   <span class="cmt"># ftz denormal</span>
+    -nvptx-prec-divf32=0 \ <span class="cmt"># approx div</span>
+    -nvptx-prec-sqrtf32=0</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> ptxas 주요 플래그 ★</h3>
+        <table class="compact">
+          <thead><tr><th>flag</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>-arch=sm_90a</code></td><td>target architecture</td></tr>
+            <tr><td><code>-O0..-O3</code></td><td>opt level (ptxas 자체)</td></tr>
+            <tr><td><code>-maxrregcount=N</code></td><td>reg 상한 → spill 유도</td></tr>
+            <tr><td><code>--gpu-name</code></td><td>sm 이름 문자열</td></tr>
+            <tr><td><code>-v</code></td><td>register · spill · shmem 요약</td></tr>
+            <tr><td><code>-dlcm=ca/cg</code></td><td>default cache mode</td></tr>
+            <tr><td><code>--compile-only</code></td><td>link 생략</td></tr>
+            <tr><td><code>-ftz=true</code></td><td>denormal flush-to-zero</td></tr>
+            <tr><td><code>-prec-div=false</code></td><td>FP32 div 근사</td></tr>
+            <tr><td><code>-prec-sqrt=false</code></td><td>FP32 sqrt 근사</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Fast-math 체인</h3>
+        <div class="formula">
+          ftz + approx_div + approx_sqrt + fma_contract<br/>
+          → FP32 peak 도달 가능성 ↑
+          <span class="legend">정확도 ↓ · IEEE-754 non-compliant</span>
+        </div>
+        <table class="vs">
+          <thead><tr><th>level</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td>strict</td><td>IEEE · 느림</td></tr>
+            <tr><td>contract</td><td>fma 융합만 허용</td></tr>
+            <tr><td>fast</td><td>ftz + approx 전부</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> MLIR 경로 ★</h3>
+<pre class="code"><span class="cmt"># 1) MLIR → LLVM IR</span>
+mlir-translate \
+  --mlir-to-llvmir kernel.mlir \
+  -o kernel.ll
+
+<span class="cmt"># 2) LLVM IR → PTX</span>
+llc -march=nvptx64 -mcpu=sm_90a \
+    kernel.ll -o kernel.ptx
+
+<span class="cmt"># 3) PTX → cubin</span>
+ptxas -arch=sm_90a -O3 \
+      kernel.ptx -o kernel.cubin
+
+<span class="cmt"># 4) cubin → fatbin (선택)</span>
+fatbinary --image=profile=sm_90,file=kernel.cubin \
+          --create=kernel.fatbin</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Compile-time vs JIT</h3>
+        <ul>
+          <li>PTX는 <mark>forward-compat</mark>: 새 GPU에서 드라이버가 JIT</li>
+          <li>SASS(cubin)는 <mark>arch-specific</mark></li>
+          <li>fatbin = 여러 arch의 PTX/SASS 번들</li>
+          <li><code>-code=sm_80,sm_90</code> + <code>-code=compute_80</code> 조합</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: <code>sm_90</code>과 <code>sm_90a</code>는 PTX 레벨부터 다름. <code>sm_90</code>으로 빌드한 커널은 WGMMA / TMA PTX instruction을 생성할 수 없다 — <code>ptxas</code>에서 verifier error.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 13p</span> <span class="tiny">src: CUDA nvcc / ptxas docs · LLVM NVPTXUsage</span></div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Conversion 예시 ============================ -->
+<section class="page" data-screen-label="14 §13 linalg → PTX 전체">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — linalg.matmul → PTX 전체 lowering ★★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Stage 1 — <code>linalg</code> ★</h3>
+<pre class="code"><span class="cmt">// 고수준 의미: D = A·B</span>
+func.func @matmul(
+    %A : tensor&lt;128x64xf16&gt;,
+    %B : tensor&lt;64x128xf16&gt;,
+    %C : tensor&lt;128x128xf32&gt;)
+    -&gt; tensor&lt;128x128xf32&gt; {
+  %D = linalg.matmul
+       ins (%A, %B : tensor&lt;128x64xf16&gt;,
+                     tensor&lt;64x128xf16&gt;)
+       outs(%C    : tensor&lt;128x128xf32&gt;)
+       -&gt; tensor&lt;128x128xf32&gt;
+  return %D : tensor&lt;128x128xf32&gt;
+}</pre>
+        <p class="tiny">tensor 값 의미 · shape·layout 보존 · 아직 loop 없음</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Stage 2 — <code>scf.for</code></h3>
+<pre class="code"><span class="cmt">// tile (32,32,16) + bufferize</span>
+scf.for %m = %c0 to %c128 step %c32 {
+ scf.for %n = %c0 to %c128 step %c32 {
+  %acc = vector.transfer_read
+         %Cbuf[%m, %n], %cst0
+       : memref&lt;128x128xf32&gt;,
+         vector&lt;32x32xf32&gt;
+  %r = scf.for %k = %c0 to %c64 step %c16
+        iter_args(%aI = %acc) -&gt; vector&lt;32x32xf32&gt; {
+     %a = vector.transfer_read %Abuf[%m, %k], %cst
+     %b = vector.transfer_read %Bbuf[%k, %n], %cst
+     %n = vector.contract ... %a, %b, %aI
+     scf.yield %n : vector&lt;32x32xf32&gt;
+  }
+  vector.transfer_write %r, %Cbuf[%m, %n]
+ }
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Stage 3 — <code>vector.contract</code> → <code>nvgpu</code></h3>
+<pre class="code"><span class="cmt">// 32x32 contract → 4개의 m16n8k16 mma</span>
+%a0 = nvgpu.ldmatrix %Asm[%i0, %k0]
+      { numTiles = 4 } : ... -&gt; vector&lt;4x2xf16&gt;
+%b0 = nvgpu.ldmatrix %Bsm[%k0, %j0]
+      { numTiles = 2, transpose = true }
+   : ... -&gt; vector&lt;2x2xf16&gt;
+
+%d0 = nvgpu.mma.sync(%a0, %b0, %c0)
+      { mmaShape = [16, 8, 16] }
+    : (vector&lt;4x2xf16&gt;,
+       vector&lt;2x2xf16&gt;,
+       vector&lt;2x2xf32&gt;)
+      -&gt; vector&lt;2x2xf32&gt;</pre>
+        <p class="tiny">각 thread의 fragment 보존된 type 유지</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Stage 4 — <code>nvvm</code></h3>
+<pre class="code">%fa = nvvm.ldmatrix %Asm
+      { num = 4 : i32, layout = #nvvm.mma_layout&lt;row&gt; }
+    : (!llvm.ptr&lt;3&gt;)
+      -&gt; !llvm.struct&lt;(i32, i32, i32, i32)&gt;
+
+%dd = nvvm.mma.sync
+      A[%a0, %a1, %a2, %a3]
+      B[%b0, %b1]
+      C[%c0, %c1, %c2, %c3]
+      { shape = #nvvm.shape&lt;m=16, n=8, k=16&gt;,
+        layoutA = #nvvm.mma_layout&lt;row&gt;,
+        layoutB = #nvvm.mma_layout&lt;col&gt;,
+        multiplicandAPtxType = #nvvm.mma_type&lt;f16&gt;,
+        multiplicandBPtxType = #nvvm.mma_type&lt;f16&gt; }
+    : (...) -&gt; !llvm.struct&lt;(f32,f32,f32,f32)&gt;</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Stage 5 — LLVM IR (NVPTX)</h3>
+<pre class="code">define void @matmul_kernel(
+    ptr addrspace(1) %A,
+    ptr addrspace(1) %B,
+    ptr addrspace(1) %C)
+  !nvvm.annotations !0 {
+entry:
+  %tid = call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
+  ...
+  %r = call {float,float,float,float}
+    @llvm.nvvm.mma.m16n8k16.row.col.f16.f16(
+      &lt;2 x half&gt; %a0, ..., float %c0, ...)
+  ...
+  ret void
+}
+!0 = !{ptr @matmul_kernel, !"kernel", i32 1}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Stage 6 — PTX</h3>
+<pre class="code">.version 7.8
+.target  sm_80
+.address_size 64
+
+.visible .entry matmul_kernel(
+    .param .u64 A,
+    .param .u64 B,
+    .param .u64 C)
+{
+  .reg .f32   %f&lt;128&gt;;
+  .reg .b32   %r&lt;128&gt;;
+  ...
+  ldmatrix.sync.aligned.x4.m8n8.shared.b16
+       {%r0,%r1,%r2,%r3}, [%sA];
+  mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
+       {%f0,%f1,%f2,%f3},
+       {%r0,%r1,%r2,%r3},
+       {%rb0,%rb1},
+       {%f0,%f1,%f2,%f3};
+  ...
+}</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">관찰</span>: 각 stage는 <b>같은 알고리즘</b>이다. 단지 표현 계층이 달라진 것. type의 형태가 <code>tensor → memref → vector → fragment → &lt;N x half&gt; → .reg</code>로 점차 HW 친화로 수렴한다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 14p</span> <span class="tiny">src: MLIR lowering 문서 · 예시는 간략화</span></div>
+</section>
+
+<!-- ============================ PAGE 15: §14 IREE·지형 ============================ -->
+<section class="page" data-screen-label="15 §14 IREE 지형">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — IREE · Polygeist · nvfuser 지형도</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GPU MLIR 프로젝트 맵</h3>
+        <table class="compact">
+          <thead><tr><th>프로젝트</th><th>입력</th><th>출력</th><th>GPU backend</th></tr></thead>
+          <tbody>
+            <tr><td>IREE</td><td>MLIR (TOSA / StableHLO)</td><td>VM bytecode</td><td>CUDA · ROCm · Vulkan</td></tr>
+            <tr><td>Polygeist</td><td>C/C++/OpenMP</td><td>MLIR (affine)</td><td>CPU · CUDA (연구)</td></tr>
+            <tr><td>nvfuser</td><td>PyTorch JIT IR</td><td>CUDA kernel</td><td>NVIDIA (MLIR 미사용)</td></tr>
+            <tr><td>Triton</td><td>Python DSL</td><td>PTX <span class="xref">↗ V11</span></td><td>NVIDIA (MLIR 사용)</td></tr>
+            <tr><td>ONNX-MLIR</td><td>ONNX</td><td>LLVM / accel.</td><td>CPU 주, GPU 확장</td></tr>
+            <tr><td>CIRCT</td><td>HW IR</td><td>Verilog</td><td>(GPU 아님)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> IREE 파이프라인 <span class="ko">개념</span></h3>
+        <pre class="ascii">TOSA / StableHLO / TorchMLIR
+    ↓ input conversion
+linalg on tensors
+    ↓ dispatch region 형성 (CTA 단위)
+flow.executable + hal.executable
+    ↓ target-specific pipeline
+    ├─ LLVM-CPU: vector · llvm
+    └─ LLVM-GPU (CUDA): gpu · nvvm · llvm
+IREE VM bytecode + cubin
+    ↓ runtime
+execute</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> IREE 특이점</h3>
+        <ul>
+          <li><mark>dispatch region</mark>: linalg fuse 단위 = CTA 수준 kernel</li>
+          <li><mark>HAL</mark>: runtime abstraction (device / command / allocator)</li>
+          <li>codegen을 <mark>TransformDialect</mark> script로 제어 (선언적 schedule)</li>
+          <li>target 별 전체 pass pipeline이 한 톨-체인에 포함</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Polygeist</h3>
+        <div class="def"><span class="label">역할</span>
+          Clang을 수정해 C/C++ 소스 → <code>affine</code>/<code>scf</code> MLIR로 직접 import. polyhedral 최적화 pass 적용 후 GPU로 내림.
+        </div>
+        <ul>
+          <li>legacy CPU 코드의 GPU 이식 연구용</li>
+          <li>affine scheduling + tiling pass가 주력</li>
+          <li>실 프로덕션 드물지만 "C → MLIR" reference 구현</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> nvfuser 참고</h3>
+        <ul>
+          <li>PyTorch의 pointwise/reduction fusion backend</li>
+          <li>MLIR 사용 <b>안 함</b> — 자체 IR (Fusion IR)</li>
+          <li>CUDA 코드 직접 방출</li>
+          <li>TorchInductor와 역할 중복 (정리 중) <span class="xref">↗ V13</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> GPU lowering 전략 비교</h3>
+        <table class="vs">
+          <thead><tr><th>전략</th><th>예</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>dispatch-centric</td><td>IREE</td><td>dispatch = 독립 kernel</td></tr>
+            <tr><td>block-centric</td><td>Triton <span class="xref">↗ V11</span></td><td>프로그래머가 block 직접 제어</td></tr>
+            <tr><td>loop-centric</td><td>Polygeist</td><td>loop nest → GPU map</td></tr>
+            <tr><td>graph-centric</td><td>XLA <span class="xref">↗ V14</span></td><td>HLO op 단위 fusion</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> TransformDialect 한 줄</h3>
+<pre class="code"><span class="cmt">// 선언적 schedule 스크립트</span>
+transform.sequence %root : !any_op {
+^bb(%arg0: !any_op):
+  %mm = transform.structured.match
+        ops{[<span class="str">"linalg.matmul"</span>]} in %arg0
+  %tiled, %loops =
+    transform.structured.tile_using_for %mm
+      [32, 32, 16]
+  transform.structured.vectorize_children_and_apply_patterns
+    %tiled
+}</pre>
+        <p class="tiny">IREE·MLIR에서 codegen 실험의 사실상 표준</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">scope 주의</span>: 본권은 GPU 컴파일러 <b>개념</b>만 다룸. 실제 production 컴파일러 (TorchInductor · XLA · TVM) 특성은 각각 <span class="xref">↗ V13 · V14</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 15p</span> <span class="tiny">src: IREE docs · Polygeist paper (SC'21)</span></div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Triton ============================ -->
+<section class="page" data-screen-label="16 §15 Triton의 MLIR">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Triton의 MLIR 사용 (↗ V11 비교 특이점)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Triton의 dialect 2단 ★</h3>
+        <table class="compact">
+          <thead><tr><th>dialect</th><th>level</th><th>핵심</th></tr></thead>
+          <tbody>
+            <tr><td><code>triton</code> (TT)</td><td>block-level DSL</td><td><code>tt.load</code>, <code>tt.dot</code>, <code>tt.store</code></td></tr>
+            <tr><td><code>triton_gpu</code> (TTG)</td><td>GPU-aware</td><td>layout encoding 포함</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">자세한 설계·pipeline은 <span class="xref">↗ V11</span> · 여기선 MLIR 관점 특이점만</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 특이점 ★</h3>
+        <ol class="bullet-num">
+          <li><b>Block = programmer 노출</b>: Triton은 <code>tl.program_id</code>로 block idx를 직접 준다. MLIR gpu dialect의 <code>gpu.launch</code>를 <b>쓰지 않음</b></li>
+          <li><b>Layout encoding</b>: tensor type에 <code>#triton_gpu.blocked&lt;...&gt;</code> attribute로 분배 · register fragment · shared layout 삽입</li>
+          <li><b>upstream linalg 미사용</b>: Triton IR이 GEMM을 이미 high-level로 표현하므로 <code>linalg</code> 단계 없음</li>
+          <li><b>자체 conversion</b>: TT → TTG → LLVM (NVPTX) 직접 — <code>nvgpu</code>/<code>nvvm</code> dialect 이용 (최근 일부)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Triton Layout encoding <span class="ko">핵심</span></h3>
+<pre class="code"><span class="cmt">// blocked layout: CTA 내 thread 분배</span>
+#blocked = #triton_gpu.blocked&lt;{
+    sizePerThread  = [1, 8],
+    threadsPerWarp = [8, 4],
+    warpsPerCTA    = [4, 1],
+    order          = [1, 0]}&gt;
+
+<span class="cmt">// mma layout: tensor core fragment</span>
+#mma = #triton_gpu.nvidia_mma&lt;{
+    versionMajor = 2,
+    warpsPerCTA  = [4, 1],
+    instrShape   = [16, 8]}&gt;
+
+<span class="cmt">// shared layout: smem swizzle</span>
+#shared = #triton_gpu.shared&lt;{
+    vec = 8, perPhase = 2,
+    maxPhase = 8, order = [1, 0]}&gt;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 왜 layout 이 type에?</h3>
+        <ul>
+          <li>같은 shape tensor라도 <mark>layout이 다르면 다른 type</mark></li>
+          <li>layout 불일치 = verifier error → 자동 <code>convert_layout</code> 삽입</li>
+          <li>optimization이 layout을 "안다": register ↔ shared ↔ mma 변환 최소화</li>
+          <li>upstream MLIR은 layout을 attribute로만 취급 (별개)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Pipeline 비교</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>upstream MLIR (IREE)</th><th>Triton</th></tr></thead>
+          <tbody>
+            <tr><td>시작점</td><td>linalg on tensors</td><td>TT (DSL)</td></tr>
+            <tr><td>block 추상</td><td>gpu.launch → nvvm</td><td>TTG (내장)</td></tr>
+            <tr><td>layout</td><td>attribute(약함)</td><td>type(강제)</td></tr>
+            <tr><td>Tensor Core</td><td>nvgpu.mma.sync</td><td>tt.dot → mma layout</td></tr>
+            <tr><td>codegen</td><td>mlir-translate + llc</td><td>자체 + LLVM NVPTX</td></tr>
+            <tr><td>pipeline stage</td><td>많음 (유연)</td><td>적음 (직행)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Triton이 쓰는 upstream 기능</h3>
+        <ul>
+          <li>Pass infra · ConversionPattern · TableGen ODS</li>
+          <li><code>arith</code>, <code>scf</code> 일부 (control flow)</li>
+          <li>LLVM dialect + NVPTX translate</li>
+          <li>DialectConversion legalization</li>
+          <li>최근: <code>nvgpu</code>/<code>nvvm</code> 일부 통합 (TMA / WGMMA)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심</span>: Triton은 MLIR을 <b>프레임워크로</b> 재활용했을 뿐, upstream GPU dialect 계층과 독립된 자기만의 2-dialect 스택이다. Triton IR을 읽을 때 upstream MLIR의 linalg → scf 흐름을 기대하면 안 됨.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 16p</span> <span class="tiny">src: Triton MLIR backend · 2023+ release notes</span></div>
+</section>
+
+<!-- ============================ PAGE 17: §16 Pattern Rewrite 작성법 ============================ -->
+<section class="page" data-screen-label="17 §16 Pattern Rewrite">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — Pattern Rewrite 작성법 · matchAndRewrite · PDL</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> RewritePattern 계열 ★</h3>
+        <table class="compact">
+          <thead><tr><th>base</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>OpRewritePattern&lt;Op&gt;</code></td><td>한 op 루트 매칭</td></tr>
+            <tr><td><code>RewritePattern</cod&gt;</code></td><td>일반 (op name·interface)</td></tr>
+            <tr><td><code>ConversionPattern</code></td><td>dialect conversion용</td></tr>
+            <tr><td><code>OpConversionPattern&lt;Op&gt;</code></td><td>conv + 특정 op</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> matchAndRewrite 표준형 ★</h3>
+<pre class="code"><span class="ty">struct</span> FoldAddZero
+    : OpRewritePattern&lt;arith::AddIOp&gt; {
+  <span class="kw2">using</span> OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(
+      arith::AddIOp op,
+      PatternRewriter &amp;rewriter) <span class="kw2">const override</span> {
+    <span class="cmt">// match</span>
+    Value rhs = op.getRhs();
+    <span class="kw2">if</span> (!matchPattern(rhs, m_Zero()))
+      <span class="kw2">return</span> failure();
+
+    <span class="cmt">// rewrite</span>
+    rewriter.replaceOp(op, op.getLhs());
+    <span class="kw2">return</span> success();
+  }
+};</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Rewriter API 핵심</h3>
+        <table class="compact">
+          <thead><tr><th>API</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>create&lt;Op&gt;(loc, args)</code></td><td>새 op 삽입</td></tr>
+            <tr><td><code>replaceOp(op, vals)</code></td><td>op 제거 + 사용처 값 치환</td></tr>
+            <tr><td><code>replaceOpWithNewOp&lt;Op&gt;(...)</code></td><td>한 줄 치환</td></tr>
+            <tr><td><code>eraseOp(op)</code></td><td>삭제만 (no-use)</td></tr>
+            <tr><td><code>startOpModification / finalize</code></td><td>in-place 수정</td></tr>
+            <tr><td><code>inlineRegionBefore(...)</code></td><td>region 이식</td></tr>
+            <tr><td><code>getRemappedValue(v)</code></td><td>conversion 중 value 추적</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> ConversionPattern 차이</h3>
+<pre class="code"><span class="ty">struct</span> ConvertMyOp
+    : OpConversionPattern&lt;MyOp&gt; {
+  <span class="kw2">using</span> OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      MyOp op, OpAdaptor adaptor,   <span class="cmt">// 변환된 operand</span>
+      ConversionPatternRewriter &amp;rw) <span class="kw2">const override</span> {
+    Value x = adaptor.getInput();   <span class="cmt">// 이미 새 type</span>
+    Type ty = getTypeConverter()-&gt;convertType(
+                op.getType());
+    rw.replaceOpWithNewOp&lt;LoweredOp&gt;(op, ty, x);
+    <span class="kw2">return</span> success();
+  }
+};</pre>
+        <ul>
+          <li><code>OpAdaptor</code>: 이미 converted된 operand 접근</li>
+          <li><code>getTypeConverter</code>: 타입 변환 rule 조회</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Pattern 등록 ★</h3>
+<pre class="code">RewritePatternSet patterns(ctx);
+patterns.add&lt;FoldAddZero,
+             FoldMulOne,
+             ConvertMyOp&gt;(ctx);
+
+<span class="cmt">// greedy</span>
+(void)applyPatternsGreedily(op, std::move(patterns));
+
+<span class="cmt">// conversion</span>
+ConversionTarget target(*ctx);
+target.addLegalDialect&lt;LLVM::LLVMDialect&gt;();
+target.addIllegalOp&lt;MyOp&gt;();
+<span class="kw2">if</span> (failed(applyPartialConversion(
+    op, target, std::move(patterns))))
+  signalPassFailure();</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> PDL <span class="ko">선언적 rewrite</span></h3>
+<pre class="code">pdl.pattern @fold_add_zero : benefit(1) {
+  %zero = pdl.attribute = 0 : i32
+  %ty   = pdl.type
+  %c0op = pdl.operation <span class="str">"arith.constant"</span>
+          {<span class="str">"value"</span> = %zero} -&gt; (%ty : !pdl.type)
+  %z    = pdl.result 0 of %c0op
+  %lhs  = pdl.operand
+  %add  = pdl.operation <span class="str">"arith.addi"</span>
+          (%lhs, %z : !pdl.value, !pdl.value)
+          -&gt; (%ty : !pdl.type)
+  pdl.rewrite %add {
+    pdl.replace %add with (%lhs : !pdl.value)
+  }
+}</pre>
+        <ul>
+          <li>C++ 없이 pattern 작성</li>
+          <li>pdl_interp로 interp 또는 자동 코드 생성</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: 같은 IR shape 위를 <code>rewriter.create</code> + old op 유지 조합으로 찍으면 <b>infinite loop</b>. 항상 <code>replaceOp</code> / <code>eraseOp</code>로 원 op 제거 확인.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 17p</span> <span class="tiny">src: MLIR PatternRewriter / PDL docs</span></div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 §17 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V12 MLIR &amp; LLVM <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Cheat Sheet · dialect 계층 맵 ★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 전체 dialect 계층 맵 ★★</h3>
+<pre class="ascii">LEVEL           DIALECT         주요 op / type
+────────────────────────────────────────────────
+HIGH (value)    tensor          tensor.empty/extract
+                linalg          linalg.matmul, generic
+                (tosa, mhlo)    tosa.conv2d
+
+MID  (loop)     scf             scf.for/if/yield
+                affine          affine.for/load
+                memref          memref.alloc/load
+
+LOW  (tile)     vector          vector.contract
+                                vector.transfer_read
+                gpu             gpu.launch, thread_id
+                                gpu.barrier, shuffle
+
+TARGET (NV)     nvgpu           nvgpu.mma.sync
+                                nvgpu.ldmatrix
+                                nvgpu.device_async_copy
+                nvvm            nvvm.barrier0
+                                nvvm.mma.sync, shfl
+                                nvvm.ldmatrix
+
+LLVM            llvm            llvm.func, call
+                                llvm.ptr&lt;N&gt;  (addrspace)
+────────────────────────────────────────────────
+mlir-translate → LLVM IR
+llc (nvptx64)  → PTX
+ptxas          → cubin (SASS)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Conversion pass 체인 (표준)</h3>
+        <pre class="ascii">linalg → scf: convert-linalg-to-loops
+tensor → memref: one-shot-bufferize
+scf → cf: convert-scf-to-cf
+vector → gpu: convert-vector-to-gpu
+gpu → nvvm: convert-gpu-to-nvvm
+nvgpu → nvvm: convert-nvgpu-to-nvvm
+arith/cf → llvm: convert-arith/cf-to-llvm
+func → llvm: convert-func-to-llvm</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Address space · PTX 표 ★</h3>
+        <table class="compact">
+          <thead><tr><th class="num">AS</th><th>MLIR type</th><th>PTX</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0</td><td><code>ptr</code> / <code>memref&lt;T&gt;</code></td><td>generic</td></tr>
+            <tr><td class="num">1</td><td><code>ptr addrspace(1)</code></td><td><code>.global</code></td></tr>
+            <tr><td class="num">3</td><td><code>memref&lt;T, 3&gt;</code></td><td><code>.shared</code></td></tr>
+            <tr><td class="num">4</td><td><code>addrspace(4)</code></td><td><code>.const</code></td></tr>
+            <tr><td class="num">5</td><td><code>addrspace(5)</code></td><td><code>.local</code></td></tr>
+            <tr><td class="num">7</td><td><code>addrspace(7)</code></td><td><code>.param</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 자주 쓰는 NVVM intrinsic</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>PTX</th></tr></thead>
+          <tbody>
+            <tr><td><code>read.ptx.sreg.tid.x</code></td><td><code>%tid.x</code></td></tr>
+            <tr><td><code>read.ptx.sreg.ctaid.x</code></td><td><code>%ctaid.x</code></td></tr>
+            <tr><td><code>barrier0</code></td><td><code>bar.sync 0</code></td></tr>
+            <tr><td><code>shfl.sync.down</code></td><td><code>shfl.sync.down.b32</code></td></tr>
+            <tr><td><code>mma.m16n8k16.*</code></td><td><code>mma.sync.aligned.*</code></td></tr>
+            <tr><td><code>cp.async.cg.shared.global</code></td><td><code>cp.async.cg.*</code></td></tr>
+            <tr><td><code>ldmatrix.x4.b16</code></td><td><code>ldmatrix.sync.aligned.x4.*</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> !nvvm.annotations tag</h3>
+        <ul>
+          <li><code>"kernel"</code> → <code>.entry</code></li>
+          <li><code>"maxntidx/y/z"</code></li>
+          <li><code>"reqntidx"</code></li>
+          <li><code>"minctasm"</code></li>
+          <li><code>"cluster_dim_x"</code> (sm_90)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 최소 빌드 체인 <span class="ko">한 줄씩</span></h3>
+<pre class="code"><span class="cmt"># 1. MLIR lower</span>
+mlir-opt kern.mlir \
+ --convert-linalg-to-loops \
+ --one-shot-bufferize \
+ --convert-scf-to-cf \
+ --convert-vector-to-gpu \
+ --convert-gpu-to-nvvm \
+ --convert-nvgpu-to-nvvm \
+ --convert-func-to-llvm \
+ -o lowered.mlir
+
+<span class="cmt"># 2. LLVM IR</span>
+mlir-translate --mlir-to-llvmir \
+  lowered.mlir -o k.ll
+
+<span class="cmt"># 3. PTX</span>
+llc -march=nvptx64 -mcpu=sm_90a \
+    k.ll -o k.ptx
+
+<span class="cmt"># 4. cubin</span>
+ptxas -arch=sm_90a -O3 \
+      k.ptx -o k.cubin</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 참조 → 다음 권</h3>
+        <ul>
+          <li>Triton 컴파일러 전체 → <span class="xref">↗ V11</span></li>
+          <li>TorchInductor · FX → <span class="xref">↗ V13</span></li>
+          <li>XLA · TVM · polyhedral → <span class="xref">↗ V14</span></li>
+          <li>PTX / SASS 자체 → <span class="xref">↗ V03 · V04</span></li>
+          <li>Tensor Core shape → <span class="xref">↗ V03 §7</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 흔한 실수 6 <span class="ko">(!)</span>
+          <span class="mnemonic">AS·legal·pure·loop·sm_a·layout</span>
+        </h3>
+        <ol>
+          <li><span class="red">generic AS</span> 남발 → slow global load</li>
+          <li><span class="red">legal op</span> 선언 누락 → 무한 rewrite</li>
+          <li><span class="red">side-effect op</span>에 Pure trait → CSE 삭제</li>
+          <li><span class="red">infinite loop</span>: 같은 op 재생성</li>
+          <li><span class="red">sm_90 vs sm_90a</span> 혼동</li>
+          <li><span class="red">layout mismatch</span>: Triton type error</li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <mark>핵심 문장</mark>: MLIR은 compiler가 아니라 IR <b>프레임워크</b>. dialect 선택 + conversion pass 체인 + NVPTX backend 설정이 하나의 kernel을 PTX로 낸다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V12 · 18p</span> <span class="tiny">FIN · src: MLIR · LLVM NVPTX · PTX ISA</span></div>
+</section>
+
+</div>
+<script src="tweaks.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>컴자료 학습 포털</title>
+  <meta name="description" content="흩어진 HTML 공부 자료를 한 곳에서 여는 로컬 학습 포털">
+  <link rel="stylesheet" href="assets/study-portal.css">
+  <script src="assets/study-portal.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="site-shell topbar-inner">
+      <a class="brand" href="index.html" aria-label="컴자료 학습 포털 홈">
+        <span class="brand-mark">컴</span>
+        <span>
+          컴자료 학습 포털
+          <small>HTML 교재 라이브러리</small>
+        </span>
+      </a>
+      <nav class="top-actions" aria-label="빠른 이동">
+        <a class="ghost-link" href="#library">교재 목록</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="site-shell hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Local Study Library</p>
+        <h1 id="page-title">흩어진 공부 HTML을 하나의 입구에서 엽니다.</h1>
+        <p>교재 본문은 그대로 두고, 루트 포털에서 분야별로 찾고 검색해서 바로 들어갈 수 있게 묶었습니다.</p>
+      </div>
+      <aside class="hero-panel" aria-label="포털 요약">
+        <div class="stat-grid">
+          <div class="stat">
+            <strong data-total-books>0</strong>
+            <span>교재 묶음</span>
+          </div>
+          <div class="stat">
+            <strong data-total-entries>0</strong>
+            <span>HTML 진입 링크</span>
+          </div>
+          <div class="stat">
+            <strong data-total-categories>0</strong>
+            <span>분야 필터</span>
+          </div>
+          <div class="stat">
+            <strong>0</strong>
+            <span>PDF/Markdown 노출</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="site-shell control-band" aria-label="교재 검색과 필터">
+      <div class="search-row">
+        <div class="search-field">
+          <input data-search type="search" placeholder="교재, 챕터, 주제 검색" aria-label="교재 검색">
+          <button class="clear-search" data-clear-search type="button" aria-label="검색어 지우기">×</button>
+        </div>
+        <div class="result-count" data-result-count aria-live="polite">0개 교재</div>
+      </div>
+      <div class="filters" data-filters aria-label="분야 필터"></div>
+    </section>
+
+    <section class="site-shell library" id="library" data-library aria-label="교재 목록"></section>
+    <div class="site-shell empty-state" data-empty-state>검색 조건에 맞는 교재가 없습니다.</div>
+  </main>
+
+  <footer class="site-shell footer">
+    기존 HTML 교재의 본문과 스타일은 유지하고, 이 포털은 로컬 진입점 역할만 합니다.
+  </footer>
+</body>
+</html>

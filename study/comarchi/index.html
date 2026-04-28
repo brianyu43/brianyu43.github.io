@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>컴퓨터 구조 RISC-V판 · 한국어 위트 가이드</title>
+<meta name="description" content="패터슨·헤네시의 명저 『Computer Organization and Design RISC-V Edition』을 위트 있게 풀어쓴 한국어 학습 노트.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="index.html" class="brand">
+      <span class="badge">RV64</span>
+      컴퓨터 구조 위트 가이드
+    </a>
+    <nav class="nav-links">
+      <a href="index.html" class="active">홈</a>
+      <a href="chapters/chapter2.html">2장</a>
+      <a href="chapters/chapter3.html">3장</a>
+      <a href="chapters/chapter4.html">4장</a>
+      <a href="chapters/chapter5.html">5장</a>
+      <a href="chapters/chapter6.html">6장</a>
+      <button id="theme-toggle" class="theme-toggle" type="button">🌙 다크</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>컴퓨터에게 말 거는 법</h1>
+    <p class="subtitle">패터슨 &amp; 헤네시의 RISC-V판을 한국어로 위트 있게 풀어쓰는 학습 노트</p>
+    <p class="quote">“하드웨어한테 잔소리하려면 일단 같은 언어부터 배워야 한다.”</p>
+  </section>
+
+  <h2>이 노트는 뭔가요?</h2>
+  <p>
+    『Computer Organization and Design: The Hardware/Software Interface (RISC-V Edition)』를
+    꾸역꾸역 읽기보다는, 농담 섞어 친구한테 설명하듯 정리한 한국어 학습 가이드입니다.
+    원서의 흐름을 따라가지만, 표현은 제 식대로 — 그러니까 좀 까불면서 — 바꿔뒀어요.
+  </p>
+  <p>
+    교재 그대로의 번역이 아니라 <strong>위트 있는 재해석 노트</strong>이므로,
+    시험 답안에 그대로 옮겨 쓰면 교수님이 고개를 갸웃거릴 수 있습니다. 알고 쓰세요.
+  </p>
+
+  <h2>챕터 목록</h2>
+  <p>현재는 2장까지 공개. 3~6장은 준비 중입니다 (자리는 미리 잡아뒀어요).</p>
+
+  <div class="chapter-grid">
+    <a href="chapters/chapter2.html" class="chapter-card available">
+      <div class="num">Chapter 2</div>
+      <h3>명령어: 컴퓨터의 언어</h3>
+      <p>RISC-V 어셈블리어, 레지스터, 메모리, 분기, 프로시저 호출까지 — 컴퓨터에게 말 거는 모든 방법.</p>
+      <span class="tag">읽을 수 있음</span>
+    </a>
+
+    <a href="chapters/chapter3.html" class="chapter-card available">
+      <div class="num">Chapter 3</div>
+      <h3>컴퓨터를 위한 산술</h3>
+      <p>정수 연산, 부동소수점, 곱셈·나눗셈 회로, 그리고 IEEE 754의 미묘한 함정들.</p>
+      <span class="tag">읽을 수 있음</span>
+    </a>
+
+    <a href="chapters/chapter4.html" class="chapter-card available">
+      <div class="num">Chapter 4</div>
+      <h3>프로세서</h3>
+      <p>데이터패스, 제어 유닛, 파이프라이닝, 해저드, 분기 예측. 명령어가 칩 안에서 어떻게 굴러가는지.</p>
+      <span class="tag">읽을 수 있음</span>
+    </a>
+
+    <a href="chapters/chapter5.html" class="chapter-card available">
+      <div class="num">Chapter 5</div>
+      <h3>크고 빠르게: 메모리 계층</h3>
+      <p>캐시, 가상 메모리, TLB. “빠른 건 작고, 큰 건 느리다”의 우주적 진리.</p>
+      <span class="tag">읽을 수 있음</span>
+    </a>
+
+    <a href="chapters/chapter6.html" class="chapter-card available">
+      <div class="num">Chapter 6</div>
+      <h3>병렬 프로세서: 클라이언트에서 클라우드까지</h3>
+      <p>SIMD, 멀티코어, GPU, 클러스터 — 혼자 못 하면 같이 하면 되잖아.</p>
+      <span class="tag">읽을 수 있음</span>
+    </a>
+  </div>
+
+  <h2>학습 팁 한 스푼</h2>
+  <ul>
+    <li>각 절의 <strong>“혼자 점검”</strong> 박스는 그냥 넘기지 말고 풀어보세요. 안 풀리면 위로 돌아가서 다시.</li>
+    <li>RISC-V 어셈블리는 손으로 한두 번 써보면 갑자기 정이 듭니다. 진짜로요.</li>
+    <li>코드 박스의 주석(<code>//</code>)은 사람용입니다. 컴퓨터는 무시합니다. 마음만 받습니다.</li>
+  </ul>
+</main>
+
+<footer class="site-footer">
+  © Comarchi Korean Notes · 원서: Patterson &amp; Hennessy, <em>Computer Organization and Design (RISC-V Edition)</em>, Morgan Kaufmann
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

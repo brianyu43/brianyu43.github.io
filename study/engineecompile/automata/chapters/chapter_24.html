@@ -1,0 +1,69 @@
+<article class="chapter" data-chapter="24" id="ch-24">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 24</span>
+    <h2 class="chapter-title">확률적 계산 (계속)</h2>
+    <p class="chapter-subtitle">BPP는 정말로 P보다 강한가, 아니면 우리가 게으른 것인가</p>
+  </header>
+
+  <section>
+    <h3>1. BPP를 가두는 다항 위계</h3>
+    <p>지난 강의에서 BPP ⊆ PSPACE를 보았지만, 이 한계는 너무 헐렁하다. PSPACE는 우주의 컴퓨팅 자원을 모두 모아도 풀 수 없는 거인들을 잔뜩 품고 있는 클래스이고, BPP는 우리가 매일 굴리는 무작위 알고리즘들의 집이다. 더 정밀한 한계가 필요하다. 그것이 1983년 Sipser와 Gács, 그리고 Lautemann이 독립적으로 증명한 다음 정리다.</p>
+
+    <div class="theorem">
+      <strong>정리 24.1 (Sipser–Gács–Lautemann).</strong> BPP ⊆ Σ<sub>2</sub><sup>p</sup> ∩ Π<sub>2</sub><sup>p</sup>.
+    </div>
+
+    <p>이 결과의 묘미는 무작위성이라는 양적인 자원을 ∃와 ∀라는 논리적인 자원으로 환산해 낸다는 데 있다. 직관은 다음과 같다. L ∈ BPP에 대한 PTM M의 동전 시퀀스 r은 길이 m = poly(n)의 비트열이다. 입력 x ∈ L에 대한 "수락 동전 집합" A<sub>x</sub> = { r : M(x; r) accepts }는 {0, 1}<sup>m</sup>의 적어도 99%를 차지하도록 증폭할 수 있고, x ∉ L이면 1% 이하다.</p>
+
+    <p>이제 비결정적 ∃∀ 한 쌍을 다음처럼 설계한다. 충분히 큰 t = m + 1에 대해, 비트열 t-튜플 (s<sub>1</sub>, …, s<sub>t</sub>)이 주어지면 "이 t개의 시프트로 A<sub>x</sub>의 평행이동 합집합이 {0, 1}<sup>m</sup> 전체를 덮는다"는 술어를 본다. A<sub>x</sub>가 거대하면 적당한 (s<sub>1</sub>, …, s<sub>t</sub>)이 존재해 모든 r ∈ {0, 1}<sup>m</sup>에 대해 어떤 i가 있어 M(x; r ⊕ s<sub>i</sub>)이 수락한다. 반대로 A<sub>x</sub>가 작으면, 어떤 t-튜플로도 덮을 수 없는 r이 항상 존재한다.</p>
+
+    <div class="proof">
+      <strong>증명 스케치.</strong> 증폭으로 오류 확률을 2<sup>−m</sup>까지 떨어뜨려 두자. x ∈ L 사례에서는 ∃ s<sub>1</sub>, …, s<sub>t</sub> ∈ {0, 1}<sup>m</sup> 가 존재해 ∀ r ∈ {0, 1}<sup>m</sup> 어떤 i에 대해 M(x; r ⊕ s<sub>i</sub>)이 수락하도록 만들 수 있다 — 이 t-튜플의 존재는 확률적 논증으로 증명된다. x ∉ L 사례에서는 |A<sub>x</sub>|가 너무 작아 어떤 t-튜플도 {0, 1}<sup>m</sup>을 덮을 수 없다. 이 술어는 정확히 Σ<sub>2</sub><sup>p</sup> 형식이고, BPP가 보집합에 대해 닫혀 있으므로 Π<sub>2</sub><sup>p</sup>도 자동.
+    </div>
+
+    <p>이 결과의 한 가지 그림 같은 함의: P = NP라면 다항 위계 전체가 P로 무너지고, 따라서 BPP ⊆ P. 즉 P 대 NP 추측은 무작위성의 가치 추측까지 동시에 결정한다.</p>
+
+    <h3>2. BPP = P 추측과 의사난수성</h3>
+    <p>현재의 압도적 추측은 BPP = P이다. 즉 모든 무작위 알고리즘은 (다항 시간 추가 비용으로) 결정성으로 환원될 수 있다는 것이다. 이 추측의 진지한 근거는 <strong>의사난수 생성기(pseudo-random generator, PRG)</strong>의 존재다.</p>
+
+    <div class="definition">
+      <strong>정의 24.2.</strong> 함수 G: {0, 1}<sup>s(n)</sup> → {0, 1}<sup>n</sup>이 (시간 t(n), 오차 ε(n))-PRG라는 것은, 시간 t(n) 안에 동작하는 모든 회로 C에 대해 |Pr[C(G(U<sub>s(n)</sub>)) = 1] − Pr[C(U<sub>n</sub>) = 1]| < ε(n) 임을 뜻한다.
+    </div>
+
+    <p>좋은 PRG가 있다면 BPP 알고리즘의 동전 m비트를 G의 시드 s(n) ≪ m비트로 대체한 뒤, 모든 시드를 결정적으로 시도하면 된다. 시뮬레이션 비용은 2<sup>s(n)</sup>·poly(n)인데, 충분히 강한 회로 가정 — 예컨대 SAT가 지수적 회로를 요구한다 — 아래에서 s(n) = O(log n)인 PRG가 존재하므로 결정적 다항 시간 시뮬레이션이 가능해진다. Impagliazzo–Wigderson(1997)은 이러한 가정 아래 BPP = P를 증명했다. 무작위성은, 따라서, 단순히 "쉬운 문제 X 어려운 회로 가정"으로 환산되는 자원이다.</p>
+
+    <h3>3. Adleman 정리와 비균일 조언</h3>
+    <p>다른 방향에서 BPP의 결정화를 시도하자. 시간 자원만으로는 어렵다면, 비균일 조언을 허락하면 어떨까?</p>
+
+    <div class="theorem">
+      <strong>정리 24.3 (Adleman).</strong> BPP ⊆ P/poly.
+    </div>
+
+    <div class="proof">
+      <strong>증명 스케치.</strong> L ∈ BPP의 PTM M을 증폭해 길이 n 입력에 대한 오류 확률이 2<sup>−n−1</sup>이 되도록 하자. 길이 n 입력은 정확히 2<sup>n</sup>개. 무작위 동전 r ∈ {0, 1}<sup>m</sup>에 대해 M(x; r)이 x ∈ L의 멤버십과 어긋날 확률은 ≤ 2<sup>−n−1</sup>. 길이 n 입력 모두에 대한 합집합 한계로 Pr<sub>r</sub>[∃x : M(x; r)이 틀림] ≤ 2<sup>n</sup> · 2<sup>−n−1</sup> = 1/2 < 1.
+    </div>
+
+    <p>따라서 길이 n의 모든 입력에 동시에 옳은 답을 주는 동전 시퀀스 r<sup>∗</sup><sub>n</sub>이 적어도 하나 존재한다. 이 r<sup>∗</sup><sub>n</sub>을 길이 n 입력에 대한 다항 길이 조언 문자열로 사용하면, 결정적 다항 시간 회로(혹은 조언 받는 TM)가 L을 결정한다. 즉 BPP는 비균일 모델에서는 다항 회로의 위력을 넘지 못한다.</p>
+
+    <div class="aside">
+      Adleman 증명은 카운팅 논증(probabilistic method)의 정수다. 좋은 조언이 어떻게 생겼는지는 모른다. 다만 그것이 존재함을 동전 평균을 헤아려 안다. 알고리즘 설계와 존재 증명 사이의 간극이 가장 좁아지는 순간.
+    </div>
+
+    <h3>4. 무작위 환원과 RP-완전성</h3>
+    <p>결정성 환원 ≤<sub>p</sub>를 무작위로 일반화한 것이 무작위 다항 시간 환원 ≤<sub>r</sub>이다. A ≤<sub>r</sub> B란, A의 멤버십을 답하는 다항 시간 PTM이 존재해 B에 대한 단일 질의로 답하되 양측 오류가 1/3 이하라는 뜻이다. RP-완전, BPP-완전 같은 개념이 정의될 수 있지만, BPP가 자기-환원과 잘 어울리는 promise 클래스인 탓에 BPP-완전 언어는 표준적인 의미에서 존재하지 않는다 — 이는 BPP가 syntactic 클래스가 아니라 semantic 클래스임을 보여 주는 미묘한 사실이다.</p>
+
+    <h3>5. 그래프 비동형성: BPP의 자연스러운 거주민</h3>
+    <p>BPP의 자연 예제 중 가장 사랑받는 것은 그래프 비동형성(GRAPH NON-ISOMORPHISM, GNI)이다.</p>
+
+    <div class="example">
+      <strong>예제.</strong> 두 그래프 G<sub>1</sub>, G<sub>2</sub>가 동형이 아닌지 묻기. 직관적으로 BPP/IP 알고리즘을 짤 수 있다 — 다음 강의에서 IP 버전을 자세히 살피겠지만, BPP 자체로는 GNI를 풀 결정적 다항 시간 알고리즘은 알려져 있지 않다. 두 그래프가 동형이라면, "G<sub>1</sub>의 무작위 순열"과 "G<sub>2</sub>의 무작위 순열"이 같은 분포를 만들고, 동형이 아니면 두 분포가 0-교집합이다 — 이런 통계적 차이를 무작위성으로 검출할 수 있다.
+    </div>
+
+    <div class="aside">
+      그러나 그래프 동형성(GI) 자체는 한 번 더 놀라운 운명을 맞이했다. 1979년부터 GI는 NP에 속하지만 NP-완전이라는 증거도 없고 P에도 속한다는 증거도 없는 미궁의 문제였다. 2015년 László Babai가 GI에 대한 quasi-다항 시간(2<sup>polylog n</sup>) 알고리즘을 발표하면서 이 미궁의 벽이 결정적으로 무너졌다. 동형성은 거의 다항이고, 비동형성도 본질적으로 같이 거의 다항이다. BPP의 자연 예제로 GNI를 들고 다니던 우리에게는 아쉬운 사건이지만, 이 분야의 활기를 보여 주는 가장 신선한 결과이기도 하다.
+    </div>
+
+    <h3>6. 다음 강의 예고</h3>
+    <p>지금까지 우리는 검증자가 무작위성을 사용하되 외부와 상호작용하지 않는 모델을 다뤘다. 검증자가 동전을 가지고 무한 능력의 증명자와 <em>대화</em>를 나누면 어떤 일이 벌어지는가? 이 단순한 한 가지 변화가 PSPACE 전체를 검증 가능 클래스로 끌어올린다. 다음 강의에서 등장하는 IP, 상호작용 증명 시스템이 그 무대다. 우리는 NP의 정적 인증서가 무작위성을 만났을 때 어떻게 살아 움직이는지를 본다.</p>
+  </section>
+</article>

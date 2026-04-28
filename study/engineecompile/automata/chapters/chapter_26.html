@@ -1,0 +1,99 @@
+<article class="chapter" data-chapter="26" id="ch-26">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 26</span>
+    <h2 class="chapter-title">coNP ⊆ IP, 그리고 IP = PSPACE</h2>
+    <p class="chapter-subtitle">산술화와 SUM-CHECK, 그리고 한 학기의 결산</p>
+  </header>
+
+  <section>
+    <h3>1. 마지막 산</h3>
+    <p>지난 강의에서 우리는 GNI ∈ IP를 통해 IP가 NP를 진정으로 넘어선다는 첫 증거를 보았다. 이번 강의의 목표는 훨씬 더 멀다.</p>
+
+    <div class="theorem">
+      <strong>대정리 26.1 (Shamir, 1992; LFKN, 1990).</strong> IP = PSPACE.
+    </div>
+
+    <p>한 방향 IP ⊆ PSPACE는 비교적 쉽다 — V의 결정과 P의 최적 메시지를 다항 공간 안에서 게임 트리 탐색으로 시뮬레이션할 수 있다. 어려운 방향은 PSPACE ⊆ IP. 이 강의에서는 그 출발점이자 핵심 기법을 다 보여 주는 부분 — coNP ⊆ IP — 를 자세히 살펴본 뒤, 그 기법이 PSPACE 전체로 확장되는 모습을 스케치한다. 출발 도구는 1990년 Lund–Fortnow–Karloff–Nisan(LFKN)이 도입한 <strong>산술화(arithmetization)</strong>다.</p>
+
+    <h3>2. #SAT와 산술화</h3>
+    <p>UNSAT — 부울 식 φ가 충족 불가능한가? — 는 coNP-완전이다. 우리는 이를 더 일반적인 카운팅 문제 #SAT로 환원해 다룬다.</p>
+
+    <div class="definition">
+      <strong>정의 26.2.</strong> #SAT은 입력 ⟨φ, k⟩에 대해 부울 식 φ의 충족 할당 수가 정확히 k인지 묻는 문제다. UNSAT은 ⟨φ, 0⟩-사례에 해당.
+    </div>
+
+    <p><strong>산술화의 핵심.</strong> 부울 식 φ(x<sub>1</sub>, …, x<sub>n</sub>)을 변수가 정수 또는 유한체 𝔽<sub>p</sub> 위의 값을 가질 수 있는 다변수 다항식 f<sub>φ</sub>로 바꾼다. 변환 규칙은 다음처럼 기계적이다.</p>
+
+    <ul>
+      <li>변수 x → x.</li>
+      <li>¬x → 1 − x.</li>
+      <li>x ∧ y → x · y.</li>
+      <li>x ∨ y → x + y − xy. (즉 1 − (1−x)(1−y).)</li>
+    </ul>
+
+    <p>이 변환은 부울 입력 (b<sub>1</sub>, …, b<sub>n</sub>) ∈ {0, 1}<sup>n</sup>에 대해 f<sub>φ</sub>(b<sub>1</sub>, …, b<sub>n</sub>) = [φ(b<sub>1</sub>, …, b<sub>n</sub>) = 참] 를 보장한다. 따라서 충족 할당 수는</p>
+
+    <p style="text-align:center;">#φ = ∑<sub>x<sub>1</sub> ∈ {0,1}</sub> ∑<sub>x<sub>2</sub> ∈ {0,1}</sub> ⋯ ∑<sub>x<sub>n</sub> ∈ {0,1}</sub> f<sub>φ</sub>(x<sub>1</sub>, …, x<sub>n</sub>).</p>
+
+    <p>UNSAT은 #φ = 0이라는 주장과 동치다. 이로써 부울 만족 문제는 다변수 다항식 위 합의 값에 대한 주장으로 환산된다. 다항식의 차수는 φ 길이에 대해 다항이다 — 정확히 절(節) 수에 비례. 이 다항식 표현은 작은 일탈에도 민감해서, 무작위 한 점에서의 평가가 전체를 식별하는 강력한 지표가 된다(Schwartz–Zippel).</p>
+
+    <h3>3. SUM-CHECK 프로토콜</h3>
+    <p>이제 IP 프로토콜을 설계해, 다항 시간 V가 P의 도움으로 ∑<sub>x ∈ {0,1}<sup>n</sup></sub> f(x) = K 라는 주장을 검증하게 만들자. 작업장은 충분히 큰 유한체 𝔽 = 𝔽<sub>p</sub>이고, p는 충족 할당 수의 상한 2<sup>n</sup>보다 훨씬 큰 소수로 잡는다(예 p = 2<sup>3n</sup>).</p>
+
+    <p>핵심 발상: P가 한 번에 모든 변수의 합을 V에게 증명할 수 없으니, 변수 하나를 다항식으로 풀어 V에게 보내고 V가 무작위 점 r을 골라 한 변수씩 제거해 가는 라운드 기반 검증.</p>
+
+    <div class="theorem">
+      <strong>SUM-CHECK 프로토콜.</strong>
+      <ol>
+        <li><strong>주장.</strong> P는 K = ∑<sub>x ∈ {0,1}<sup>n</sup></sub> f(x) 임을 V에게 주장한다. V는 K를 메모.</li>
+        <li><strong>라운드 i = 1, …, n.</strong>
+          <ul>
+            <li>P는 일변수 다항식 g<sub>i</sub>(z) := ∑<sub>x<sub>i+1</sub>, …, x<sub>n</sub> ∈ {0,1}</sub> f(r<sub>1</sub>, …, r<sub>i−1</sub>, z, x<sub>i+1</sub>, …, x<sub>n</sub>) 를 V에게 보낸다.</li>
+            <li>V는 두 가지를 검사: (a) deg(g<sub>i</sub>) ≤ deg<sub>i</sub>(f); (b) g<sub>i</sub>(0) + g<sub>i</sub>(1) = K<sub>i−1</sub> (이전 라운드의 약속, K<sub>0</sub> := K). 둘 중 하나라도 어긋나면 즉시 거절.</li>
+            <li>V는 r<sub>i</sub> ∈ 𝔽를 균등하게 무작위로 뽑아 P에게 보낸다. 새 약속 K<sub>i</sub> := g<sub>i</sub>(r<sub>i</sub>).</li>
+          </ul>
+        </li>
+        <li><strong>마지막 검증.</strong> n 라운드 후 V는 f(r<sub>1</sub>, …, r<sub>n</sub>)을 직접 평가하고 K<sub>n</sub>과 비교한다. 일치하면 수락, 아니면 거절.</li>
+      </ol>
+    </div>
+
+    <p><strong>완전성.</strong> #φ가 진짜로 K이면 정직한 P는 매 라운드의 정확한 g<sub>i</sub>를 보낼 수 있고, 모든 등식이 성립해 V는 항상 수락. 마지막 평가도 일치한다.</p>
+
+    <p><strong>건전성.</strong> 진짜 합이 K가 아닌데 어떤 P̃가 V를 속이려 한다고 하자. 첫 라운드에서 P̃는 진짜 g<sub>1</sub>와 다른 다항식 g̃<sub>1</sub>를 보내야 한다 — 안 그러면 g<sub>1</sub>(0) + g<sub>1</sub>(1) = K가 거짓을 폭로한다. 그러나 g̃<sub>1</sub> ≠ g<sub>1</sub>은 차수 d<sub>1</sub>의 두 다항식이 서로 다름을 의미하므로, 무작위 r<sub>1</sub>에서 두 식이 같을 확률은 d<sub>1</sub>/|𝔽| 이하(Schwartz–Zippel).</p>
+
+    <p>그래서 r<sub>1</sub>이 "운 좋게" 두 다항식의 일치점을 짚지 않는 이상, 두 번째 라운드의 새 약속 K<sub>1</sub> = g̃<sub>1</sub>(r<sub>1</sub>)도 진짜와 어긋나 같은 일이 반복된다. 모든 n 라운드를 통과하려면 매 라운드 d<sub>i</sub>/|𝔽| 정도의 운이 필요하다. 합집합 한계로 V가 속을 확률 ≤ ∑<sub>i</sub> d<sub>i</sub>/|𝔽| ≤ n · d / |𝔽|. |𝔽|를 2<sup>3n</sup>으로 잡으면 이 값은 1/3보다 훨씬 작다.</p>
+
+    <p>다시 말해, P̃의 거짓말은 매 라운드 다항식 사이의 격차를 만들고, 그 격차는 무작위 점에서 거의 확실히 검출된다. 한 번 검출된 거짓말은 V의 마지막 직접 평가에서 결정적으로 폭로된다.</p>
+
+    <h3>4. coNP ⊆ IP</h3>
+    <div class="theorem">
+      <strong>정리 26.3.</strong> coNP ⊆ IP.
+    </div>
+
+    <div class="proof">
+      <strong>증명.</strong> UNSAT을 #SAT의 K = 0 사례로 환원한 뒤, SUM-CHECK 프로토콜로 V가 ∑ f(x) = 0 주장을 검증한다. 완전성과 건전성은 위에서 확인.
+    </div>
+
+    <p>이 결과는 NP가 coNP를 단순히 흉내낼 수 없는 정적 모델임에 비추어 충격적이다. 비대화 NP에서는 UNSAT의 짧은 인증서가 알려져 있지 않은데, 동전 + 다항 라운드의 대화가 있으면 검증이 가능해진다. 이는 다음 강의의 자연스러운 확장으로 이어진다.</p>
+
+    <h3>5. PSPACE까지의 확장</h3>
+    <p>위 기법을 PSPACE-완전 문제 TQBF로 확장하면 IP = PSPACE의 어려운 방향이 따라온다. TQBF는 ∀x<sub>1</sub> ∃x<sub>2</sub> … φ(x<sub>1</sub>, …, x<sub>n</sub>) 형태의 양화된 부울 식의 진리값을 묻는다. ∃-양화자는 합 ∑로, ∀-양화자는 곱 ∏로 산술화하면 다음 표현을 얻는다.</p>
+
+    <p style="text-align:center;">⟦ψ⟧ = ∑<sub>x<sub>1</sub> ∈ {0,1}</sub> ∏<sub>x<sub>2</sub> ∈ {0,1}</sub> ⋯ f<sub>ψ</sub>(x<sub>1</sub>, …, x<sub>n</sub>).</p>
+
+    <p>그러나 곱 연산은 다항식의 차수를 입력 길이에 대해 지수적으로 키워 SUM-CHECK의 차수 분석을 망가뜨린다. Shamir의 1992년 핵심 아이디어는 라운드 사이에 <strong>축약 연산자(linearization operator)</strong> L<sub>i</sub>를 끼워 넣는 것이다. L<sub>i</sub>는 변수 x<sub>i</sub>에 대해 다항식을 강제로 1차로 줄여 두며 — x<sub>i</sub> ∈ {0, 1}에서의 값에 의해 1차 다항식이 결정되므로 — 차수 폭발을 막아 준다. 이 트릭으로 다항 라운드, 다항 차수의 SUM-CHECK 같은 프로토콜이 TQBF에 적용 가능하고, 결과적으로 PSPACE ⊆ IP. 다른 방향 IP ⊆ PSPACE은 V와 최적 P를 PSPACE 시뮬레이션으로 평가할 수 있다는 사실에서 따라온다. 따라서 두 클래스가 정확히 일치한다.</p>
+
+    <div class="aside">
+      IP = PSPACE는 발표된 1992년 한 해 안에 완성된 결과는 아니었다. LFKN(1990)이 #P ⊆ IP까지 도달한 뒤 Shamir가 마지막 한 걸음을 내딛었다. 그 사이 코딩이론과 다항식의 무작위 평가, 알고리즘적 합의의 모든 도구가 함께 무르익었다. 무작위성과 대화, 두 가지 단순한 자원이 결정적 검증의 한계를 PSPACE 끝까지 끌어올린 것이다.
+    </div>
+
+    <h3>6. 한 학기의 결산</h3>
+    <p>한 학기를 한 바퀴 돌아 우리는 다음 풍경을 그렸다. 가장 작은 모델 — 정규 언어, 결정적 유한 오토마타 — 에서 출발해 비결정성과 폐쇄 연산을 거쳐 문맥 자유 문법에 도착했다. 펌핑 보조정리들은 이 작은 모델들의 한계를 드러냈고, 우리는 무한 메모리 — 튜링 기계 — 로 사다리를 한 칸 올랐다. 거기서 결정 가능과 인식 가능이 갈렸고, 정지 문제와 환원의 기술은 결정 불가능성의 지도를 그려 주었다.</p>
+
+    <p>그다음 자원의 양을 측정하는 시점으로 돌아와 시간 위계와 공간 위계를 세웠다. P, NP, PSPACE, EXPTIME, EXPSPACE — 그 사이의 거리는 일부 확실하고 일부 미궁이다. 환원과 완전성은 이 미궁 안의 길잡이로, SAT, TQBF, EQ<sub>REX↑</sub> 같은 자연 문제들에 정확한 어려움의 좌표를 부여했다.</p>
+
+    <p>마지막 몇 강의에서 우리는 결정성을 흔들었다. 동전을 던지는 BPP, 다항 위계로 한정되는 BPP의 거주지, 비균일 조언이 흡수하는 무작위성. 그리고 검증자가 동전과 대화를 동시에 가지면 IP = PSPACE라는 거대한 동치까지. 무작위성은 단순한 효율 도구가 아니라 검증의 본질을 바꾸는 자원이었다.</p>
+
+    <p>이 한 바퀴의 핵심 메시지는 단 하나다. <strong>계산은 자원으로 잴 수 있고, 그 자원의 종류를 바꿀 때마다 새로운 풍경이 열린다.</strong> 시간, 공간, 무작위성, 상호작용, 비균일성 — 우리는 이 다섯을 손에 쥐고 풀 수 있는 것과 풀 수 없는 것의 경계를 매번 조금씩 다시 그렸다. P 대 NP, BPP 대 P, NP 대 PH 같은 미해결 추측들은 이 풍경 안에 빈자리로 남아 있다. 그 빈자리를 메우는 일이, 계산이론을 떠나며 여러분에게 남기는 우리 분야의 손짓이다. 강의는 끝이지만, 질문은 막 시작이다.</p>
+  </section>
+</article>

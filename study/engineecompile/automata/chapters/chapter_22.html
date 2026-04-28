@@ -1,0 +1,79 @@
+<article class="chapter" data-chapter="22" id="ch-22">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 22</span>
+    <h2 class="chapter-title">증명 가능 난해 문제와 신탁(Oracle) 기계</h2>
+    <p class="chapter-subtitle">위계 정리가 보장하는 어려움, 그리고 상대화의 함정</p>
+  </header>
+
+  <section>
+    <h3>1. 위계 정리가 약속한 것</h3>
+    <p>지난 강의들에서 우리는 P, NP, PSPACE, EXPTIME 같은 클래스들을 차곡차곡 쌓아 올렸지만, 이 클래스들이 <em>정말로</em> 서로 다른지에 대해서는 대부분 침묵해 왔다. P ≠ NP는 여전히 수수께끼이고, NP ≠ PSPACE조차 미해결이다. 그러나 시간 위계 정리(time hierarchy theorem)와 공간 위계 정리(space hierarchy theorem)는 단 하나의 확실한 분리를 우리에게 선물한다. 충분히 큰 격차가 있으면 자원을 더 주는 쪽이 진짜로 더 많은 것을 한다는 사실이다.</p>
+
+    <p>특히 공간 위계 정리는 PSPACE ⊊ EXPSPACE를 직접 보여 준다. 다시 말해, 다항 공간으로는 절대로 풀 수 없지만 지수 공간으로는 풀리는 언어가 자연 속에 존재한다. 위계 정리는 보통 대각선화로 만든 인공적 언어를 분리 증인으로 사용하는데, 이 강의의 첫 번째 목표는 그 추상적 분리를 <strong>구체적 자연 문제</strong>에 끼워 넣는 것이다.</p>
+
+    <div class="theorem">
+      <strong>정리 22.1 (공간 위계).</strong> f, g가 공간 구성 가능(space-constructible)이고 f(n) = o(g(n))이면 SPACE(f(n)) ⊊ SPACE(g(n)). 따라서 PSPACE = ∪<sub>k</sub> SPACE(n<sup>k</sup>)는 SPACE(2<sup>n</sup>)의 진부분 집합이고, 결과적으로 EXPSPACE를 진부분 집합으로 가진다.
+    </div>
+
+    <h3>2. EQ<sub>REX↑</sub>: 다항 공간으로는 도달할 수 없는 자연 문제</h3>
+    <p>정규 표현식의 표준 연산자 집합 ∪, ·, ∗에 더해서 <strong>제곱 연산자 ↑</strong>를 추가하자. 식 R↑은 R · R, 즉 R을 두 번 이어 붙인 것을 줄여 쓴 것이다. 이런 확장 정규 표현식 두 개가 같은 언어를 나타내는지 묻는 문제를 다음과 같이 정의한다.</p>
+
+    <div class="definition">
+      <strong>정의 22.2.</strong> EQ<sub>REX↑</sub> = { ⟨R, S⟩ : R, S는 ↑를 허용한 정규 표현식이고 L(R) = L(S) }.
+    </div>
+
+    <p>제곱 연산자는 사소해 보이지만, 식 ((R↑)↑)↑ … ↑는 R을 2<sup>k</sup>번 이어 붙인 식과 동치다. 즉 ↑는 길이 n짜리 입력으로 길이 2<sup>n</sup>까지의 문자열을 다루는 표현력을 끌어올린다. 이 폭발적 표현력 덕분에 EQ<sub>REX↑</sub>은 EXPSPACE 안에서 해결되지만 — 표준 동치성 검사를 지수 크기 NFA에 대해 시뮬레이션 — PSPACE로는 절대 잡히지 않는다.</p>
+
+    <div class="theorem">
+      <strong>정리 22.3 (Meyer–Stockmeyer 풍).</strong> EQ<sub>REX↑</sub>은 EXPSPACE-완전이다. 따라서 EQ<sub>REX↑</sub> ∉ PSPACE.
+    </div>
+
+    <p>증명의 골자는 임의의 EXPSPACE 기계 M의 계산 이력을 길이 2<sup>p(n)</sup>짜리 정규 표현식 두 개로 인코딩한 뒤, "M이 수락한다"는 사실이 "이 두 식이 다른 언어를 나타낸다"와 동치임을 보이는 다항 시간 환원이다. 위계 정리가 EXPSPACE에 의해 PSPACE 바깥에 있는 무언가를 보장하므로, EXPSPACE-완전 문제는 자동으로 PSPACE-바깥이 된다. 우리는 비로소 "구체적이고 자연스러운, 그러나 다항 공간으로는 절대 못 푸는" 문제를 손에 쥔 것이다.</p>
+
+    <div class="aside">
+      ↑는 작은 사치처럼 보이지만, 표현식 길이 절약이 곧 검증의 어려움이다. 압축은 항상 대가를 치른다. 이것이 복잡도 이론이 우리에게 가르치는 가장 정직한 교훈이다.
+    </div>
+
+    <h3>3. 신탁 튜링 기계의 정의</h3>
+    <p>이제 시점을 바꿔, 우리가 어려운 문제를 <em>해결한</em> 마법 동전을 가지고 있다고 가정하자. 그 동전의 이름이 <strong>신탁(oracle)</strong>이다.</p>
+
+    <div class="definition">
+      <strong>정의 22.4.</strong> 언어 A ⊆ Σ<sup>∗</sup>에 대한 <strong>신탁 튜링 기계</strong> M<sup>A</sup>는 일반 작업 테이프와 별도의 <em>질의 테이프</em>, 그리고 세 개의 특수 상태 q<sub>?</sub>, q<sub>YES</sub>, q<sub>NO</sub>를 가진 TM이다. 기계가 q<sub>?</sub>로 진입하면 단위 시간에 질의 테이프 위 문자열 w가 A에 속하면 q<sub>YES</sub>로, 아니면 q<sub>NO</sub>로 옮겨 간다.
+    </div>
+
+    <p>신탁은 결과만을 알려 주지 그 결과를 어떻게 얻었는지는 절대 말하지 않는다. 신탁의 능력은 자원 측정에서 무료다. 따라서 P<sup>A</sup>는 "A를 단위 시간에 묻는 다항 시간 결정 TM이 결정하는 언어들의 집합"이고, NP<sup>A</sup>는 같은 비결정 변종이다.</p>
+
+    <div class="example">
+      A = SAT라면 P<sup>SAT</sup>는 사실상 NP-어려움까지 단번에 해결할 능력을 얻는다. 그래서 P<sup>SAT</sup> ⊇ NP ∪ coNP가 즉시 따라온다. 사실 P<sup>SAT</sup> = Δ<sub>2</sub><sup>p</sup>로, 다항 위계의 둘째 층이다.
+    </div>
+
+    <h3>4. Baker–Gill–Solovay 정리</h3>
+    <p>신탁의 진짜 매력은 P 대 NP 문제를 우회적으로 살펴보게 해 준다는 데 있다. 1975년 Baker, Gill, Solovay는 다음의 충격적 사실을 증명했다.</p>
+
+    <div class="theorem">
+      <strong>정리 22.5 (Baker–Gill–Solovay).</strong> 다음을 만족하는 신탁 A, B가 존재한다.
+      <ol>
+        <li>P<sup>A</sup> = NP<sup>A</sup>.</li>
+        <li>P<sup>B</sup> ≠ NP<sup>B</sup>.</li>
+      </ol>
+    </div>
+
+    <div class="proof">
+      <strong>증명 스케치.</strong> 두 부분을 나누어 짓는다.
+
+      <p><em>A의 구성.</em> A를 임의의 PSPACE-완전 언어, 예를 들어 TQBF로 잡자. 그러면 P<sup>A</sup>의 모든 기계는 다항 시간에 PSPACE 신탁을 호출할 수 있으니 P<sup>A</sup> ⊆ PSPACE이다. 또한 PSPACE는 자기 자신을 단위 시간에 풀 수 있으므로 PSPACE ⊆ P<sup>A</sup>. 같은 논리가 비결정 모델에도 적용되어 NP<sup>A</sup> = PSPACE. 따라서 P<sup>A</sup> = NP<sup>A</sup> = PSPACE.</p>
+
+      <p><em>B의 구성.</em> 언어 L<sub>B</sub> = { 1<sup>n</sup> : 길이 n인 어떤 문자열이 B에 속한다 }을 보자. L<sub>B</sub>는 명백히 NP<sup>B</sup>이다 — 비결정 기계가 길이 n 문자열을 추측해 신탁에 질의하면 끝. 우리가 해야 할 일은 어느 P-기계 M<sub>i</sub><sup>B</sup>도 L<sub>B</sub>를 결정하지 못하도록 B를 짓는 것이다. 다항 시간 결정 기계의 표준 열거 M<sub>1</sub>, M<sub>2</sub>, …를 잡고, 각 단계에서 M<sub>i</sub>의 시간 한계 n<sup>i</sup> < 2<sup>n</sup>이 보장되도록 충분히 큰 n을 고른다. M<sub>i</sub><sup>B</sup>(1<sup>n</sup>)을 시뮬레이션하며 그 기계가 묻는 모든 질의를 기록한 뒤, 답을 우리 마음대로 정한다. 기계가 1<sup>n</sup>을 수락하면 B에 길이 n인 문자열을 하나도 넣지 않고, 거절하면 묻지 않은 길이 n 문자열 하나를 B에 추가한다. 시간 한계 n<sup>i</sup>가 2<sup>n</sup>보다 작으니 항상 묻지 않은 문자열이 남는다. 이렇게 대각선화된 B는 어느 M<sub>i</sub>도 L<sub>B</sub>를 결정하지 못함을 강제한다. 따라서 L<sub>B</sub> ∈ NP<sup>B</sup> ∖ P<sup>B</sup>.</p>
+    </div>
+
+    <h3>5. 함의: 상대화 장벽</h3>
+    <p>왜 이 정리가 그토록 큰 무게를 가지는가? 우리가 P 대 NP를 푸는 데 사용해 온 거의 모든 도구 — 시뮬레이션, 대각선화, 환원 — 는 "신탁을 그냥 통과해 적용된다"는 의미에서 <strong>상대화(relativizing)</strong>된다. 만약 어떤 증명이 P = NP를 보였다면, 그 증명을 신탁 B에 넣어도 같은 결론이 나와야 한다. 그런데 P<sup>B</sup> ≠ NP<sup>B</sup>! 따라서 P = NP는 상대화 가능한 기법으론 절대 증명될 수 없다. 마찬가지로 P ≠ NP의 증명은 신탁 A에 적용했을 때 P<sup>A</sup> ≠ NP<sup>A</sup>를 강제할 텐데, 우리는 P<sup>A</sup> = NP<sup>A</sup>를 보았다. 즉 양쪽 결론 모두 상대화 기법의 사거리 밖에 있다.</p>
+
+    <div class="aside">
+      이 정리는 1975년에 등장해 복잡도 이론자들의 야심을 25년 동안 짓눌렀다. 1990년대에 Razborov와 Rudich가 또 다른 장벽인 <em>natural proofs</em>를 발견했고, 이어 Aaronson–Wigderson이 <em>algebrization</em> 장벽을 추가했다. P 대 NP는 단순히 어렵다기보다, 우리가 생각해 낼 수 있는 거의 모든 종류의 증명에 대해 면역이다.
+    </div>
+
+    <h3>6. 다음 강의 예고</h3>
+    <p>상대화의 그늘에서 벗어나는 한 가지 길은 우연을 도구로 끌어들이는 것이다. 결정적 시뮬레이션이 아닌 동전 던지기로 푸는 문제 — 이 무작위 계산이 다음 강의 BPP의 무대다. 신탁이 가능성에 대한 사고 실험이라면, 무작위성은 그 실험을 실제로 수행하는 알고리즘이다.</p>
+  </section>
+</article>

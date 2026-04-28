@@ -1,0 +1,299 @@
+<article id="ch3" class="chapter" data-part="I">
+  <header class="ch-header">
+    <p class="part-label">PART I — 증명</p>
+    <h2 class="ch-title">
+      <span class="ch-num">3</span>
+      <span class="ch-kr">논리식</span>
+      <span class="ch-en">Logical Formulas</span>
+    </h2>
+    <p class="ch-intro">컴퓨터 프로그램의 if 문 하나를 들여다보면 그 안에는 작은 명제 하나가 들어 있습니다. "x가 양수이고 y가 0이 아니면..."처럼요. 이 챕터에서는 그런 명제를 다듬고 조립하는 도구인 <b>명제논리</b>와 <b>술어논리</b>를 배웁니다. 진리표로 시작해서, 동치 변형, 정규형, SAT 문제, 양화사까지 — 코드를 추론할 때, 회로를 설계할 때, 그리고 앞으로 이 책 전체에서 증명을 쓸 때 쓸 도구들을 모두 챙겨갑니다.</p>
+  </header>
+
+  <section id="ch3-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.1</span>
+      <span class="sec-kr">명제로 명제 만들기</span>
+      <span class="sec-en">Propositions from Propositions</span>
+    </h3>
+    <p>2장에서 우리는 "명제"를 참 또는 거짓 둘 중 하나로 판정되는 진술이라고 약속했습니다. 그런데 실제로 우리가 쓰는 진술들은 보통 작은 명제 여러 개를 이어 붙인 모양을 하고 있습니다. "오늘 비가 오면 우산을 챙긴다"처럼 말이죠. 이렇게 작은 명제로 큰 명제를 만드는 도구가 <b>논리 연산자</b>입니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.1.1 (기본 논리 연산자)</p>
+      <p>명제 \(P, Q\)가 주어졌을 때 다음 다섯 가지 연산을 사용합니다.</p>
+      <p>· <b>부정</b> \(\lnot P\): "\(P\)가 아니다" — \(P\)의 진릿값을 뒤집습니다.<br>
+      · <b>논리곱</b> \(P \land Q\): "\(P\) 그리고 \(Q\)" — 둘 다 참일 때만 참.<br>
+      · <b>논리합</b> \(P \lor Q\): "\(P\) 또는 \(Q\)" — 적어도 하나가 참이면 참 (포함적 OR).<br>
+      · <b>함의</b> \(P \to Q\): "\(P\)이면 \(Q\)" — \(P\)가 참인데 \(Q\)가 거짓일 때만 거짓.<br>
+      · <b>쌍조건</b> \(P \leftrightarrow Q\): "\(P\)와 \(Q\)는 동치" — 진릿값이 같을 때만 참.</p>
+    </div>
+
+    <p>이걸 한눈에 정리한 게 그 유명한 <b>진리표</b>입니다. T는 참(true), F는 거짓(false)입니다.</p>
+
+    <table class="tbl">
+      <thead><tr><th>\(P\)</th><th>\(Q\)</th><th>\(\lnot P\)</th><th>\(P \land Q\)</th><th>\(P \lor Q\)</th><th>\(P \to Q\)</th><th>\(P \leftrightarrow Q\)</th></tr></thead>
+      <tbody>
+        <tr><td>T</td><td>T</td><td>F</td><td>T</td><td>T</td><td>T</td><td>T</td></tr>
+        <tr><td>T</td><td>F</td><td>F</td><td>F</td><td>T</td><td>F</td><td>F</td></tr>
+        <tr><td>F</td><td>T</td><td>T</td><td>F</td><td>T</td><td>T</td><td>F</td></tr>
+        <tr><td>F</td><td>F</td><td>T</td><td>F</td><td>F</td><td>T</td><td>T</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 함의의 함정</p>
+      <p>한국어 학생이 가장 헷갈려 하는 칸은 \(P \to Q\)에서 \(P\)가 거짓일 때입니다. "비가 오면 우산을 챙긴다"라는 약속을 했는데 오늘 비가 안 왔다면, 우산을 챙겼든 안 챙겼든 약속은 어겨지지 않았습니다. 그래서 \(P\)가 거짓이면 \(P \to Q\)는 무조건 참 — 이를 <b>공허하게 참(vacuously true)</b>이라고 부릅니다. "내가 만약 1조 원이 있다면 너한테 100억을 주겠다"는 진심으로 참인 약속이에요. 1조 원이 없으니까요.</p>
+    </div>
+
+    <p>또 자주 등장하는 친구가 <b>배타적 논리합(XOR)</b>, 기호로는 \(P \oplus Q\)입니다. "둘 중 정확히 하나만 참"일 때 참이 됩니다. 일상에서 "커피 아니면 차"라고 말할 때 보통 둘 다 마시겠다는 뜻이 아니죠 — 그게 XOR입니다.</p>
+
+    <table class="tbl">
+      <thead><tr><th>\(P\)</th><th>\(Q\)</th><th>\(P \oplus Q\)</th></tr></thead>
+      <tbody>
+        <tr><td>T</td><td>T</td><td>F</td></tr>
+        <tr><td>T</td><td>F</td><td>T</td></tr>
+        <tr><td>F</td><td>T</td><td>T</td></tr>
+        <tr><td>F</td><td>F</td><td>F</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.1.2</p>
+      <p>"세 자리 수 \(n\)이 짝수이고 9의 배수이다"라는 진술을 \(P\)는 "\(n\)이 짝수", \(Q\)는 "\(n\)이 9의 배수"로 두면 \(P \land Q\). 한편 "\(n\)이 짝수이거나 또는 9의 배수이다(또는 둘 다)"는 \(P \lor Q\)입니다. 만약 누가 "짝수거나 9의 배수, 단 둘 다는 아님"을 의미했다면 \(P \oplus Q\)가 되겠죠.</p>
+    </div>
+  </section>
+
+  <section id="ch3-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.2</span>
+      <span class="sec-kr">컴퓨터 프로그램 속 명제논리</span>
+      <span class="sec-en">Propositional Logic in Computer Programs</span>
+    </h3>
+    <p>프로그램이 분기하는 곳마다 명제가 숨어 있습니다. <code>if (x &gt; 0 &amp;&amp; y != 0)</code> 한 줄을 보면 \(P = (x &gt; 0)\), \(Q = (y \neq 0)\)인 \(P \land Q\)예요. while 루프의 종료 조건도 마찬가지고요. 그래서 코드를 검증하거나 리팩터링할 때 우리는 알게 모르게 명제논리 변형을 하고 있습니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.2.1 (단락 평가)</p>
+      <p>대부분의 언어에서 <code>P &amp;&amp; Q</code>는 <b>단락 평가(short-circuit)</b>를 합니다. \(P\)가 거짓이면 \(Q\)는 평가하지 않아요. 이래서 다음 코드가 안전합니다.</p>
+      <pre><code class="lang-py">if x != 0 and 100 / x &gt; 5:
+    do_something()</code></pre>
+      <p>만약 단락 평가가 없다면 \(x = 0\)일 때 0으로 나누기가 터질 겁니다. 논리적으로는 \(P \land Q\)와 "\(P\)가 참이면 \(Q\)" 둘 다 같지만, 실행 비용은 다르다는 게 포인트예요.</p>
+    </div>
+
+    <p>또 한 가지, 회로 설계의 세계는 명제논리가 그대로 하드웨어가 되는 곳입니다. 트랜지스터로 AND, OR, NOT 게이트를 만들고, 그것들을 모아 가산기·메모리·CPU를 짭니다. 회로 한 칸의 출력은 입력에 대한 어떤 부울 함수이고, 그 함수의 명세가 곧 우리가 이번 챕터 내내 다루는 논리식입니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.2.2 (다수결 회로)</p>
+      <p>입력 세 비트 \(A, B, C\) 중 1이 두 개 이상이면 1, 아니면 0을 출력하는 회로의 명세는 \[ M(A,B,C) = (A \land B) \lor (B \land C) \lor (A \land C). \] 이 식은 곧 회로의 배선이 됩니다. 식의 모양을 다듬을 수 있다면 게이트 수를 줄일 수도 있겠죠 — 그래서 다음 절들의 "동치 변형"이 실제로 돈이 되는 일이 됩니다.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트</p>
+      <p>버그 추적을 하다 보면 "이 if 조건이 정말 의도한 명제인가?"를 묻게 됩니다. 그때 우리는 머릿속으로 진리표를 그리고 있는 거예요. 명제논리는 추상적인 공부가 아니라, 매일 쓰는 디버깅 언어입니다.</p>
+    </div>
+  </section>
+
+  <section id="ch3-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.3</span>
+      <span class="sec-kr">동치와 타당성</span>
+      <span class="sec-en">Equivalence and Validity</span>
+    </h3>
+    <p>같은 의미를 다르게 쓴 두 식이 있다면 — 진리표를 만들어서 모든 행이 같은지 보면 됩니다. 그게 핵심입니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.3.1 (항진명제·모순명제·동치)</p>
+      <p>· 모든 변수 배정에서 참이 되는 식을 <b>항진명제(tautology)</b>라고 부릅니다. 예: \(P \lor \lnot P\).<br>
+      · 모든 배정에서 거짓이면 <b>모순명제(contradiction)</b>. 예: \(P \land \lnot P\).<br>
+      · 어떤 배정에서는 참, 어떤 배정에서는 거짓이면 <b>충족가능(satisfiable)</b>이라고 합니다.<br>
+      · 두 식 \(\varphi, \psi\)가 모든 배정에서 같은 진릿값을 갖는다면 <b>논리적 동치</b>이며 \(\varphi \equiv \psi\)로 씁니다. 이는 \(\varphi \leftrightarrow \psi\)가 항진명제라는 말과 같습니다.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.3.2 (대우)</p>
+      <p>\(P \to Q\)와 \(\lnot Q \to \lnot P\)는 동치입니다. 진리표로 확인:</p>
+      <table class="tbl">
+        <thead><tr><th>\(P\)</th><th>\(Q\)</th><th>\(P \to Q\)</th><th>\(\lnot Q \to \lnot P\)</th></tr></thead>
+        <tbody>
+          <tr><td>T</td><td>T</td><td>T</td><td>T</td></tr>
+          <tr><td>T</td><td>F</td><td>F</td><td>F</td></tr>
+          <tr><td>F</td><td>T</td><td>T</td><td>T</td></tr>
+          <tr><td>F</td><td>F</td><td>T</td><td>T</td></tr>
+        </tbody>
+      </table>
+      <p>네 줄이 정확히 일치하니 \(P \to Q \equiv \lnot Q \to \lnot P\). 이게 우리가 자주 쓰는 <b>대우(contrapositive)</b>의 정당화이고, 이미 2장에서 본 "대우에 의한 증명"이 왜 합법인지의 근거입니다.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 함의와 그 친척들</p>
+      <p>\(P \to Q\)에 대해 다음을 구분합니다.<br>
+      · 역(converse): \(Q \to P\). 일반적으로 동치 아님.<br>
+      · 이(inverse): \(\lnot P \to \lnot Q\). 일반적으로 동치 아님.<br>
+      · 대우(contrapositive): \(\lnot Q \to \lnot P\). 동치 맞음.<br>
+      "비가 오면 땅이 젖는다"의 역인 "땅이 젖었으면 비가 왔다"는 거짓일 수 있다는 걸 떠올리면 됩니다 — 누가 물을 뿌렸을 수도 있죠.</p>
+    </div>
+
+    <p>또 하나 중요한 개념이 <b>타당성(validity)</b>입니다. 어떤 식이 항진명제이면 — 즉 어떤 진릿값을 넣어도 참이라면 — 우리는 그 식을 <b>타당하다</b>고 말하고, 증명에 그대로 쓸 수 있습니다. \(P \land (P \to Q) \to Q\) (이름하여 modus ponens), \(((P \to Q) \land (Q \to R)) \to (P \to R)\) (가정 삼단논법) 같은 게 그렇습니다. 추론 규칙은 결국 항진명제의 모음집이에요.</p>
+  </section>
+
+  <section id="ch3-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.4</span>
+      <span class="sec-kr">명제의 대수</span>
+      <span class="sec-en">The Algebra of Propositions</span>
+    </h3>
+    <p>진리표를 매번 그리는 건 변수가 \(n\)개면 \(2^n\)줄이라 금방 폭발합니다. 그래서 우리는 동치를 <b>대수 법칙</b>처럼 쓰는 법을 익혀야 해요. 곱셈 분배법칙처럼, 논리식도 한 모양에서 다른 모양으로 변형할 수 있습니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 3.4.1 (기본 동치 법칙)</p>
+      <p>임의의 명제 \(P, Q, R\)에 대해 다음이 성립합니다.</p>
+      <p>· <b>이중부정</b>: \(\lnot \lnot P \equiv P\).<br>
+      · <b>교환</b>: \(P \land Q \equiv Q \land P\), \(P \lor Q \equiv Q \lor P\).<br>
+      · <b>결합</b>: \((P \land Q) \land R \equiv P \land (Q \land R)\), \(\lor\)도 마찬가지.<br>
+      · <b>분배</b>: \(P \land (Q \lor R) \equiv (P \land Q) \lor (P \land R)\), 그리고 \(\land, \lor\) 자리를 바꾼 쌍대도.<br>
+      · <b>흡수</b>: \(P \land (P \lor Q) \equiv P\), \(P \lor (P \land Q) \equiv P\).<br>
+      · <b>드모르간</b>: \(\lnot(P \land Q) \equiv \lnot P \lor \lnot Q\), \(\lnot(P \lor Q) \equiv \lnot P \land \lnot Q\).<br>
+      · <b>함의 풀기</b>: \(P \to Q \equiv \lnot P \lor Q\).</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (드모르간 한 쪽만)</p>
+      <p>\(\lnot(P \land Q)\)는 "둘 다 참은 아니다"이고, 이는 곧 "적어도 하나는 거짓이다", 즉 \(\lnot P \lor \lnot Q\)와 같습니다. 진리표 네 줄을 다 채워봐도 두 식의 칸이 동일하게 채워집니다.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.4.2 (조건문 정리하기)</p>
+      <p>\(\lnot(P \to Q)\)를 풀어 봅시다. 함의 풀기로 \(\lnot(\lnot P \lor Q)\), 드모르간으로 \(\lnot \lnot P \land \lnot Q\), 이중부정으로 \(P \land \lnot Q\). 그러니까 "\(P\)이면 \(Q\)"의 부정은 "\(P\)인데 \(Q\)가 아니다"입니다 — 약속을 정확히 어기는 단 한 가지 방식이죠.</p>
+    </div>
+
+    <p>이런 변형을 충분히 하면 어떤 명제든 정해진 모양으로 맞출 수 있습니다. 두 가지 표준형이 특히 자주 등장합니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.4.3 (CNF와 DNF)</p>
+      <p>· <b>리터럴(literal)</b>: 변수 또는 변수의 부정. 예: \(P\), \(\lnot Q\).<br>
+      · <b>절(clause)</b>: 리터럴들을 \(\lor\)로 묶은 것.<br>
+      · <b>합접 정규형(CNF, Conjunctive Normal Form)</b>: 절들의 \(\land\) 묶음. 형태: \[ (\ell_{11} \lor \ell_{12} \lor \cdots) \land (\ell_{21} \lor \cdots) \land \cdots \]<br>
+      · <b>이접 정규형(DNF, Disjunctive Normal Form)</b>: \(\land\) 묶음들의 \(\lor\) 묶음. CNF의 쌍대.</p>
+    </div>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 3.4.4</p>
+      <p>모든 명제식은 동치인 CNF, 그리고 동치인 DNF로 변환할 수 있습니다.</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 스케치</p>
+      <p>주어진 식의 진리표를 만든 뒤, DNF는 "참이 되는 행마다 그 행을 뽑아내는 \(\land\) 항을 만들어 \(\lor\)로 합치"면 끝. CNF는 거짓이 되는 행마다 그 행을 막는 절을 만들어 \(\land\)로 묶으면 됩니다. 그러므로 어느 식이든 두 정규형이 모두 존재합니다.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.4.5</p>
+      <p>\(P \to Q\)를 CNF로: 함의 풀기로 \(\lnot P \lor Q\) — 이미 한 절짜리 CNF예요. DNF로는? 진리표에서 참이 되는 행은 (T,T), (F,T), (F,F)니까 \[ (P \land Q) \lor (\lnot P \land Q) \lor (\lnot P \land \lnot Q). \] 흡수와 분배로 더 줄일 수 있지만 일단 정의대로면 이 모양입니다.</p>
+    </div>
+  </section>
+
+  <section id="ch3-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.5</span>
+      <span class="sec-kr">SAT 문제</span>
+      <span class="sec-en">The SAT Problem</span>
+    </h3>
+    <p>변수 \(n\)개짜리 식이 충족가능한지 — 즉 어떤 진릿값 배정에서 참이 되는지 — 를 물어보는 문제가 <b>SAT</b>입니다. 이름부터가 "satisfiability". 단순해 보이지만, 컴퓨터과학에서 가장 유명한 어려운 문제 중 하나예요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.5.1 (SAT)</p>
+      <p>입력으로 명제식 \(\varphi\)가 주어졌을 때, \(\varphi\)를 참으로 만드는 변수 배정이 존재하는지를 결정하는 문제. CNF로 입력이 주어진 경우는 <b>CNF-SAT</b>, 절마다 리터럴이 정확히 \(k\)개이면 <b>\(k\)-SAT</b>이라 부릅니다.</p>
+    </div>
+
+    <p>변수가 \(n\)개면 가능한 배정은 \(2^n\)가지. 가장 단순한 알고리즘은 모두 시도해 보는 것이고, \(n=60\)만 되어도 \(10^{18}\) 근처라 현실적이지 않습니다. 이걸 다항시간에 푸는 알고리즘이 있느냐? — 그게 그 유명한 \(\mathsf{P}\) vs \(\mathsf{NP}\) 문제입니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 3.5.2 (Cook–Levin, 1971)</p>
+      <p>SAT은 <b>NP-완전(NP-complete)</b>입니다. 즉 NP에 속하는 모든 문제가 SAT으로 다항시간 환원됩니다. SAT을 빠르게 푸는 알고리즘이 있다면, NP의 모든 문제가 빠르게 풀립니다.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 그런데 실용 SAT solver는 잘 돕니다</p>
+      <p>이론상 어려운 문제이지만, 산업용 SAT solver(MiniSat, Glucose, CaDiCaL 등)는 변수 수백만 개짜리 실제 문제를 몇 초만에 풉니다. 이유는 (1) 진짜 무작위 입력이 아니라 구조가 있는 입력이고, (2) DPLL/CDCL 같은 백트래킹+학습 알고리즘이 똑똑하게 가지치기하기 때문입니다. 그래서 SAT은 칩 검증, 소프트웨어 모델 체킹, 스케줄링, 심지어 일부 보안 분석에까지 실전 도구로 쓰입니다.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.5.3 (간단한 SAT 인스턴스)</p>
+      <p>\(\varphi = (P \lor Q) \land (\lnot P \lor R) \land (\lnot Q \lor \lnot R)\). 충족 가능한가? \(P=\)T, \(Q=\)F, \(R=\)T로 두면 첫 절 T, 둘째 절 T, 셋째 절 \(\lnot Q \lor \lnot R = \)T\(\lor \)F\(=\)T. 그래서 충족 가능. 변수 셋이라 \(2^3=8\)개의 배정만 시험하면 되지만, 변수가 1만 개라면 얘기가 달라집니다.</p>
+    </div>
+
+    <p>3.4절의 정규형 변환과 합치면 그림이 또렷해집니다. 임의의 명제를 CNF로 옮길 수 있으므로 "충족가능성을 묻는 문제"의 정규 형태는 CNF-SAT이고, 거의 모든 SAT solver는 CNF 입력을 받습니다. 이 작은 사실 — 모든 부울 추론을 CNF 한 통에 욱여넣을 수 있다는 사실 — 이 컴퓨터로 논리를 다루는 일을 가능하게 만든 결정적 한 수예요.</p>
+  </section>
+
+  <section id="ch3-6" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">3.6</span>
+      <span class="sec-kr">술어식</span>
+      <span class="sec-en">Predicate Formulas</span>
+    </h3>
+    <p>명제논리는 "참/거짓이 정해진 진술"만 다뤘습니다. 그런데 수학에서 우리는 자주 "\(x &gt; 0\)"이나 "\(x\)는 소수다" 같이 변수에 따라 참/거짓이 갈리는 진술을 씁니다. 이런 걸 <b>술어(predicate)</b>라고 해요.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.6.1 (술어와 양화사)</p>
+      <p>변수를 매개변수로 받아 명제를 돌려주는 것을 <b>술어</b>라고 합니다. 예: \(P(x): \) "\(x\)는 짝수다", \(L(x,y): \) "\(x\)는 \(y\)보다 작다".</p>
+      <p>여기에 두 가지 <b>양화사(quantifier)</b>를 붙여 진릿값이 정해진 명제를 만듭니다. 논의역(domain)을 \(D\)라고 할 때:</p>
+      <p>· <b>전칭</b> \(\forall x \in D.\, P(x)\): "모든 \(x\)에 대해 \(P(x)\)가 참".<br>
+      · <b>존재</b> \(\exists x \in D.\, P(x)\): "어떤 \(x\)가 있어 \(P(x)\)가 참".</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.6.2</p>
+      <p>논의역을 자연수 \(\mathbb{N}\)으로 두면 \(\forall n.\, n^2 \ge 0\)은 참, \(\exists n.\, n^2 = 2\)는 거짓(자연수에는 \(\sqrt 2\)가 없으니까), \(\exists n.\, n &gt; 100\)은 참입니다. 논의역이 바뀌면 같은 식의 진릿값도 바뀐다는 점에 유의하세요.</p>
+    </div>
+
+    <p>양화사 식의 부정은 자주 쓰니 외워둘 가치가 있습니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 3.6.3 (양화사 부정 — 일반화 드모르간)</p>
+      <p>\[ \lnot \forall x.\, P(x) \equiv \exists x.\, \lnot P(x), \qquad \lnot \exists x.\, P(x) \equiv \forall x.\, \lnot P(x). \]</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트</p>
+      <p>"모두가 행복하다의 부정"은 "아무도 행복하지 않다"가 아니라 "행복하지 않은 사람이 적어도 한 명 있다"입니다. 일상의 직관과 정확히 맞아떨어지는 규칙이에요.</p>
+    </div>
+
+    <p>이제 진짜 흥미로운 부분으로. 양화사가 두 개 이상 붙으면 <b>순서</b>가 의미를 결정합니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 3.6.4 (양화사 순서)</p>
+      <p>논의역 \(D\)에서 술어 \(R(x,y)\)에 대해 \[ \forall x.\, \exists y.\, R(x,y) \quad \text{vs.} \quad \exists y.\, \forall x.\, R(x,y). \] 앞엣것은 "각 \(x\)마다 \(y\)를 따로 고를 수 있다"를, 뒤엣것은 "모든 \(x\)에게 통하는 단 하나의 \(y\)가 있다"를 뜻합니다.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.6.5 (정수에서)</p>
+      <p>\(R(x,y): y &gt; x\). 논의역은 \(\mathbb{Z}\).<br>
+      · \(\forall x.\, \exists y.\, y &gt; x\): 임의의 \(x\)에 대해 \(y = x+1\)로 두면 됨. <b>참</b>.<br>
+      · \(\exists y.\, \forall x.\, y &gt; x\): 모든 정수보다 큰 정수가 있어야 함 — 그런 건 없으므로 <b>거짓</b>.<br>
+      식의 변수 두 개를 그대로 두고 양화사 순서만 바꿨는데 진릿값이 정반대가 됐습니다.</p>
+    </div>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 연애 비유</p>
+      <p>학생들이 자주 드는 익살스러운 예. \(L(x,y): x\text{는 }y\text{를 사랑한다}\), 논의역은 사람 전체.<br>
+      · \(\forall x.\, \exists y.\, L(x,y)\): "모두에게 사랑하는 누군가가 있다." 사람마다 자기 짝이 따로 있어도 됩니다.<br>
+      · \(\exists y.\, \forall x.\, L(x,y)\): "모두가 사랑하는 단 한 사람이 있다." 이건 슈퍼스타급 인물이 필요한 훨씬 센 주장이에요.<br>
+      두 번째가 첫 번째를 함의합니다 (\(\exists \forall \to \forall \exists\)). 그러나 그 역은 일반적으로 거짓 — 우리 일상이 정확히 그렇죠.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 3.6.6 (해석학에서 자주 보는 것)</p>
+      <p>함수 \(f\)의 연속성과 균등 연속성의 차이도 양화사 순서로 갈립니다. 직관적으로:<br>
+      · 연속: \(\forall x.\, \forall \varepsilon &gt; 0.\, \exists \delta &gt; 0.\, \cdots\) — \(\delta\)가 \(x\)에 따라 달라도 됨.<br>
+      · 균등 연속: \(\forall \varepsilon &gt; 0.\, \exists \delta &gt; 0.\, \forall x.\, \cdots\) — 한 \(\delta\)가 모든 \(x\)에 통해야 함.<br>
+      "\(\forall \exists\)"가 "\(\exists \forall\)"가 되는 순간 조건이 훨씬 강해집니다.</p>
+    </div>
+
+    <p>술어식까지 갖추면 우리는 이 책 뒷부분에서 만날 거의 모든 수학적 진술을 정밀하게 적을 수 있습니다. "모든 자연수 \(n\)에 대해 어떤 소수 \(p\)가 있어 \(p &gt; n\)이다"라는 진술은 그대로 \(\forall n \in \mathbb{N}.\, \exists p \in \mathrm{Prime}.\, p &gt; n\)이고, 이걸 증명하면 소수가 무한히 많다는 정리가 됩니다 (유클리드, 곧 4장에서).</p>
+
+    <div class="callout note">
+      <p class="callout-label">정리하며</p>
+      <p>이번 챕터에서 우리는 명제논리의 다섯 연산자, 진리표로 동치 검증, 드모르간·분배·흡수 같은 변형 법칙, 정규형(CNF/DNF), 그리고 양화사까지 챙겼습니다. 이 도구들은 이 책의 나머지 모든 챕터에서 — 귀납 증명에서, 그래프 정리에서, 알고리즘 분석에서 — 같이 다닙니다. if 문을 다시 볼 때마다 "여긴 \(P \land Q\)였지" 하고 한번 떠올려 보세요. 그 작은 습관이 이산수학을 익히는 가장 빠른 길입니다.</p>
+    </div>
+  </section>
+</article>

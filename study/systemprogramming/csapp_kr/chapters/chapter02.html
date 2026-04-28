@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제2장 · 정보의 표현과 처리 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제2장 · 정보의 표현과 처리</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="../index.html">목차</a>
+    <a href="chapter01.html">← 이전</a>
+    <a href="chapter03.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제2장 · 정보의 표현과 처리</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-2-1">2.1 정보 저장</a></li>
+      <li class="sub-li"><a href="#sec-2-1-1">2.1.1 16진수 표기법</a></li>
+      <li class="sub-li"><a href="#sec-2-1-2">2.1.2 데이터 크기</a></li>
+      <li class="sub-li"><a href="#sec-2-1-3">2.1.3 주소 지정과 바이트 순서</a></li>
+      <li class="sub-li"><a href="#sec-2-1-4">2.1.4 문자열 표현</a></li>
+      <li class="sub-li"><a href="#sec-2-1-5">2.1.5 코드 표현</a></li>
+      <li class="sub-li"><a href="#sec-2-1-6">2.1.6 부울 대수 입문</a></li>
+      <li class="sub-li"><a href="#sec-2-1-7">2.1.7 C의 비트 수준 연산</a></li>
+      <li class="sub-li"><a href="#sec-2-1-8">2.1.8 C의 논리 연산</a></li>
+      <li class="sub-li"><a href="#sec-2-1-9">2.1.9 C의 시프트 연산</a></li>
+      <li><a href="#sec-2-2">2.2 정수 표현</a></li>
+      <li class="sub-li"><a href="#sec-2-2-1">2.2.1 정수 데이터 타입</a></li>
+      <li class="sub-li"><a href="#sec-2-2-2">2.2.2 부호 없는 인코딩</a></li>
+      <li class="sub-li"><a href="#sec-2-2-3">2.2.3 2의 보수 인코딩</a></li>
+      <li class="sub-li"><a href="#sec-2-2-4">2.2.4 부호 있음/없음 변환</a></li>
+      <li class="sub-li"><a href="#sec-2-2-5">2.2.5 C에서의 부호 있음 vs 없음</a></li>
+      <li class="sub-li"><a href="#sec-2-2-6">2.2.6 비트 표현 확장</a></li>
+      <li class="sub-li"><a href="#sec-2-2-7">2.2.7 숫자 절단</a></li>
+      <li class="sub-li"><a href="#sec-2-2-8">2.2.8 부호 있음/없음에 대한 조언</a></li>
+      <li><a href="#sec-2-3">2.3 정수 산술</a></li>
+      <li class="sub-li"><a href="#sec-2-3-1">2.3.1 부호 없는 덧셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-2">2.3.2 2의 보수 덧셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-3">2.3.3 2의 보수 부정</a></li>
+      <li class="sub-li"><a href="#sec-2-3-4">2.3.4 부호 없는 곱셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-5">2.3.5 2의 보수 곱셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-6">2.3.6 상수 곱셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-7">2.3.7 2의 거듭제곱으로 나눗셈</a></li>
+      <li class="sub-li"><a href="#sec-2-3-8">2.3.8 정수 산술 마무리</a></li>
+      <li><a href="#sec-2-4">2.4 부동소수점</a></li>
+      <li class="sub-li"><a href="#sec-2-4-1">2.4.1 분수 이진수</a></li>
+      <li class="sub-li"><a href="#sec-2-4-2">2.4.2 IEEE 754 표현</a></li>
+      <li class="sub-li"><a href="#sec-2-4-3">2.4.3 예제 숫자</a></li>
+      <li class="sub-li"><a href="#sec-2-4-4">2.4.4 반올림</a></li>
+      <li class="sub-li"><a href="#sec-2-4-5">2.4.5 부동소수점 연산</a></li>
+      <li class="sub-li"><a href="#sec-2-4-6">2.4.6 C에서의 부동소수점</a></li>
+      <li><a href="#sec-2-5">2.5 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 02</span>
+      <h1>정보의 표현과 처리</h1>
+      <div class="en">Representing and Manipulating Information</div>
+      <p class="blurb">컴퓨터는 결국 0과 1만 다룰 줄 안다. 그런데 우리는 이걸로 정수도, 음수도, 분수도, 심지어 한글 자모와 이모지까지 표현한다. 이번 장은 그 마법의 비밀이자, 동시에 마법이 깨지는 순간(<code>x*y/x</code>가 <code>y</code>와 다르거나, <code>0.1 + 0.2</code>가 <code>0.3</code>이 아닌 그 짜증나는 순간)에 대한 이야기다. 한 번 제대로 이해해두면, 나중에 정체불명의 오버플로 버그나 부동소수점 비교 버그를 만나도 겁먹지 않게 된다.</p>
+    </header>
+
+    <article class="section" id="sec-2-1">
+      <h2><span class="anchor-num">2.1</span>정보 저장</h2>
+      <p>현대 컴퓨터의 메모리는 비트(bit) 한 알갱이 단위로 다루는 게 아니다. 메모리는 8비트짜리 묶음인 바이트(byte) 단위로 주소가 매겨져 있고, 각 바이트마다 고유한 번지(주소, address)를 가진다. 프로그램이 보는 메모리는 이 바이트들이 줄지어 늘어선 거대한 한 줄짜리 배열, 즉 가상 메모리(virtual memory) 공간이다. 운영체제는 이 가상 주소를 실제 물리 메모리 주소로 매핑해주는데, 자세한 건 9장 영역이고, 지금은 "프로그램이 보기에 메모리는 그냥 큰 바이트 배열"이라고 받아들이면 충분하다.</p>
+      <p>흥미로운 건 한 비트만 봐서는 그것이 문자의 일부인지, 정수의 일부인지, 함수 주소의 일부인지 알 수가 없다는 점이다. 비트 자체에는 의미가 없고, 우리가 그 비트를 어떻게 해석하느냐에 따라 의미가 부여된다. 같은 4바이트가 어떨 때는 정수 <code>3,735,928,559</code>이고, 어떨 때는 부동소수점 어떤 값이며, 또 어떨 때는 메모리의 한 주소다. 컴퓨터 입장에서 비트는 그냥 비트일 뿐이다.</p>
+
+      <h3 id="sec-2-1-1"><span class="anchor-num">2.1.1</span>16진수 표기법</h3>
+      <p>1바이트 = 8비트는 <code>00000000</code>부터 <code>11111111</code>까지 256가지 패턴이다. 사람이 읽기엔 이진수가 너무 길고, 십진수는 비트 경계가 안 보여 불편하다. 그래서 등장하는 게 16진수(hexadecimal)다. 4비트가 정확히 한 자리에 대응하니, 비트 패턴을 4개씩 끊어 한 글자로 표시하면 끝.</p>
+      <table>
+        <thead><tr><th>10진수</th><th>2진수</th><th>16진수</th><th>10진수</th><th>2진수</th><th>16진수</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>0000</td><td>0</td><td>8</td><td>1000</td><td>8</td></tr>
+          <tr><td>1</td><td>0001</td><td>1</td><td>9</td><td>1001</td><td>9</td></tr>
+          <tr><td>2</td><td>0010</td><td>2</td><td>10</td><td>1010</td><td>A</td></tr>
+          <tr><td>3</td><td>0011</td><td>3</td><td>11</td><td>1011</td><td>B</td></tr>
+          <tr><td>4</td><td>0100</td><td>4</td><td>12</td><td>1100</td><td>C</td></tr>
+          <tr><td>5</td><td>0101</td><td>5</td><td>13</td><td>1101</td><td>D</td></tr>
+          <tr><td>6</td><td>0110</td><td>6</td><td>14</td><td>1110</td><td>E</td></tr>
+          <tr><td>7</td><td>0111</td><td>7</td><td>15</td><td>1111</td><td>F</td></tr>
+        </tbody>
+      </table>
+      <p>C에서는 <code>0x</code> 또는 <code>0X</code> 접두사로 16진수를 표기한다. <code>0xFA1D37B</code>처럼 대소문자를 섞어도 되지만, 보통 한 스타일로 통일한다. 16진수와 2진수 사이는 4비트씩 끊어 즉시 변환할 수 있어 편리하다. 예를 들어 <code>0xA3F</code>은 <code>1010 0011 1111</code>이다. 반대로 <code>1101 0111 0010</code>은 <code>0xD72</code>다. 16진수 ↔ 10진수 변환은 한 번씩 손으로 해보는 게 가장 빨리 익숙해진다.</p>
+      <div class="callout tip"><span class="label">꿀팁</span><p>2의 거듭제곱은 16진수로 외워두면 디버깅이 즐거워진다. <code>2<sup>10</sup> = 0x400</code>(1KB), <code>2<sup>20</sup> = 0x100000</code>(1MB), <code>2<sup>30</sup> = 0x40000000</code>(1GB). 메모리 매핑 주소가 어디 즈음인지 감이 바로 온다.</p></div>
+
+      <h3 id="sec-2-1-2"><span class="anchor-num">2.1.2</span>데이터 크기</h3>
+      <p>컴퓨터에는 그 기계의 "기본 정수 단위"라 할 만한 워드 크기(word size)가 있다. 32비트 머신은 워드가 4바이트, 64비트 머신은 8바이트다. 워드 크기는 가상 주소의 폭을 결정한다. 32비트 주소 공간은 최대 4GB(<code>2<sup>32</sup></code>바이트), 64비트는 사실상 무한에 가깝다(<code>2<sup>64</sup></code>은 1600만 TB쯤 된다). 요즘 PC가 8GB, 16GB 메모리를 달고 있는데도 32비트 시절을 그리워하지 않는 이유다.</p>
+      <p>C 표준은 정수 타입의 정확한 크기를 보장하지 않고 "최소" 크기만 정한다. 그래서 <code>int</code>가 어떤 시스템에서는 2바이트, 어떤 시스템에서는 4바이트일 수 있다. 이식성 있는 코드를 짜려면 <code>&lt;stdint.h&gt;</code>의 <code>int32_t</code>, <code>uint64_t</code> 같은 정확한 크기 타입을 쓰자.</p>
+      <table>
+        <thead><tr><th>C 타입</th><th>32비트</th><th>64비트</th><th>고정 크기 별칭</th></tr></thead>
+        <tbody>
+          <tr><td><code>char</code></td><td>1</td><td>1</td><td><code>int8_t</code></td></tr>
+          <tr><td><code>short</code></td><td>2</td><td>2</td><td><code>int16_t</code></td></tr>
+          <tr><td><code>int</code></td><td>4</td><td>4</td><td><code>int32_t</code></td></tr>
+          <tr><td><code>long</code></td><td>4</td><td>8</td><td>(시스템마다 다름)</td></tr>
+          <tr><td><code>long long</code></td><td>8</td><td>8</td><td><code>int64_t</code></td></tr>
+          <tr><td><code>void *</code></td><td>4</td><td>8</td><td><code>uintptr_t</code></td></tr>
+          <tr><td><code>float</code></td><td>4</td><td>4</td><td>—</td></tr>
+          <tr><td><code>double</code></td><td>8</td><td>8</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><span class="label">주의</span><p>리눅스 64비트에서 <code>long</code>은 8바이트지만, 윈도우 64비트(LLP64)에서는 <code>long</code>이 여전히 4바이트다. 같은 코드가 다른 OS에서 다른 결과를 낼 수 있다는 뜻. 멀티플랫폼이 목표라면 <code>long</code>을 쓰지 말고 <code>int64_t</code>를 명시하자.</p></div>
+
+      <h3 id="sec-2-1-3"><span class="anchor-num">2.1.3</span>주소 지정과 바이트 순서 (엔디언)</h3>
+      <p>여러 바이트로 구성된 값(예: 4바이트 정수)은 메모리에 어떤 순서로 깔릴까? 두 가지 관습이 있다.</p>
+      <ul>
+        <li><strong>빅 엔디언(big-endian)</strong>: 가장 의미가 큰 바이트(MSB)를 가장 낮은 주소에 둔다. 사람이 숫자를 적는 순서와 동일하다.</li>
+        <li><strong>리틀 엔디언(little-endian)</strong>: 가장 의미가 작은 바이트(LSB)를 가장 낮은 주소에 둔다. 직관에 어긋나지만, 하드웨어 설계상 이점이 있다.</li>
+      </ul>
+      <p>32비트 정수 <code>0x01234567</code>이 주소 <code>0x100</code>부터 저장되었다고 하자.</p>
+      <table>
+        <thead><tr><th>주소</th><th>0x100</th><th>0x101</th><th>0x102</th><th>0x103</th></tr></thead>
+        <tbody>
+          <tr><td>빅 엔디언</td><td><code>01</code></td><td><code>23</code></td><td><code>45</code></td><td><code>67</code></td></tr>
+          <tr><td>리틀 엔디언</td><td><code>67</code></td><td><code>45</code></td><td><code>23</code></td><td><code>01</code></td></tr>
+        </tbody>
+      </table>
+      <p>대부분의 데스크톱과 노트북이 쓰는 x86, x86-64 계열은 리틀 엔디언이다. ARM은 양쪽 다 지원하지만 보통 리틀 엔디언으로 동작한다. 네트워크 프로토콜(TCP/IP)은 빅 엔디언으로 약속되어 있어 "네트워크 바이트 순서(network byte order)"라고도 부른다. 그래서 <code>htons</code>, <code>ntohl</code> 같은 변환 함수가 존재한다.</p>
+      <p>엔디언이 문제 되는 순간은 (1) 다른 머신과 이진 데이터를 주고받을 때, (2) 정수의 바이트 단위 표현을 직접 들여다볼 때다. 같은 머신 안에서만 놀면 엔디언은 사실상 보이지 않는다.</p>
+      <pre><code>#include &lt;stdio.h&gt;
+// 임의 객체의 바이트들을 한 줄로 출력하는 함수
+void show_bytes(unsigned char *start, size_t len) {
+    for (size_t i = 0; i &lt; len; i++)
+        printf(" %.2x", start[i]);
+    printf("\n");
+}
+int main(void) {
+    int x = 0x01234567;
+    show_bytes((unsigned char *)&amp;x, sizeof(int));
+    // x86-64 리눅스에서 출력: 67 45 23 01  (리틀 엔디언)
+    return 0;
+}</code></pre>
+      <div class="callout note"><span class="label">메모</span><p>"엔디언"이라는 이름은 조나단 스위프트의 <em>걸리버 여행기</em>에서 따왔다. 삶은 달걀을 큰 쪽부터 깨야 하느냐 작은 쪽부터 깨야 하느냐로 전쟁까지 벌이는 풍자였는데, 컴퓨터 세계에서도 이 논쟁은 본질적으로 비슷한 수준의 종교 전쟁이다. 어느 쪽이든 일관성만 있으면 된다.</p></div>
+
+      <h3 id="sec-2-1-4"><span class="anchor-num">2.1.4</span>문자열 표현</h3>
+      <p>C 문자열은 끝에 널 문자(<code>'\0'</code>, 즉 0x00)가 붙은 바이트 배열이다. 문자 자체는 ASCII로 인코딩한다. 알파벳 'A'는 0x41, 'a'는 0x61, '0'은 0x30이다. <code>"Hello"</code>를 메모리에 펼치면 <code>48 65 6C 6C 6F 00</code>이 된다.</p>
+      <p>ASCII는 영어권만 챙겨주는 7비트 인코딩이라 한글, 한자, 이모지를 표현 못 한다. 그래서 등장한 게 유니코드(Unicode)이고, 이를 바이트로 인코딩하는 방식 중 가장 널리 쓰이는 게 UTF-8이다. UTF-8은 ASCII와 호환되며, 한글 한 글자는 보통 3바이트, 이모지는 4바이트로 인코딩한다. 흥미로운 사실: ASCII 문자만으로 된 텍스트는 UTF-8과 ASCII의 바이트 표현이 완전히 똑같다. 그래서 옛날 코드도 그대로 동작한다.</p>
+      <p>여기서 좋은 점이 하나 있다. 문자열 자체는 바이트 단위로만 다루기 때문에 엔디언 문제가 발생하지 않는다. ASCII 문자열은 어떤 머신에서 출력해도 같은 모양이다.</p>
+
+      <h3 id="sec-2-1-5"><span class="anchor-num">2.1.5</span>코드 표현</h3>
+      <p>같은 C 소스 코드도 컴파일하면 머신마다 다른 기계어가 나온다. x86-64 리눅스에서 컴파일한 바이너리는 ARM 맥에서 직접 실행할 수 없다. 명령어 인코딩, 함수 호출 규약, 시스템 콜 번호 등이 모조리 다르기 때문이다. 그래서 "이식성"이라는 단어는 보통 소스 수준에서의 호환성을 의미한다.</p>
+      <p>요점: 비트 자체에는 의미가 없다. 그 비트를 들여다보는 프로그램(혹은 CPU)이 어떻게 해석하느냐가 모든 것을 결정한다.</p>
+
+      <h3 id="sec-2-1-6"><span class="anchor-num">2.1.6</span>부울 대수 입문</h3>
+      <p>부울 대수(Boolean algebra)는 19세기 영국 수학자 조지 부울이 만든 0과 1만 다루는 산술이다. 연산자는 4개:</p>
+      <ul>
+        <li>NOT (¬, <code>~</code>): 0↔1 뒤집기.</li>
+        <li>AND (∧, <code>&amp;</code>): 둘 다 1이면 1, 아니면 0.</li>
+        <li>OR (∨, <code>|</code>): 하나라도 1이면 1.</li>
+        <li>XOR (⊕, <code>^</code>): 정확히 하나만 1이면 1. 같으면 0.</li>
+      </ul>
+      <p>이걸 비트 벡터(bit vector)에 자리별로 적용하면 <em>비트 수준 연산</em>이 된다. 부울 대수는 분배법칙(<code>a &amp; (b | c) == (a &amp; b) | (a &amp; c)</code>), 결합법칙, 드모르간 법칙(<code>~(a &amp; b) == ~a | ~b</code>) 등 일반 산술과 비슷하면서도 묘하게 다른 규칙들이 성립한다. XOR은 자기 역원이라는 멋진 성질이 있다: <code>a ^ b ^ b == a</code>. 이걸 이용하면 임시변수 없이 두 변수를 교환할 수도 있는데, 멋있어 보이지만 실제로는 안 쓴다(가독성도 떨어지고, 컴파일러가 더 빠른 코드를 만든다).</p>
+
+      <h3 id="sec-2-1-7"><span class="anchor-num">2.1.7</span>C의 비트 수준 연산</h3>
+      <p>C는 부울 연산을 정수에 그대로 적용한다. 자료형이 무엇이든(<code>char</code>, <code>int</code>, <code>long</code>) 비트 단위로 작동한다. 가장 일상적인 패턴 몇 가지를 보자.</p>
+      <pre><code>// 비트 마스킹: 하위 8비트만 남기기
+unsigned x = 0xABCD1234;
+unsigned low = x &amp; 0xFF;        // 0x00000034
+
+// 특정 비트만 1로 켜기 (set)
+x = x | (1u &lt;&lt; 5);              // 5번 비트를 1로
+
+// 특정 비트만 0으로 끄기 (clear)
+x = x &amp; ~(1u &lt;&lt; 5);             // 5번 비트를 0으로
+
+// 특정 비트만 토글 (flip)
+x = x ^ (1u &lt;&lt; 5);              // 5번 비트 0↔1
+
+// 특정 비트가 1인지 검사
+if (x &amp; (1u &lt;&lt; 5)) { /* 켜져 있음 */ }
+
+// 비트 추출: 8~15번 비트만 뽑기
+unsigned mid = (x &gt;&gt; 8) &amp; 0xFF;</code></pre>
+      <p>이런 비트 트릭은 임베디드 펌웨어, 네트워크 프로토콜 헤더 파싱, 권한 플래그(rwx) 처리, 컬러 픽셀 분해(RGBA) 등 곳곳에서 쓰인다. 이 패턴들이 손에 익으면 코드를 읽다가 "아, 여기서 권한 플래그 검사하는구나"라고 한눈에 보인다.</p>
+
+      <h3 id="sec-2-1-8"><span class="anchor-num">2.1.8</span>C의 논리 연산</h3>
+      <p>C에서 비트 연산자(<code>&amp;</code>, <code>|</code>, <code>~</code>)와 논리 연산자(<code>&amp;&amp;</code>, <code>||</code>, <code>!</code>)는 별개다. 논리 연산자는 0이면 거짓, 0이 아니면 참으로 보고, 결과는 항상 0이나 1이다. 또 단축 평가(short-circuit evaluation)를 한다.</p>
+      <pre><code>// 비트 vs 논리 비교
+int a = 0x12, b = 0x34;
+int v1 = a &amp; b;     // 0x10 (비트 단위 AND)
+int v2 = a &amp;&amp; b;    // 1     (둘 다 0이 아니므로 참)
+
+// 단축 평가: ptr이 NULL이면 *ptr 평가 안 함
+if (ptr != NULL &amp;&amp; *ptr &gt; 0) { ... }
+
+// 위를 잘못 적으면 NULL 역참조 크래시
+// if (*ptr &gt; 0 &amp;&amp; ptr != NULL) { ... }  // 위험!</code></pre>
+      <div class="callout warn"><span class="label">함정</span><p>가장 흔한 실수: <code>if (x &amp; 1)</code>를 쓸 자리에 <code>if (x &amp;&amp; 1)</code>를 쓴다. <code>x &amp;&amp; 1</code>은 <code>x != 0 ? 1 : 0</code>이라 짝수/홀수 판별이 안 된다. 컴파일러는 경고도 잘 안 띄운다.</p></div>
+
+      <h3 id="sec-2-1-9"><span class="anchor-num">2.1.9</span>C의 시프트 연산</h3>
+      <p>왼쪽 시프트 <code>x &lt;&lt; k</code>는 비트들을 왼쪽으로 k칸 밀고, 빈 오른쪽은 0으로 채운다. 결과적으로 2<sup>k</sup>를 곱한 효과(오버플로 무시).</p>
+      <p>오른쪽 시프트는 두 종류다.</p>
+      <ul>
+        <li><strong>논리 시프트(logical right shift)</strong>: 빈 왼쪽 자리를 0으로 채운다. <code>unsigned</code> 타입에서는 항상 이 동작.</li>
+        <li><strong>산술 시프트(arithmetic right shift)</strong>: 빈 왼쪽 자리를 부호 비트로 채운다. 음수는 음수로 유지된다. <code>signed</code> 타입에서는 거의 항상 이 동작(C 표준상 구현 정의지만 거의 모든 컴파일러가 그렇다).</li>
+      </ul>
+      <pre><code>unsigned u = 0xF0000000;
+int     s  = 0xF0000000;        // 음수로 해석됨
+
+u &gt;&gt; 4;   // 0x0F000000  (논리: 0으로 채움)
+s &gt;&gt; 4;   // 0xFF000000  (산술: 1로 채움, 음수 유지)</code></pre>
+      <div class="callout danger"><span class="label">함정</span><p>시프트 양 <code>k</code>가 워드 크기보다 크거나 같으면 동작이 정의되지 않는다(undefined behavior). 32비트 정수에서 <code>x &lt;&lt; 32</code>는 0이 될 거라고 기대하면 안 된다. 어떤 컴파일러는 0을, 어떤 컴파일러는 <code>x</code> 그대로를 반환한다. 이런 코드는 그냥 쓰지 말자.</p></div>
+      <div class="problem"><span class="tag">연습 2.1</span><p>32비트 정수 <code>x</code>의 7번 바이트(0번이 가장 낮은 바이트)만 0xFF로 바꾸고 나머지는 그대로 두는 식을 작성하라. (<em>힌트: 마스크 한 번, OR 한 번</em>)<br><br>풀이: <code>(x &amp; ~(0xFFu &lt;&lt; 24)) | (0xFFu &lt;&lt; 24)</code>. 더 간단히 <code>x | (0xFFu &lt;&lt; 24)</code>로도 7번 바이트를 모두 1로 만들 수 있다(이미 1인 비트는 영향 없음).</p></div>
+    </article>
+
+    <article class="section" id="sec-2-2">
+      <h2><span class="anchor-num">2.2</span>정수 표현</h2>
+      <p>정수를 비트로 표현하는 방식은 크게 두 가지: 음수 없는 부호 없는(unsigned) 표현과, 음수까지 다루는 2의 보수(two's complement) 표현이다. 후자가 거의 모든 현대 CPU의 표준이다.</p>
+
+      <h3 id="sec-2-2-1"><span class="anchor-num">2.2.1</span>정수 데이터 타입</h3>
+      <p>C는 같은 비트 폭에 대해 부호 있음(<code>signed</code>)과 부호 없음(<code>unsigned</code>) 두 종류를 제공한다. <code>signed int</code>의 최댓값은 보통 <code>2,147,483,647</code>이고, 같은 비트로 <code>unsigned int</code>를 만들면 <code>4,294,967,295</code>까지 표현된다. 후자는 음수를 포기한 대신 양수 범위가 두 배다.</p>
+      <table>
+        <thead><tr><th>타입</th><th>최솟값</th><th>최댓값</th></tr></thead>
+        <tbody>
+          <tr><td><code>int8_t</code></td><td>-128</td><td>127</td></tr>
+          <tr><td><code>uint8_t</code></td><td>0</td><td>255</td></tr>
+          <tr><td><code>int32_t</code></td><td>-2,147,483,648</td><td>2,147,483,647</td></tr>
+          <tr><td><code>uint32_t</code></td><td>0</td><td>4,294,967,295</td></tr>
+          <tr><td><code>int64_t</code></td><td>약 -9.2 × 10<sup>18</sup></td><td>약 9.2 × 10<sup>18</sup></td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="sec-2-2-2"><span class="anchor-num">2.2.2</span>부호 없는 인코딩</h3>
+      <p>w비트 부호 없는 정수의 값은 자릿값에 따른 단순 합이다.</p>
+      <p style="text-align:center;font-family:var(--font-mono);"><em>B2U</em>(x) = x<sub>w-1</sub>·2<sup>w-1</sup> + x<sub>w-2</sub>·2<sup>w-2</sup> + … + x<sub>1</sub>·2 + x<sub>0</sub></p>
+      <p>표현 범위는 <code>0</code>부터 <code>2<sup>w</sup> − 1</code>까지. 이 인코딩의 큰 장점은 비트 표현과 값 사이가 일대일 대응이라는 것. 비트가 다르면 값이 다르고, 비트가 같으면 값이 같다.</p>
+
+      <h3 id="sec-2-2-3"><span class="anchor-num">2.2.3</span>2의 보수 인코딩</h3>
+      <p>음수를 표현하는 가장 자연스러운 방법은 "최상위 비트(MSB)를 음수 가중치로 해석"하는 것이다.</p>
+      <p style="text-align:center;font-family:var(--font-mono);"><em>B2T</em>(x) = −x<sub>w-1</sub>·2<sup>w-1</sup> + x<sub>w-2</sub>·2<sup>w-2</sup> + … + x<sub>0</sub></p>
+      <p>w비트 2의 보수의 표현 범위는 <code>−2<sup>w-1</sup></code>부터 <code>2<sup>w-1</sup> − 1</code>까지. 음수 쪽이 한 개 더 많다는 점이 비대칭의 묘미다. 예: 8비트라면 <code>−128</code>부터 <code>+127</code>까지. <code>−128</code>의 비트 패턴은 <code>1000 0000</code>인데, 그 부호를 뒤집어도(<code>~x + 1</code>) 다시 <code>1000 0000</code>이 나온다. <code>+128</code>은 8비트 2의 보수로 표현 불가능하다.</p>
+      <table>
+        <thead><tr><th>4비트 비트 패턴</th><th>부호 없는 값</th><th>2의 보수 값</th></tr></thead>
+        <tbody>
+          <tr><td><code>0000</code></td><td>0</td><td>0</td></tr>
+          <tr><td><code>0001</code></td><td>1</td><td>1</td></tr>
+          <tr><td><code>0111</code></td><td>7</td><td>7</td></tr>
+          <tr><td><code>1000</code></td><td>8</td><td>−8</td></tr>
+          <tr><td><code>1001</code></td><td>9</td><td>−7</td></tr>
+          <tr><td><code>1110</code></td><td>14</td><td>−2</td></tr>
+          <tr><td><code>1111</code></td><td>15</td><td>−1</td></tr>
+        </tbody>
+      </table>
+      <div class="callout note"><span class="label">메모</span><p>2의 보수가 우아한 이유: 덧셈 회로 하나로 부호 있음/없음을 모두 처리할 수 있다. <code>5 + (−3)</code>이든 <code>5u + 0xFFFFFFFD</code>이든 비트 단위 덧셈은 똑같다. 캐리(올림)를 무시하면 정답이 나온다. 하드웨어가 단순해지고, ALU 회로 면적이 줄어든다. 부호-크기 표현이나 1의 보수 표현이 도태된 핵심 이유다.</p></div>
+
+      <h3 id="sec-2-2-4"><span class="anchor-num">2.2.4</span>부호 있음/없음 변환</h3>
+      <p>같은 비트 폭의 <code>signed</code> ↔ <code>unsigned</code> 캐스팅은 <strong>비트 패턴을 바꾸지 않는다</strong>. 해석만 달라진다. 8비트 예시:</p>
+      <pre><code>int8_t  s = -1;       // 비트: 1111 1111
+uint8_t u = (uint8_t)s; // 같은 비트 1111 1111, 값은 255
+
+uint8_t v = 200;       // 비트: 1100 1000
+int8_t  t = (int8_t)v;  // 같은 비트, 2의 보수 해석 = -56</code></pre>
+      <p>변환 공식이 있긴 한데, 외울 필요는 없고 "비트는 그대로, 해석만 바뀐다"라는 직관 하나면 충분하다. 단, 비트 폭이 다른 변환(예: <code>int</code>를 <code>long</code>으로)은 별개 이야기로 2.2.6에서 다룬다.</p>
+
+      <h3 id="sec-2-2-5"><span class="anchor-num">2.2.5</span>C에서의 부호 있음 vs 없음</h3>
+      <p>C의 정수 리터럴은 기본적으로 부호 있음이다. <code>12345</code>는 <code>int</code>, 접미사 <code>U</code>를 붙이면(<code>12345U</code>) <code>unsigned int</code>가 된다. 식 안에서 부호 있는 값과 부호 없는 값이 만나면 부호 없는 쪽으로 자동 변환된다. 이게 종종 무시무시한 버그를 일으킨다.</p>
+      <pre><code>int      a = -1;
+unsigned b = 1;
+
+if (a &lt; b)
+    printf("a가 작다\n");      // 직관적 기대
+else
+    printf("a가 크거나 같다\n"); // 실제 출력!
+
+// 이유: a가 unsigned로 승격되어 0xFFFFFFFF (= 4,294,967,295)이 됨.
+//       그게 1보다 크니 else 가지를 탄다.</code></pre>
+      <div class="callout danger"><span class="label">함정</span><p>가장 악명 높은 패턴: <code>for (int i = n - 1; i &gt;= 0; i--)</code>를 무심코 <code>size_t i = n - 1; i &gt;= 0; i--</code>로 바꾸면 무한 루프. <code>size_t</code>는 부호 없음이라 절대 음수가 안 된다. 0에서 1을 빼면 <code>SIZE_MAX</code>가 되며 루프가 영원히 돈다.</p></div>
+
+      <h3 id="sec-2-2-6"><span class="anchor-num">2.2.6</span>비트 표현 확장</h3>
+      <p>좁은 타입을 넓은 타입으로 변환할 때, 부호 없음이라면 <strong>제로 확장(zero extension)</strong>으로 위쪽을 0으로 채운다. 부호 있음이라면 <strong>부호 확장(sign extension)</strong>으로 위쪽을 부호 비트(MSB)로 채운다. 이래야 값이 보존된다.</p>
+      <pre><code>int8_t  a = -1;        // 1111 1111
+int16_t b = a;          // 1111 1111 1111 1111 (= -1)  부호 확장
+
+uint8_t  u = 0xFF;     // 1111 1111
+uint16_t v = u;         // 0000 0000 1111 1111 (= 255) 제로 확장</code></pre>
+      <p>왜 부호 확장이 값을 보존할까? 직관적으로, w비트 2의 보수에서 MSB의 가중치 <code>−2<sup>w-1</sup></code>이 (w+1)비트로 확장되면 새 MSB의 가중치 <code>−2<sup>w</sup></code> 와 옛 MSB 위치의 양수 가중치 <code>2<sup>w-1</sup></code>의 합이 되어, 둘 다 1이면 결과적으로 원래 값과 같다. 식으로 풀어보면 깔끔하게 떨어진다.</p>
+
+      <h3 id="sec-2-2-7"><span class="anchor-num">2.2.7</span>숫자 절단</h3>
+      <p>넓은 타입을 좁은 타입으로 변환하면, 위쪽 비트는 그냥 <strong>잘려나간다(truncation)</strong>. 부호 없음이라면 결과는 원래 값을 <code>2<sup>w'</sup></code>로 나눈 나머지다. 부호 있음이라면 비트 절단 후 다시 2의 보수로 해석한다.</p>
+      <pre><code>int     x = 53191;          // 0000 ... 1100 1111 1100 0111
+short   y = (short)x;        // 1100 1111 1100 0111 = -12345 !
+
+// "분명 양수였는데 음수가 됐다"는 전형적인 절단 버그.</code></pre>
+      <p>32비트 양의 정수 <code>53,191</code>이 <code>short</code> (16비트)로 절단되면서 MSB가 1이 되어 음수로 해석됐다. 이게 실전에서 데이터 손상의 큰 원천이다.</p>
+
+      <h3 id="sec-2-2-8"><span class="anchor-num">2.2.8</span>부호 있음/없음에 대한 조언</h3>
+      <p>부호 없는 정수는 카운트나 크기처럼 음수가 의미 없는 값에만 쓰자. 그것 외에는 기본을 <code>signed</code>로 두는 게 안전하다. 비교에서 묘한 자동 변환이 일어나기 때문이다.</p>
+      <div class="callout tip"><span class="label">꿀팁</span><p>인덱스로 <code>size_t</code>를 쓸 때 역순 루프가 필요하면, 값이 0에 닿기 전에 종료 조건을 점검하자: <code>for (size_t i = n; i &gt; 0; i--) { auto idx = i - 1; ... }</code>. 또는 그냥 <code>ptrdiff_t</code>(부호 있는 인덱스 타입)를 쓰는 것도 방법.</p></div>
+    </article>
+
+    <article class="section" id="sec-2-3">
+      <h2><span class="anchor-num">2.3</span>정수 산술</h2>
+      <p>여기부터가 핵심이다. CPU의 ALU는 비트를 더하고 곱할 뿐인데, 우리는 그것이 부호 있음/없음 모두에서 "수학적으로 옳은 산술"을 한다고 믿는다. 그 믿음이 깨지는 경계가 바로 오버플로다.</p>
+
+      <h3 id="sec-2-3-1"><span class="anchor-num">2.3.1</span>부호 없는 덧셈</h3>
+      <p>w비트 부호 없는 정수 두 개를 더하면 결과는 최대 w+1비트가 된다. 위로 넘친 1비트(캐리)를 버리면, 결과는 <code>(x + y) mod 2<sup>w</sup></code>다. 즉 모듈러 산술이다.</p>
+      <pre><code>uint32_t a = 0xFFFFFFFFu;   // 2^32 - 1
+uint32_t b = 1u;
+uint32_t c = a + b;          // 결과는 0  (오버플로)
+
+// 오버플로 검출: 합이 두 피연산자 중 어느 하나보다 작아졌다면 오버플로.
+int overflow = (c &lt; a);      // 1</code></pre>
+      <p>부호 없는 덧셈에서 오버플로는 "결과가 피연산자보다 작아진다"는 단순한 규칙으로 잡을 수 있다.</p>
+
+      <h3 id="sec-2-3-2"><span class="anchor-num">2.3.2</span>2의 보수 덧셈</h3>
+      <p>비트 단위 덧셈 자체는 부호 없음과 똑같다. 다만 결과를 어떻게 해석하느냐에 따라 오버플로 조건이 달라진다.</p>
+      <ul>
+        <li><strong>양수 오버플로</strong>: 두 양수를 더했는데 결과가 음수로 나오면 오버플로.</li>
+        <li><strong>음수 오버플로</strong>: 두 음수를 더했는데 결과가 양수로 나오면 오버플로.</li>
+        <li>부호가 다른 두 수의 합은 절대 오버플로하지 않는다.</li>
+      </ul>
+      <pre><code>int32_t a = 2000000000;
+int32_t b = 1000000000;
+int32_t c = a + b;          // 약 30억은 INT_MAX(약 21억) 초과
+// c는 음수로 나온다. 양수 오버플로!
+
+// 안전 검사
+int overflow_pos = (a &gt; 0 &amp;&amp; b &gt; 0 &amp;&amp; c &lt; 0);
+int overflow_neg = (a &lt; 0 &amp;&amp; b &lt; 0 &amp;&amp; c &gt;= 0);</code></pre>
+      <div class="callout danger"><span class="label">함정</span><p>부호 있는 정수 오버플로는 C 표준상 <strong>정의되지 않은 동작(UB)</strong>이다. <code>x + 1 &gt; x</code>는 항상 참이라 가정하고 컴파일러가 최적화해버릴 수 있다. 그래서 <code>if (x + y &lt; x)</code> 같은 검사는 부호 있는 타입에서 통하지 않는다. 검사하려면 <code>__builtin_add_overflow</code> 같은 내장 함수를 쓰거나 부호 없는 타입으로 캐스팅하자.</p></div>
+
+      <h3 id="sec-2-3-3"><span class="anchor-num">2.3.3</span>2의 보수 부정</h3>
+      <p>음수를 만드는 방법은 두 가지가 동등하다.</p>
+      <ul>
+        <li>비트를 모두 뒤집고 1을 더한다: <code>-x == ~x + 1</code></li>
+        <li>모든 비트를 1에서 뺀 뒤 1을 더한다(같은 말).</li>
+      </ul>
+      <p>예외가 있다. 가장 작은 음수 <code>TMin</code> = <code>-2<sup>w-1</sup></code>의 부정은 자기 자신이다. 32비트라면 <code>-INT_MIN</code>이 다시 <code>INT_MIN</code>이다. 이건 표현 가능 범위 밖이라 그렇다. <code>abs(INT_MIN)</code>이 음수가 되는 충격적인 사실의 원인.</p>
+
+      <h3 id="sec-2-3-4"><span class="anchor-num">2.3.4</span>부호 없는 곱셈</h3>
+      <p>w비트 곱셈도 결과는 <code>(x · y) mod 2<sup>w</sup></code>다. 위쪽으로 잘려나간 비트는 사라진다. 그래서 큰 부호 없는 정수의 곱은 진짜 결과의 하위 w비트에 불과하다.</p>
+
+      <h3 id="sec-2-3-5"><span class="anchor-num">2.3.5</span>2의 보수 곱셈</h3>
+      <p>2의 보수 곱셈도 비트 패턴 자체는 부호 없는 곱셈과 동일하다. 다시 말해 ALU의 곱셈 회로는 하나면 충분하다. 다만 결과 해석이 달라질 뿐이다.</p>
+      <p>왜 <code>x * y / x == y</code>가 항상 참이 아닌가? 곱셈 도중 오버플로가 발생해 정보가 잘려나가면, 나눗셈으로 그 정보를 복원할 수 없기 때문이다.</p>
+      <pre><code>int x = 100000;
+int y = 100000;
+int z = x * y;     // 10,000,000,000은 INT_MAX 초과 → 오버플로
+                    // 실제 결과: 1,410,065,408 (하위 32비트)
+int w = z / x;      // 14100 — y가 아니다!</code></pre>
+
+      <h3 id="sec-2-3-6"><span class="anchor-num">2.3.6</span>상수 곱셈</h3>
+      <p>곱셈 명령은 옛날 CPU에서는 비싼 연산이었다. 그래서 컴파일러는 상수와의 곱셈을 시프트와 덧셈/뺄셈의 조합으로 바꾸는 트릭을 자주 쓴다.</p>
+      <pre><code>x * 14
+== x * (16 - 2)
+== (x &lt;&lt; 4) - (x &lt;&lt; 1)
+
+x * 17
+== x * (16 + 1)
+== (x &lt;&lt; 4) + x</code></pre>
+      <p>요즘 CPU의 곱셈기는 1~3 사이클이면 끝나니 큰 차이가 안 나지만, 컴파일러는 여전히 이런 변환을 해서 코드 크기를 줄이거나 의존성 사슬을 짧게 만든다.</p>
+
+      <h3 id="sec-2-3-7"><span class="anchor-num">2.3.7</span>2의 거듭제곱으로 나눗셈</h3>
+      <p>나눗셈은 곱셈보다 훨씬 비싸다(10~30 사이클). 다행히 2<sup>k</sup>로 나누는 건 시프트 한 번으로 끝난다. 그런데 음수에서는 함정이 있다.</p>
+      <pre><code>int x = -7;
+int y = x &gt;&gt; 1;        // 산술 시프트 → -4
+
+// C에서 정수 나눗셈은 0 방향 절삭(truncation toward zero):
+int z = -7 / 2;         // -3 (소수점 -3.5 → 0 쪽으로 -3)</code></pre>
+      <p>산술 우측 시프트는 음의 무한대 방향으로 내림(floor)을 한다. C의 정수 나눗셈은 0 방향 절삭. 이 차이 때문에 음수에서 시프트가 정확한 나눗셈이 아니다. 보정하려면 <strong>편향(bias)</strong>을 더해주는 트릭을 쓴다.</p>
+      <pre><code>// x를 2^k로 나누되 0 방향으로 절삭하고 싶다면:
+int divide_by_pow2(int x, int k) {
+    int bias = (x &lt; 0) ? ((1 &lt;&lt; k) - 1) : 0;
+    return (x + bias) &gt;&gt; k;
+}
+
+// 또는 분기 없는 버전 (부호 비트로 마스크 만들기)
+int divide_by_pow2_branchless(int x, int k) {
+    int bias = (x &gt;&gt; 31) &amp; ((1 &lt;&lt; k) - 1);
+    return (x + bias) &gt;&gt; k;
+}</code></pre>
+      <p>음수일 때 <code>2<sup>k</sup> − 1</code>을 더한 다음 시프트하면, 0 방향 절삭과 일치한다. 컴파일러가 <code>x / 8</code> 같은 코드를 보고 자동으로 이런 형태로 변환해준다(<code>-O2</code> 켜면 확인 가능).</p>
+      <div class="problem"><span class="tag">연습 2.2</span><p><code>(x + (1 &lt;&lt; k) - 1) &gt;&gt; k</code>가 음수 <code>x</code>에 대해 0 방향 절삭 나눗셈 <code>x / 2<sup>k</sup></code>와 같음을 증명하라.<br><br>풀이 스케치: <code>x = -q · 2<sup>k</sup> + r</code> 꼴로 쓰자(<code>0 ≤ r &lt; 2<sup>k</sup></code>). 0 방향 절삭은 <code>r = 0</code>이면 <code>-q</code>, 아니면 <code>-q + 1</code>이다. 한편 산술 시프트는 음의 무한대 방향 내림이라 <code>(x) &gt;&gt; k = -q</code>가 된다. <code>2<sup>k</sup> − 1</code>을 더해주면 <code>r = 0</code>일 때만 자릿수가 안 올라가고, 그 외에는 한 자리 올라가서 결과가 <code>-q + 1</code>이 된다. 이게 정확히 0 방향 절삭과 일치한다.</p></div>
+
+      <h3 id="sec-2-3-8"><span class="anchor-num">2.3.8</span>정수 산술 마무리</h3>
+      <p>비트 다발의 산술은 모듈러 대수다. 무한 정밀도를 가정한 채 코딩하면 언젠가 오버플로 한 방에 무너진다. 안전 코딩 체크리스트:</p>
+      <ul>
+        <li>외부 입력으로 들어온 크기/길이 값에 더하기 전에 오버플로를 검사하라.</li>
+        <li>부호 있음/없음 비교가 섞이지 않게 하라.</li>
+        <li>곱셈 결과는 더 넓은 타입으로 받아라(예: <code>int * int</code>가 아니라 <code>(int64_t)a * b</code>).</li>
+        <li>의심스러우면 <code>-fsanitize=undefined</code>로 빌드해서 런타임 검사를 켜라.</li>
+      </ul>
+    </article>
+
+    <article class="section" id="sec-2-4">
+      <h2><span class="anchor-num">2.4</span>부동소수점 (Floating Point)</h2>
+      <p>실수를 정확히 표현할 수는 없다. 비트 수가 유한하니, 표현 가능한 값은 유한하다. 그래서 부동소수점은 늘 근사다. 우리가 할 일은 그 근사가 어떤 규칙으로 일어나는지 이해하는 것.</p>
+
+      <h3 id="sec-2-4-1"><span class="anchor-num">2.4.1</span>분수 이진수</h3>
+      <p>10진수 <code>3.14</code>는 <code>3 + 1/10 + 4/100</code>이다. 같은 식으로 2진수 <code>101.011</code>은 <code>4 + 1 + 1/4 + 1/8</code> = <code>5.375</code>이다. 소수점 오른쪽으로 가면서 <code>1/2, 1/4, 1/8, 1/16, ...</code> 가중치가 붙는다.</p>
+      <p>중요한 사실: <strong>2의 거듭제곱의 합으로 표현되는 분수만 유한 비트로 정확히 적을 수 있다.</strong> <code>0.5</code>는 <code>0.1</code>로 OK, <code>0.75</code>는 <code>0.11</code>로 OK. 그런데 <code>0.1</code> (10진수)? 10진수 1/10은 2진수로 <code>0.0001100110011...</code> 무한 순환소수다. 정확한 표현이 불가능하다. 이게 <code>0.1 + 0.2 != 0.3</code>의 근본 원인이다.</p>
+
+      <h3 id="sec-2-4-2"><span class="anchor-num">2.4.2</span>IEEE 754 부동소수점 표현</h3>
+      <p>IEEE 754는 1985년 제정된 표준으로, 거의 모든 현대 CPU가 채택한다. 핵심 아이디어는 과학적 표기법(<em>scientific notation</em>): <code>±M × 2<sup>E</sup></code> 꼴로 적는 것이다.</p>
+      <table>
+        <thead><tr><th>형식</th><th>전체 비트</th><th>부호 (s)</th><th>지수 (exp)</th><th>유효숫자 (frac)</th><th>지수 편향(bias)</th></tr></thead>
+        <tbody>
+          <tr><td>단정밀도 <code>float</code></td><td>32</td><td>1</td><td>8</td><td>23</td><td>127</td></tr>
+          <tr><td>배정밀도 <code>double</code></td><td>64</td><td>1</td><td>11</td><td>52</td><td>1023</td></tr>
+        </tbody>
+      </table>
+      <p>비트 배치는 부호(MSB) — 지수 — 유효숫자 순. 값을 어떻게 해석하는지는 <code>exp</code> 필드에 따라 4가지 경우로 나뉜다.</p>
+      <ol>
+        <li><strong>정규화(normalized)</strong>: <code>exp</code>가 0도 아니고 전부 1도 아닐 때. 값은 <code>(−1)<sup>s</sup> × 1.frac × 2<sup>exp − bias</sup></code>. "1.frac"의 1은 묵시적이라 비트로 저장되지 않는다(공짜 1비트 정밀도). 가장 흔히 쓰이는 케이스.</li>
+        <li><strong>비정규화(denormalized)</strong>: <code>exp == 0</code>. 값은 <code>(−1)<sup>s</sup> × 0.frac × 2<sup>1 − bias</sup></code>. 0 근처의 작은 수를 표현. <code>+0</code>과 <code>−0</code>이 모두 존재한다(같다고 간주되지만 비트는 다름).</li>
+        <li><strong>무한대(±∞)</strong>: <code>exp</code>가 전부 1이고 <code>frac == 0</code>. <code>1.0 / 0.0</code>의 결과.</li>
+        <li><strong>NaN(Not-a-Number)</strong>: <code>exp</code>가 전부 1이고 <code>frac != 0</code>. <code>0.0 / 0.0</code>이나 <code>sqrt(-1)</code> 같은 의미 불명 연산의 결과. NaN은 자기 자신과도 같지 않다(<code>NaN == NaN</code>은 거짓).</li>
+      </ol>
+      <div class="callout note"><span class="label">메모</span><p>왜 지수에 편향(bias)을 더하나? 비교를 단순화하기 위해서. 부동소수점 두 수를 부호 비트 뺀 나머지를 부호 없는 정수처럼 비교해도 대소 관계가 맞아떨어지게 설계되어 있다. 정렬 인덱스에 그대로 쓸 수 있을 정도. 똑똑한 설계다.</p></div>
+
+      <h3 id="sec-2-4-3"><span class="anchor-num">2.4.3</span>예제 숫자</h3>
+      <p>구체적인 예로 6비트 짧은 부동소수점(s=1, exp=3, frac=2, bias=3)으로 표현 가능한 값을 깔아보자.</p>
+      <table>
+        <thead><tr><th>비트 패턴</th><th>의미</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td><code>0 000 00</code></td><td>+0 (비정규화)</td><td>0</td></tr>
+          <tr><td><code>0 000 01</code></td><td>최소 비정규</td><td>1/16</td></tr>
+          <tr><td><code>0 000 11</code></td><td>최대 비정규</td><td>3/16</td></tr>
+          <tr><td><code>0 001 00</code></td><td>최소 정규</td><td>4/16 = 1/4</td></tr>
+          <tr><td><code>0 011 00</code></td><td>1.0</td><td>1</td></tr>
+          <tr><td><code>0 110 11</code></td><td>최대 정규</td><td>7 × 2 = 14</td></tr>
+          <tr><td><code>0 111 00</code></td><td>+∞</td><td>∞</td></tr>
+          <tr><td><code>0 111 01</code></td><td>NaN</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <p>관찰: 0 부근에서는 비정규화 영역이 균등 간격으로 깔리고, 그 위로는 지수가 올라갈 때마다 간격이 두 배씩 벌어진다. 즉 <strong>큰 값일수록 표현 정밀도가 떨어진다</strong>. 이게 부동소수점의 핵심 본질이다.</p>
+
+      <h3 id="sec-2-4-4"><span class="anchor-num">2.4.4</span>반올림</h3>
+      <p>표현 가능한 격자 위에 정확히 떨어지지 않는 값은 반올림해야 한다. IEEE 754의 기본 모드는 <strong>짝수 자리 반올림(round-to-nearest-even)</strong>이다. 가장 가까운 표현 가능한 값으로 반올림하되, 정확히 중간이면 마지막 비트가 0인 쪽(짝수)을 선택.</p>
+      <p>왜 짝수로? 통계적 편향(bias)을 없애기 위해서. 만약 항상 위로 반올림하면 누적 합이 점점 커진다. 짝수 반올림은 위/아래로 균형 있게 흩어져 평균이 0에 수렴한다.</p>
+      <pre><code>// 10진수 예시 (소수 둘째 자리 짝수 반올림)
+1.255  →  1.26  (5 다음이 짝수가 되도록 6 선택? 아니다 — 이건 정수 자리)
+2.5   →  2  (가장 가까운 짝수)
+3.5   →  4
+4.5   →  4
+5.5   →  6</code></pre>
+
+      <h3 id="sec-2-4-5"><span class="anchor-num">2.4.5</span>부동소수점 연산</h3>
+      <p>부동소수점 덧셈/곱셈은 <strong>교환법칙은 성립하지만 결합법칙은 깨진다</strong>. 정확히 말하면, 매번 반올림이 끼어들기 때문에 연산 순서에 따라 결과가 달라질 수 있다.</p>
+      <pre><code>// 결합법칙 깨짐
+double a = 1e20, b = -1e20, c = 1.0;
+double r1 = (a + b) + c;     // 0 + 1 = 1.0
+double r2 = a + (b + c);     // 1e20 + (-1e20 + 1) ≈ 1e20 + (-1e20) = 0!
+// r1 != r2</code></pre>
+      <p>큰 값과 작은 값을 더하면 작은 값이 묻혀 사라진다. 이걸 <strong>흡수 오차(absorption)</strong>라고 한다. 비슷한 두 큰 수를 빼면 유효숫자가 한꺼번에 사라지는 <strong>상쇄 오차(catastrophic cancellation)</strong>도 자주 일어난다.</p>
+      <p>또 곱셈/나눗셈에는 분배법칙도 깨진다. <code>x * (y + z) != x*y + x*z</code>가 흔히 일어난다. 그래서 부동소수점 코드를 컴파일러가 함부로 재배치하지 못한다(<code>-ffast-math</code> 같은 위험 플래그가 있긴 하지만 권장하지 않음).</p>
+      <div class="callout warn"><span class="label">함정</span><p><code>if (a == b)</code>로 부동소수점을 직접 비교하지 말 것. 항상 허용 오차(epsilon)와 함께: <code>fabs(a - b) &lt; eps</code>. 단 <code>eps</code>는 절대 오차/상대 오차 중 무엇을 쓸지 상황에 맞게 선택. 큰 수에서는 절대 오차 <code>1e-9</code>가 사실상 무의미하다.</p></div>
+
+      <h3 id="sec-2-4-6"><span class="anchor-num">2.4.6</span>C에서의 부동소수점</h3>
+      <p>C는 <code>float</code>(32비트), <code>double</code>(64비트), <code>long double</code>(플랫폼 의존, 80~128비트)을 지원한다. 정수와 부동소수점 사이 변환에 주의할 점:</p>
+      <ul>
+        <li><code>int → float</code>: 큰 정수는 정밀도 손실 가능. <code>float</code>는 유효숫자가 24비트라 32비트 정수를 모두 정확히 못 담는다.</li>
+        <li><code>int → double</code>: 32비트 정수는 항상 정확히 변환 가능(double의 유효숫자가 53비트).</li>
+        <li><code>float/double → int</code>: 0 방향 절삭. 표현 범위를 벗어나면 결과는 정의되지 않음.</li>
+      </ul>
+      <pre><code>int   i = (1 &lt;&lt; 24) + 1;  // 16,777,217
+float f = (float)i;
+int   j = (int)f;
+// j == 16,777,216  (1 손실!)
+// 24비트가 넘는 정수부는 float에서 정확히 못 든다.</code></pre>
+      <div class="callout danger"><span class="label">함정</span><p>금융 계산은 절대 부동소수점으로 하지 말 것. <code>0.1 + 0.2 != 0.3</code> 정도의 오차도 누적되면 0.01원이 어디론가 사라지거나 생기는 회계 사고가 된다. 정수 단위(원, 센트)로 환산해 정수 산술로 처리하거나, 십진 부동소수점 라이브러리를 쓰자.</p></div>
+      <div class="problem"><span class="tag">연습 2.3</span><p><code>float</code>로 정수 <code>16777217</code>을 정확히 표현할 수 있는가? <code>double</code>은? 이유와 함께 답하라.<br><br>풀이: <code>16777217 = 2<sup>24</sup> + 1</code>. <code>float</code>의 유효숫자는 묵시적 1비트 포함 24비트라 <code>2<sup>24</sup>+1</code>은 정밀도 한 비트가 부족해 표현 불가, <code>16777216</code>이나 <code>16777218</code>로 반올림된다. <code>double</code>의 유효숫자는 53비트라 <code>2<sup>53</sup>+1</code>까지는 정확하므로 <code>16777217</code>은 문제없이 표현된다.</p></div>
+    </article>
+
+    <article class="section" id="sec-2-5">
+      <h2><span class="anchor-num">2.5</span>요약</h2>
+      <p>이번 장에서 얻은 가장 중요한 통찰은 단 한 줄로 요약된다: <strong>비트 자체는 의미가 없다. 해석이 의미를 만든다.</strong> 같은 바이트가 <code>signed int</code>인지 <code>unsigned int</code>인지 <code>float</code>인지 ASCII 문자인지에 따라 전혀 다른 값이 된다. C의 캐스팅은 그 해석을 바꾸는 행위지, 비트를 바꾸는 행위가 아니다(예외: 정수 ↔ 부동소수점은 비트 변환이 일어난다).</p>
+      <ul>
+        <li>2의 보수는 음수와 양수를 같은 덧셈 회로로 처리하는 우아한 방식. 표현 범위는 비대칭(<code>−2<sup>w-1</sup></code>~<code>+2<sup>w-1</sup>−1</code>).</li>
+        <li>정수 산술은 모듈러 산술이다. 오버플로는 항상 가능하며, 부호 있는 오버플로는 C 표준상 UB라 컴파일러가 마음대로 최적화한다.</li>
+        <li>비트 시프트는 빠르지만, 음수 우측 시프트의 반올림 동작이 0 방향 절삭과 다르다는 점을 기억하자.</li>
+        <li>부동소수점은 늘 근사다. 결합법칙·분배법칙이 깨지고, 큰 수에 작은 수를 더하면 흡수된다. 직접 <code>==</code> 비교 금지.</li>
+        <li>이식성 있는 코드를 위해 <code>&lt;stdint.h&gt;</code>의 고정 크기 타입과 명시적 캐스팅을 쓰자.</li>
+      </ul>
+      <p>이 장의 내용은 다음 3장(기계 수준 표현)에서 즉시 활용된다. 어셈블리 명령이 부호 있음/없음 곱셈을 어떻게 구분하는지, 분기 명령이 어떤 플래그를 보는지를 이해하려면 여기 내용이 손끝에 있어야 한다. 디버거에서 메모리 덤프를 보는 능력도 결국 이번 장의 비트 ↔ 해석 사고에서 나온다.</p>
+      <div class="callout tip"><span class="label">꿀팁</span><p>스스로 점검: (1) <code>-1 &gt; 0u</code>의 결과를 즉시 답할 수 있는가? (2) <code>(int)0xFFFFFFFF</code>의 값은? (3) <code>0.1 + 0.2 - 0.3</code>의 부호는? 모두 답할 수 있으면 이 장은 충분히 흡수한 것이다. 한 개라도 막히면 해당 절을 다시 펴보자.</p></div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter01.html"><span class="dir">← 이전</span>제1장 · 컴퓨터 시스템 둘러보기</a>
+      <a class="next" href="chapter03.html"><span class="dir">다음 →</span>제3장 · 프로그램의 기계 수준 표현</a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

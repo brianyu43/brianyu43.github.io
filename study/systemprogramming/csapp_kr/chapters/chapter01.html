@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제1장 · 컴퓨터 시스템 둘러보기 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제1장 · 컴퓨터 시스템 둘러보기</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="../index.html">목차</a>
+    <a href="chapter02.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제1장 · 컴퓨터 시스템 둘러보기</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-1-1">1.1 정보는 비트와 컨텍스트</a></li>
+      <li><a href="#sec-1-2">1.2 프로그램은 번역된다</a></li>
+      <li><a href="#sec-1-3">1.3 컴파일 시스템을 알면 좋은 이유</a></li>
+      <li><a href="#sec-1-4">1.4 프로세서가 명령을 읽고 해석한다</a></li>
+      <li class="sub-li"><a href="#sec-1-4-1">1.4.1 시스템의 하드웨어 구성</a></li>
+      <li class="sub-li"><a href="#sec-1-4-2">1.4.2 hello 프로그램 실행하기</a></li>
+      <li><a href="#sec-1-5">1.5 캐시가 중요하다</a></li>
+      <li><a href="#sec-1-6">1.6 저장 장치는 계층을 이룬다</a></li>
+      <li><a href="#sec-1-7">1.7 운영체제가 하드웨어를 관리한다</a></li>
+      <li class="sub-li"><a href="#sec-1-7-1">1.7.1 프로세스</a></li>
+      <li class="sub-li"><a href="#sec-1-7-2">1.7.2 스레드</a></li>
+      <li class="sub-li"><a href="#sec-1-7-3">1.7.3 가상 메모리</a></li>
+      <li class="sub-li"><a href="#sec-1-7-4">1.7.4 파일</a></li>
+      <li><a href="#sec-1-8">1.8 시스템은 네트워크로 통신한다</a></li>
+      <li><a href="#sec-1-9">1.9 중요한 주제들</a></li>
+      <li class="sub-li"><a href="#sec-1-9-1">1.9.1 암달의 법칙</a></li>
+      <li class="sub-li"><a href="#sec-1-9-2">1.9.2 동시성과 병렬성</a></li>
+      <li class="sub-li"><a href="#sec-1-9-3">1.9.3 추상화의 중요성</a></li>
+      <li><a href="#sec-1-10">1.10 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 01</span>
+      <h1>컴퓨터 시스템 둘러보기</h1>
+      <div class="en">A Tour of Computer Systems</div>
+      <p class="blurb">
+        한 줄짜리 <code>printf("hello, world\n");</code>가 화면에 글자를 띄우기까지 무슨 일이 벌어질까.
+        키보드를 눌러 소스 파일을 만든 순간부터, 픽셀이 모니터에 점화되는 순간까지를 끝까지 따라가 보면
+        컴파일러, 메모리, 캐시, OS, 네트워크, 동시성이 모두 한 번씩 등장한다. 이 장은 그 여정의 지도이자,
+        앞으로 9개 장을 어떤 순서로 깊이 들어갈지에 대한 예고편이다.
+      </p>
+    </header>
+
+    <article class="section" id="sec-1-1">
+      <h2><span class="anchor-num">1.1</span>정보는 비트와 컨텍스트로 이루어진다</h2>
+
+      <p>
+        컴퓨터 안에 들어 있는 모든 것 — 사진, 음악, 코드, 메일, 게임 세이브 — 은 결국 <strong>0과 1의 나열</strong>이다.
+        하드디스크에 들어 있는 비트와 RAM에 들어 있는 비트, 네트워크 선을 흐르는 비트, 화면을 그리는 비트는 본질적으로 같은 종류의 신호다.
+        이 사실이 너무 당연해서 잊기 쉬운데, <em>같은 비트열이 어떻게 해석되느냐</em>가 그 비트가 의미하는 바를 결정한다는 점은 강조해도 지나치지 않다.
+      </p>
+
+      <p>
+        예를 들어 메모리에 <code>01001000 01101001</code>이라는 16비트가 들어 있다고 하자.
+        이걸 ASCII 텍스트로 읽으면 "Hi"이고, 부호 없는 16비트 정수로 읽으면 18537이며,
+        x86 명령어의 일부로 읽으면 또 다른 의미가 된다. 비트 자체에는 자기 정체성이 없다.
+        오직 <strong>컨텍스트(context)</strong>가 정체성을 부여한다.
+      </p>
+
+      <p>예시를 위해 ASCII 표의 일부를 보자:</p>
+
+      <table>
+        <thead><tr><th>문자</th><th>10진</th><th>16진</th><th>2진</th></tr></thead>
+        <tbody>
+          <tr><td><code>H</code></td><td>72</td><td>0x48</td><td>01001000</td></tr>
+          <tr><td><code>i</code></td><td>105</td><td>0x69</td><td>01101001</td></tr>
+          <tr><td><code>0</code></td><td>48</td><td>0x30</td><td>00110000</td></tr>
+          <tr><td><code>A</code></td><td>65</td><td>0x41</td><td>01000001</td></tr>
+          <tr><td><code>\n</code> (개행)</td><td>10</td><td>0x0A</td><td>00001010</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        그래서 우리가 즐겨 쓰는 <code>hello.c</code> 같은 소스 파일도, 디스크에 저장될 때는 한 글자씩 ASCII 코드로 변환된 비트의 행렬에 불과하다.
+        이런 식으로 <strong>오로지 ASCII 문자만으로 구성된 파일</strong>을 텍스트 파일이라 부르고, 그 외의 모든 파일을 바이너리 파일이라 부른다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 1.1 · hello.c 가 디스크에 저장된 모습 (앞부분만)</span><code>#include &lt;stdio.h&gt;
+↓ 한 글자씩 ASCII로
+35  105 110  99 108 117 100 101  32  60 115 116 100 105 111  46
+'#' 'i' 'n' 'c' 'l' 'u' 'd' 'e' ' ' '&lt;' 's' 't' 'd' 'i' 'o' '.'
+</code></pre>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          유니코드(UTF-8) 시대에는 한 글자가 1바이트가 아닐 수 있다. "안녕"은 UTF-8로 6바이트(<code>EC 95 88 EB 85 95</code>).
+          하지만 본질은 같다 — 결국은 비트열이고, 그걸 "한국어 문자"로 읽으려면 약속(인코딩)이 있어야 한다.
+        </p>
+      </div>
+
+      <p>
+        같은 비트열을 다르게 해석하면 다른 결과가 나오는 현상은 다음 장(2장 정수/부동소수점)에서 매우 중요해진다.
+        <code>0xC1900000</code>을 부호 있는 32비트 정수로 읽으면 음수, 부동소수점으로 읽으면 −18.0이다. 자료형은 본질적으로 "이 비트를 어떻게 읽을지에 대한 약속"이다.
+      </p>
+
+      <div class="problem">
+        <span class="tag">연습 1.1</span>
+        <p>메모리에 16진수로 <code>0x6F 0x6B</code> 두 바이트가 있다. 이를 (a) ASCII 문자열, (b) 16비트 부호 없는 리틀엔디언 정수로 각각 해석하면 무엇인가?</p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-1-2">
+      <h2><span class="anchor-num">1.2</span>프로그램은 다른 프로그램에 의해 다양한 형태로 번역된다</h2>
+
+      <p>
+        고수준 언어로 쓴 코드를 컴퓨터가 직접 실행할 수는 없다. CPU가 진짜로 이해하는 건 0과 1로 된 <strong>기계어(machine code)</strong>뿐이다.
+        그래서 우리에겐 통역사가 필요하다 — 그게 바로 컴파일러 시스템이다. C 소스 한 줄이 실행 가능한 바이너리가 되기까지는 네 단계의 번역이 일어난다.
+      </p>
+
+      <p>크게 보면 다음과 같다:</p>
+
+<pre class="with-caption"><span class="caption">그림 1.2 · 컴파일 파이프라인</span><code>hello.c    →  [전처리기 cpp]   →  hello.i   (전처리된 소스)
+hello.i    →  [컴파일러 cc1]   →  hello.s   (어셈블리)
+hello.s    →  [어셈블러 as]    →  hello.o   (재배치 가능 오브젝트)
+hello.o    →  [링커 ld]        →  hello     (실행 파일)
+   ↑                                ↑
+   사람이 읽는 영역                  CPU가 읽는 영역
+</code></pre>
+
+      <ol>
+        <li><strong>전처리(Preprocessing)</strong> — <code>#include</code>, <code>#define</code>, <code>#ifdef</code> 같은 지시어를 처리한다. <code>stdio.h</code>의 내용물이 그대로 펼쳐져 들어가는 단계.</li>
+        <li><strong>컴파일(Compilation)</strong> — 전처리된 C 소스를 사람이 그래도 읽을 수는 있는 어셈블리 텍스트로 번역한다. 이때 최적화가 일어난다.</li>
+        <li><strong>어셈블(Assembly)</strong> — 어셈블리어 한 줄 한 줄을 그에 대응하는 이진 명령어로 번역한다. 결과물은 ELF/Mach-O 같은 형식의 <em>오브젝트 파일</em>.</li>
+        <li><strong>링킹(Linking)</strong> — 우리 코드가 부른 <code>printf</code> 같은 외부 함수를 표준 라이브러리에서 찾아 합쳐, 마침내 운영체제가 적재할 수 있는 실행 파일을 만든다.</li>
+      </ol>
+
+      <p>실습으로 이 단계를 분리해 볼 수 있다. <code>gcc</code>는 친절하게 옵션을 제공해 준다:</p>
+
+<pre><code># 전처리만: hello.i 생성
+gcc -E hello.c -o hello.i
+
+# 어셈블리까지: hello.s 생성
+gcc -S hello.c -o hello.s
+
+# 어셈블까지: hello.o 생성 (오브젝트 파일)
+gcc -c hello.c -o hello.o
+
+# 링킹까지: 실행 파일 생성
+gcc hello.c -o hello
+</code></pre>
+
+      <p>
+        흥미로운 사실 하나. <code>hello.o</code>는 그 자체로는 실행할 수 없다. 안에 들어 있는 <code>printf</code> 호출이 "어디로 가야 하는지" 모르기 때문이다.
+        링커가 표준 C 라이브러리(<code>libc</code>) 안의 <code>printf</code>를 찾아 그 주소를 채워 넣어줘야 비로소 살아 움직이는 프로그램이 된다.
+        이 "주소 채워 넣기"의 디테일은 7장 링킹에서 본격적으로 다룬다.
+      </p>
+
+      <div class="callout tip">
+        <span class="label">꿀팁</span>
+        <p>
+          <code>gcc -v hello.c -o hello</code> 를 실행해 보면 위의 모든 단계가 어떤 도구로 어떻게 호출되는지 콘솔에 줄줄이 찍힌다. 한번쯤 보고 가자.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-1-3">
+      <h2><span class="anchor-num">1.3</span>컴파일 시스템을 이해하면 얻는 이득</h2>
+
+      <p>
+        "그냥 <code>gcc hello.c</code> 치면 되는데 왜 그 내부까지 알아야 하나?"라는 질문이 나올 수 있다. 답은 셋이다.
+      </p>
+
+      <p>
+        <strong>첫째, 성능 최적화.</strong> 같은 코드를 어떻게 쓰느냐에 따라 컴파일러가 만들어내는 어셈블리가 달라지고, 결과적으로 실행 속도가 몇 배씩 차이 난다.
+        예를 들어 <code>switch</code>는 <code>if-else</code> 사슬보다 점프 테이블로 컴파일되어 빠를 때가 많다.
+        포인터 별칭(aliasing)이 있으면 컴파일러는 안전을 위해 최적화를 포기한다. 이런 상호작용을 모르면 "왜 이 함수가 이렇게 느리지?" 하고 머리만 긁게 된다.
+      </p>
+
+      <p>
+        <strong>둘째, 링크 에러 디버깅.</strong> <code>undefined reference to 'foo'</code>나 <code>multiple definition</code> 같은 메시지를 본 적 있을 것이다.
+        이런 오류는 링커가 심볼 테이블을 어떻게 다루는지 알아야 진단할 수 있다. <code>extern</code>, <code>static</code>의 의미, 헤더 가드, 강한 심볼/약한 심볼 — 7장에서 이 모든 게 풀린다.
+      </p>
+
+      <p>
+        <strong>셋째, 보안.</strong> 버퍼 오버플로 공격, 스택 스매싱, 리턴 지향 프로그래밍(ROP)은 모두 "실행 파일이 메모리에 어떻게 배치되고 함수 호출이 어떻게 일어나는지"를 정확히 아는 사람이 만들고 막을 수 있다.
+        이 시각은 3장(어셈블리)과 9장(가상 메모리)에서 자라난다.
+      </p>
+
+      <div class="callout warn">
+        <span class="label">주의</span>
+        <p>
+          최적화 옵션 <code>-O2</code>가 켜져 있을 때 디버거로 단계별 실행을 해 보면, 소스 코드의 줄 순서와 어셈블리 실행 순서가 일치하지 않을 때가 있다.
+          컴파일러가 명령어를 재배치했기 때문이다. "버그가 디버그 빌드에서만 사라진다" 같은 미스터리는 종종 이런 데서 온다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-1-4">
+      <h2><span class="anchor-num">1.4</span>프로세서는 메모리에 저장된 명령을 읽고 해석한다</h2>
+
+      <p>
+        실행 파일이 만들어졌다. 이제 셸에서 <code>./hello</code>를 친다고 하자. 글자가 화면에 찍히기까지, 하드웨어와 OS가 어떻게 협력하는지 본다.
+      </p>
+
+      <article class="section" id="sec-1-4-1">
+        <h3><span class="anchor-num">1.4.1</span>시스템의 하드웨어 구성</h3>
+
+        <p>
+          현대 PC를 단순화하면 다섯 덩어리다 — <strong>CPU, 메인 메모리, I/O 브리지, 그리고 두 종류의 버스(시스템 버스와 메모리 버스)</strong>, 그리고 디스플레이/디스크/키보드 같은 I/O 장치들.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 1.3 · 단순화된 PC의 하드웨어 구성도</span><code>      ┌────────────────────────────────┐
+      │            CPU                  │
+      │  ┌──────┐    ┌────────────────┐ │
+      │  │  PC  │    │   레지스터 파일  │ │
+      │  └──────┘    └────────────────┘ │
+      │  ┌────────────────────────────┐ │
+      │  │   ALU (산술 논리 장치)      │ │
+      │  └────────────────────────────┘ │
+      └─────────────┬──────────────────┘
+                    │ 시스템 버스
+       ┌────────────┴────────────┐
+       │       I/O 브리지         │
+       └────┬───────────────┬────┘
+            │ 메모리 버스    │ I/O 버스
+       ┌────┴────┐      ┌───┴───┬─────────┬─────────┐
+       │ 메인 메모리│      │ USB    │ 디스크 │ 그래픽  │
+       │  (DRAM)  │      │ (키보드)│        │ 어댑터  │
+       └─────────┘       └───────┴─────────┴─────────┘
+</code></pre>
+
+        <p>핵심 부품들의 역할은 이렇다:</p>
+
+        <ul>
+          <li><strong>CPU</strong> — 시키는 일을 하는 일꾼. 매 클럭마다 메모리에서 명령어 하나를 가져와 실행한다.</li>
+          <li><strong>PC(Program Counter)</strong> — 다음에 실행할 명령어의 주소를 담은 64비트 레지스터. 사실상 "지금 어디 책 읽는 중인지" 표시하는 책갈피.</li>
+          <li><strong>레지스터 파일(register file)</strong> — CPU 내부의 초고속 작업대. <code>%rax</code>, <code>%rbx</code> 같은 십수 개의 64비트 칸으로 구성되어 있고, 한 클럭에 읽고 쓸 수 있다.</li>
+          <li><strong>ALU(Arithmetic Logic Unit)</strong> — 더하기, 빼기, 비교, 비트 연산 같은 진짜 계산을 하는 회로.</li>
+          <li><strong>메인 메모리(DRAM)</strong> — 명령어와 데이터가 잠시 머무는 큰 작업장. 전원이 꺼지면 사라진다(휘발성).</li>
+          <li><strong>버스(bus)</strong> — 데이터가 흐르는 전선 묶음. 보통 한 번에 워드(word) 단위로 옮긴다 — 64비트 시스템이라면 한 번에 8바이트.</li>
+        </ul>
+      </article>
+
+      <article class="section" id="sec-1-4-2">
+        <h3><span class="anchor-num">1.4.2</span>hello 프로그램 실행하기</h3>
+
+        <p>실행 시점에 일어나는 일을 시간 순서로 따라가 보자.</p>
+
+        <ol>
+          <li>
+            셸에 <code>./hello</code>라고 친다. 키보드의 신호가 USB 컨트롤러를 거쳐 메인 메모리로 들어가고, 셸 프로그램이 그걸 한 글자씩 읽어서 화면에 그린다(에코).
+          </li>
+          <li>
+            엔터를 누르면 셸은 사용자가 명령어 입력을 끝냈다는 걸 알고, <code>hello</code>라는 실행 파일을 디스크에서 메모리로 복사한다.
+            이때 DMA(Direct Memory Access) 라는 기술 덕에 CPU를 거치지 않고 디스크 컨트롤러가 직접 메모리에 데이터를 채운다 — CPU는 그 시간에 다른 일을 할 수 있다.
+          </li>
+          <li>
+            로딩이 끝나면 CPU는 <code>hello</code> 프로그램의 첫 명령어를 가져와 실행하기 시작한다. 그 안에는 <code>printf</code>를 호출하는 명령들이 있고,
+            <code>printf</code>는 결국 OS의 <code>write</code> 시스템 콜을 부른다.
+          </li>
+          <li>
+            <code>write</code>는 "hello, world\n"이라는 문자열을 메모리에서 화면 출력 장치로 흘려보내고, 그래픽 어댑터가 픽셀을 점화한다.
+          </li>
+        </ol>
+
+        <p>
+          이 순간만 봐도 — 디스크에서 메모리로의 복사, CPU가 명령어를 한 번에 한 줄씩 가져오는 방식, 화면으로 데이터가 흘러가는 길 —
+          하드웨어 안에서 끊임없이 데이터가 복사되고 있음이 보인다. 그리고 <em>복사는 비싸다</em>. 이걸 줄이려는 노력이 다음 절의 주제다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-1-5">
+      <h2><span class="anchor-num">1.5</span>캐시가 중요하다</h2>
+
+      <p>
+        문제는 속도 차이다. CPU는 매우 빠르고, DRAM은 그에 비해 매우 느리다.
+        대략적인 사이클 수로 직관을 잡아 보자(현대 데스크톱 기준의 어림값이고, 시스템마다 다르다):
+      </p>
+
+      <table>
+        <thead><tr><th>저장소</th><th>접근 시간 (클럭)</th><th>비유</th></tr></thead>
+        <tbody>
+          <tr><td>레지스터</td><td>0 ~ 1</td><td>책상 위의 펜</td></tr>
+          <tr><td>L1 캐시 (SRAM)</td><td>약 4</td><td>책상 서랍</td></tr>
+          <tr><td>L2 캐시 (SRAM)</td><td>약 10</td><td>책장 한 칸</td></tr>
+          <tr><td>L3 캐시 (SRAM)</td><td>약 40</td><td>옆방 책장</td></tr>
+          <tr><td>메인 메모리 (DRAM)</td><td>약 200</td><td>도서관</td></tr>
+          <tr><td>SSD</td><td>수만</td><td>다른 도시 도서관</td></tr>
+          <tr><td>HDD</td><td>수백만</td><td>해외 도서관</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        매번 DRAM까지 갔다 오면 CPU는 200 사이클 동안 손가락만 빨고 있어야 한다.
+        그래서 자주 쓰는 데이터를 <strong>CPU 가까이에 베껴 두는</strong> 작은 SRAM 메모리, 즉 <em>캐시(cache)</em>를 쓴다.
+      </p>
+
+      <p>
+        캐시가 효과적인 이유는 프로그램이 보이는 두 가지 패턴 — <strong>지역성(locality)</strong> — 덕분이다.
+        같은 데이터를 곧 다시 쓰는 시간 지역성, 그리고 가까운 주소를 곧 쓰는 공간 지역성. 잘 짠 코드는 자연히 지역성이 높고, 캐시 히트율이 높다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          행렬을 행 방향으로 순회하는 코드(<code>for i: for j: A[i][j]</code>)와 열 방향으로 순회하는 코드(<code>for j: for i: A[i][j]</code>)는 결과는 같지만,
+          캐시 친화도 차이로 실행 시간이 10배 이상 벌어질 수 있다. 6장에서 이 현상을 직접 측정한다.
+        </p>
+      </div>
+
+      <div class="problem">
+        <span class="tag">연습 1.2</span>
+        <p>한 번의 DRAM 접근이 200 사이클이고 한 번의 L1 캐시 접근이 4 사이클이다. 100만 번의 메모리 접근에서 95%가 L1에서 처리된다면, 평균 사이클 수는?</p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-1-6">
+      <h2><span class="anchor-num">1.6</span>저장 장치는 계층을 이룬다</h2>
+
+      <p>
+        캐시 아이디어를 일반화하면 다음과 같은 그림이 나온다 — 위로 올라갈수록 빠르고 작고 비싸며, 아래로 내려갈수록 느리고 크고 싸다.
+        각 층은 바로 아래 층에 대한 <em>캐시</em> 역할을 한다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 1.4 · 메모리 계층 (상단이 빠르고 작음)</span><code>                       ▲ 빠름·작음·비쌈
+                       │
+                ┌──────┴──────┐
+                │   레지스터   │  L0 — 수백 바이트
+                └──────┬──────┘
+              ┌────────┴────────┐
+              │     L1 캐시      │  ~ 수십 KB
+              └────────┬────────┘
+            ┌──────────┴──────────┐
+            │       L2 캐시        │  ~ 수백 KB
+            └──────────┬──────────┘
+          ┌────────────┴────────────┐
+          │        L3 캐시           │  ~ 수십 MB
+          └────────────┬────────────┘
+        ┌──────────────┴──────────────┐
+        │       메인 메모리 (DRAM)      │  ~ 수십 GB
+        └──────────────┬──────────────┘
+      ┌────────────────┴────────────────┐
+      │       로컬 보조 저장 (SSD/HDD)    │  ~ TB
+      └────────────────┬────────────────┘
+    ┌──────────────────┴──────────────────┐
+    │     원격 저장 (네트워크 파일/클라우드)  │  거의 무한
+    └─────────────────────────────────────┘
+                       │
+                       ▼ 느림·큼·쌈
+</code></pre>
+
+      <p>
+        이 계층 구조는 한 가지 위대한 통찰을 담고 있다. <strong>각 층이 자기 바로 아래 층의 작은 부분을 흉내 낸다</strong>는 것.
+        L1은 L2의 일부를, L2는 L3의 일부를, 결국 보조 저장은 거의 모든 데이터를 들고 있고, 더 빠른 층은 그중 "지금 자주 쓰는 부분"만 담아 둔다.
+        프로그래머 입장에서는 마치 <em>거대하고도 빠른 단일 메모리</em>가 있는 것처럼 보인다 — 이게 가능한 이유가 바로 지역성이다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-1-7">
+      <h2><span class="anchor-num">1.7</span>운영체제가 하드웨어를 관리한다</h2>
+
+      <p>
+        지금까지 프로그램이 직접 하드웨어와 대화하는 것처럼 말했지만, 실제로는 그렇지 않다.
+        프로그램과 하드웨어 사이에는 <strong>운영체제(OS)</strong>라는 두꺼운 층이 있다. OS가 하는 일은 두 가지로 요약된다.
+      </p>
+
+      <ol>
+        <li><strong>응용 프로그램이 하드웨어를 직접 건드리지 못하게 막는다.</strong> 그래야 시스템이 안전하고 안정적으로 돌아간다.</li>
+        <li><strong>하드웨어를 추상화해 통일된 인터페이스를 제공한다.</strong> 응용은 디스크 모델이나 NIC 칩셋 같은 잡다한 차이를 신경 쓰지 않아도 된다.</li>
+      </ol>
+
+      <p>OS가 제공하는 핵심 추상은 네 가지 — 프로세스, 스레드, 가상 메모리, 파일.</p>
+
+      <article class="section" id="sec-1-7-1">
+        <h3><span class="anchor-num">1.7.1</span>프로세스</h3>
+
+        <p>
+          <strong>프로세스(process)</strong>는 "실행 중인 프로그램"의 OS 추상이다. 각 프로세스는 자기만의 CPU, 자기만의 메모리, 자기만의 I/O 장치를 가진 듯한 환상을 누린다.
+          실제로는 한 CPU 위에서 OS가 빠르게 프로세스들을 갈아 끼우고 있을 뿐이다 — 이걸 <em>컨텍스트 스위치(context switch)</em>라 한다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 1.5 · 두 프로세스 사이의 컨텍스트 스위치</span><code>시간 →
+프로세스 A ─━━━━━━─────────────━━━━━━─────  실행
+프로세스 B ──────━━━━━━━━━━━━━━─────━━━━━━  실행
+                ↑              ↑
+            저장 A의 상태 →    저장 B의 상태 →
+            로드 B의 상태      로드 A의 상태
+</code></pre>
+
+        <p>
+          컨텍스트 스위치 때 OS는 떠나는 프로세스의 레지스터, PC, 스택 포인터 등을 잘 챙겨 두고, 들어오는 프로세스의 그것을 복원한다.
+          이 메커니즘 덕에 사용자는 한 번에 수십 개의 프로그램을 띄워도 다 동시에 실행되고 있는 것처럼 느낀다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-1-7-2">
+        <h3><span class="anchor-num">1.7.2</span>스레드</h3>
+
+        <p>
+          현대 시스템에서 프로세스는 더 작은 실행 단위인 <strong>스레드(thread)</strong> 여러 개로 구성될 수 있다.
+          한 프로세스 안의 스레드들은 메모리 공간(코드/데이터/힙)을 <em>공유</em>하지만, 각자 자기 스택과 레지스터 상태를 갖는다.
+        </p>
+
+        <p>
+          왜 굳이 스레드를? 프로세스끼리는 메모리가 분리되어 있어 데이터를 주고받으려면 IPC(파이프, 소켓 등)가 필요하지만,
+          스레드끼리는 그냥 같은 변수를 읽고 쓰면 끝난다. 가볍고 빠른 협력이 가능하다. 다만 그 대가로 — 같은 데이터에 동시에 접근하면서 생기는 <em>경쟁 조건(race condition)</em>이라는 두통거리가 따라온다. 12장의 주제다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-1-7-3">
+        <h3><span class="anchor-num">1.7.3</span>가상 메모리</h3>
+
+        <p>
+          <strong>가상 메모리(virtual memory)</strong>는 OS가 제공하는 가장 우아한 환상 중 하나다.
+          모든 프로세스는 마치 자기가 컴퓨터의 모든 메모리(64비트 시스템이라면 이론상 16엑사바이트)를 통째로 쓰고 있는 듯한 주소 공간을 갖는다.
+          실제로는 여러 프로세스가 물리 메모리를 잘게 쪼개 나눠 쓰고 있을 뿐이지만, 이 환상이 너무 잘 유지되어 응용 프로그래머는 거의 신경 쓸 필요가 없다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 1.6 · 리눅스 프로세스의 가상 주소 공간 레이아웃 (64비트, 위가 높은 주소)</span><code>높은 주소  ┌───────────────────────────┐  0x7fff_ffff_ffff
+          │   커널 영역 (사용자 접근 ✗)   │
+          ├───────────────────────────┤
+          │      사용자 스택 ↓          │   함수 호출 시 자라남
+          ├───────────────────────────┤
+          │            ⋮              │
+          │      공유 라이브러리         │   libc.so 등
+          │            ⋮              │
+          ├───────────────────────────┤
+          │       힙 (heap) ↑          │   malloc 영역, 위로 자람
+          ├───────────────────────────┤
+          │   읽기/쓰기 데이터 (.data)   │   초기화된 전역 변수
+          ├───────────────────────────┤
+          │     읽기 전용 (.text)       │   프로그램 코드
+낮은 주소  └───────────────────────────┘  0x0000_0000_0000
+</code></pre>
+
+        <p>
+          이 환상을 떠받치는 메커니즘이 <em>페이지 테이블(page table)</em>이다. CPU와 OS가 협력해 모든 가상 주소를 물리 주소로 번역한다.
+          속도를 위해 그 번역 결과를 캐시해 두는 게 <em>TLB(Translation Lookaside Buffer)</em>다. 자세한 건 9장에서.
+        </p>
+      </article>
+
+      <article class="section" id="sec-1-7-4">
+        <h3><span class="anchor-num">1.7.4</span>파일</h3>
+
+        <p>
+          <strong>파일(file)</strong>은 디스크, 네트워크, 키보드, 화면 같은 잡다한 I/O 장치를 단일한 추상으로 통일한 결과다.
+          유닉스 철학에서는 "모든 것이 파일이다(everything is a file)"라는 슬로건이 있을 정도로, 디스크 위 데이터든 USB 입력이든 일단 파일 디스크립터(file descriptor) 라는 작은 정수로 다룬다.
+        </p>
+
+        <p>
+          그러면 응용 프로그램은 디스크가 SSD인지 HDD인지, USB 키보드인지 PS/2 키보드인지 일일이 알 필요 없이 <code>read</code>/<code>write</code>만 부르면 된다.
+          이 추상의 우아함은 10장 시스템 수준 입출력에서 다시 본다.
+        </p>
+
+        <div class="callout tip">
+          <span class="label">꿀팁</span>
+          <p>
+            <code>echo "hi" &gt; /dev/tty</code> 를 한번 쳐 보자. 터미널 자체가 파일처럼 다뤄지는 걸 직접 볼 수 있다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-1-8">
+      <h2><span class="anchor-num">1.8</span>시스템은 네트워크로 다른 시스템과 통신한다</h2>
+
+      <p>
+        지금까지 한 대의 컴퓨터 안에서 일어나는 일을 봤다. 하지만 우리가 매일 쓰는 거의 모든 의미 있는 작업은 <strong>여러 대의 컴퓨터가 협력</strong>해 이뤄진다.
+        브라우저로 사이트를 열고, 카톡을 보내고, 깃에 푸시하는 모든 행위는 사실 네트워크 너머의 컴퓨터에 부탁을 보내는 일이다.
+      </p>
+
+      <p>
+        OS의 시각으로 보면, 네트워크는 그저 또 하나의 I/O 장치다. 응용은 소켓(socket) 이라는 파일 비슷한 개체에 데이터를 <code>write</code>하면 NIC를 거쳐 인터넷으로 흘러간다. 반대로 받을 때는 <code>read</code>로 읽는다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 1.7 · 클라이언트-서버 통신 흐름</span><code>┌──────────────┐                          ┌──────────────┐
+│  클라이언트   │    1. 요청 패킷 송신       │    서버      │
+│   (내 PC)    │ ───────────────────────→ │  (원격지)     │
+│              │                          │              │
+│              │    4. 응답 패킷 수신       │              │
+│              │ ←─────────────────────── │              │
+└──────────────┘                          └──────────────┘
+                                              ↑     ↓
+                                          2. 처리  3. 결과 작성
+</code></pre>
+
+      <p>
+        예를 들어 <code>ssh</code>로 원격 서버에 접속해 <code>./hello</code>를 실행하면, 키보드 입력은 SSH 클라이언트 → 인터넷 → 원격 서버의 셸로 흐르고,
+        실행 결과는 정반대 방향으로 흘러 우리 화면에 찍힌다. 한 컴퓨터의 입력이 다른 컴퓨터의 출력이 되는 셈이다. 11장에서 직접 소켓 코드를 짜 본다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-1-9">
+      <h2><span class="anchor-num">1.9</span>중요한 주제들</h2>
+
+      <p>책 전체에 반복해서 등장하는 굵직한 주제 셋을 미리 짚는다.</p>
+
+      <article class="section" id="sec-1-9-1">
+        <h3><span class="anchor-num">1.9.1</span>암달의 법칙</h3>
+
+        <p>
+          시스템의 한 부분만 빨라졌을 때 전체가 얼마나 빨라지는가? 직관적으로 "그 부분이 차지하던 비중만큼"이다.
+          이걸 정량화한 것이 <strong>암달의 법칙(Amdahl's Law)</strong>이다.
+        </p>
+
+        <p>
+          어떤 시스템에서 전체 실행 시간 중 비율 α가 어떤 부분에서 소비된다고 하자. 그 부분만 k배 빠르게 만들었을 때, 전체 속도 향상 S는:
+        </p>
+
+<pre><code>          1
+S = ─────────────────
+     (1 - α) + α / k
+</code></pre>
+
+        <p>
+          예를 들어 어떤 프로그램의 60%(α=0.6)가 디스크 I/O에서 소비되고, 그 부분을 SSD로 바꿔 5배 빨라졌다(k=5)면:
+        </p>
+
+<pre><code>S = 1 / ((1 - 0.6) + 0.6 / 5)
+  = 1 / (0.4 + 0.12)
+  = 1 / 0.52
+  ≈ 1.92  (즉 약 1.92배 빨라짐)
+</code></pre>
+
+        <p>
+          더 강한 직관: 만약 그 부분을 <em>무한히 빠르게</em>(k→∞) 만든다 해도, 전체는 1/(1−α) = 2.5배밖에 못 빨라진다.
+          남은 40%가 발목을 잡는다. 그래서 최적화는 항상 <strong>가장 큰 비중을 차지하는 부분부터</strong> 손대야 한다 — 그 격언의 수학적 근거가 바로 이 식이다.
+        </p>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            "이 함수만 어셈블리로 새로 짰는데 왜 전체는 안 빨라지지?" — 그 함수가 전체의 5%를 차지했다면, 무한 가속해도 전체는 5.3%밖에 못 빨라진다. 프로파일러부터 돌리자.
+          </p>
+        </div>
+
+        <div class="problem">
+          <span class="tag">연습 1.3</span>
+          <p>α=0.8, k=4 일 때 전체 속도 향상 S 는 얼마인가? 같은 α 에서 k 가 무한대로 가면 S 는?</p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-1-9-2">
+        <h3><span class="anchor-num">1.9.2</span>동시성과 병렬성</h3>
+
+        <p>
+          두 단어가 자주 헷갈린다. <strong>동시성(concurrency)</strong>은 "여러 일이 동시에 진행 중인 듯이 보이는 것"이고, <strong>병렬성(parallelism)</strong>은 "여러 일이 진짜로 동시에 처리되는 것"이다.
+          비유하자면 한 명의 요리사가 여러 냄비를 번갈아 보는 게 동시성, 요리사 여럿이 각자 한 냄비씩 맡는 게 병렬성.
+        </p>
+
+        <p>
+          현대 시스템은 세 층위에서 병렬성을 활용한다 — 스레드 수준(여러 코어), 명령어 수준(파이프라이닝, 슈퍼스칼라), 그리고 데이터 수준(SIMD).
+          이 세 층은 각각 4장(프로세서 구조), 5장(최적화), 12장(병행 프로그래밍)에서 다룬다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-1-9-3">
+        <h3><span class="anchor-num">1.9.3</span>추상화의 중요성</h3>
+
+        <p>
+          이 책 전체를 관통하는 정신은 <em>추상화(abstraction)</em>다. 함수는 명령어 묶음을 단일 호출로 추상화한 것이고,
+          파일은 모든 I/O를 통일된 인터페이스로 추상화한 것이며, 가상 메모리는 물리 메모리를 프로세스별 환상으로 추상화한 것이고, 프로세스는 CPU를 추상화한 것이다.
+        </p>
+
+        <p>
+          좋은 추상은 사용자에게 <strong>덜 알아도 되게</strong> 해 준다. 그러나 새는 추상(leaky abstraction)도 있다 —
+          평소엔 잘 가려져 있다가, 성능 문제나 오류가 발생하면 갑자기 아래층의 디테일이 튀어나온다. 그래서 응용 프로그래머도 결국 한 층 아래까지는 알아둬야 한다. 이 책의 존재 이유다.
+        </p>
+      </article>
+    </article>
+
+    <article class="section" id="sec-1-10">
+      <h2><span class="anchor-num">1.10</span>요약</h2>
+
+      <p>
+        한 줄짜리 <code>hello</code> 프로그램을 따라 컴퓨터 시스템 전체를 한 번 훑었다. 정리하면:
+      </p>
+
+      <ul>
+        <li>모든 정보는 비트열이며, 의미는 컨텍스트가 부여한다.</li>
+        <li>고수준 코드는 전처리·컴파일·어셈블·링크의 4단계 번역을 거쳐 실행 파일이 된다.</li>
+        <li>프로세서는 PC가 가리키는 메모리 위치에서 명령어를 한 줄씩 가져와 ALU와 레지스터로 처리한다.</li>
+        <li>메모리는 레지스터·캐시·DRAM·SSD/HDD·원격 저장의 계층을 이루며, 위층은 아래층의 캐시 역할을 한다.</li>
+        <li>OS는 프로세스/스레드/가상 메모리/파일이라는 네 가지 추상으로 하드웨어를 가린다.</li>
+        <li>네트워크는 단지 또 하나의 I/O이고, 시스템들이 협력해 큰 일을 한다.</li>
+        <li>암달의 법칙은 "큰 비중부터 최적화하라"는 격언의 정량적 근거다.</li>
+        <li>동시성·병렬성·추상화는 책 전반에 반복해서 등장할 키워드다.</li>
+      </ul>
+
+      <p>
+        지도는 일단 펼쳤다. 다음 장부터는 한 영역씩 줌인해 들어간다. 가장 먼저, 모든 것의 시작인 <em>비트와 숫자</em>의 세계로.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>이 장의 모든 주제는 뒤 장에서 적어도 한 번씩 다시 등장한다. 지금 모르는 게 많아도 괜찮다 — 일단 지도에 핀을 꽂아 두고 가자.</p>
+      </div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="../index.html">
+        <span class="dir">← 이전</span>
+        목차로 돌아가기
+      </a>
+      <a class="next" href="chapter02.html">
+        <span class="dir">다음 →</span>
+        제2장 · 정보의 표현과 처리
+      </a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

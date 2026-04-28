@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V18 Roofline & Profiling 방법론 단권화 — 14p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA ONEBOOKS · T6 METHODOLOGY · A4 LANDSCAPE · 14p</div>
+    <h1>Roofline &amp; Profiling <span class="accent">단권화</span></h1>
+    <div class="subtitle">Roofline Model · Nsight Metric Framework · Stall Reason · Bound-type Decision Tree <span class="ko">메트릭의 의미와 해석 프레임만</span></div>
+    <div class="meta">
+      <div><b>Volume</b> V18/18</div>
+      <div><b>Tier</b> T6 방법론</div>
+      <div><b>선행</b> V02 (GPU HW)</div>
+      <div><b>용도</b> 프로파일링 판독 지도 <span class="ko">정지된 지도</span></div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row star"><span class="t">§1. Roofline 모델 기본 — P = min(peak, AI·BW)</span><span class="p">p.2</span></div>
+        <div class="row star"><span class="t">§2. Hierarchical Roofline — DRAM / L2 / SMEM ceiling</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3. AI 계산 예시 — GEMM · FA kernel</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">§4. Nsight Compute 메트릭 체계 — Section 구성</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">§5. SOL 지표 — SM · Memory · TEX</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6. Memory Chart — DRAM / L2 / L1 / SMEM</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">§7. Warp Stall Reason 8종 매트릭스</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8. Scheduler 지표 — eligible · issue · active</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9. Compute Workload — pipe utilization</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">§10. Occupancy — theoretical vs achieved</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11. Source View — per-line attribution</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12. Nsight Systems trace — timeline 구성</span><span class="p">p.13</span></div>
+        <div class="row star"><span class="t">§13. 튜닝 의사결정 프레임 — bound type 분기</span><span class="p">p.14</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요·표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>오해·함정</span></div>
+      <div class="row"><span class="sym">★</span><span>실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉</span></div>
+      <div class="row"><span class="sym">AI</span><span>Arithmetic Intensity FLOP/Byte</span></div>
+      <div class="row"><span class="sym">SOL</span><span>Speed of Light (peak 대비 %)</span></div>
+      <div class="row"><span class="sym">↗ V##</span><span>타 권 cross-ref</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>Out of Scope</b> · Nsight UI 조작법 · 실측 벤치마크 수치 · 튜닝 사례 · trace 분석 감각 (코드 영역)</div>
+    <div class="mono">Roofline (Williams 2009) · Nsight Compute metric spec · NVIDIA profiler guide — 14 pages</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: Roofline 기본 ============================ -->
+<section class="page" data-screen-label="02 Roofline 기본">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Roofline 모델 기본</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Roofline Equation <span class="ko">성능 상한 모델</span>
+          <span class="mnemonic">P = min(peak, AI·BW)</span>
+        </h3>
+        <div class="formula">
+          P(AI) = min( P<sub>peak</sub>, &nbsp; BW · AI )
+          <span class="legend">P : attainable FLOP/s &nbsp; P<sub>peak</sub> : compute roof &nbsp; BW : memory bandwidth &nbsp; AI : arithmetic intensity</span>
+        </div>
+        <div class="def"><span class="label">의미</span>
+          kernel 성능은 <span class="kw">compute roof</span>와 <span class="kw">memory roof</span> 중 낮은 쪽으로 bound된다. AI가 작으면 BW·AI (사선), 크면 P<sub>peak</sub> (수평) 이 지배.
+        </div>
+        <p class="tiny">Williams, Waterman, Patterson "Roofline: An Insightful Visual Performance Model" (CACM 2009)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Arithmetic Intensity 정의 ★</h3>
+        <div class="formula">
+          AI = FLOPs / Bytes<sub>HBM</sub>
+          <span class="legend">Bytes<sub>HBM</sub> : DRAM traffic only · on-chip reuse는 제외</span>
+        </div>
+        <ul>
+          <li><span class="kw">FLOPs</span> = 유효 부동소수 연산 수 <span class="ko">fused ops는 FMA=2로 카운트</span></li>
+          <li><span class="kw">Bytes</span> = 메모리 계층 간 실제 전송량 <span class="ko">기준 레벨에 따라 달라짐</span></li>
+          <li>AI는 <span class="red">알고리즘 + 구현</span> 결합 특성 — 같은 수식도 tile 크기로 바뀜</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Ridge Point <span class="ko">분기점</span>
+          <span class="mnemonic">AI* = peak/BW</span>
+        </h3>
+        <div class="formula">
+          AI<sup>*</sup> = P<sub>peak</sub> / BW &nbsp; [FLOP/Byte]
+          <span class="legend">AI &lt; AI*  → memory-bound &nbsp; AI ≥ AI*  → compute-bound</span>
+        </div>
+        <div class="ex"><span class="label">예</span>
+          A100 FP16: 312 TF / 1.5 TB/s ≈ <b>208</b> FLOP/B<br/>
+          H100 FP16: 989 TF / 3.35 TB/s ≈ <b>295</b> FLOP/B<br/>
+          H100 FP8 : 1979 TF / 3.35 TB/s ≈ <b>591</b> FLOP/B
+        </div>
+        <p class="tiny">수치 출처: NVIDIA A100/H100 whitepapers · cross-ref <span class="xref">↗ V02 §8·§9</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Log-Log Plot Template ★</h3>
+        <pre class="ascii">log FLOP/s
+  ▲
+  │              ┌──────── P_peak (compute roof)
+  │             /
+  │  slope=BW  /
+  │           /
+  │          /  ← memory roof (BW·AI)
+  │         /
+  └────────┼─────────────────► log AI
+          AI*
+  kernel point (AI, P_obs):
+    below both roofs → headroom
+    on memory roof   → memory-bound
+    on compute roof  → compute-bound</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 해석 규칙 3원칙</h3>
+        <ol class="bullet-num">
+          <li><b>수직 거리</b> = peak 대비 얼마나 loss <span class="ko">% 로 환산 가능</span></li>
+          <li><b>가로축 위치</b> = AI를 바꿔야 ceiling 상승 <span class="ko">알고리즘/tile 문제</span></li>
+          <li><b>roof 선택</b> = 해당 dtype의 peak (FP32 roof ≠ Tensor Core roof)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Roof 종류 <span class="ko">dtype별</span></h3>
+        <table class="compact">
+          <thead><tr><th>roof</th><th>지표</th></tr></thead>
+          <tbody>
+            <tr><td>FP64 peak</td><td>scientific</td></tr>
+            <tr><td>FP32 CUDA core</td><td>general</td></tr>
+            <tr><td>FP16/BF16 TC</td><td>training</td></tr>
+            <tr><td>FP8 TC</td><td>inference</td></tr>
+            <tr><td>INT8 TC</td><td>quantized</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">dtype별로 서로 다른 roof line — 같은 plot에 여러 수평선</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 한계 <span class="ko">모델이 잡지 않는 것</span></h3>
+        <ul>
+          <li>latency (occupancy 부족) — Roofline은 <span class="kw">steady-state throughput</span> 만 본다</li>
+          <li>atomic contention, bank conflict로 인한 effective BW 감소</li>
+          <li>kernel launch overhead, sync cost</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">함정</span>: "memory roof 아래 = 자동으로 memory-bound" 아님. latency-bound도 memory roof 아래에 찍힘.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p2</span>
+    <span class="tiny">Roofline 기본식 — 모든 프로파일링 판독의 출발점</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 3: Hierarchical Roofline ============================ -->
+<section class="page" data-screen-label="03 Hierarchical Roofline">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Hierarchical / Multi-tier Roofline</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 Multi-tier인가 ★</h3>
+        <div class="def"><span class="label">문제</span>
+          단일 "HBM roof" 만으로는 <span class="kw">on-chip reuse</span>가 좋은 kernel을 판단 못 함. cache hit가 높으면 effective BW는 HBM 이상.
+        </div>
+        <ul>
+          <li>같은 AI<sub>HBM</sub> 라도 <span class="kw">L2 hit</span>↑ 이면 L2 roof 아래에서도 돌아감</li>
+          <li>계층별 BW가 다르므로 <span class="kw">ceiling도 계층별</span></li>
+          <li>kernel 하나에 여러 point를 찍어 <span class="kw">어느 level이 병목</span>인지 식별</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 계층별 Bandwidth 랭킹 <span class="ko">Ampere 기준</span></h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>BW (per SM·cycle or agg.)</th><th>AI* (FP16 TC)</th></tr></thead>
+          <tbody>
+            <tr><td>HBM</td><td class="num">~1.5 TB/s</td><td class="num">~208</td></tr>
+            <tr><td>L2</td><td class="num">~5 TB/s</td><td class="num">~62</td></tr>
+            <tr><td>SMEM (per SM agg.)</td><td class="num">~19 TB/s</td><td class="num">~16</td></tr>
+            <tr><td>Register</td><td class="num">~TB/s 단위 실효</td><td class="num">—</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">order-of-magnitude · A100 whitepaper / NVIDIA Tuning Guide · <span class="xref">↗ V02 §15</span></p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Hierarchical Plot ★</h3>
+        <pre class="ascii">log FLOP/s
+  ▲
+  │            ──────── P_peak
+  │           /
+  │          / SMEM roof (19 TB/s · AI_smem)
+  │         /  ← 기울기 가장 급
+  │        /
+  │       / L2 roof (5 TB/s · AI_L2)
+  │      /
+  │     /
+  │    / HBM roof (1.5 TB/s · AI_HBM)
+  │   /
+  └──┼─────────────────────────► log AI
+     각 level의 AI = FLOPs / Bytes_level
+     level별로 kernel 좌표 다름</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Level별 AI 정의</h3>
+        <div class="formula">
+          AI<sub>HBM</sub> = FLOPs / Bytes<sub>HBM</sub><br/>
+          AI<sub>L2</sub>  = FLOPs / Bytes<sub>L2</sub><br/>
+          AI<sub>SMEM</sub> = FLOPs / Bytes<sub>SMEM</sub>
+          <span class="legend">같은 kernel이라도 level별 Bytes 다름 → AI 다름 → plot 좌표 다름</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 판독 규칙 <span class="ko">어느 level이 병목</span></h3>
+        <ol class="bullet-num">
+          <li>kernel point가 <span class="kw">HBM roof에 붙음</span> → HBM-bound (reuse 없음)</li>
+          <li>HBM roof는 여유, <span class="kw">L2 roof에 붙음</span> → L2-bound (hit 낮거나 L2 BW 한계)</li>
+          <li>HBM·L2 여유, <span class="kw">SMEM roof에 붙음</span> → SMEM BW 또는 bank conflict</li>
+          <li>모든 memory roof 위, <span class="kw">P<sub>peak</sub>에 붙음</span> → compute-bound (목표 상태)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> GEMM 단계별 이동</h3>
+        <div class="ex"><span class="label">예</span>
+          naive GEMM → <b>HBM roof</b><br/>
+          + shmem tiling → <b>L2/SMEM roof</b> 방향으로 우측 이동<br/>
+          + Tensor Core → <b>compute roof</b> 근접<br/>
+          <span class="tiny">cross-ref <span class="xref">↗ V06 §3</span> GEMM tiling 단계</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Multi-tier의 함정</h3>
+        <div class="warn-box"><span class="label"></span>
+          AI<sub>SMEM</sub> 기준으로만 plot 하면 <span class="red">SMEM bank conflict</span>에 의한 effective BW 감소가 숨겨진다 — conflict 지표 별도 확인 필요 (§6).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p3</span>
+    <span class="tiny">hierarchical roofline — 계층별로 ceiling 을 긋는다</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 4: AI 계산 예시 ============================ -->
+<section class="page" data-screen-label="04 AI 계산 예시">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — AI 계산 예시 (GEMM · FlashAttention)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GEMM FLOPs/Bytes ★</h3>
+        <div class="formula">
+          C = A·B, &nbsp; A:M×K, &nbsp; B:K×N, &nbsp; C:M×N<br/>
+          FLOPs = 2·M·N·K &nbsp; <span class="ko">FMA=2</span><br/>
+          Bytes<sub>naive</sub> = sizeof · (M·K + K·N + M·N)
+          <span class="legend">tile 없이 매 inner product마다 A·B 재로드하면 K배 이상 증폭됨</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> GEMM AI (이상적 단일 패스)</h3>
+        <div class="formula">
+          AI<sub>ideal</sub> = 2MNK / ( 2·(MK + KN + MN) )
+          <span class="legend">M=N=K=d 라면 AI ≈ d/3 · FP16(2B) → AI<sub>FLOP/B</sub> = d/6</span>
+        </div>
+        <div class="ex"><span class="label">예 M=N=K=4096, FP16</span>
+          FLOPs = 2·4096³ ≈ 1.37×10<sup>11</sup><br/>
+          Bytes = 2·(3·4096²) ≈ 10<sup>8</sup><br/>
+          AI ≈ <b>1365 FLOP/B</b> &gt;&gt; AI*<sub>H100</sub>=295 → <b>compute-bound</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> GEMM 형상별 AI 표</h3>
+        <table class="compact">
+          <thead><tr><th>M=N=K</th><th>AI (FP16)</th><th>region</th></tr></thead>
+          <tbody>
+            <tr><td class="num">128</td><td class="num">~21</td><td>memory-bound</td></tr>
+            <tr><td class="num">512</td><td class="num">~85</td><td>mem/comp 경계</td></tr>
+            <tr><td class="num">1024</td><td class="num">~170</td><td>compute 근처</td></tr>
+            <tr><td class="num">4096</td><td class="num">~683</td><td>compute-bound</td></tr>
+            <tr><td class="num">8192</td><td class="num">~1365</td><td>deep compute</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">AI ≈ d/6 근사 · ridge AI<sub>H100</sub>=295 대비</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Tall-Skinny / Short-Fat</h3>
+        <ul>
+          <li>M 작고 K 큰 GEMV-류 → <span class="kw">AI 낮음</span> (memory-bound)</li>
+          <li>decoder bs=1 inference → GEMV, ridge 왼쪽</li>
+          <li><span class="red">reuse 낮음</span>이 본질적 → tile 늘려도 한계</li>
+        </ul>
+        <p class="tiny">Split-K / Stream-K 선택 <span class="xref">↗ V06 §5</span></p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> FA Kernel AI ★</h3>
+        <div class="formula">
+          FA: seq=N, head=d, block B<sub>r</sub>·B<sub>c</sub><br/>
+          FLOPs ≈ 4·N²·d &nbsp; <span class="ko">QK + PV 각 2N²d</span><br/>
+          Bytes<sub>HBM</sub> ≈ sizeof·(N·d + N·d + N·d) = 3·N·d·s
+          <span class="legend">S=QK<sup>T</sup> matrix는 SMEM에서만 — HBM에 안 씀</span>
+        </div>
+        <div class="ex"><span class="label">AI<sub>FA</sub> 근사</span>
+          AI ≈ 4N²d / (3Nd·s) = 4N/(3s)<br/>
+          FP16 → AI ≈ <b>2N/3</b> · N=2048 → ≈ 1365<br/>
+          → <b>compute-bound</b> (긴 시퀀스일수록)
+        </div>
+        <p class="tiny">cross-ref <span class="xref">↗ V07 §4</span> FA AI 유도</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Elementwise / Softmax AI</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>AI (FP16)</th></tr></thead>
+          <tbody>
+            <tr><td>add, mul</td><td class="num">~0.25</td></tr>
+            <tr><td>RMSNorm</td><td class="num">~0.5</td></tr>
+            <tr><td>softmax (1 pass)</td><td class="num">~0.5</td></tr>
+            <tr><td>LayerNorm</td><td class="num">~1.0</td></tr>
+          </tbody>
+        </table>
+        <p><span class="kw">항상 memory-bound</span> → fusion 만이 유일 해결책 <span class="xref">↗ V08</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> AI 개선 경로 <span class="ko">일반 규칙</span></h3>
+        <ol>
+          <li>reuse 증가: tile ↑, register blocking</li>
+          <li>redundant load 제거: fusion</li>
+          <li>Bytes 감소: dtype ↓ (FP8/INT8)</li>
+          <li>recompute: bytes ↓ 대신 FLOPs ↑</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p4</span>
+    <span class="tiny">AI는 알고리즘 + 구현 결합 특성</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 5: Nsight Compute 메트릭 체계 ============================ -->
+<section class="page" data-screen-label="05 NCU 메트릭 체계">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — Nsight Compute 메트릭 체계</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> NCU Section 계층 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          Nsight Compute (NCU) 리포트는 <span class="kw">Section</span> 단위로 구성. 각 Section = 관련 metric 묶음 + 해석 rule.
+        </div>
+        <ul>
+          <li><b>GPU Speed of Light (SOL)</b> — 상위 요약, peak 대비 %</li>
+          <li><b>Memory Workload Analysis</b> — DRAM/L2/L1/SMEM 트래픽</li>
+          <li><b>Compute Workload Analysis</b> — pipe 별 utilization</li>
+          <li><b>Scheduler Statistics</b> — warp issue/eligible</li>
+          <li><b>Warp State Statistics</b> — stall 원인</li>
+          <li><b>Source Counters</b> — 소스 라인 attribution</li>
+        </ul>
+        <p class="tiny">NVIDIA Nsight Compute Documentation · Section 정의만 참조</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 판독 순서 <span class="ko">top-down</span>
+          <span class="mnemonic">SOL→Mem→Comp→Sched→Warp→Src</span>
+        </h3>
+        <ol class="bullet-num">
+          <li>SOL 으로 bound type 1차 판별</li>
+          <li>Memory / Compute Workload 로 근거 확인</li>
+          <li>Scheduler / Warp State 로 원인 범주</li>
+          <li>Source View 로 라인 단위 attribution</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Metric 명명 규칙</h3>
+        <table class="compact">
+          <thead><tr><th>prefix</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>sm__</code></td><td>SM 단위 카운터</td></tr>
+            <tr><td><code>smsp__</code></td><td>SM sub-partition</td></tr>
+            <tr><td><code>l1tex__</code></td><td>L1/TEX unit</td></tr>
+            <tr><td><code>lts__</code></td><td>L2 slice</td></tr>
+            <tr><td><code>dram__</code></td><td>HBM 컨트롤러</td></tr>
+            <tr><td><code>gpc__</code></td><td>GPC (SM 묶음)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Metric Suffix <span class="ko">측정 방식</span></h3>
+        <table class="compact">
+          <thead><tr><th>suffix</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.avg</code></td><td>평균</td></tr>
+            <tr><td><code>.sum</code></td><td>합계</td></tr>
+            <tr><td><code>.pct_of_peak</code></td><td>peak 대비 %</td></tr>
+            <tr><td><code>.per_cycle_active</code></td><td>active cycle당</td></tr>
+            <tr><td><code>.ratio</code></td><td>비율</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Section ↔ 해석 질문 매핑</h3>
+        <table class="compact">
+          <thead><tr><th>section</th><th>답하는 질문</th></tr></thead>
+          <tbody>
+            <tr><td>SOL</td><td>compute vs memory 어디?</td></tr>
+            <tr><td>Memory</td><td>어느 계층이 포화?</td></tr>
+            <tr><td>Compute</td><td>어느 pipe가 포화?</td></tr>
+            <tr><td>Scheduler</td><td>warp가 충분히 준비?</td></tr>
+            <tr><td>Warp State</td><td>왜 stall?</td></tr>
+            <tr><td>Source</td><td>어느 라인?</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Counter 종류</h3>
+        <ul>
+          <li><span class="kw">Throughput counter</span> — byte/s, FLOP/s, inst/s</li>
+          <li><span class="kw">Utilization counter</span> — peak 대비 %</li>
+          <li><span class="kw">Event counter</span> — 누적 횟수 (cache miss 등)</li>
+          <li><span class="kw">Ratio counter</span> — derived (hit rate 등)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 해석 원칙</h3>
+        <div class="warn-box"><span class="label"></span>
+          단일 metric에 매달리지 말 것. <span class="red">Section 통째로</span> 보고 교차 확인. SOL Memory 만 보고 "memory-bound" 단정은 오진 가능.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p5</span>
+    <span class="tiny">NCU = Section × metric × 해석 rule</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 6: SOL 지표 ============================ -->
+<section class="page" data-screen-label="06 SOL 지표">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — Speed of Light (SOL) 지표</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> SOL 개념 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <span class="kw">SOL</span> = 해당 unit이 <span class="kw">peak</span> 대비 몇 %로 돌아갔는가. kernel 전체 runtime 에 대해 평균한 값.
+        </div>
+        <div class="formula">
+          SOL<sub>unit</sub> = observed<sub>unit</sub> / peak<sub>unit</sub> · 100 [%]
+          <span class="legend">peak은 HW 이론치 (whitepaper) · observed는 실측 counter</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> SOL 3대 지표</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>peak 기준</th></tr></thead>
+          <tbody>
+            <tr><td>SOL SM</td><td>SM compute pipe 포화</td></tr>
+            <tr><td>SOL Memory</td><td>HBM BW 포화</td></tr>
+            <tr><td>SOL TEX/L1</td><td>L1/TEX 단위 처리량</td></tr>
+            <tr><td>SOL L2</td><td>L2 cache 처리량</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 해석 규칙 ★</h3>
+        <table class="vs">
+          <thead><tr><th>조건</th><th>판정</th></tr></thead>
+          <tbody>
+            <tr><td>SOL Mem &gt; SOL SM (차이 큼)</td><td>memory-bound 후보</td></tr>
+            <tr><td>SOL SM &gt; SOL Mem (차이 큼)</td><td>compute-bound 후보</td></tr>
+            <tr><td>둘 다 낮음 (&lt; 60%)</td><td>latency-bound 의심</td></tr>
+            <tr><td>둘 다 높음</td><td>balanced, 목표 상태</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVIDIA Nsight Compute Kernel Profiling Guide — SOL Section 해석 rule</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> SOL SM 세부</h3>
+        <div class="def"><span class="label">의미</span>
+          SM 내부 <span class="kw">모든 pipe</span> (FMA, ALU, LSU, Tensor, SFU) 중 <span class="kw">최대값</span>.
+        </div>
+        <ul>
+          <li>어느 pipe가 bottleneck 인지는 §9 Compute Workload</li>
+          <li>Tensor Core 전용 kernel이면 Tensor pipe가 SM SOL을 지배</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> SOL Memory 세부</h3>
+        <div class="def"><span class="label">의미</span>
+          memory 하위 시스템 (DRAM, L2, L1, SMEM) 중 <span class="kw">최대 처리량 %</span>.
+        </div>
+        <ul>
+          <li>SOL Memory 80%+ → HBM BW saturate, 추가 BW 확보 불가</li>
+          <li>계층별 세부는 Memory Chart 에서 (§6)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> SOL TEX / L1</h3>
+        <ul>
+          <li>L1 unit이 포화되면 <span class="kw">LSU bottleneck</span></li>
+          <li>shared memory load/store 도 L1 unit 경유 → 영향</li>
+          <li>uniform memory instruction 많으면 MIO throttle 과 연관</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> SOL 해석 함정 <span class="ko">(!) 니모닉</span></h3>
+        <div class="mnem"><span class="label"></span>
+          SOL 판독 3Q: <span class="key">CMB</span> (Compute·Memory·Balance)
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">함정</span>: SOL SM 이 낮아도 compute-bound 일 수 있다 — warp divergence 때문에 pipe가 놀고 있지만 실제로는 compute waste 중인 경우.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p6</span>
+    <span class="tiny">SOL = peak 대비 %, top-down 진단의 첫 관문</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 7: Memory Chart ============================ -->
+<section class="page" data-screen-label="07 Memory Chart">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Memory Chart 지표</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Memory Chart 구조 ★</h3>
+        <div class="def"><span class="label">의미</span>
+          <span class="kw">DRAM ↔ L2 ↔ L1/TEX ↔ SMEM ↔ Register</span> 간 데이터 흐름을 화살표·숫자로 표기. 각 단계별 throughput + hit rate.
+        </div>
+        <pre class="ascii">  DRAM
+   ↓ bytes_r / bytes_w
+    L2  (hit rate %)
+   ↓
+  L1/TEX (hit rate %)
+   ↓
+  SMEM (load/store · bank conflict)
+   ↓
+  Register file</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> DRAM Throughput</h3>
+        <div class="formula">
+          DRAM<sub>%</sub> = dram__bytes.sum / (peak<sub>BW</sub> · time) · 100
+          <span class="legend">peak<sub>BW</sub> : HBM 이론치 · <span class="xref">↗ V02 §5</span></span>
+        </div>
+        <ul>
+          <li>read/write 분리 표시 — 불균형 시 특정 패턴 의심</li>
+          <li>ECC overhead는 peak 에 이미 반영 (whitepaper 수치)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Cache Hit Rate ★</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>hit rate 의미</th></tr></thead>
+          <tbody>
+            <tr><td>L1 hit</td><td>block 내 reuse</td></tr>
+            <tr><td>L2 hit</td><td>SM 간 공유 / prefetch 성공</td></tr>
+            <tr><td>DRAM (miss)</td><td>HBM 까지 내려감</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Hit rate 낮음 = traffic 증폭 = DRAM BW 낭비</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Sector / Request</h3>
+        <div class="formula">
+          sectors / request = 실제 32B sector 수 / memory instruction 수
+          <span class="legend">이상 coalesced load = 4 sectors/request (128B access) · 이상 값이 크면 uncoalesced</span>
+        </div>
+        <ul>
+          <li>global load: sectors/req 1~4 정상</li>
+          <li>sectors/req &gt; 4 → <span class="red">uncoalesced</span> 의심</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Shared Memory Load/Store</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>해석</th></tr></thead>
+          <tbody>
+            <tr><td>SMEM load throughput</td><td>reuse 활용도</td></tr>
+            <tr><td>SMEM store throughput</td><td>write 빈도</td></tr>
+            <tr><td>bank conflict count</td><td>access pattern 문제</td></tr>
+            <tr><td>wavefronts per request</td><td>1 이상 = 충돌</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Bank Conflict</h3>
+        <div class="def"><span class="label">정의</span>
+          warp 내 스레드가 <span class="kw">같은 bank (32 bank)</span>에 동시에 접근 → serialization. N-way conflict = N cycle.
+        </div>
+        <ul>
+          <li>wavefronts / request 값이 핵심 지표</li>
+          <li>해결 범주: padding, swizzle, <span class="kw">ldmatrix</span> <span class="xref">↗ V03 §8</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> L2 Hit 전략 범주</h3>
+        <ul>
+          <li>block 배치로 working set 축소</li>
+          <li>L2 persistence <span class="xref">↗ V02 §4</span></li>
+          <li>tile 순서 변경 (z-order, swizzle)</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">함정</span>: L1 hit 100%인데 DRAM throughput 여전히 높음 → 다른 block이 같은 데이터 재로드 (L2 miss).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p7</span>
+    <span class="tiny">Memory Chart = 계층별 throughput + hit rate</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 8: Warp Stall Reason ============================ -->
+<section class="page" data-screen-label="08 Stall 8종">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Warp Stall Reason 8종 매트릭스</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Stall Reason 개념 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          매 cycle warp scheduler가 <span class="kw">sample</span>한 각 warp의 상태. "준비 안 된" warp들의 <span class="kw">왜</span>를 집계한 것이 <span class="kw">stall reason</span>.
+        </div>
+        <ul>
+          <li>분포는 cycle count 가중 %로 표시</li>
+          <li>top 1~2 reason 이 진짜 bottleneck</li>
+          <li><span class="red">원인 ≠ 해법</span> — 아래 표는 범주만</li>
+        </ul>
+        <p class="tiny">NVIDIA Nsight Compute · Warp State Statistics Section · <span class="xref">↗ V02 §11</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 판독 원칙</h3>
+        <ol class="bullet-num">
+          <li>상위 2~3 reason 누적 %</li>
+          <li>나머지는 백색 잡음으로 간주</li>
+          <li>reason 은 <span class="kw">증상</span>일 뿐, 원인 위치는 Source View</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2·3 병합: stall 8종 매트릭스 ★ -->
+    <div class="col" style="flex:2">
+      <div class="sec">
+        <h3><span class="num">3</span> Stall Reason 8종 정의 매트릭스 ★★</h3>
+        <table class="vs">
+          <thead>
+            <tr><th style="width:16%">이름</th><th style="width:26%">의미</th><th style="width:28%">전형적 원인 범주</th><th style="width:30%">해법 범주 <span class="ko">프레임 수준</span></th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Long Scoreboard</b></td>
+              <td>global/local memory load 결과 대기</td>
+              <td>HBM latency, reuse 부족, prefetch 없음</td>
+              <td>shmem tiling, <code>cp.async</code> pipelining, L2 hit ↑</td>
+            </tr>
+            <tr>
+              <td><b>Short Scoreboard</b></td>
+              <td>SMEM load / MIO 결과 대기</td>
+              <td>shared memory 지연, bank conflict</td>
+              <td>swizzle, <code>ldmatrix</code>, padding</td>
+            </tr>
+            <tr>
+              <td><b>Wait</b></td>
+              <td>이전 instruction의 fixed latency 대기</td>
+              <td>dependency chain, low ILP</td>
+              <td>unroll, 독립 op 삽입, ILP 확보</td>
+            </tr>
+            <tr>
+              <td><b>Not Selected</b></td>
+              <td>ready 인데 scheduler가 다른 warp 선택</td>
+              <td>eligible warp 과다 (좋은 신호)</td>
+              <td>통상 건드리지 않음 — ILP 확보 여지</td>
+            </tr>
+            <tr>
+              <td><b>Drain</b></td>
+              <td>block exit 시점 작업 drain 대기</td>
+              <td>tail effect, block 수 vs SM 배수 부정합</td>
+              <td>grid 크기 조정, persistent kernel</td>
+            </tr>
+            <tr>
+              <td><b>Barrier</b></td>
+              <td><code>__syncthreads</code> / cluster barrier 대기</td>
+              <td>sync 빈도 과다, work imbalance</td>
+              <td>sync 횟수 ↓, warp specialization</td>
+            </tr>
+            <tr>
+              <td><b>MIO Throttle</b></td>
+              <td>Memory I/O unit queue 포화</td>
+              <td>uniform load 쏠림, LDG 폭주</td>
+              <td>load 분산, vectorize (LDG.128)</td>
+            </tr>
+            <tr>
+              <td><b>Tex Throttle</b></td>
+              <td>TEX/L1 unit 포화</td>
+              <td>texture/L1 요청 과다</td>
+              <td>request 분산, cache 활용 재검토</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="tiny">"해법"은 <span class="red">프레임워크 수준 범주</span>일 뿐 — 구체 튜닝 사례·UI 조작은 단권화 범위 밖 (out-of-scope)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Stall 그룹핑 <span class="ko">bound 추론</span></h3>
+        <table class="compact">
+          <thead><tr><th>지배 stall</th><th>추정 bound</th></tr></thead>
+          <tbody>
+            <tr><td>Long Scoreboard ↑↑</td><td>HBM latency/BW bound</td></tr>
+            <tr><td>Short Scoreboard ↑↑</td><td>SMEM bound</td></tr>
+            <tr><td>Barrier ↑↑</td><td>sync bound (work imbalance)</td></tr>
+            <tr><td>Wait ↑↑ + Math pipe ↑↑</td><td>compute bound</td></tr>
+            <tr><td>Not Selected ↑↑</td><td>여유 있음 — bottleneck은 다른 곳</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p8</span>
+    <span class="tiny">stall reason = 증상. 원인 위치는 Source View 에서</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 9: Scheduler 지표 ============================ -->
+<section class="page" data-screen-label="09 Scheduler 지표">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Scheduler 지표</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Warp Scheduler 요약 ★</h3>
+        <div class="def"><span class="label">역할</span>
+          매 cycle 각 <span class="kw">scheduler sub-partition</span>에서 <span class="kw">eligible warp</span> 하나를 골라 instruction을 issue. Ampere/Hopper는 dual issue 가능.
+        </div>
+        <p class="tiny">SM 내부 구조 <span class="xref">↗ V02 §1·§11</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 3지표</h3>
+        <table class="compact">
+          <thead><tr><th>metric</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>Active Warps</td><td>assigned warp 수 (평균/SM)</td></tr>
+            <tr><td>Eligible Warps / cycle</td><td>issue 가능 warp 수</td></tr>
+            <tr><td>Issued Warps / cycle</td><td>실제 issue된 warp 수</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 상태 전이</h3>
+        <pre class="ascii">Active → Eligible → Issued
+  ↓         ↓         ↓
+stalled   not-selected  success</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Issue Slot Utilization</h3>
+        <div class="formula">
+          slot_util = issued_warps_per_cycle / max_schedulers
+          <span class="legend">max_schedulers = SM 내 scheduler 수 (Ampere/Hopper = 4 sub-partition)</span>
+        </div>
+        <ul>
+          <li>100% = 매 cycle issue 성공</li>
+          <li>낮으면 stall 또는 eligible 부족</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Eligible Warps 판독 ★</h3>
+        <table class="vs">
+          <thead><tr><th>조건</th><th>진단</th></tr></thead>
+          <tbody>
+            <tr><td>Active 높음, Eligible 낮음</td><td>전원 stall — latency hiding 실패</td></tr>
+            <tr><td>Eligible 높음, Issued 낮음</td><td>issue 단의 pipe 제약</td></tr>
+            <tr><td>Eligible &gt; 1</td><td>ILP 여유 있음 (Not Selected ↑)</td></tr>
+            <tr><td>Eligible &lt; 1</td><td>warp 수 부족, occupancy ↑ 검토</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Latency Hiding 조건</h3>
+        <div class="formula">
+          warps<sub>필요</sub> ≥ L · T / S
+          <span class="legend">L : instruction latency (cycle) &nbsp; T : throughput (inst/cycle) &nbsp; S : scheduler 수</span>
+        </div>
+        <ul>
+          <li>latency 높을수록 warp 많이 필요</li>
+          <li>HBM latency ~400~600 cycle → warp 대기 비용 큼</li>
+          <li><span class="xref">↗ V02 §14</span> latency table</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Scheduler ↔ Occupancy</h3>
+        <div class="def"><span class="label">연결</span>
+          Eligible Warps 부족이 반복되면 <span class="kw">occupancy</span> 부족 가능성. 단, occupancy 높다고 eligible이 보장되지 않음 (전원 stall 가능).
+        </div>
+        <p class="tiny">Occupancy 상세 <span class="xref">↗ p11 §10</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 함정</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">오해</span>: Issue Slot Util 100% = 최적. 사실은 특정 pipe만 포화된 상태일 수 있음. Compute Workload (§9) 로 pipe별 확인 필요.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p9</span>
+    <span class="tiny">Active → Eligible → Issued 삼각의 해석</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 10: Compute Workload ============================ -->
+<section class="page" data-screen-label="10 Compute Workload">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Compute Workload Analysis</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Pipe 구조 ★</h3>
+        <div class="def"><span class="label">개념</span>
+          SM 내부는 기능별 <span class="kw">pipe</span>로 나뉨. Compute Workload Section은 <span class="kw">pipe 별 utilization %</span>를 보여줌.
+        </div>
+        <ul>
+          <li>FMA, ALU, FP64, LSU, Tensor, SFU, XU 등</li>
+          <li>pipe마다 별도 throughput · 직접 경합 없음</li>
+        </ul>
+        <p class="tiny">Pipe 구성 세대별 차이 <span class="xref">↗ V02 §1</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 주요 Pipe 정의 표</h3>
+        <table class="compact">
+          <thead><tr><th>pipe</th><th>담당 연산</th></tr></thead>
+          <tbody>
+            <tr><td>FMA</td><td>FP32 fused multiply-add</td></tr>
+            <tr><td>ALU</td><td>int / logical / bitwise</td></tr>
+            <tr><td>FP64</td><td>double precision</td></tr>
+            <tr><td>LSU</td><td>load/store unit</td></tr>
+            <tr><td>Tensor (TC)</td><td>MMA, WGMMA</td></tr>
+            <tr><td>SFU</td><td>sin, cos, rcp, rsqrt, exp</td></tr>
+            <tr><td>XU (Ampere+)</td><td>branch, predicate, misc</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 해석 규칙 ★</h3>
+        <table class="vs">
+          <thead><tr><th>포화 pipe</th><th>bound 의미</th></tr></thead>
+          <tbody>
+            <tr><td>Tensor ↑↑</td><td>TC-bound — 목표 상태 (GEMM)</td></tr>
+            <tr><td>FMA ↑↑</td><td>FP32 compute-bound</td></tr>
+            <tr><td>ALU ↑↑</td><td>int 연산 포화 (indexing 과다?)</td></tr>
+            <tr><td>LSU ↑↑</td><td>load/store 집중 (SMEM traffic)</td></tr>
+            <tr><td>SFU ↑↑</td><td>초월함수 병목 (exp, softmax)</td></tr>
+            <tr><td>모든 pipe 낮음</td><td>compute 아닌 다른 bound</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Tensor Pipe Active %</h3>
+        <div class="formula">
+          TC% = mma_inst · shape_FLOP / (cycle · SM · TC<sub>/SM</sub> · FLOP<sub>/TC</sub>)
+          <span class="legend">GEMM 최적 커널은 60~80%+ · FA forward는 70%+ 가능</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Pipe 합산의 함정</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">함정</span>: 여러 pipe util을 단순 합산하면 100% 초과. pipe들은 <span class="kw">병렬</span>이므로 각각 독립 %.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Tensor vs non-Tensor</h3>
+        <ul>
+          <li>TC-enabled kernel: TC pipe 높고 FMA 낮음이 정상</li>
+          <li>TC 낮음 + FMA 높음 → TC 경로 누락 <span class="ko">dtype / ldmatrix 확인</span></li>
+          <li>TC + FMA 둘 다 낮음 → memory/latency bound</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Pipe 별 개선 범주</h3>
+        <table class="compact">
+          <thead><tr><th>포화 pipe</th><th>개선 방향 (범주)</th></tr></thead>
+          <tbody>
+            <tr><td>ALU 과다</td><td>indexing 단순화, const folding</td></tr>
+            <tr><td>LSU 과다</td><td>vectorized load, SMEM tiling</td></tr>
+            <tr><td>SFU 과다</td><td>fast-math, approx 함수</td></tr>
+            <tr><td>TC 낮음</td><td>shape/dtype 재검토 <span class="xref">↗ V06</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p10</span>
+    <span class="tiny">pipe별 utilization = compute-bound의 해부</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 11: Occupancy ============================ -->
+<section class="page" data-screen-label="11 Occupancy">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Occupancy 분석</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Occupancy 정의 ★</h3>
+        <div class="formula">
+          Occupancy = active_warps_per_SM / max_warps_per_SM
+          <span class="legend">max : Ampere 64 / Hopper 64 warp per SM</span>
+        </div>
+        <ul>
+          <li>occupancy = latency hiding 여력의 <span class="kw">상한</span></li>
+          <li><span class="red">성능 ≠ occupancy</span> — 충분조건 아님</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Theoretical vs Achieved</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>Theoretical</td><td>HW 자원 한계로 정해지는 상한</td></tr>
+            <tr><td>Achieved</td><td>실행 중 실제 평균</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Achieved &lt; Theoretical → tail effect, sync imbalance</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Theoretical 제한 요인 ★</h3>
+        <table class="compact">
+          <thead><tr><th>자원</th><th>제약</th></tr></thead>
+          <tbody>
+            <tr><td>Register / thread</td><td>reg · threads · warp32 ≤ 256KB/SM</td></tr>
+            <tr><td>Shared Mem / block</td><td>blocks · smem/block ≤ SMEM/SM</td></tr>
+            <tr><td>Threads / block</td><td>blocks · threads ≤ max_threads</td></tr>
+            <tr><td>Blocks / SM</td><td>≤ 16 (Ampere) / 32 (Hopper)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">상수 <span class="xref">↗ V02 §2·§3</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 제한 요인 식별</h3>
+        <ol class="bullet-num">
+          <li>셋 중 <b>가장 작은 한계</b>가 occupancy를 결정</li>
+          <li><code>__launch_bounds__</code> 로 reg 상한 힌트</li>
+          <li>NCU Occupancy Section 에 <span class="kw">Limiter</span> 명시됨</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Occupancy ↑ ≠ 성능 ↑ ★</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">핵심 오해</span>: occupancy 100% 추구하다가 reg 부족 → <span class="kw">spill</span> → local memory (HBM) traffic 증가 → 성능 <span class="red">악화</span>.
+        </div>
+        <ul>
+          <li>compute-bound kernel 은 occupancy 50%로도 충분</li>
+          <li>memory-bound kernel 은 occupancy ↑ 도움되는 편</li>
+          <li><span class="kw">sweet spot</span> 은 kernel마다 다름</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Achieved &lt; Theoretical 원인</h3>
+        <ul>
+          <li>tail: grid 크기가 SM 수 배수 아님</li>
+          <li>work imbalance: 일부 block 조기 종료</li>
+          <li>barrier: block 내 sync imbalance</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 판독 절차</h3>
+        <ol>
+          <li>Theoretical limiter 확인 (reg / smem / block)</li>
+          <li>Achieved 와 gap 확인</li>
+          <li>gap이 크면 tail/barrier 의심</li>
+          <li>Eligible Warps 와 교차 검토 (§8)</li>
+        </ol>
+        <div class="mnem"><span class="label"></span>
+          Occupancy 3한: <span class="key">R·S·B</span> (Register · SMEM · Block count)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p11</span>
+    <span class="tiny">occupancy = 상한이지 성능 자체가 아니다</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 12: Source View ============================ -->
+<section class="page" data-screen-label="12 Source View">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Source View 메트릭</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Source View 목적 ★</h3>
+        <div class="def"><span class="label">의미</span>
+          Section 지표를 <span class="kw">per-line</span>으로 분해. CUDA C/PTX/SASS 소스 각 줄별 <span class="kw">sampled warp state</span>와 instruction 카운트를 매핑.
+        </div>
+        <p class="tiny">Nsight Compute · Source Counters Section</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 3계층 표시</h3>
+        <table class="compact">
+          <thead><tr><th>계층</th><th>표시</th></tr></thead>
+          <tbody>
+            <tr><td>CUDA C</td><td>원본 라인</td></tr>
+            <tr><td>PTX</td><td>가상 ISA (컴파일 중간)</td></tr>
+            <tr><td>SASS</td><td>실제 실행 명령 <span class="xref">↗ V04 §12</span></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">C ↔ PTX ↔ SASS 대응은 컴파일러가 주석으로 제공 — 1:1 아닐 수 있음</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Per-line Metric 종류</h3>
+        <table class="compact">
+          <thead><tr><th>metric</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>Sampled Warp State</td><td>이 라인에서 관측된 stall reason 분포</td></tr>
+            <tr><td>Instructions Executed</td><td>누적 실행 횟수</td></tr>
+            <tr><td>Predicated-Off</td><td>predicate false로 무효 처리</td></tr>
+            <tr><td>Live Registers</td><td>이 지점 live reg 개수</td></tr>
+            <tr><td>Branch Taken / NotTaken</td><td>분기 통계</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Sampled Warp State ★</h3>
+        <div class="def"><span class="label">의미</span>
+          매 sample cycle 해당 PC에서 관측된 warp의 stall reason. Warp State Statistics Section을 <span class="kw">PC별로 분해</span>한 것.
+        </div>
+        <ul>
+          <li>특정 라인에 Long Scoreboard 집중 → 그 라인의 load가 HBM 대기</li>
+          <li>특정 라인에 Barrier 집중 → 그 앞의 sync 문제</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Live Register Count</h3>
+        <div class="def"><span class="label">의미</span>
+          해당 PC에서 동시 live인 register 수. <span class="kw">max live</span> 가 occupancy 제한 요인이 됨.
+        </div>
+        <ul>
+          <li>function body 중간에 spike 있으면 전체 reg/thread 상승</li>
+          <li>spill 방지 힌트로 <code>__launch_bounds__</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Stall Attribution 순서 ★</h3>
+        <ol class="bullet-num">
+          <li>Kernel 전체 Warp State 에서 top reason 확인</li>
+          <li>Source View 에서 <span class="kw">그 reason 이 집중된 라인</span> 식별</li>
+          <li>해당 라인 앞의 <span class="kw">긴 latency 원인</span> 추적 (load, sync, SFU)</li>
+          <li>범주적 해법 (§7 표) 에 맵핑</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 한계</h3>
+        <div class="warn-box"><span class="label"></span>
+          sampling 기반 — <span class="red">드물게 실행되는 라인</span>은 통계적 유의성 낮음. 또 compiler 최적화로 C 라인과 SASS 매핑이 흩어질 수 있음.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p12</span>
+    <span class="tiny">Source View = Section 지표의 per-line 분해</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 13: Nsight Systems ============================ -->
+<section class="page" data-screen-label="13 Nsight Systems">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Nsight Systems (Trace)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Nsys vs NCU ★</h3>
+        <table class="vs">
+          <thead><tr><th></th><th>Nsight Systems</th><th>Nsight Compute</th></tr></thead>
+          <tbody>
+            <tr><td>scope</td><td>system-wide timeline</td><td>single kernel deep-dive</td></tr>
+            <tr><td>단위</td><td>μs~s</td><td>cycle</td></tr>
+            <tr><td>질문</td><td>"언제·어디서"</td><td>"왜 느린가"</td></tr>
+            <tr><td>대상</td><td>CPU+GPU 협업</td><td>GPU kernel 내부</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Trace 구성요소</h3>
+        <ul>
+          <li><span class="kw">CUDA API</span> — <code>cudaMalloc</code>, <code>Memcpy</code>, launch</li>
+          <li><span class="kw">Kernel</span> — 실제 GPU 실행 span</li>
+          <li><span class="kw">Memcpy</span> — H2D / D2H / D2D</li>
+          <li><span class="kw">NCCL / NVLink</span> — comm span <span class="xref">↗ V15</span></li>
+          <li><span class="kw">NVTX range</span> — 사용자 정의 span</li>
+          <li><span class="kw">CPU stack</span> — host thread sampling</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Timeline Lane 구조</h3>
+        <pre class="ascii">CPU thread 0 |  cudaMemcpyAsync | launch | sync |
+CUDA HWQ     |  H2D            | kernelA | kernelB |
+NVLink       |                 | allreduce       |
+NVTX         |  [forward               ][backward]</pre>
+        <p class="tiny">lane별 독립 타임라인 — 겹침(overlap) 확인에 사용</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Overlap 판정 ★</h3>
+        <table class="compact">
+          <thead><tr><th>패턴</th><th>해석</th></tr></thead>
+          <tbody>
+            <tr><td>kernel + Memcpy 겹침</td><td>stream 병렬 활용 OK</td></tr>
+            <tr><td>compute + comm 겹침</td><td>comm hiding 성공</td></tr>
+            <tr><td>kernel 직후 긴 host gap</td><td>launch overhead / sync 대기</td></tr>
+            <tr><td>GPU idle span</td><td>host 병목</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> NVTX Range 용도</h3>
+        <ul>
+          <li>사용자가 <code>nvtxRangePush/Pop</code> 으로 구간 태깅</li>
+          <li>의미 단위 (step, layer, forward) 를 lane에 표시</li>
+          <li>kernel 집합을 <span class="kw">semantic</span>하게 묶음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 판독 질문 5종</h3>
+        <ol class="bullet-num">
+          <li>GPU idle 구간이 있는가</li>
+          <li>H2D / D2H 가 compute 와 겹치는가</li>
+          <li>allreduce 가 backward 와 겹치는가</li>
+          <li>kernel 간 gap은 normal 한가</li>
+          <li>CPU thread bottleneck이 있는가</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 분산 / Multi-GPU 확장</h3>
+        <div class="def"><span class="label">확장</span>
+          multi-rank trace 는 <span class="kw">rank별 lane</span>이 추가됨. NCCL coll 구간이 모든 rank에서 정렬되는지 확인.
+        </div>
+        <p class="tiny">NCCL 통신 상세 <span class="xref">↗ V15 §5·§6</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p13</span>
+    <span class="tiny">Nsys = "언제·어디서", NCU = "왜"</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 14: 튜닝 의사결정 프레임 ============================ -->
+<section class="page" data-screen-label="14 튜닝 의사결정">
+  <div class="page-header">
+    <div class="brand">V18 Profiling <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — 튜닝 의사결정 프레임 (bound type 분기)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Top-down Decision Tree ★</h3>
+        <pre class="ascii">Start
+ │
+ ├─ SOL Mem &gt; SOL SM (큰 차이)? ── Y → [Memory Bound]
+ │       N
+ ├─ SOL SM &gt; SOL Mem (큰 차이)? ── Y → [Compute Bound]
+ │       N
+ ├─ 둘 다 &lt; 60%? ─────────────── Y → [Latency Bound]
+ │       N
+ ├─ Warp Divergence 크다? ────── Y → [Divergence Bound]
+ │       N
+ └─ Eligible &lt; 1? ────────────── Y → [Occupancy Bound]
+         N → Balanced (목표)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 우선순위 원칙 ★</h3>
+        <ol class="bullet-num">
+          <li><b>최상위 bottleneck 먼저</b> — 나머지 개선은 mask 됨</li>
+          <li><b>SOL 차이 크기</b> 순서로 attack</li>
+          <li><b>범주적 해법 → 측정 → 재판독</b> 루프 <span class="ko">단, 측정·재판독은 코드 영역</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- COL 2 : 핵심 3-col 매트릭스 ★ -->
+    <div class="col" style="flex:1.3">
+      <div class="sec">
+        <h3><span class="num">3</span> Bound Type × Metric × 원인 매트릭스 ★★</h3>
+        <table class="vs">
+          <thead>
+            <tr><th style="width:22%">bound type</th><th style="width:36%">우선 검사 metric</th><th style="width:42%">가능한 원인 범주</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Memory Bound</b></td>
+              <td>SOL Memory, DRAM throughput, L2/L1 hit rate, sectors/req, Long Scoreboard %</td>
+              <td>reuse 부족, uncoalesced access, hit rate 낮음, working set &gt; L2, prefetch 없음</td>
+            </tr>
+            <tr>
+              <td><b>Compute Bound</b></td>
+              <td>SOL SM, pipe utilization (FMA/TC/SFU), Wait stall, Math pipe %</td>
+              <td>peak 도달 (목표), 또는 특정 pipe 편중 (SFU 초월함수, ALU indexing)</td>
+            </tr>
+            <tr>
+              <td><b>Latency Bound</b></td>
+              <td>Eligible Warps / cycle, Issue Slot Util, Wait stall, Active Warps</td>
+              <td>warp 수 부족, ILP 부족, dependency chain, register spill</td>
+            </tr>
+            <tr>
+              <td><b>Divergence Bound</b></td>
+              <td>Warp Execution Efficiency, Branch Efficiency, SM active cycles</td>
+              <td>data-dependent branch, uneven work, lane 별 다른 path</td>
+            </tr>
+            <tr>
+              <td><b>Occupancy Bound</b></td>
+              <td>Achieved Occupancy, Theoretical limiter (reg/smem/block), Active Warps</td>
+              <td>reg/thread 과다 (spill 가능), smem/block 과다, block 수 부족</td>
+            </tr>
+            <tr>
+              <td><b>Sync / Barrier Bound</b></td>
+              <td>Barrier stall %, Drain stall %, Achieved vs Theoretical gap</td>
+              <td>__syncthreads 과다, work imbalance, tail effect</td>
+            </tr>
+            <tr>
+              <td><b>SMEM Bound</b></td>
+              <td>Short Scoreboard %, SMEM throughput, wavefronts/request (bank conflict)</td>
+              <td>bank conflict, swizzle 부재, ldmatrix 누락, SMEM 용량 과다</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="tiny">범주적 원인만 · 구체 tuning trick / benchmark 수치 / UI 조작은 out-of-scope</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 진단 루프 요약</h3>
+        <ol class="bullet-num">
+          <li>Nsys trace → kernel 식별 <span class="ko">언제</span></li>
+          <li>NCU SOL → bound type <span class="ko">무엇</span></li>
+          <li>Section (Mem/Comp/Sched/Warp) → 원인 범주 <span class="ko">왜</span></li>
+          <li>Source View → 라인 attribution <span class="ko">어디</span></li>
+          <li>범주적 해법 선정 → 구현 <span class="ko">(실측 루프는 코드)</span></li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Cross-ref 지도</h3>
+        <table class="compact">
+          <thead><tr><th>bound</th><th>관련 권</th></tr></thead>
+          <tbody>
+            <tr><td>HW 구조 근거</td><td><span class="xref">↗ V02</span></td></tr>
+            <tr><td>GEMM tuning frame</td><td><span class="xref">↗ V06</span></td></tr>
+            <tr><td>FA tuning frame</td><td><span class="xref">↗ V07</span></td></tr>
+            <tr><td>Distributed overlap</td><td><span class="xref">↗ V15</span></td></tr>
+            <tr><td>Inference latency</td><td><span class="xref">↗ V16</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 니모닉 총정리 <span class="ko">(!)</span></h3>
+        <div class="mnem"><span class="label"></span>
+          판독 3Q: <span class="key">RWO</span> (Roofline · Warp stall · Occ vs Throughput)
+        </div>
+        <div class="mnem"><span class="label"></span>
+          Section 6: <span class="key">SMCSWS</span> (SOL · Memory · Compute · Scheduler · Warp · Source)
+        </div>
+        <div class="mnem"><span class="label"></span>
+          Bound 5: <span class="key">MCLDO</span> (Memory · Compute · Latency · Divergence · Occupancy)
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">단권화 범위</span>: 이 책은 "메트릭의 의미"만. <span class="kw">실제 튜닝 의사결정</span>은 측정-수정-재측정 루프이므로 코드·실습에서만 체화된다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V18·p14</span>
+    <span class="tiny">bound type → metric → 원인 범주 · 정지된 지도의 경계</span>
+  </div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

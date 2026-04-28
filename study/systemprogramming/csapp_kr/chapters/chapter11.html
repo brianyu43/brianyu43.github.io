@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제11장 · 네트워크 프로그래밍 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제11장 · 네트워크 프로그래밍</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="chapter10.html">← 이전</a>
+    <a href="../index.html">목차</a>
+    <a href="chapter12.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제11장 · 네트워크 프로그래밍</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-11-1">11.1 클라이언트-서버 프로그래밍 모델</a></li>
+      <li><a href="#sec-11-2">11.2 네트워크</a></li>
+      <li><a href="#sec-11-3">11.3 글로벌 IP 인터넷</a></li>
+      <li class="sub-li"><a href="#sec-11-3-1">11.3.1 IP 주소</a></li>
+      <li class="sub-li"><a href="#sec-11-3-2">11.3.2 도메인 이름</a></li>
+      <li class="sub-li"><a href="#sec-11-3-3">11.3.3 인터넷 연결</a></li>
+      <li><a href="#sec-11-4">11.4 소켓 인터페이스</a></li>
+      <li class="sub-li"><a href="#sec-11-4-1">11.4.1 소켓 주소 구조체</a></li>
+      <li class="sub-li"><a href="#sec-11-4-2">11.4.2 socket 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-3">11.4.3 connect 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-4">11.4.4 bind 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-5">11.4.5 listen 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-6">11.4.6 accept 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-7">11.4.7 호스트/서비스 변환</a></li>
+      <li class="sub-li"><a href="#sec-11-4-8">11.4.8 헬퍼 함수</a></li>
+      <li class="sub-li"><a href="#sec-11-4-9">11.4.9 echo 클라이언트와 서버 예제</a></li>
+      <li><a href="#sec-11-5">11.5 웹 서버</a></li>
+      <li class="sub-li"><a href="#sec-11-5-1">11.5.1 웹 기초</a></li>
+      <li class="sub-li"><a href="#sec-11-5-2">11.5.2 웹 콘텐츠</a></li>
+      <li class="sub-li"><a href="#sec-11-5-3">11.5.3 HTTP 트랜잭션</a></li>
+      <li class="sub-li"><a href="#sec-11-5-4">11.5.4 동적 콘텐츠 제공</a></li>
+      <li><a href="#sec-11-6">11.6 정리: Tiny 웹 서버</a></li>
+      <li><a href="#sec-11-7">11.7 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 11</span>
+      <h1>네트워크 프로그래밍</h1>
+      <div class="en">Network Programming</div>
+      <p class="blurb">
+        지금까지의 모든 장은 한 대의 컴퓨터 안의 이야기였다. 이번 장에서 그 벽이 깨진다.
+        OS가 제공하는 가장 우아한 추상 중 하나, <strong>소켓(socket)</strong>을 통해 우리는 멀리 있는 다른 컴퓨터와 대화하기 시작한다.
+        파일 디스크립터와 똑같이 생긴 그 작은 정수 하나가 사실은 인터넷을 가로질러 어떤 서버의 프로세스와 연결되어 있다는 사실 — 익숙해지면 별 거 아니지만, 처음 보면 살짝 마법 같다.
+        echo 서버부터 시작해서 끝에 가서는 GET 요청에 답하는 진짜 미니 웹 서버까지 직접 짠다.
+      </p>
+    </header>
+
+    <article class="section" id="sec-11-1">
+      <h2><span class="anchor-num">11.1</span>클라이언트-서버 프로그래밍 모델</h2>
+
+      <p>
+        네트워크 프로그래밍의 거의 모든 코드는 <strong>클라이언트-서버 모델(client-server model)</strong>이라는 한 가지 패턴을 따른다.
+        한 쪽이 먼저 말을 걸고, 다른 쪽이 받아 처리해 답한다. 끝. 이 단순한 비대칭이 웹, 메일, 채팅, 게임 매칭, 깃 푸시 — 거의 모든 것의 토대다.
+      </p>
+
+      <p>
+        <em>서버(server)</em>는 어떤 자원이나 서비스를 들고 가만히 기다린다. 디스크에 있는 HTML, DB의 레코드, 외부 API 등 무엇이든 될 수 있다.
+        <em>클라이언트(client)</em>는 그 자원이 필요할 때 서버에게 부탁한다. 부탁하지 않는 동안에는 서버에 아무 영향도 주지 않는다.
+        흔히 "내 컴퓨터"가 클라이언트이고 어딘가에 있는 데이터센터가 서버라고 생각하지만, 둘은 단지 역할의 이름일 뿐이다 — 같은 호스트 안에서 두 프로세스가 클라이언트와 서버를 맡을 수도 있다.
+      </p>
+
+      <p>한 번의 클라이언트-서버 상호작용을 <strong>트랜잭션(transaction)</strong>이라 부르고, 정확히 네 단계로 진행된다:</p>
+
+<pre class="with-caption"><span class="caption">그림 11.1 · 클라이언트-서버 트랜잭션의 네 단계</span><code>┌────────────┐                                ┌────────────┐
+│ 클라이언트   │   1. 요청 (request) ──→         │   서버      │
+│            │                                │            │
+│            │                                │ 2. 처리     │
+│            │                                │   (DB 조회 등)│
+│            │   ←── 3. 응답 (response)        │            │
+│ 4. 처리     │                                │            │
+│  (화면에   │                                │            │
+│   표시 등)  │                                │            │
+└────────────┘                                └────────────┘
+</code></pre>
+
+      <ol>
+        <li><strong>요청(request)</strong> — 클라이언트가 서비스를 시작하기 위해 서버로 메시지를 보낸다. 예: 브라우저가 "GET /index.html"을 보낸다.</li>
+        <li><strong>처리(처리, server-side)</strong> — 서버가 요청을 받아 그 일을 수행한다. 디스크에서 파일을 읽거나, DB를 조회하거나, 계산을 한다.</li>
+        <li><strong>응답(response)</strong> — 결과를 클라이언트에게 돌려보낸다. 그리고 다시 다음 요청을 기다린다.</li>
+        <li><strong>처리(client-side)</strong> — 클라이언트가 응답을 받아 자기 일을 한다. 브라우저라면 받은 HTML을 화면에 그린다.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          "클라이언트-서버"는 하드웨어가 아니라 <strong>역할</strong>이다. 같은 머신이 어떤 트랜잭션에선 서버이고, 동시에 다른 트랜잭션에선 다른 서버의 클라이언트일 수 있다.
+          웹 서버가 백엔드 DB의 클라이언트이기도 한 것처럼.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-11-2">
+      <h2><span class="anchor-num">11.2</span>네트워크</h2>
+
+      <p>
+        클라이언트와 서버가 대화하려면 그 사이를 잇는 <strong>네트워크(network)</strong>가 필요하다. OS의 시점에서 네트워크는 단지 또 하나의 I/O 장치다 —
+        NIC(Network Interface Card)에 데이터를 쓰면 케이블을 타고 나가고, NIC가 받은 데이터를 읽어 들이면 그게 곧 다른 컴퓨터가 보낸 메시지다.
+      </p>
+
+      <p>
+        가장 작은 단위는 <strong>LAN(Local Area Network, 근거리 통신망)</strong>이다. 한 건물이나 한 사무실 안에서 컴퓨터들이 이더넷이나 와이파이로 묶이는 그림.
+        오늘날 가장 흔한 LAN 기술은 <em>이더넷(Ethernet)</em>으로, 각 호스트는 48비트 <em>MAC 주소</em>로 식별되고 같은 LAN 안에서는 그 주소만으로 데이터가 오간다.
+      </p>
+
+      <p>
+        LAN끼리 묶으면 더 큰 네트워크가 된다. <strong>WAN(Wide Area Network, 광역망)</strong>은 도시·국가·대륙 단위로 네트워크를 잇는다.
+        LAN과 LAN을 연결해 주는 박스를 <em>라우터(router)</em> 혹은 <em>게이트웨이(gateway)</em>라 부른다 — 라우터는 들어온 패킷을 읽어 어느 출구로 내보낼지 결정하는 교통경찰이다.
+        인터넷(Internet)은 이런 LAN/WAN을 전 세계 규모로 엮어 놓은 "네트워크들의 네트워크"다.
+      </p>
+
+      <p>
+        서로 다른 회사가 만든 라우터, 서로 다른 OS의 호스트들이 어떻게 같은 언어로 대화할 수 있는가? 답은 <strong>계층화(layering)</strong>다.
+        각 층은 자기 위층에게 깔끔한 서비스만 보여 주고, 자기 아래층의 디테일은 숨긴다. 그리고 한 층의 데이터는 그 위층 데이터를 작은 헤더로 감싸 만든다 — 이걸 <em>캡슐화(encapsulation)</em>라 한다.
+      </p>
+
+<pre class="with-caption"><span class="caption">그림 11.2 · TCP/IP 4계층 모델과 캡슐화</span><code>응용 계층     │  HTTP 메시지: "GET /index.html HTTP/1.1\r\n..."
+              │       ↓ TCP 헤더 붙임
+전송 계층     │  TCP 세그먼트: [TCP hdr | HTTP message ...]
+              │       ↓ IP 헤더 붙임
+인터넷 계층    │  IP 데이터그램: [IP hdr | TCP hdr | HTTP message ...]
+              │       ↓ 이더넷 헤더/꼬리 붙임
+네트워크 접근  │  이더넷 프레임: [Eth hdr | IP hdr | TCP hdr | HTTP | Eth ftr]
+              │
+물리 매체로 ─→ 비트가 흘러간다
+</code></pre>
+
+      <p>
+        OSI 모델은 이걸 7계층으로 더 세분화하지만, 실용적으로는 4계층 TCP/IP 모델이 더 쓴다.
+        우리가 이번 장에서 쓰는 <em>소켓 API</em>는 응용 계층에서 전송 계층으로 내려가는 인터페이스 — 정확히는 TCP나 UDP 위에 앉아 있다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-11-3">
+      <h2><span class="anchor-num">11.3</span>글로벌 IP 인터넷</h2>
+
+      <p>
+        오늘 우리가 "인터넷"이라 부르는 그것의 정식 이름은 <strong>글로벌 IP 인터넷(global IP Internet)</strong>이다.
+        이름이 알려 주듯, 이 네트워크의 척추를 이루는 프로토콜이 <em>IP(Internet Protocol)</em>이고, 그 위에 신뢰성 있는 바이트 스트림을 얹는 게 <em>TCP(Transmission Control Protocol)</em>다.
+        합쳐서 흔히 TCP/IP 라 부른다.
+      </p>
+
+      <article class="section" id="sec-11-3-1">
+        <h3><span class="anchor-num">11.3.1</span>IP 주소</h3>
+
+        <p>
+          인터넷에 연결된 모든 호스트는 적어도 하나의 <strong>IP 주소</strong>를 갖는다. IPv4의 경우 32비트 정수다.
+          숫자 그대로 외우기는 너무 까다로우니 8비트씩 끊어 십진수로 적고 점으로 잇는 <em>점-십진(dotted-decimal)</em> 표기를 쓴다 — 예: <code>128.2.194.242</code>.
+        </p>
+
+        <p>
+          C에서 IP 주소는 <code>struct in_addr</code> 안에 32비트 정수 <code>s_addr</code>로 저장된다.
+          여기서 첫 번째 함정이 등장한다 — <strong>네트워크 바이트 순서(network byte order)</strong>.
+        </p>
+
+        <p>
+          호스트마다 정수를 메모리에 저장하는 방식이 다르다. x86 계열은 <em>리틀 엔디언(little-endian)</em>으로 낮은 자리 바이트가 낮은 주소에 들어가고,
+          예전 SPARC나 PowerPC, 그리고 네트워크 표준은 <em>빅 엔디언(big-endian)</em>으로 높은 자리 바이트가 먼저 온다.
+          서로 다른 엔디언의 호스트들이 정수를 주고받을 때 약속된 형식이 없으면 <code>0x12345678</code>이 <code>0x78563412</code>로 뒤집혀 도착한다.
+        </p>
+
+        <p>
+          그래서 1980년대 초 인터넷 표준을 정할 때 합의한 게 "네트워크에 흘려보내는 모든 다바이트 정수는 빅 엔디언으로 한다"였다. 역사적 합의일 뿐 기술적 우열이 있는 건 아니다.
+          x86 호스트에서는 결과적으로 송신 직전에 한 번 뒤집고, 수신 직후에 다시 뒤집어야 한다는 뜻이다.
+        </p>
+
+        <p>이 변환을 위한 표준 함수가 네 개 있다 (<code>&lt;arpa/inet.h&gt;</code>):</p>
+
+<pre><code>uint32_t htonl(uint32_t hostlong);   // host → network, 32비트
+uint16_t htons(uint16_t hostshort);  // host → network, 16비트
+uint32_t ntohl(uint32_t netlong);    // network → host, 32비트
+uint16_t ntohs(uint16_t netshort);   // network → host, 16비트
+</code></pre>
+
+        <p>
+          <code>h</code>는 host, <code>n</code>은 network, <code>l</code>은 long(32비트), <code>s</code>는 short(16비트). 한 번만 외우면 평생 쓴다.
+          IP 주소는 32비트라 <code>htonl/ntohl</code>, 포트 번호는 16비트라 <code>htons/ntohs</code>를 쓴다.
+          참고로 빅 엔디언 호스트라면 이 함수들은 그냥 입력을 그대로 돌려준다(no-op) — 그래서 비용 걱정 없이 어디서든 호출하면 된다.
+        </p>
+
+        <p>점-십진 문자열과 32비트 정수 사이의 변환은 다음 함수가 한다:</p>
+
+<pre><code>// "128.2.194.242" → 32비트 정수 (네트워크 바이트 순서)
+int inet_pton(int af, const char *src, void *dst);
+
+// 32비트 정수 (네트워크 바이트 순서) → "128.2.194.242"
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+</code></pre>
+
+        <p>
+          <code>p</code>는 presentation(사람이 읽는 형식), <code>n</code>은 numeric(이진). 첫 인자 <code>af</code>는 주소 패밀리로 IPv4면 <code>AF_INET</code>, IPv6면 <code>AF_INET6</code>를 넘긴다.
+          IPv6 주소도 같은 함수로 다룬다는 점이 핵심이다 — 옛날 함수 <code>inet_aton</code>, <code>inet_ntoa</code>는 IPv4 전용이고, 새 코드에선 쓰지 말자.
+        </p>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            <code>htons/htonl</code>은 <strong>정수 값을 다루는 함수</strong>다. 이미 빅 엔디언으로 들어 있는 메모리 버퍼에 호출하면 안 된다.
+            "이 인자는 호스트 표현인가, 네트워크 표현인가?"를 항상 의식하자.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-11-3-2">
+        <h3><span class="anchor-num">11.3.2</span>도메인 이름</h3>
+
+        <p>
+          숫자 IP 주소를 사람이 일일이 외우긴 어렵다. 그래서 사람이 읽기 쉬운 <strong>도메인 이름(domain name)</strong>을 IP 주소에 매핑하는 시스템이 나왔다 — <strong>DNS(Domain Name System)</strong>.
+        </p>
+
+        <p>
+          도메인 이름은 점으로 구분된 토큰의 계층으로 되어 있다. 가장 오른쪽이 <em>최상위 도메인(TLD: Top-Level Domain)</em>이고 — <code>com</code>, <code>org</code>, <code>kr</code> 등 —
+          왼쪽으로 갈수록 더 구체적인 하위 도메인이다. 예를 들어 <code>www.cs.cmu.edu</code>는 <code>edu</code>의 하위인 <code>cmu</code>의 하위인 <code>cs</code>의 <code>www</code>라는 호스트를 가리킨다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.3 · DNS의 계층 구조 (단순화)</span><code>                    .  (root)
+                    │
+       ┌────────┬───┴───┬────────┐
+      com      org     edu       kr
+       │                │         │
+   ┌───┴──┐         ┌───┴───┐    co
+ google amazon     cmu     mit   │
+   │                │           naver
+  www              cs            │
+                   │            www
+                  www
+</code></pre>
+
+        <p>
+          단순한 호스트 매핑은 <code>/etc/hosts</code>라는 텍스트 파일로도 할 수 있다 — 거기에 적힌 줄은 DNS보다 먼저 검사된다.
+          하지만 인터넷 전체 호스트를 그 안에 넣을 순 없으니, 보통은 DNS 서버에 질의를 보낸다.
+          C에서 그 일을 해 주는 현대적 함수가 <code>getaddrinfo</code>로, 11.4.7에서 자세히 다룬다.
+        </p>
+
+        <div class="callout tip">
+          <span class="label">꿀팁</span>
+          <p>
+            <code>nslookup www.cmu.edu</code> 또는 <code>dig www.cmu.edu</code>를 터미널에서 쳐 보자. DNS가 어떻게 응답하는지 직접 볼 수 있다.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-11-3-3">
+        <h3><span class="anchor-num">11.3.3</span>인터넷 연결</h3>
+
+        <p>
+          IP 주소만으로는 통신 상대를 특정할 수 없다. 한 호스트 위에서는 여러 서비스(웹, 메일, SSH, ...)가 동시에 돌고 있기 때문이다.
+          그래서 <strong>포트 번호(port number)</strong>가 추가로 필요하다. 16비트(0~65535) 정수다.
+        </p>
+
+        <p>
+          그리고 한 번의 TCP 연결을 유일하게 식별하는 정보는 결국 <strong>4-튜플(4-tuple)</strong>이다:
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.4 · TCP 연결을 식별하는 4-tuple</span><code>          (cli_addr, cli_port, srv_addr, srv_port)
+
+   ┌──────────────────┐                      ┌──────────────────┐
+   │  클라이언트        │                      │   서버            │
+   │  192.0.2.5       │                      │  203.0.113.42    │
+   │  : 51234         │ ←── TCP 연결 ──→     │  : 80            │
+   │  (임시 포트)        │                      │  (well-known)    │
+   └──────────────────┘                      └──────────────────┘
+
+같은 클라이언트가 같은 서버에 연결을 두 개 열어도, 클라이언트 포트가 다르면
+완전히 다른 연결이다 — 4-tuple이 다르니까.
+</code></pre>
+
+        <p>
+          서버가 쓰는 포트는 보통 미리 정해진 <strong>well-known port</strong>로, 0번부터 1023번까지 IANA가 관리한다.
+          HTTP는 80, HTTPS는 443, SSH는 22, SMTP는 25, DNS는 53. 클라이언트 포트는 보통 OS가 임시로(ephemeral) 할당한다 — 보통 32768 이상의 어떤 비어 있는 번호.
+        </p>
+
+        <div class="callout warn">
+          <span class="label">주의: TIME_WAIT와 SO_REUSEADDR</span>
+          <p>
+            서버를 종료하고 다시 띄우려고 하면 종종 <code>bind: Address already in use</code> 오류가 난다.
+            방금 닫힌 연결이 운영체제 입장에서 <em>TIME_WAIT</em> 상태로 약 30~120초 남아 있어, 그 포트에 새로 바인드할 수 없기 때문이다.
+            개발 중에는 <code>setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &amp;1, sizeof(int))</code>를 호출해 같은 포트를 즉시 재사용하도록 허용하자. 11.4.8의 헬퍼에서 표준으로 들어간다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-11-4">
+      <h2><span class="anchor-num">11.4</span>소켓 인터페이스</h2>
+
+      <p>
+        <strong>소켓(socket)</strong>은 OS가 제공하는 네트워크 끝점(endpoint) 추상이다. 응용 프로그램은 소켓을 만들고, 그 소켓의 파일 디스크립터로 <code>read</code>/<code>write</code>를 부르면 된다.
+        파일과 같은 인터페이스를 그대로 쓸 수 있다는 점이 유닉스의 우아함이다.
+      </p>
+
+      <article class="section" id="sec-11-4-1">
+        <h3><span class="anchor-num">11.4.1</span>소켓 주소 구조체</h3>
+
+        <p>
+          소켓 API는 IPv4뿐 아니라 IPv6, 유닉스 도메인 소켓 등 여러 주소 패밀리를 통합 인터페이스로 다루기 위해 일반 구조체 <code>struct sockaddr</code>을 쓴다.
+          하지만 함수에 그걸 직접 만들어 넘기진 않는다 — 패밀리별 구체 구조체를 만들고, 함수에 넘길 때만 <code>(struct sockaddr *)</code>로 캐스팅한다.
+        </p>
+
+<pre><code>// IPv4 주소 (사실상 가장 많이 보는 구조체)
+struct sockaddr_in {
+    sa_family_t    sin_family;   // 항상 AF_INET
+    in_port_t      sin_port;     // 포트 번호 (네트워크 바이트 순서)
+    struct in_addr sin_addr;     // 32비트 IP (네트워크 바이트 순서)
+    unsigned char  sin_zero[8];  // 패딩, 0으로 채움
+};
+
+// IPv6 주소
+struct sockaddr_in6 {
+    sa_family_t     sin6_family;
+    in_port_t       sin6_port;
+    uint32_t        sin6_flowinfo;
+    struct in6_addr sin6_addr;   // 128비트
+    uint32_t        sin6_scope_id;
+};
+
+// 어떤 패밀리든 담을 만큼 큰 통합 구조체
+struct sockaddr_storage {
+    sa_family_t  ss_family;
+    char         __ss_padding[/* 알아서 충분히 */];
+};
+</code></pre>
+
+        <p>
+          <code>sockaddr_storage</code>는 IPv4/IPv6 어느 것이든 담을 수 있을 만큼 크고 정렬도 안전하다.
+          어떤 패밀리가 올지 모르는 상황(예: <code>accept</code>의 클라이언트 주소 받기)에서는 이걸 쓰는 게 안전하다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-2">
+        <h3><span class="anchor-num">11.4.2</span>socket 함수</h3>
+
+        <p>소켓을 새로 만든다. 결과는 파일 디스크립터.</p>
+
+<pre><code>#include &lt;sys/socket.h&gt;
+
+int socket(int domain, int type, int protocol);
+//   domain   : AF_INET (IPv4) 또는 AF_INET6 (IPv6)
+//   type     : SOCK_STREAM (TCP) 또는 SOCK_DGRAM (UDP)
+//   protocol : 보통 0 (도메인/타입의 기본 프로토콜)
+// 반환: 비음수 fd (성공) / -1 (실패)
+</code></pre>
+
+        <p>
+          여기서 만들어진 fd는 아직 어떤 주소에도 묶이지 않은 "맨 소켓"이다. 클라이언트라면 이걸 들고 <code>connect</code>로 가고,
+          서버라면 <code>bind → listen → accept</code> 순으로 사용한다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-3">
+        <h3><span class="anchor-num">11.4.3</span>connect 함수 (클라이언트)</h3>
+
+        <p>클라이언트가 서버로 TCP 연결을 시도할 때 부른다.</p>
+
+<pre><code>int connect(int clientfd, const struct sockaddr *addr, socklen_t addrlen);
+// 반환: 0 (성공) / -1 (실패)
+</code></pre>
+
+        <p>
+          이 호출이 성공해 돌아오면 TCP 3-way handshake가 끝났고, <code>clientfd</code>는 이제 <em>연결된 소켓</em>이다.
+          그 위에서 <code>rio_writen</code>, <code>rio_readlineb</code> 같은 함수로 자유롭게 송수신할 수 있다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-4">
+        <h3><span class="anchor-num">11.4.4</span>bind 함수 (서버)</h3>
+
+        <p>서버가 자기 소켓을 특정 포트(와 IP)에 등록한다. 일종의 "이 주소로 오는 패킷은 내 거"라는 선언.</p>
+
+<pre><code>int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+</code></pre>
+
+        <p>
+          IP 주소는 보통 <code>INADDR_ANY</code>(=0.0.0.0)로 지정해 호스트의 모든 네트워크 인터페이스로 들어오는 연결을 받는다.
+          포트는 잘 알려진 번호(80, 443) 또는 개발용으로 비어 있는 번호. 1024 미만의 포트는 root 권한이 필요하다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-5">
+        <h3><span class="anchor-num">11.4.5</span>listen 함수</h3>
+
+        <p>방금 bind한 소켓을 "수동(passive) 소켓"으로 전환한다 — 이제부터 들어오는 연결을 받을 준비가 된 상태.</p>
+
+<pre><code>int listen(int sockfd, int backlog);
+//   backlog : 큐에 쌓아 둘 미수락 연결의 최대 수
+</code></pre>
+
+        <p>
+          <code>backlog</code>는 OS가 미리 받아서 큐에 넣어두는 미수락(unaccepted) 연결의 한도다.
+          짧은 폭증을 흡수하는 용도이고, 보통 5~128 정도로 둔다. 너무 작으면 폭주 시 연결이 거부되고, 너무 크면 메모리만 먹는다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-6">
+        <h3><span class="anchor-num">11.4.6</span>accept 함수</h3>
+
+        <p>큐에 들어와 있는 연결 하나를 꺼내, 그 연결과 통신할 새 fd를 돌려준다.</p>
+
+<pre><code>int accept(int listenfd,
+           struct sockaddr *addr,    // 클라이언트 주소가 채워짐 (out)
+           socklen_t *addrlen);      // 입출력
+// 반환: connected fd / -1
+</code></pre>
+
+        <p>
+          이 함수의 미묘한 부분 — <code>accept</code>는 <strong>새 fd를 만들어 돌려준다</strong>. 즉 listening 소켓과 connected 소켓은 서로 다른 fd다.
+          <em>listening 소켓</em>은 그대로 살아 있어서 다음 클라이언트의 연결을 또 받을 수 있고,
+          <em>connected 소켓</em>은 방금 도착한 그 클라이언트와의 통신 전용이다. 통신이 끝나면 connected 소켓만 닫는다 — listening 소켓은 서버가 죽을 때까지 살아 있어야 한다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.5 · listening fd와 connected fd</span><code>서버 프로세스
+┌────────────────────────────┐
+│ listenfd (3) → 새 연결 큐    │ ← 클라이언트 A의 연결 시도
+│                            │ ← 클라이언트 B의 연결 시도
+│                            │
+│ accept() 호출 →             │
+│   connfd_A (4) → 클라이언트 A전용  │
+│   connfd_B (5) → 클라이언트 B전용  │
+└────────────────────────────┘
+</code></pre>
+
+        <p>
+          이 분리는 동시성과 짝을 이룬다. accept해서 받은 connfd를 자식 프로세스나 새 스레드에 넘기면,
+          메인 루프는 곧장 다음 accept로 돌아갈 수 있고 동시에 여러 클라이언트와 통신할 수 있다. 자세한 건 12장의 주제다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-7">
+        <h3><span class="anchor-num">11.4.7</span>호스트/서비스 변환 (getaddrinfo)</h3>
+
+        <p>
+          위의 함수들은 다 <code>struct sockaddr_in</code> 같은 구체 구조체를 손으로 만들어야 한다. IPv4 전용 코드는 그게 견딜 만하지만,
+          IPv6까지 지원하려면 패밀리별로 분기해야 해서 금방 지저분해진다. 표준 답이 <strong><code>getaddrinfo</code></strong>다.
+        </p>
+
+<pre><code>#include &lt;netdb.h&gt;
+
+int getaddrinfo(const char *host,         // "www.cmu.edu" 또는 NULL
+                const char *service,      // "80" 또는 "http"
+                const struct addrinfo *hints,
+                struct addrinfo **result);
+
+void freeaddrinfo(struct addrinfo *res);  // 반드시 호출!
+</code></pre>
+
+        <p>
+          <code>host</code>로 도메인 이름이나 점-십진 IP를 주고, <code>service</code>로 포트 번호 문자열이나 서비스 이름("http", "ssh")을 주면,
+          <code>result</code>로 <code>struct addrinfo</code>의 <em>링크드 리스트</em>가 돌아온다. 한 호스트가 여러 IP(예: IPv4와 IPv6)를 갖거나 여러 인터페이스에 매핑돼 있을 수 있어서 결과가 리스트인 것.
+          호출자는 리스트를 순회하며 시도해 보고, 성공한 첫 번째 항목을 쓰면 된다.
+        </p>
+
+<pre><code>struct addrinfo {
+    int              ai_flags;     // AI_PASSIVE 등
+    int              ai_family;    // AF_INET / AF_INET6 / AF_UNSPEC
+    int              ai_socktype;  // SOCK_STREAM / SOCK_DGRAM
+    int              ai_protocol;
+    socklen_t        ai_addrlen;
+    struct sockaddr *ai_addr;      // 바로 connect/bind에 넘길 수 있음
+    char            *ai_canonname;
+    struct addrinfo *ai_next;      // 다음 항목
+};
+</code></pre>
+
+        <p>
+          호출 전에 <code>hints</code>에 우리가 원하는 조건을 채워 넣는다. 자주 쓰는 필드:
+        </p>
+
+        <ul>
+          <li><code>ai_family = AF_UNSPEC</code> — IPv4와 IPv6 둘 다 받겠다는 뜻. 이게 IPv6 시대를 위한 표준 추천.</li>
+          <li><code>ai_socktype = SOCK_STREAM</code> — TCP만 원함.</li>
+          <li><code>ai_flags = AI_PASSIVE</code> — 서버용. host에 NULL을 넘기면 INADDR_ANY를 자동 채워 준다.</li>
+          <li><code>ai_flags |= AI_NUMERICSERV</code> — service를 포트 번호 문자열로만 해석하라는 힌트.</li>
+        </ul>
+
+        <p>
+          반대 방향, 즉 sockaddr에서 사람이 읽을 수 있는 호스트/서비스 이름을 얻으려면 <code>getnameinfo</code>를 쓴다.
+          서버 로그에 "누가 접속했나"를 적을 때 유용하다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            <code>getaddrinfo</code>가 동적 할당을 하기 때문에 다 쓴 뒤엔 반드시 <code>freeaddrinfo(result)</code>를 호출해야 한다. 안 그러면 메모리 누수.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-11-4-8">
+        <h3><span class="anchor-num">11.4.8</span>헬퍼 함수 (open_clientfd / open_listenfd)</h3>
+
+        <p>
+          매번 socket → bind/connect → listen 사이클을 손으로 짜면 너무 길고 실수도 잦다. 그래서 책의 CSAPP 라이브러리는
+          이 패턴을 두 함수로 묶어 둔다 — <code>open_clientfd</code>와 <code>open_listenfd</code>.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.6 · open_clientfd 의사 코드</span><code>int open_clientfd(char *hostname, char *port) {
+    // 1. getaddrinfo로 서버 주소 후보 리스트 받음
+    // 2. 후보를 차례로 순회:
+    //      - socket()으로 새 fd 만들기
+    //      - connect() 시도
+    //      - 성공하면 break, 실패하면 close 후 다음 후보
+    // 3. freeaddrinfo로 정리
+    // 4. 연결된 fd 반환 (전부 실패면 -1)
+}
+</code></pre>
+
+<pre class="with-caption"><span class="caption">그림 11.7 · open_listenfd 의사 코드</span><code>int open_listenfd(char *port) {
+    // 1. hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG
+    //    hints.ai_family = AF_UNSPEC
+    //    hints.ai_socktype = SOCK_STREAM
+    // 2. getaddrinfo(NULL, port, &hints, &res)
+    // 3. 후보를 순회하며:
+    //      - socket()
+    //      - SO_REUSEADDR 옵션 켜기 (TIME_WAIT 회피)
+    //      - bind() 시도
+    //      - 성공하면 break
+    // 4. listen(fd, LISTENQ)
+    // 5. listening fd 반환
+}
+</code></pre>
+
+        <p>
+          이 두 함수만 있으면 응용 코드는 <code>open_clientfd("www.example.com", "80")</code> 또는 <code>open_listenfd("8080")</code> 한 줄로 시작할 수 있다.
+          현대 시스템 프로그래밍에서 이런 래퍼는 거의 표준 관행이다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-4-9">
+        <h3><span class="anchor-num">11.4.9</span>echo 클라이언트와 서버 예제</h3>
+
+        <p>
+          모든 네트워크 프로그래밍 입문은 <strong>echo 서버</strong>로 시작한다. 받은 줄을 그대로 다시 돌려보내는 가장 단순한 서버다.
+          이걸 짜고 나면 그다음에 무엇을 짜든 같은 골격을 변형하면 된다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.8 · echo 서버 본체 (의사 코드)</span><code>int main(int argc, char **argv) {
+    int listenfd, connfd;
+    char client_hostname[MAXLINE], client_port[MAXLINE];
+    struct sockaddr_storage clientaddr;
+    socklen_t clientlen;
+
+    listenfd = open_listenfd(argv[1]);    // 8080 같은 포트
+
+    while (1) {
+        clientlen = sizeof(clientaddr);
+
+        // 1. 새 연결 받기
+        connfd = accept(listenfd,
+                        (struct sockaddr *)&amp;clientaddr,
+                        &amp;clientlen);
+
+        // 2. 누가 접속했는지 사람이 읽을 수 있게 출력
+        getnameinfo((struct sockaddr *)&amp;clientaddr, clientlen,
+                    client_hostname, MAXLINE,
+                    client_port, MAXLINE, 0);
+        printf("Connected to (%s, %s)\n", client_hostname, client_port);
+
+        // 3. 클라이언트와 echo 통신
+        echo(connfd);
+
+        // 4. 이 연결만 닫음 (listenfd는 살아 있음)
+        close(connfd);
+    }
+    return 0;
+}
+
+void echo(int connfd) {
+    size_t n;
+    char buf[MAXLINE];
+    rio_t rio;
+
+    rio_readinitb(&amp;rio, connfd);
+    while ((n = rio_readlineb(&amp;rio, buf, MAXLINE)) != 0) {
+        printf("server received %zu bytes\n", n);
+        rio_writen(connfd, buf, n);   // 받은 그대로 다시 보냄
+    }
+}
+</code></pre>
+
+        <p>
+          중요한 점 두 가지. 첫째, <strong>이 서버는 한 번에 한 클라이언트만 처리한다.</strong>
+          <code>echo()</code>가 도는 동안 다른 클라이언트가 연결을 시도하면 OS의 backlog 큐에 잠시 쌓이지만, 그 클라이언트는 이전 클라이언트가 끊을 때까지 응답을 못 받는다.
+          이걸 해결하는 게 12장의 다중 처리(프로세스/스레드/이벤트) 기법들이다.
+        </p>
+
+        <p>
+          둘째, <strong>EOF 처리</strong>. 클라이언트가 연결을 닫으면 <code>rio_readlineb</code>는 0을 돌려준다. 그게 우리 while 루프의 종료 조건이다.
+          그러면 <code>close(connfd)</code>로 우리 쪽 connected 소켓을 닫고 다음 accept로 돌아간다.
+        </p>
+
+        <div class="callout tip">
+          <span class="label">실습 팁</span>
+          <p>
+            echo 서버를 띄워 놓고 다른 터미널에서 <code>telnet localhost 8080</code> 또는 <code>nc localhost 8080</code>으로 접속해 보자.
+            한 줄 치면 그대로 돌아온다. <code>Ctrl+]</code>나 <code>Ctrl+D</code>로 닫으면 서버 쪽에서 EOF로 인식한다.
+          </p>
+        </div>
+
+        <div class="problem">
+          <span class="tag">연습 11.1</span>
+          <p>위 echo 서버는 한 번에 한 클라이언트만 처리한다. 두 클라이언트가 거의 동시에 연결을 시도했을 때 OS 입장에서 어떤 일이 일어나는지, 그리고 두 번째 클라이언트는 언제 응답을 받게 되는지 설명하라. <code>backlog</code> 인자가 어디에 영향을 미치는가?</p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-11-5">
+      <h2><span class="anchor-num">11.5</span>웹 서버</h2>
+
+      <p>
+        echo 서버를 변형해서 다음으로 만드는 게 진짜 인터넷의 절반을 떠받치는 <strong>웹 서버</strong>다. 프로토콜만 바뀌고 골격은 똑같다.
+      </p>
+
+      <article class="section" id="sec-11-5-1">
+        <h3><span class="anchor-num">11.5.1</span>웹 기초</h3>
+
+        <p>
+          웹은 결국 두 가지 합의로 굴러간다 — 자원을 가리키는 <strong>URL(Uniform Resource Locator)</strong>과 그 자원을 주고받는 프로토콜 <strong>HTTP(HyperText Transfer Protocol)</strong>.
+        </p>
+
+        <p>URL의 일반적 형태:</p>
+
+<pre><code>http://www.cmu.edu:80/cs/index.html?lang=ko
+└─┬─┘   └────┬────┘ │ └──────┬─────┘ └───┬───┘
+스킴      호스트     포트   경로(path)   질의 문자열
+</code></pre>
+
+        <p>
+          포트는 생략 가능하고, 그러면 스킴별 기본값(HTTP=80, HTTPS=443)으로 친다.
+          웹 콘텐츠는 두 종류로 나뉜다 — <em>정적 콘텐츠(static)</em>는 디스크의 파일을 그대로 보내는 것이고, <em>동적 콘텐츠(dynamic)</em>는 요청이 올 때마다 서버가 코드를 실행해 만들어내는 것이다.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-5-2">
+        <h3><span class="anchor-num">11.5.2</span>웹 콘텐츠</h3>
+
+        <p>
+          서버가 클라이언트에게 보내는 모든 응답에는 <strong>MIME 타입(Content-Type)</strong>이 붙는다. 클라이언트가 그 데이터를 어떻게 해석할지 결정하는 메타데이터다.
+        </p>
+
+        <table>
+          <thead><tr><th>MIME 타입</th><th>의미</th><th>대표 확장자</th></tr></thead>
+          <tbody>
+            <tr><td><code>text/html</code></td><td>HTML 문서</td><td>.html, .htm</td></tr>
+            <tr><td><code>text/plain</code></td><td>일반 텍스트</td><td>.txt</td></tr>
+            <tr><td><code>text/css</code></td><td>스타일시트</td><td>.css</td></tr>
+            <tr><td><code>application/javascript</code></td><td>JS 코드</td><td>.js</td></tr>
+            <tr><td><code>application/json</code></td><td>JSON 데이터</td><td>.json</td></tr>
+            <tr><td><code>image/png</code></td><td>PNG 이미지</td><td>.png</td></tr>
+            <tr><td><code>image/jpeg</code></td><td>JPEG 이미지</td><td>.jpg, .jpeg</td></tr>
+            <tr><td><code>application/octet-stream</code></td><td>임의의 바이너리</td><td>.bin 등</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          서버가 잘못된 Content-Type을 보내면 브라우저는 PNG를 텍스트로 그리려 들거나 HTML을 그냥 글자로 보여 버린다.
+          작은 미니 서버를 짤 때도 이 매핑을 잊지 말자.
+        </p>
+      </article>
+
+      <article class="section" id="sec-11-5-3">
+        <h3><span class="anchor-num">11.5.3</span>HTTP 트랜잭션</h3>
+
+        <p>
+          HTTP는 텍스트 기반 프로토콜이다. 사람이 그대로 읽을 수 있다는 점이 디버깅에 굉장히 유리하다.
+          한 번의 요청과 응답은 정확히 같은 형태의 4단 구조를 가진다.
+        </p>
+
+<pre class="with-caption"><span class="caption">그림 11.9 · HTTP 요청과 응답의 구조</span><code>요청 (Request)                          응답 (Response)
+─────────────────────────              ─────────────────────────
+GET /index.html HTTP/1.1   ← 1행          HTTP/1.1 200 OK            ← 상태 라인
+Host: www.cmu.edu          ← 헤더들       Content-Type: text/html    ← 헤더들
+User-Agent: curl/7.79.1                   Content-Length: 1234
+Accept: */*                               Server: Tiny/1.0
+                          ← 빈 줄                                    ← 빈 줄
+(요청 본문 — GET이면 보통 없음)            &lt;!DOCTYPE html&gt;             ← 본문
+                                          &lt;html&gt;...&lt;/html&gt;
+</code></pre>
+
+        <p>요청 라인의 형식은 <code>METHOD URI VERSION</code>. 응답 라인의 형식은 <code>VERSION STATUS-CODE REASON-PHRASE</code>. 자주 보는 상태 코드 몇 가지:</p>
+
+        <table>
+          <thead><tr><th>상태 코드</th><th>의미</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>200 OK</td><td>요청 성공</td><td>가장 흔함</td></tr>
+            <tr><td>301 Moved Permanently</td><td>영구 이동</td><td>새 URL은 Location 헤더로</td></tr>
+            <tr><td>304 Not Modified</td><td>캐시 사용 가능</td><td>대역폭 절약</td></tr>
+            <tr><td>400 Bad Request</td><td>요청 형식 오류</td><td>클라이언트 문제</td></tr>
+            <tr><td>404 Not Found</td><td>자원 없음</td><td>흔한 만큼 친숙함</td></tr>
+            <tr><td>500 Internal Server Error</td><td>서버 측 오류</td><td>주로 코드 버그</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          HTTP 메소드는 GET(자원 가져오기), POST(데이터 보내기), HEAD(헤더만), PUT(자원 갱신), DELETE 등이 있는데,
+          단순한 정적 웹 서버라면 GET 하나만 처리해도 충분하다. Tiny 서버도 그렇게 한다.
+        </p>
+
+        <p>
+          <strong>HTTP/1.0 vs HTTP/1.1</strong>. 옛날 1.0은 한 트랜잭션마다 TCP 연결을 새로 열고 끝나면 닫았다.
+          짧은 응답이 많을수록 3-way handshake 비용이 누적되어 비효율적. 1.1부터는 <em>persistent connection(keep-alive)</em>이 기본이라
+          한 번 연 연결로 여러 요청-응답을 처리한다. 그래서 <code>Connection: close</code> 헤더를 명시하지 않으면 서버는 연결을 곧장 닫지 않고 더 기다린다.
+          오늘날의 HTTP/2, HTTP/3은 그 위에 다중화와 헤더 압축, QUIC을 더 얹은 것들이다.
+        </p>
+
+        <div class="problem">
+          <span class="tag">연습 11.2</span>
+          <p>다음 HTTP 응답에서 잘못된 점은 무엇인가? 정확한 형태로 고쳐 보라.
+<br><code>HTTP/1.1 200 OK Content-Type: text/html &lt;html&gt;...&lt;/html&gt;</code></p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-11-5-4">
+        <h3><span class="anchor-num">11.5.4</span>동적 콘텐츠 제공 (CGI)</h3>
+
+        <p>
+          정적 콘텐츠는 디스크의 파일을 그대로 보내면 끝이지만, 동적 콘텐츠는 요청 시점에 실행된 프로그램의 출력물이다.
+          그 가장 오래된 표준이 <strong>CGI(Common Gateway Interface)</strong>다.
+        </p>
+
+        <p>
+          CGI의 아이디어는 단순하다. 동적 URL이 들어오면, 서버는 해당 프로그램을 <code>fork/exec</code>으로 실행한다.
+          요청에 들어 있는 정보(질의 문자열, 메소드, 호스트 등)는 <strong>환경변수</strong>로 전달하고,
+          자식 프로세스의 <strong>표준 출력(stdout)</strong>을 클라이언트의 connected 소켓으로 리다이렉트한다.
+          그러면 자식이 <code>printf</code>로 출력한 내용이 곧장 응답 본문이 된다.
+        </p>
+
+        <table>
+          <thead><tr><th>환경변수</th><th>예시 값</th></tr></thead>
+          <tbody>
+            <tr><td><code>QUERY_STRING</code></td><td><code>x=42&amp;y=7</code></td></tr>
+            <tr><td><code>REQUEST_METHOD</code></td><td><code>GET</code></td></tr>
+            <tr><td><code>CONTENT_TYPE</code></td><td><code>text/html</code></td></tr>
+            <tr><td><code>SERVER_NAME</code></td><td><code>www.example.com</code></td></tr>
+            <tr><td><code>REMOTE_HOST</code></td><td><code>cli.example.com</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          예를 들어 URL이 <code>/cgi-bin/adder?x=42&amp;y=7</code>이라면, 서버는 <code>adder</code> 프로그램을 실행하면서 <code>QUERY_STRING="x=42&amp;y=7"</code>을 환경변수로 넘긴다.
+          <code>adder</code>는 그 문자열을 파싱해 <code>49</code>라는 결과를 stdout으로 출력하고, 그게 그대로 클라이언트에 도착한다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            CGI는 요청마다 프로세스를 fork해서 무겁다. 오늘날의 큰 웹 서비스는 FastCGI, WSGI, 서블릿, 또는 Node처럼 long-lived 프로세스가 요청을 처리하는 모델로 옮겨갔다.
+            하지만 CGI는 "요청을 어떻게 동적 프로그램에 넘길까"의 가장 명료한 모델이라 학습용으로 여전히 가치 있다.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-11-6">
+      <h2><span class="anchor-num">11.6</span>정리: Tiny 웹 서버 골격</h2>
+
+      <p>
+        지금까지 배운 모든 조각을 한 곳에 모은 결과가 책의 <strong>Tiny 웹 서버</strong>다. 약 250줄 안팎의 코드로 GET 요청을 받아 정적/동적 콘텐츠를 제공한다.
+        실전에서 쓰일 정도는 아니지만, "웹 서버가 이렇게 짧을 수도 있구나"를 보여 주는 살아 있는 사례다.
+      </p>
+
+      <p>전체 골격은 다음과 같다:</p>
+
+<pre class="with-caption"><span class="caption">그림 11.10 · Tiny 웹 서버의 main과 doit (의사 코드)</span><code>int main(int argc, char **argv) {
+    int listenfd, connfd;
+    char hostname[MAXLINE], port[MAXLINE];
+    socklen_t clientlen;
+    struct sockaddr_storage clientaddr;
+
+    listenfd = open_listenfd(argv[1]);
+
+    while (1) {
+        clientlen = sizeof(clientaddr);
+        connfd = accept(listenfd, (struct sockaddr *)&amp;clientaddr, &amp;clientlen);
+        getnameinfo((struct sockaddr *)&amp;clientaddr, clientlen,
+                    hostname, MAXLINE, port, MAXLINE, 0);
+        printf("Accepted connection from (%s, %s)\n", hostname, port);
+        doit(connfd);            // 한 트랜잭션 처리
+        close(connfd);
+    }
+}
+
+void doit(int fd) {
+    int is_static;
+    struct stat sbuf;
+    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char filename[MAXLINE], cgiargs[MAXLINE];
+    rio_t rio;
+
+    // 1. 요청 라인 읽기
+    rio_readinitb(&amp;rio, fd);
+    rio_readlineb(&amp;rio, buf, MAXLINE);
+    sscanf(buf, "%s %s %s", method, uri, version);
+
+    if (strcasecmp(method, "GET")) {
+        clienterror(fd, method, "501", "Not Implemented",
+                    "Tiny does not support this method");
+        return;
+    }
+    read_requesthdrs(&amp;rio);     // 헤더는 읽고 버림 (Tiny는 단순)
+
+    // 2. URI 파싱: 정적인지 동적인지
+    is_static = parse_uri(uri, filename, cgiargs);
+    if (stat(filename, &amp;sbuf) &lt; 0) {
+        clienterror(fd, filename, "404", "Not found",
+                    "Tiny couldn't find this file");
+        return;
+    }
+
+    // 3. 분기
+    if (is_static) {
+        if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR &amp; sbuf.st_mode)) {
+            clienterror(fd, filename, "403", "Forbidden",
+                        "Tiny couldn't read the file");
+            return;
+        }
+        serve_static(fd, filename, sbuf.st_size);
+    } else {
+        if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR &amp; sbuf.st_mode)) {
+            clienterror(fd, filename, "403", "Forbidden",
+                        "Tiny couldn't run the CGI program");
+            return;
+        }
+        serve_dynamic(fd, filename, cgiargs);
+    }
+}
+</code></pre>
+
+        <p>
+          <code>serve_static</code>은 <code>open → mmap → rio_writen → munmap → close</code> 흐름으로 파일을 그대로 보낸다.
+          <code>serve_dynamic</code>은 <code>fork</code> 후 자식에서 <code>setenv("QUERY_STRING", cgiargs, 1)</code>, <code>dup2(fd, STDOUT_FILENO)</code>로 stdout을 연결 소켓에 묶고
+          <code>execve</code>로 CGI 프로그램을 실행한다. 부모는 자식이 끝날 때까지 기다린 뒤 connected fd를 닫는다.
+        </p>
+
+        <p>한계도 분명하다 — Tiny는 동시에 한 클라이언트만 처리하고, GET만 지원하고, 헤더를 거의 활용하지 않는다.
+          하지만 이 골격에 다중 처리(12장)를 끼우고, 메소드를 늘리고, MIME 매핑을 풍부하게 하면 점진적으로 진짜 웹 서버에 가까워진다.</p>
+
+      <div class="callout tip">
+        <span class="label">실습 제안</span>
+        <p>
+          Tiny를 빌드해 띄워 두고 브라우저에서 <code>http://localhost:8080/index.html</code>로 접속해 보자.
+          그다음 <code>curl -v http://localhost:8080/cgi-bin/adder?15000&amp;213</code>처럼 -v를 붙여 호출하면 요청과 응답의 모든 줄이 보인다 — HTTP가 텍스트 프로토콜임을 가장 절실히 체감하는 순간.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-11-7">
+      <h2><span class="anchor-num">11.7</span>요약</h2>
+
+      <p>
+        한 대의 머신을 넘어 다른 머신과 대화하는 모든 코드는 결국 같은 패턴 — 클라이언트가 요청을 보내면 서버가 처리해 응답을 돌려보내는 — 위에 서 있다.
+        이번 장의 요지를 압축하면 다음과 같다:
+      </p>
+
+      <ul>
+        <li>인터넷은 IP 위에 TCP를 얹은 것이고, 호스트는 IP 주소(IPv4의 32비트)와 포트 번호(16비트)로 식별된다.</li>
+        <li>네트워크에 흘러가는 다바이트 정수는 <strong>빅 엔디언</strong>(네트워크 바이트 순서)로 약속되어 있어, x86처럼 리틀 엔디언인 호스트는 <code>htons/htonl/ntohs/ntohl</code>로 변환한다.</li>
+        <li>한 TCP 연결은 (cli_addr, cli_port, srv_addr, srv_port)의 4-튜플로 유일하게 결정된다.</li>
+        <li>소켓 API의 골격은 클라이언트 = <code>socket → connect</code>, 서버 = <code>socket → bind → listen → accept</code>다. accept는 listening fd와 별개의 connected fd를 새로 만들어 돌려준다.</li>
+        <li><code>getaddrinfo / getnameinfo</code>는 IPv4/IPv6를 추상화해 준다. 새 코드에선 <code>gethostbyname</code>이 아니라 이걸 써야 한다.</li>
+        <li>HTTP는 텍스트 기반 프로토콜로 요청·응답이 같은 4단(시작 라인 / 헤더 / 빈 줄 / 본문) 구조다. 메소드는 GET/POST/HEAD/..., 상태 코드는 200/301/404/500 등.</li>
+        <li>정적 콘텐츠는 디스크 파일 그대로, 동적 콘텐츠는 CGI로 자식 프로세스를 fork·exec해 그 stdout을 클라이언트로 흘려보낸다.</li>
+        <li>Tiny 웹 서버는 약 250줄로 이 모든 걸 결합한 살아 있는 예. 동시 처리(12장)와 결합하면 점진적으로 실용 서버에 가까워진다.</li>
+      </ul>
+
+      <p>
+        다음 장에서는 한 서버가 동시에 여러 클라이언트를 처리해야 할 때 등장하는 세 가지 길 — 다중 프로세스, 다중 스레드, I/O 다중화 — 을 본다.
+        echo 서버를 그 셋으로 다시 짜면서 같은 문제를 다른 추상으로 푸는 감각을 얻게 될 것이다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          이 장의 모든 함수는 결국 OS 커널의 <strong>소켓 추상</strong> 위에 얹혀 있다. fd를 통해 read/write를 한다는 점에서 10장의 파일 I/O와 같은 인터페이스를 공유한다는 사실 — 유닉스 철학의 또 한 번의 승리다.
+        </p>
+      </div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter10.html">
+        <span class="dir">← 이전</span>
+        제10장 · 시스템 수준 입출력
+      </a>
+      <a class="next" href="chapter12.html">
+        <span class="dir">다음 →</span>
+        제12장 · 병행 프로그래밍
+      </a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

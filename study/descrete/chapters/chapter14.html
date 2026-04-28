@@ -1,0 +1,316 @@
+<article id="ch14" class="chapter" data-part="III">
+  <header class="ch-header">
+    <p class="part-label">PART III — 세기</p>
+    <h2 class="ch-title">
+      <span class="ch-num">14</span>
+      <span class="ch-kr">합과 점근</span>
+      <span class="ch-en">Sums and Asymptotics</span>
+    </h2>
+    <p class="ch-intro">합을 정확히 계산할 수 있으면 좋지만, 현실의 합들은 닫힌 꼴(closed form)이 잘 안 나옵니다. 그럴 땐 근사(approximate)합니다. 이번 장에서는 등비급수 같은 익숙한 합부터 시작해 거듭제곱의 합, 적분으로의 근사, 그리고 발산하는 조화수까지 쭉 훑어봅니다. 그 와중에 "책을 모서리 위로 무한히 매달 수 있다"는 직관에 어긋나는 결과 하나를 만나고, 마지막엔 컴퓨터과학 수업 내내 따라다니는 점근 표기법(O, Ω, Θ, o, ω)을 정리합니다. 알고리즘 수업의 절반은 결국 이 표기법으로 이야기되니까요.</p>
+  </header>
+
+  <section id="ch14-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.1</span>
+      <span class="sec-kr">연금의 가치</span>
+      <span class="sec-en">The Value of an Annuity</span>
+    </h3>
+
+    <p>합 이야기를 금융에서 시작하는 건 좀 의외일 수 있는데, 사실 등비급수 공식이 가장 자연스럽게 등장하는 무대 중 하나가 연금(annuity)입니다. 시나리오는 단순해요. 매년 \( m \)원씩 \( n \)년 동안 받기로 한 계약이 있다고 해 봅시다. 이 계약의 "지금 가치"는 얼마일까요?</p>
+
+    <p>핵심은 <strong>돈에는 시간 가치가 있다</strong>는 점입니다. 1년 뒤 받는 1만 원은 오늘 받는 1만 원과 같지 않아요. 오늘 1만 원이 있으면 은행에 넣어 이자를 받을 수 있으니까요. 이자율을 연 \( p \)라 하면, 오늘 1원은 1년 뒤 \( 1+p \)원이 되고, 거꾸로 1년 뒤 1원은 오늘 \( \frac{1}{1+p} \)원의 가치만큼만 됩니다. \( r = \frac{1}{1+p} \)라 두면 \( k \)년 뒤 1원의 현재 가치는 \( r^k \)입니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 14.1.1 (연금의 현재 가치)</p>
+      <p>매년 \( m \)원을 1년 차부터 \( n \)년 차까지 받는 연금의 현재 가치(present value)는
+      \[ V \;=\; \sum_{k=1}^{n} m\, r^k \;=\; m\,(r + r^2 + r^3 + \cdots + r^n), \]
+      여기서 \( r = 1/(1+p) \)이고 \( p \)는 연이자율이다.</p>
+    </div>
+
+    <p>이 합을 손으로 닫아 봅시다. 등비급수의 정석 트릭은 "원래 합과 \( r \)배 한 합을 빼는" 거예요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.1.2 (유한 등비급수)</p>
+      <p>\( r \neq 1 \)이면
+      \[ S_n \;=\; \sum_{k=0}^{n} r^k \;=\; 1 + r + r^2 + \cdots + r^n \;=\; \frac{1 - r^{n+1}}{1 - r}. \]
+      특히 \( |r| &lt; 1 \)이면 \( n \to \infty \)일 때
+      \[ \sum_{k=0}^{\infty} r^k \;=\; \frac{1}{1-r}. \]
+      </p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (한 줄짜리 트릭)</p>
+      <p>\( S_n - r S_n = (1 + r + \cdots + r^n) - (r + r^2 + \cdots + r^{n+1}) = 1 - r^{n+1} \). \( (1-r) \)로 나누면 끝.</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>그래서 연금의 현재 가치는</p>
+    <p>\[ V \;=\; m \cdot \frac{r(1 - r^n)}{1 - r}. \]</p>
+    <p>예를 들어 매년 100만 원씩 30년 동안 받기로 했고 이자율이 5%면 \( r = 1/1.05 \approx 0.952 \), 계산기를 한 번 두드리면 \( V \approx 1{,}537 \)만 원 정도가 나옵니다. 명목상 받는 총액은 3000만 원인데, "지금 한 번에" 받는다면 그 절반밖에 안 된다는 거예요. 시간이 끼면 돈이 가벼워집니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 영원히 받는 연금</p>
+      <p>특수 케이스로, 매년 \( m \)원을 영원히 받는 영구 연금(perpetuity)은 \( n \to \infty \)이고 \( |r| &lt; 1 \)이므로 \( V = mr/(1-r) = m/p \)입니다. 이자율이 5%면 매년 100만 원짜리 영구 연금의 현재 가치는 단지 \( 100/0.05 = 2000 \)만 원. "영원히 100만 원 받기"가 2000만 원이라는 게 처음엔 작아 보이지만, 시간 할인의 위력을 보여주는 숫자죠.</p>
+    </div>
+  </section>
+
+  <section id="ch14-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.2</span>
+      <span class="sec-kr">거듭제곱의 합</span>
+      <span class="sec-en">Sums of Powers</span>
+    </h3>
+
+    <p>등비급수 다음으로 자주 만나는 합은 거듭제곱의 합입니다. 가장 어린 사촌은 \( 1 + 2 + \cdots + n \)이에요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.2.1 (1차의 합)</p>
+      <p>\[ \sum_{k=1}^{n} k \;=\; \frac{n(n+1)}{2}. \]</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 스케치 (가우스의 학교 일화)</p>
+      <p>합을 \( S \)라 두고 같은 합을 거꾸로 적습니다.
+      \[ S = 1 + 2 + \cdots + n, \qquad S = n + (n-1) + \cdots + 1. \]
+      두 식을 더하면 \( 2S \)가 \( n \)개의 \( (n+1) \)이 되어 \( 2S = n(n+1) \).</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>제곱의 합은 살짝 더 복잡한데, 결과는 여전히 깔끔합니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.2.2 (제곱의 합)</p>
+      <p>\[ \sum_{k=1}^{n} k^2 \;=\; \frac{n(n+1)(2n+1)}{6}. \]</p>
+    </div>
+
+    <p>증명은 귀납법이 정석이고(5장), 좀 더 우아하게는 \( (k+1)^3 - k^3 \)의 텔레스코핑 합을 이용해 유도할 수도 있습니다. 핵심 아이디어만 말하면, \( (k+1)^3 - k^3 = 3k^2 + 3k + 1 \)이고 양변을 \( k = 1 \)부터 \( n \)까지 더하면 좌변은 망원경(telescope)으로 \( (n+1)^3 - 1 \)이 됩니다. 우변에서 \( \sum k \)는 이미 알고 있으니 \( \sum k^2 \)을 풀어낼 수 있어요.</p>
+
+    <p>일반화하면, 임의의 양의 정수 \( d \)에 대해</p>
+    <p>\[ \sum_{k=1}^{n} k^d \;=\; \frac{n^{d+1}}{d+1} \;+\; \text{(낮은 차수 항들)}. \]</p>
+    <p>즉, "0부터 \( n \)까지 \( k^d \)를 적분한 것"인 \( n^{d+1}/(d+1) \)이 주된 항입니다. 이건 우연이 아니라 합이 적분의 이산판이라는 깊은 사실의 단서인데, 다음 절에서 이걸 진짜로 써먹습니다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 14.2.3</p>
+      <p>한 알고리즘이 입력 크기 \( n \)에서 정확히 \( \sum_{k=1}^{n} k = n(n+1)/2 \)번의 비교를 수행한다고 합시다. 그러면 큰 \( n \)에서 이 알고리즘의 비용은 \( n^2/2 \)에 가깝고, "n²급" 즉 이차 시간 알고리즘이라고 부릅니다. 점근적 동치는 14.7절에서 \( \Theta(n^2) \)로 정확히 표현하게 돼요.</p>
+    </div>
+  </section>
+
+  <section id="ch14-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.3</span>
+      <span class="sec-kr">합의 근사</span>
+      <span class="sec-en">Approximating Sums</span>
+    </h3>
+
+    <p>닫힌 꼴이 없는 합은 어떻게 다룰까요? 답은 단순합니다 — 적분으로 갈아타는 거예요. 함수 \( f \)가 양수이고 단조증가(monotonic increasing)면, \( k \)에서 \( k+1 \) 사이의 적분 \( \int_k^{k+1} f(x)\,dx \)는 그 구간에서 \( f \)의 어떤 값과 그 다음 값 사이에 갇혀요. 이걸 박스로 그려 보면 다음과 같은 부등식이 즉시 나옵니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.3.1 (적분 비교 부등식)</p>
+      <p>\( f \)가 \( [1, n+1] \)에서 양수이고 단조증가하면
+      \[ \int_{1}^{n+1} f(x)\,dx \;\le\; \sum_{k=1}^{n} f(k+1) \;\text{... 등등.} \]
+      더 깔끔히 표현하면, 단조증가 \( f \)에 대해
+      \[ \int_{0}^{n} f(x)\,dx \;\le\; \sum_{k=1}^{n} f(k) \;\le\; \int_{1}^{n+1} f(x)\,dx, \]
+      단조감소면 부등호 방향이 뒤집힌다.</p>
+    </div>
+
+    <p>그림 없이 글로 설명하면 이렇습니다. \( f \)가 증가함수일 때, 폭이 1이고 높이가 \( f(k) \)인 직사각형은 \( [k-1, k] \) 위의 적분을 덮고, \( [k, k+1] \) 위의 적분에는 못 미칩니다. 그래서 직사각형 합 \( \sum f(k) \)는 두 적분 사이에 끼이게 돼요. 단조감소면 그 반대.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 14.3.2 (\( \sqrt{k} \)의 합)</p>
+      <p>\( S = \sum_{k=1}^{n} \sqrt{k} \)는 닫힌 꼴이 없습니다. 그러나 \( f(x) = \sqrt{x} \)가 단조증가이므로
+      \[ \int_{0}^{n} \sqrt{x}\,dx \;\le\; S \;\le\; \int_{1}^{n+1} \sqrt{x}\,dx, \]
+      양 끝을 적분하면 \( \frac{2}{3} n^{3/2} \le S \le \frac{2}{3}\big((n+1)^{3/2} - 1\big) \). 따라서 \( S \approx \frac{2}{3} n^{3/2} \)이고, 오차는 \( O(\sqrt{n}) \) 수준이에요. 이런 식으로 합의 "주된 크기"를 적분 한 줄로 잡아낼 수 있습니다.</p>
+    </div>
+
+    <p>위/아래 경계의 차이는 보통 \( f(n+1) - f(1) \) 정도로, 합 자체에 비해 훨씬 작습니다. 그래서 적분 근사는 "가장 큰 항만큼의 오차"로 합을 잡아낼 수 있는 굉장히 효율적인 도구예요.</p>
+  </section>
+
+  <section id="ch14-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.4</span>
+      <span class="sec-kr">모서리 위로 매달기</span>
+      <span class="sec-en">Hanging Out Over the Edge</span>
+    </h3>
+
+    <p>이제 매력적인 문제 하나로 잠깐 곁길로 빠져 봅시다. 동일한 책 여러 권을 책상 모서리에 차곡차곡 쌓아서, 가장 위 책이 책상 모서리에서 가능한 한 멀리 매달리도록 하고 싶어요. 책 한 권의 길이는 1이라고 합시다. 책이 \( n \)권 있을 때, 책상 모서리에서 가장 위 책의 끝까지 거리는 최대 얼마까지 갈 수 있을까요?</p>
+
+    <p>물리 직관을 짚고 가면, 어떤 책 더미든 무너지지 않으려면 위쪽 더미의 무게중심이 그 아래 받침의 가장자리(또는 그 안쪽)에 있어야 합니다. 이 조건을 단계적으로 적용하면, 위에서부터 \( k \)번째 책은 그 아래 책 끝에서 \( \frac{1}{2k} \)만큼 앞으로 내밀 수 있어요(맨 위 책은 \( 1/2 \), 두 번째는 \( 1/4 \), …).</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.4.1 (책 쌓기 공식)</p>
+      <p>책 \( n \)권을 위 규칙대로 쌓으면 책상 모서리에서 가장 위 책의 끝까지의 최대 거리(돌출량, overhang)는
+      \[ B_n \;=\; \frac{1}{2}\sum_{k=1}^{n} \frac{1}{k} \;=\; \frac{H_n}{2}. \]
+      여기서 \( H_n = 1 + \frac{1}{2} + \frac{1}{3} + \cdots + \frac{1}{n} \)을 \( n \)번째 <em>조화수(harmonic number)</em>라 부른다.</p>
+    </div>
+
+    <p>이제 결정타. 조화수는 발산합니다.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.4.2 (조화수의 발산과 근사)</p>
+      <p>\( H_n \)은 \( n \to \infty \)에서 발산하고, 더 정확히
+      \[ \ln(n+1) \;\le\; H_n \;\le\; 1 + \ln n. \]
+      따라서 \( H_n \sim \ln n \)이다.</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (적분 비교)</p>
+      <p>\( f(x) = 1/x \)는 양수이고 단조감소. 14.3절의 부등식에서 단조감소 버전을 쓰면
+      \[ \int_{1}^{n+1} \frac{dx}{x} \;\le\; \sum_{k=1}^{n} \frac{1}{k} \;\le\; 1 + \int_{1}^{n} \frac{dx}{x}. \]
+      양 끝을 적분하면 \( \ln(n+1) \le H_n \le 1 + \ln n \). \( \ln(n+1) \to \infty \)이므로 \( H_n \to \infty \).</p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>이게 무슨 뜻이냐면, 책을 충분히 많이 쌓으면 돌출량 \( H_n/2 \)을 <strong>원하는 만큼 크게</strong> 만들 수 있다는 거예요. 한 도서관쯤 있다면 (이론적으로는) 마지막 책이 책상 모서리에서 한 발자국, 두 발자국, 한 블록, 한 도시 너머에까지 매달릴 수 있다는 뜻입니다. 물리적으로는 다듬지 않은 모서리, 흔들림, 마찰 같은 게 다 무시됐지만, 이상화된 이산수학 모델의 입장에서는 정말로 끝없이 멀리 갑니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 얼마나 천천히 가는가</p>
+      <p>다만 \( H_n \)이 \( \ln n \) 속도로만 자라기 때문에, 책 한 권 더 내밀려고 책을 어마어마하게 더 쌓아야 합니다. 돌출량을 책 한 권 길이만큼 더 늘리려면 책 수가 대략 \( e \)배가 돼야 해요. 1m 매달려면 책이 약 \( e^2 \approx 7.4 \)배의 출발점, 2m면 \( e^4 \approx 55 \)배… "발산하지만 무지하게 천천히"의 대표 사례입니다.</p>
+    </div>
+  </section>
+
+  <section id="ch14-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.5</span>
+      <span class="sec-kr">곱</span>
+      <span class="sec-en">Products</span>
+    </h3>
+
+    <p>합을 다루는 도구를 곱으로도 옮길 수 있을까요? 답은 "로그를 씌우면" 깔끔하게 됩니다. 로그는 곱을 합으로 바꿔주는 마법이거든요.</p>
+
+    <p>\[ \ln \prod_{k=1}^{n} a_k \;=\; \sum_{k=1}^{n} \ln a_k. \]</p>
+
+    <p>그러니까 곱의 점근 행동을 알고 싶으면, 로그를 취해서 합을 분석한 뒤 다시 지수로 돌아가면 됩니다. 가장 유명한 예가 팩토리얼이에요.</p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.5.1 (스털링 근사, Stirling's Approximation)</p>
+      <p>\[ n! \;\sim\; \sqrt{2\pi n}\left(\frac{n}{e}\right)^{n}, \]
+      즉
+      \[ \lim_{n \to \infty} \frac{n!}{\sqrt{2\pi n}\,(n/e)^n} = 1. \]
+      더 강하게, 양 변의 비율은 \( 1 + \frac{1}{12n} + O(1/n^2) \) 형태로 정확하게 알려져 있다.</p>
+    </div>
+
+    <p>스털링 근사를 살짝 손으로 보고 싶으면 로그를 씌워 봅시다.</p>
+    <p>\[ \ln n! = \sum_{k=1}^{n} \ln k. \]</p>
+    <p>\( \ln \)은 단조증가이므로 적분 비교에서</p>
+    <p>\[ \int_{1}^{n} \ln x\,dx \;\le\; \sum_{k=1}^{n} \ln k \;\le\; \int_{1}^{n+1} \ln x\,dx. \]</p>
+    <p>\( \int \ln x\,dx = x \ln x - x \)이므로 양 끝은 \( n \ln n - n + O(\ln n) \). 따라서</p>
+    <p>\[ \ln n! \;=\; n \ln n - n + O(\ln n), \qquad n! \;=\; e^{\,n \ln n - n + O(\ln n)} = \left(\frac{n}{e}\right)^n \cdot e^{O(\ln n)}. \]</p>
+    <p>지수의 \( O(\ln n) \) 부분이 다항식이 되어 \( \sqrt{2\pi n} \) 정도의 보정 인자를 만들어 내는데, 그 정확한 \( \sqrt{2\pi} \)는 좀 더 정밀한 분석(왈리스 곱 같은 것)에서 떨어집니다. 핵심은 적분 근사 한 번이 이렇게 거대한 결과의 뼈대를 잡아준다는 점이에요.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 컴퓨터과학에서</p>
+      <p>스털링 근사는 \( \binom{n}{k} \) 같은 이항계수의 점근 분석, 정보이론의 엔트로피 부등식, 무작위 알고리즘의 분석 등에서 꾸준히 쓰입니다. 특히 \( n! \)이 들어간 계산 복잡도 분석에서는 거의 반사적으로 \( n^n e^{-n}\sqrt{n} \) 모양으로 갈아입혀요.</p>
+    </div>
+  </section>
+
+  <section id="ch14-6" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.6</span>
+      <span class="sec-kr">어려운 합</span>
+      <span class="sec-en">Double Trouble</span>
+    </h3>
+
+    <p>합 두 개가 겹치면 가끔 머리가 아파집니다. 그래도 하나의 일관된 원리가 거의 모든 경우에 통하는데, 바로 <strong>합의 순서를 바꿔도 된다</strong>는 사실이에요. 모든 항이 음이 아니거나, 합이 절대 수렴하면 안전합니다.</p>
+
+    <p>\[ \sum_{i \in I} \sum_{j \in J} a_{ij} \;=\; \sum_{j \in J} \sum_{i \in I} a_{ij}. \]</p>
+
+    <p>특히 합의 영역이 삼각형 모양이면 순서를 바꿔서 훨씬 쉬워지는 경우가 많아요. 예를 들어 \( i \le j \)인 \( (i,j) \) 쌍에 대해 합한다고 합시다.</p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 14.6.1 (순서 바꾸기)</p>
+      <p>\[ T \;=\; \sum_{i=1}^{n} \sum_{j=i}^{n} \frac{1}{j}. \]
+      안쪽 합이 \( j \)에 의존해서 다루기 까다롭습니다. 순서를 바꿔 \( j \)를 바깥으로 빼 봅시다. \( i \le j \le n \)이라는 조건은 같은데, 이번엔 \( j \)를 먼저 잡고 \( i \)가 \( 1 \)부터 \( j \)까지 가도록 합니다.
+      \[ T \;=\; \sum_{j=1}^{n} \sum_{i=1}^{j} \frac{1}{j} \;=\; \sum_{j=1}^{n} \frac{j}{j} \;=\; \sum_{j=1}^{n} 1 \;=\; n. \]
+      안쪽 합이 \( i \)에 무관해서 깔끔히 떨어집니다. \( T = n \). 처음 식을 보고 이 답을 짐작하긴 쉽지 않죠.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 14.6.2 (조화수의 합)</p>
+      <p>\( \sum_{k=1}^{n} H_k \)를 구해 봅시다. 정의를 펼쳐 쓰면
+      \[ \sum_{k=1}^{n} H_k \;=\; \sum_{k=1}^{n} \sum_{j=1}^{k} \frac{1}{j}. \]
+      \( j \)를 바깥으로 빼면 \( j \le k \le n \)이므로 \( k \)는 \( j \)부터 \( n \)까지.
+      \[ = \sum_{j=1}^{n} \sum_{k=j}^{n} \frac{1}{j} \;=\; \sum_{j=1}^{n} \frac{n - j + 1}{j} \;=\; (n+1)H_n - n. \]
+      </p>
+    </div>
+
+    <p>이중 합 다루는 마음가짐은 단순합니다 — "지수와 그 범위를 그림으로 그려 보고, 지금 안쪽이 어려우면 바깥으로 보낼 수 있는지 보자". 그게 잘 통하면 무지막지해 보이던 합이 갑자기 정리됩니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 조심해야 할 때</p>
+      <p>합의 순서 교환은 모든 항이 양수이거나 합이 절대 수렴할 때만 안전합니다. 양수와 음수가 섞이고 조건부 수렴만 하는 경우(예: 교대 조화급수의 재배열)는 답이 바뀌기까지 해요. 다행히 알고리즘 분석에서 만나는 합은 대부분 음이 아닌 항들의 유한합이라 이 위험을 신경 쓸 일이 거의 없습니다.</p>
+    </div>
+  </section>
+
+  <section id="ch14-7" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">14.7</span>
+      <span class="sec-kr">점근 표기법</span>
+      <span class="sec-en">Asymptotic Notation</span>
+    </h3>
+
+    <p>드디어 알고리즘 수업의 단골손님, 빅 오 표기법(Big-O notation)입니다. 컴퓨터과학 학생이 평생 가장 자주 쓰는 수학 표기 중 하나이고, 그래서 정의가 흐릿하면 평생 헷갈립니다. 한 번 깔끔하게 정리하고 갑시다.</p>
+
+    <p>다섯 가지 기호 — \( O, \Omega, \Theta, o, \omega \) — 가 있고, 이들은 모두 두 함수 \( f, g : \mathbb{N} \to \mathbb{R}_{&gt;0} \)의 큰 \( n \)에서의 상대적 크기를 표현합니다.</p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 14.7.1 (다섯 가지 점근 표기)</p>
+      <p>\( f, g \)가 양의 함수일 때:</p>
+      <p><strong>빅 오:</strong> \( f(n) = O(g(n)) \) \( \iff \) 어떤 상수 \( c &gt; 0 \)과 \( n_0 \)가 있어서 모든 \( n \ge n_0 \)에 대해 \( f(n) \le c\, g(n) \).</p>
+      <p><strong>빅 오메가:</strong> \( f(n) = \Omega(g(n)) \) \( \iff \) 어떤 \( c &gt; 0,\, n_0 \)가 있어서 \( n \ge n_0 \)면 \( f(n) \ge c\, g(n) \).</p>
+      <p><strong>빅 세타:</strong> \( f(n) = \Theta(g(n)) \) \( \iff \) \( f = O(g) \)이고 \( f = \Omega(g) \).</p>
+      <p><strong>리틀 오:</strong> \( f(n) = o(g(n)) \) \( \iff \) \( \lim_{n\to\infty} f(n)/g(n) = 0 \).</p>
+      <p><strong>리틀 오메가:</strong> \( f(n) = \omega(g(n)) \) \( \iff \) \( \lim_{n\to\infty} f(n)/g(n) = \infty \).</p>
+    </div>
+
+    <p>직관은 이렇습니다. \( O \)는 "위로 \( g \)에 의해 (상수배까지) 눌린다", \( \Omega \)는 "아래로 \( g \)만큼은 자란다", \( \Theta \)는 "위아래로 똑같이 자란다 = 같은 차수". 소문자 \( o \)와 \( \omega \)는 부등호가 <em>엄격한</em> 버전이에요. \( o(g) \)는 "정말 \( g \)보다 무시할 만큼 작다", \( \omega(g) \)는 "정말 \( g \)보다 압도적으로 크다".</p>
+
+    <p>흔히 헷갈리는 포인트 몇 개를 정리해 둡시다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 등호 \( = \)는 등호가 아니다</p>
+      <p>\( f(n) = O(g(n)) \)에서 \( = \)는 일반적인 등호가 아니라 "어떤 집합에 속한다"의 약식 표기입니다. 즉 \( f \in O(g) \)의 의미예요. 그래서 \( O(n) = O(n^2) \)이라고는 써도 \( O(n^2) = O(n) \)이라곤 못 씁니다 — 한 방향만 성립하니까요. 처음엔 어색하지만 관습으로 굳어진 표기이니 익숙해져야 해요.</p>
+    </div>
+
+    <div class="callout example">
+      <p class="callout-label">예제 14.7.2 (계산 한 줌)</p>
+      <p>(a) \( 5n^2 + 3n + 7 = O(n^2) \). 이유: \( n \ge 1 \)이면 \( 5n^2 + 3n + 7 \le 5n^2 + 3n^2 + 7n^2 = 15n^2 \), 즉 \( c = 15, n_0 = 1 \)로 OK.</p>
+      <p>(b) \( 5n^2 + 3n + 7 = \Theta(n^2) \). 위에서 \( O(n^2) \) 보였고, 아래로는 \( 5n^2 + 3n + 7 \ge 5n^2 \)이므로 \( \Omega(n^2) \)도 됨.</p>
+      <p>(c) \( n \log n = o(n^2) \). 왜냐하면 \( (n\log n)/n^2 = (\log n)/n \to 0 \).</p>
+      <p>(d) \( 2^n = \omega(n^k) \) (모든 고정 상수 \( k \)에 대해). 지수는 다항식보다 압도적으로 빠르게 자란다.</p>
+    </div>
+
+    <p>이 표기법이 알고리즘 분석에서 왜 그렇게 사랑받느냐 하면, 우리가 보통 신경 쓰는 게 "코드 한 줄당 정확한 상수"가 아니라 "입력이 두 배가 되면 시간이 어떻게 변하느냐"이기 때문입니다. 상수 계수와 낮은 차수 항을 다 무시해도 그 본질은 변하지 않아요. 그래서:</p>
+
+    <ul>
+      <li>이진 탐색: \( \Theta(\log n) \)</li>
+      <li>선형 탐색: \( \Theta(n) \)</li>
+      <li>병합 정렬: \( \Theta(n \log n) \)</li>
+      <li>버블 정렬: \( \Theta(n^2) \) 최악</li>
+      <li>외판원의 brute force: \( \Theta(n!) \) — 사실상 손도 못 댐</li>
+    </ul>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 흔한 함정 두 가지</p>
+      <p>(1) "최악의 경우(worst-case) 시간은 \( O(g) \)"와 "모든 입력에서 시간은 \( O(g) \)"는 같은 말입니다. 반대로 "최악의 경우 시간이 \( \Omega(g) \)"는 "어떤 입력에서는 시간이 \( g \) 이상"이라는 뜻이에요. 양적 의미를 헷갈리지 말 것.</p>
+      <p>(2) \( O \)는 상한, \( \Omega \)는 하한, \( \Theta \)는 둘 다. 학생들이 종종 "이 알고리즘은 \( O(n^2) \)이다"라는 표현을 보고 "정확히 \( n^2 \)에 비례한다"로 읽는데, \( O(n^2) \)는 그저 위로 \( n^2 \)에 의해 막힌다는 약한 진술입니다. \( \Theta \)를 써야 정확한 차수가 됩니다.</p>
+    </div>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 14.7.3 (점근의 산술)</p>
+      <p>\( f_1 = O(g_1) \)이고 \( f_2 = O(g_2) \)이면:
+      \[ f_1 + f_2 = O(\max(g_1, g_2)), \qquad f_1 \cdot f_2 = O(g_1 \cdot g_2). \]
+      특히 다항식 \( a_d n^d + a_{d-1} n^{d-1} + \cdots + a_0 \)는 \( \Theta(n^d) \)이다 (\( a_d &gt; 0 \)인 경우).</p>
+    </div>
+
+    <p>마지막으로 한 가지 비교를 강조해 둡시다. 큰 \( n \)에서 자주 등장하는 함수들의 성장 속도 순서는 다음과 같습니다 (왼쪽이 더 느리게 자람).</p>
+
+    <p>\[ 1 \;\prec\; \log\log n \;\prec\; \log n \;\prec\; \sqrt{n} \;\prec\; n \;\prec\; n \log n \;\prec\; n^2 \;\prec\; n^c \;(c&gt;2) \;\prec\; 2^n \;\prec\; n! \;\prec\; n^n. \]</p>
+
+    <p>여기서 \( \prec \)는 "리틀 오"를 뜻해요 — 좌변이 우변에 비해 압도적으로 작다는 뜻입니다. 알고리즘을 설계하다 어떤 단계가 \( O(n^3) \)이고 다른 단계가 \( O(n \log n) \)이면, 큰 \( n \)에서 후자는 사실상 무시된다는 식의 직관을 위 사슬이 깔끔하게 정리해 줍니다.</p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 — 이번 장을 마치며</p>
+      <p>이번 장에서 배운 것들은 한 가지 큰 흐름으로 묶입니다 — "정확히 못 풀 땐 근사한다". 등비급수 같은 깔끔한 공식이 안 통할 때 적분으로 갈아타고, 거기서 나온 점근 결과를 \( O, \Theta \) 같은 언어로 정리한다. 다음 장(15장)의 점화식과 함께 이 도구들은 알고리즘 분석 수업의 척추 역할을 하게 됩니다. \( T(n) = 2T(n/2) + O(n) \) 같은 점화식이 결국 \( \Theta(n \log n) \)이 된다는 식의 결론으로 가는 길에서, 이번 장의 합과 적분 비교 기술이 거의 매번 등장할 거예요.</p>
+    </div>
+  </section>
+</article>

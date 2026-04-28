@@ -1,0 +1,2628 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V01 PMPP 기초 재정리 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18-VOL SERIES · V01 · CONTENT-FIRST · A4 LANDSCAPE · 18p</div>
+    <h1>PMPP 기초 <span class="accent">재정리</span></h1>
+    <div class="subtitle">Programming Model · Indexing · Warp · Memory Hierarchy · Parallel Patterns</div>
+    <div class="meta">
+      <div><b>Volume</b> 01 / 18</div>
+      <div><b>Tier</b> T1 HW &amp; ISA</div>
+      <div><b>선행</b> 없음</div>
+      <div><b>용도</b> 18권 전체의 geometry — 이후 V02+ 의 모든 용어 좌표계</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1. Introduction + Amdahl</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2. CUDA C Programming Model</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3. Multi-D Grids + Indexing</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">§4. SM · Warp · SIMT</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">§5. Scheduling · Divergence · Occupancy</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">§6. Memory Hierarchy (정량)</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">§7. Tiling · Shared Memory</span><span class="p">p.8</span></div>
+        <div class="row star"><span class="t">§8. Coalescing · Bank Conflict</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9. Convolution</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">§10. Stencil · Histogram</span><span class="p">p.11</span></div>
+        <div class="row star"><span class="t">§11. Reduction (7단계 진화)</span><span class="p">p.12</span></div>
+        <div class="row star"><span class="t">§12. Prefix Sum (Scan)</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">§13. Merge · Sort</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">§14. Sparse · Graph (BFS)</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">§15. Deep Learning Primitives</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">§16. MPI + CUDA 기초</span><span class="p">p.17</span></div>
+        <div class="row star"><span class="t">§17. Cheat Sheet</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 · 표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의 · 공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 · 워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의 · 실수하기 쉬움</span></div>
+      <div class="row"><span class="sym">★</span><span>시험 · 실무 핵심 (페이지당 ≤3)</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>다른 권 cross-ref</span></div>
+      <div class="row"><span class="sym">→</span><span>인과 · 흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유 · 결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>Out of Scope</b> Nsight 실측 <span class="xref">↗ V18</span> · 튜닝 의사결정 <span class="xref">↗ V18</span> · 세대별 트릭 <span class="xref">↗ V02</span></div>
+    <div class="mono">Source: PMPP 4e (Hwu, Kirk, Hajj) Ch 1–14 · A100/H100 기준 · Ctrl+P A4 landscape</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Introduction + Amdahl ============================ -->
+<section class="page" data-screen-label="02 Introduction+Amdahl">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Introduction · Amdahl · 4대 난제</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Heterogeneous Parallel Computing <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Heterogeneous</mark> = CPU (latency-oriented) + GPU (throughput-oriented) <span class="arrow">→</span>
+          sequential은 CPU, data-parallel은 GPU로 <span class="ko">역할 분담</span>.
+        </div>
+        <ul>
+          <li>2003 이후 clock scaling 종료 (열·전력 벽) <span class="arrow">→</span> multi-core / many-thread 전환</li>
+          <li><b>Multi-core</b>: sequential 성능 유지 · ILP · OoO · large cache</li>
+          <li><b>Many-thread</b>: throughput 극대화 · massive thread · relaxed memory</li>
+          <li>von Neumann 모델 · thread = 순차 실행 단위 (독립 PC · register)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> CPU vs GPU 설계 축</h3>
+        <table class="vs">
+          <thead><tr><th style="width:16%">축</th><th>CPU (latency)</th><th>GPU (throughput)</th></tr></thead>
+          <tbody>
+            <tr><td>목표</td><td>단일 thread 지연 최소</td><td>총 FLOPs 최대</td></tr>
+            <tr><td>ALU</td><td>소수 · 대형 · 저지연</td><td>다수 · 소형 · 장지연 허용</td></tr>
+            <tr><td>캐시</td><td>L1/L2/L3 대용량</td><td>작음 · BW 버퍼</td></tr>
+            <tr><td>제어</td><td>branch predict · OoO</td><td>in-order · SIMT mask</td></tr>
+            <tr><td>메모리</td><td>강한 일관성</td><td>relaxed · ~10× BW</td></tr>
+            <tr><td>쓰레드</td><td>수~수십</td><td>수만</td></tr>
+          </tbody>
+        </table>
+        <div class="warn-box"><span class="label"></span>
+          <span class="ko">경제학</span>: latency 반감 비용 ≫ throughput 두 배 비용. <span class="red">∴ 대규모 병렬 워크로드는 GPU가 유일해</span>.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Amdahl's Law ★
+          <span class="mnemonic">1/((1-p)+p/s)</span>
+        </h3>
+        <div class="formula">
+          Speedup(p, s) = 1 / ((1 − p) + p/s)<br/>
+          lim<sub>s→∞</sub> Speedup = <span class="hl">1 / (1 − p)</span>
+          <span class="legend">p : 병렬 가능 fraction ∈ [0,1] · s : 병렬부 speedup · (1−p) : sequential bottleneck</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          p=0.30, s=100 <span class="arrow">→</span> 1/(0.70 + 0.003) ≈ <b>1.42×</b> · 상한 1.43<br/>
+          p=0.90, s=100 <span class="arrow">→</span> 1/(0.10 + 0.009) ≈ <b>9.2×</b> · 상한 10<br/>
+          p=0.99, s=100 <span class="arrow">→</span> 1/(0.01 + 0.0099) ≈ <b>50×</b> · 상한 100<br/>
+          p=0.999, s=∞ <span class="arrow">→</span> 상한 <b>1000×</b>
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">∴ p 를 99%+ 로 끌어올리는 것이 s 키우기보다 훨씬 중요</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Gustafson 보정 <span class="ko">weak scaling</span></h3>
+        <div class="formula">
+          Speedup<sub>G</sub>(p, N) = (1 − p) + p · N
+          <span class="legend">문제 크기가 N에 따라 선형 증가 → sequential fraction이 상대적으로 작아져 확장성 ↑</span>
+        </div>
+        <ul>
+          <li>Amdahl = <b>strong scaling</b> (고정 문제, rank ↑)</li>
+          <li>Gustafson = <b>weak scaling</b> (rank 당 일감 고정, rank ↑ → 총 문제 ↑)</li>
+          <li><span class="xref">↗ V15 §16</span> strong/weak scaling · α-β 모델 상세</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> A100 vs CPU 정량 baseline ★</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th class="num">A100 SXM4</th><th class="num">24-core CPU</th></tr></thead>
+          <tbody>
+            <tr><td>FP64 peak</td><td class="num">9.7 TF</td><td class="num">~0.33 TF</td></tr>
+            <tr><td>FP32 peak</td><td class="num">19.5 TF</td><td class="num">~0.66 TF</td></tr>
+            <tr><td>TF32 TC</td><td class="num">156 TF</td><td class="num">—</td></tr>
+            <tr><td>FP16 TC</td><td class="num">312 TF</td><td class="num">—</td></tr>
+            <tr><td>BW</td><td class="num">2.0 TB/s</td><td class="num">~0.2 TB/s</td></tr>
+            <tr><td>Thread</td><td class="num">~221K (108 SM × 2048)</td><td class="num">48 HT</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Source: NVIDIA A100 Datasheet v1.3 · 출처 고정값만 표기 · 실측 아님</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 병렬 프로그래밍 4대 난제
+          <span class="mnemonic">알메인동</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><span class="kw">Algorithmic complexity</span>: 병렬화로 work 증가 가능 → <span class="red">work-efficient</span> 확보</li>
+          <li><span class="kw">Memory-bound</span>: 대부분 kernel이 BW 제약 → tiling 필수 <span class="xref">↗ §7</span></li>
+          <li><span class="kw">Input-sensitive</span>: skewed 분포 → load imbalance</li>
+          <li><span class="kw">Synchronization</span>: barrier · atomic · 결합성</li>
+        </ol>
+        <div class="mnem"><span class="label"></span>
+          4대 난제: <span class="key">알메인동</span> (<b>알</b>고리즘 · <b>메</b>모리 · <b>입</b>력편향 · <b>동</b>기화)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Programming Interface 지형</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>범위</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td><mark>CUDA</mark></td><td>single node</td><td>explicit control · C/C++ ext</td></tr>
+            <tr><td>OpenCL</td><td>cross-vendor</td><td>CUDA와 유사 · JIT</td></tr>
+            <tr><td>OpenMP</td><td>shared-mem</td><td>pragma · GPU offload</td></tr>
+            <tr><td>MPI</td><td>cluster</td><td>message passing <span class="xref">↗ §16</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+<!-- ============================ PAGE 3: §2 CUDA C Programming Model ============================ -->
+<section class="page" data-screen-label="03 CUDA C Programming Model">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — CUDA C Programming Model · Host/Device</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Data Parallelism <span class="ko">SPMD</span></h3>
+        <div class="def"><span class="label">정의</span>
+          데이터의 <span class="kw">독립 partition</span>에 동일 연산 적용 → <mark>SPMD</mark> (Single Program Multiple Data).
+          task parallelism과 구분 (서로 다른 task 동시).
+        </div>
+        <ul>
+          <li>예: vector add · 픽셀 변환 · GEMM · FFT</li>
+          <li>GPU가 빛나는 축: 각 thread 독립 · 동일 코드</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> CUDA 프로그램 5단계
+          <span class="mnemonic">할복실복해</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><b>할당</b> <code>cudaMalloc(&amp;d_A, n*sizeof(float))</code></li>
+          <li><b>복사</b> H→D <code>cudaMemcpy(d_A, h_A, n, H2D)</code></li>
+          <li><b>실행</b> <code>kernel&lt;&lt;&lt;G, B&gt;&gt;&gt;(d_A, ...)</code></li>
+          <li><b>복사</b> D→H <code>cudaMemcpy(h_A, d_A, n, D2H)</code></li>
+          <li><b>해제</b> <code>cudaFree(d_A)</code></li>
+        </ol>
+        <div class="mnem"><span class="label"></span>
+          5단계: <span class="key">할복실복해</span> (할당·복사·실행·복사·해제)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 함수 한정자 (Qualifiers)</h3>
+        <table class="compact">
+          <thead><tr><th>한정자</th><th>호출측</th><th>실행측</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td><code>__host__</code></td><td>host</td><td>host</td><td>기본값</td></tr>
+            <tr><td><code>__global__</code></td><td>host (+dyn)</td><td>device</td><td>반드시 <code>void</code></td></tr>
+            <tr><td><code>__device__</code></td><td>device</td><td>device</td><td>inline 기본</td></tr>
+            <tr><td><code>__host__ __device__</code></td><td>양쪽</td><td>양쪽</td><td>공통 유틸</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Vector Add ★ <span class="ko">canonical kernel</span></h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">vecAdd</span>(<span class="kw2">const</span> <span class="ty">float</span>* A,
+                       <span class="kw2">const</span> <span class="ty">float</span>* B,
+                       <span class="ty">float</span>* C, <span class="ty">int</span> n){
+  <span class="ty">int</span> i = <span class="hl">blockIdx.x*blockDim.x + threadIdx.x</span>;
+  <span class="kw2">if</span> (i &lt; n) C[i] = A[i] + B[i];
+}
+<span class="cmt">// host launch</span>
+<span class="ty">int</span> T = <span class="num2">256</span>;
+<span class="ty">int</span> G = (n + T - <span class="num2">1</span>) / T;   <span class="cmt">// ceil div</span>
+<span class="fn">vecAdd</span>&lt;&lt;&lt;G, T&gt;&gt;&gt;(d_A, d_B, d_C, n);</pre>
+        <div class="warn-box"><span class="label"></span>
+          <code>if (i &lt; n)</code> <b>boundary check</b> 필수. n이 T 배수 아닐 때 OOB 발생.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Kernel 실행 구성 <span class="ko">&lt;&lt;&lt;G, B, shmem, stream&gt;&gt;&gt;</span></h3>
+        <ul>
+          <li><span class="kw">grid</span> = block 집합 (1D/2D/3D)</li>
+          <li><span class="kw">block</span> = thread 집합 (≤1024 thread, 3D)</li>
+          <li>block 간 <span class="red">독립 실행</span> 가정 → 동기화 불가 (<span class="ko">transparent scalability</span>)</li>
+          <li>block 내부 → <code>__syncthreads()</code>, shared memory OK</li>
+          <li>optional: dynamic shmem 크기 · CUDA stream 지정</li>
+        </ul>
+<pre class="ascii">grid[ block(0,0) block(1,0) ... ]
+ └─ block[ t(0,0) t(1,0) ... t(31,0)  ← warp 0
+            t(0,1) ...  t(31,1)       ← warp 1 ]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 내장 변수 (Built-in)</h3>
+        <table class="compact">
+          <thead><tr><th>변수</th><th>의미</th><th>최대</th></tr></thead>
+          <tbody>
+            <tr><td><code>gridDim</code></td><td>grid 내 block 수</td><td>2³¹-1, 65535, 65535</td></tr>
+            <tr><td><code>blockDim</code></td><td>block 내 thread 수</td><td>1024, 1024, 64 (곱 ≤ 1024)</td></tr>
+            <tr><td><code>blockIdx</code></td><td>block의 grid 좌표</td><td>—</td></tr>
+            <tr><td><code>threadIdx</code></td><td>thread의 block 좌표</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Error Handling 패턴</h3>
+<pre class="code"><span class="kw2">#define</span> <span class="fn">CUDA_CHECK</span>(x) <span class="kw2">do</span>{ \
+  cudaError_t e = (x); \
+  <span class="kw2">if</span> (e != cudaSuccess){ \
+    <span class="fn">fprintf</span>(stderr, <span class="str">"CUDA %s:%d: %s\n"</span>, \
+      __FILE__,__LINE__, <span class="fn">cudaGetErrorString</span>(e)); \
+    <span class="fn">exit</span>(<span class="num2">1</span>); \
+  } \
+} <span class="kw2">while</span>(<span class="num2">0</span>)
+
+<span class="fn">CUDA_CHECK</span>(<span class="fn">cudaMalloc</span>(&amp;d, n));
+<span class="fn">kernel</span>&lt;&lt;&lt;G,B&gt;&gt;&gt;(d);
+<span class="fn">CUDA_CHECK</span>(<span class="fn">cudaGetLastError</span>());    <span class="cmt">// launch</span>
+<span class="fn">CUDA_CHECK</span>(<span class="fn">cudaDeviceSynchronize</span>()); <span class="cmt">// async</span></pre>
+        <p class="tiny">kernel 호출 자체는 async — sync 후에야 kernel 내부 오류 확정.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Compilation Flow
+          <span class="mnemonic">.cu→PTX→SASS</span>
+        </h3>
+<pre class="ascii">foo.cu
+ └─ nvcc frontend
+     ├─ host C++ → g++/clang → host object
+     └─ device code
+         └─ cicc → NVVM IR → libNVVM → PTX (.ptx)
+             └─ ptxas → SASS (cubin, sm_80/sm_90)
+                 └─ fatbin → host object 링크</pre>
+        <ul>
+          <li>PTX = forward-compatible virtual ISA <span class="xref">↗ V03 §1</span></li>
+          <li>SASS = architecture-specific 실제 opcode <span class="xref">↗ V04 §12</span></li>
+          <li>JIT: 런타임에 driver가 PTX → 신 SASS 생성 가능</li>
+          <li><code>-arch=sm_80</code> Ampere · <code>-arch=sm_90</code> Hopper</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Memory Management 보조 API</h3>
+        <table class="compact">
+          <thead><tr><th>API</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>cudaMallocHost</code></td><td>pinned host · H↔D BW ↑</td></tr>
+            <tr><td><code>cudaMallocManaged</code></td><td>Unified Memory · page fault migrate</td></tr>
+            <tr><td><code>cudaMemcpyAsync</code></td><td>stream 기반 async copy</td></tr>
+            <tr><td><code>cudaMemPrefetchAsync</code></td><td>UM page를 GPU로 pull</td></tr>
+            <tr><td><code>cudaMemset</code></td><td>device 메모리 초기화</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 실수 3종</span>: (a) host 포인터 kernel에 전달 → segfault · (b) memcpy 방향 플래그 혼동 · (c) launch 직후 kernel 오류 무시 (<code>cudaGetLastError</code> 누락).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 3 -</div>
+</section>
+
+<!-- ============================ PAGE 4: §3 Multi-D Grids + Indexing ============================ -->
+<section class="page" data-screen-label="04 Multi-D Grids">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — Multi-Dimensional Grids · Indexing · Boundary</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 Multi-D ?</h3>
+        <ul>
+          <li>이미지 · 행렬 · volume · tensor = 본질적으로 다차원</li>
+          <li><code>threadIdx</code>·<code>blockIdx</code> 모두 (x, y, z) <span class="arrow">→</span> 자연스런 mapping</li>
+          <li>index 계산 오류 ↓ · 가독성 ↑</li>
+        </ul>
+<pre class="code"><span class="ty">dim3</span> block(<span class="num2">16</span>, <span class="num2">16</span>);                        <span class="cmt">// 256 thread</span>
+<span class="ty">dim3</span> grid((W+<span class="num2">15</span>)/<span class="num2">16</span>, (H+<span class="num2">15</span>)/<span class="num2">16</span>);     <span class="cmt">// ceil</span>
+<span class="fn">kernel</span>&lt;&lt;&lt;grid, block&gt;&gt;&gt;(...);</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 1D Indexing ★</h3>
+        <div class="formula">
+          i = blockIdx.x · blockDim.x + threadIdx.x<br/>
+          stride = gridDim.x · blockDim.x
+          <span class="legend">grid-stride loop: <code>for(i; i&lt;N; i+=stride)</code> — fixed grid로 큰 N 처리</span>
+        </div>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> i = blockIdx.x*blockDim.x + threadIdx.x;
+         i &lt; N;
+         i += gridDim.x*blockDim.x){
+  out[i] = f(in[i]);
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 2D Indexing ★
+          <span class="mnemonic">row·col</span>
+        </h3>
+        <div class="formula">
+          row = blockIdx.<mark>y</mark>·blockDim.<mark>y</mark> + threadIdx.<mark>y</mark><br/>
+          col = blockIdx.<mark>x</mark>·blockDim.<mark>x</mark> + threadIdx.<mark>x</mark><br/>
+          idx = row · W + col &nbsp; <span class="legend">(row-major)</span>
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">혼동 주의</span>: <code>.x</code> = <b>col</b> (너비축), <code>.y</code> = <b>row</b> (높이축). 반대로 쓰면 coalescing 붕괴.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 3D Indexing <span class="ko">volume</span></h3>
+        <div class="formula">
+          x = bx·Bx + tx<br/>
+          y = by·By + ty<br/>
+          z = bz·Bz + tz<br/>
+          idx = z · (H · W) + y · W + x
+        </div>
+<pre class="code"><span class="ty">dim3</span> blk(<span class="num2">8</span>, <span class="num2">8</span>, <span class="num2">8</span>);          <span class="cmt">// 512 thread</span>
+<span class="ty">dim3</span> grd((W+<span class="num2">7</span>)/<span class="num2">8</span>,
+         (H+<span class="num2">7</span>)/<span class="num2">8</span>,
+         (D+<span class="num2">7</span>)/<span class="num2">8</span>);</pre>
+        <p class="tiny">MRI · CT · fluid sim · 3D stencil에 쓰임.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Row-major Linearization</h3>
+        <div class="formula">
+          M[r][c]        = M_flat[r · W + c]<br/>
+          V[d][r][c]     = V_flat[d·(H·W) + r·W + c]<br/>
+          T[n][c][h][w]  = T_flat[n·(C·H·W) + c·(H·W) + h·W + w]
+          <span class="legend">C/CUDA = row-major · Fortran/MATLAB = col-major</span>
+        </div>
+        <ul>
+          <li>PyTorch 기본 = row-major (C contiguous)</li>
+          <li>stride 벡터로 일반화 <span class="xref">↗ V06 §8</span> CuTe Layout</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 2D Kernel Skeleton ★</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">rgb2gray</span>(<span class="ty">uchar</span>* out,
+                         <span class="kw2">const</span> <span class="ty">uchar</span>* in,
+                         <span class="ty">int</span> W, <span class="ty">int</span> H){
+  <span class="ty">int</span> c = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="ty">int</span> r = blockIdx.y*blockDim.y + threadIdx.y;
+  <span class="kw2">if</span> (r &lt; H &amp;&amp; c &lt; W){
+    <span class="ty">int</span> i = <span class="hl">r*W + c</span>;
+    <span class="kw2">const</span> <span class="ty">uchar</span>* p = &amp;in[<span class="num2">3</span>*i];
+    out[i] = <span class="num2">0.21f</span>*p[<span class="num2">0</span>]
+           + <span class="num2">0.72f</span>*p[<span class="num2">1</span>]
+           + <span class="num2">0.07f</span>*p[<span class="num2">2</span>];
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Naive Matrix Multiplication</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">matMul</span>(<span class="ty">float</span>* C,
+                        <span class="kw2">const</span> <span class="ty">float</span>* A,
+                        <span class="kw2">const</span> <span class="ty">float</span>* B, <span class="ty">int</span> N){
+  <span class="ty">int</span> r = blockIdx.y*blockDim.y + threadIdx.y;
+  <span class="ty">int</span> c = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="kw2">if</span> (r &lt; N &amp;&amp; c &lt; N){
+    <span class="ty">float</span> s = <span class="num2">0.0f</span>;
+    <span class="kw2">for</span> (<span class="ty">int</span> k = <span class="num2">0</span>; k &lt; N; ++k)
+      s += A[r*N + k] * B[k*N + c];
+    C[r*N + c] = s;
+  }
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          CGMA = 2 FLOP / 8 B = <b>0.25 FLOP/B</b> — memory-bound. Tiling 필요 <span class="xref">↗ §7</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Block Size 경험칙
+          <span class="mnemonic">32의 배수</span>
+        </h3>
+        <ul>
+          <li>thread 수 = <mark>32의 배수</mark> (warp 단위)</li>
+          <li>128 / 256 / 512 에서 탐색 시작</li>
+          <li>16×16 = 256 (warp 8) · 32×32 = 1024 (max)</li>
+          <li>너무 작음 → occupancy ↓ · 너무 큼 → register 부족</li>
+          <li><code>__launch_bounds__(maxT, minB)</code>로 컴파일러 힌트</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Boundary Pattern</h3>
+        <ol class="bullet-num">
+          <li>grid 계산 = <b>⌈N/B⌉</b> 올림 division</li>
+          <li>kernel 진입 직후 <code>if (r&lt;H &amp;&amp; c&lt;W) return;</code></li>
+          <li>padding 로드 시 0 또는 neutral element</li>
+        </ol>
+        <div class="ex"><span class="label"></span>
+          W=1920, H=1080, block=16×16 <span class="arrow">→</span>
+          grid = 120 × 68 = <b>8,160 blocks</b>, 총 thread = 2,088,960 (≈ 2.09 M).
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 4 -</div>
+</section>
+
+<!-- ============================ PAGE 5: §4 SM · Warp · SIMT ============================ -->
+<section class="page" data-screen-label="05 SM·Warp·SIMT">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — Compute Architecture · SM · Warp · SIMT</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 실행 5-level ★</h3>
+<pre class="ascii">Grid
+ └─ (Hopper+) Cluster        ← cluster.sync · DSMEM
+     └─ Block (CTA)          ← __syncthreads
+         └─ Warp = 32 thread ← __syncwarp · shfl
+             └─ Thread       ← register · PC</pre>
+        <ul>
+          <li>Cluster는 sm_90+ 전용 <span class="xref">↗ V02 §10</span></li>
+          <li>Block 간 독립 가정 → transparent scalability</li>
+          <li>Warp = HW scheduling 단위 (scalar thread 아님)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> SM 내부 구조 <span class="ko">A100 예</span></h3>
+<pre class="ascii">SM (108개)
+ ├─ 4 processing block (partition)
+ │   ├─ warp scheduler × 1
+ │   ├─ INT32 unit × 16
+ │   ├─ FP32 unit × 16
+ │   ├─ FP64 unit × 8
+ │   ├─ Tensor Core (3rd gen) × 1
+ │   ├─ LD/ST unit × 8
+ │   └─ SFU × 4     (sin/exp/rsqrt)
+ ├─ Register File (64K × 32b = 256KB)
+ ├─ L1 / Smem 통합 (192 KB, carveable)
+ ├─ L1 instruction cache
+ └─ Constant cache (read-only)</pre>
+        <p class="tiny">Source: NVIDIA A100 GPU Architecture Whitepaper v1.0. Hopper 내부 상세 <span class="xref">↗ V02 §1</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> SM Count 비교</h3>
+        <table class="compact">
+          <thead><tr><th>GPU</th><th class="num">SM</th><th class="num">FP32 core</th><th class="num">TC</th></tr></thead>
+          <tbody>
+            <tr><td>V100 (sm_70)</td><td class="num">80</td><td class="num">5120</td><td class="num">640 (1st)</td></tr>
+            <tr><td>A100 (sm_80)</td><td class="num">108</td><td class="num">6912</td><td class="num">432 (3rd)</td></tr>
+            <tr><td>H100 (sm_90)</td><td class="num">132</td><td class="num">16896</td><td class="num">528 (4th)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Warp ★ <span class="ko">정의</span>
+          <span class="mnemonic">32 thread · SIMT</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Warp</mark> = 32 thread 한 묶음. SM 이 <span class="kw">lock-step</span>으로 실행.
+          thread 들은 같은 PC · 서로 다른 data <span class="arrow">→</span> <mark>SIMT</mark> (Single Instruction Multiple Thread).
+        </div>
+        <ul>
+          <li>block → warp 자동 분할, <b>x축 우선</b>으로 32씩</li>
+          <li>blockDim이 32 배수가 아니면 마지막 warp가 partial (비활성 lane)</li>
+          <li>Independent Thread Scheduling (Volta+) → thread별 PC 가능 → <code>__syncwarp()</code> 필수</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> SIMT vs SIMD</h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>SIMD</th><th>SIMT</th></tr></thead>
+          <tbody>
+            <tr><td>레인</td><td>고정 vector width</td><td>thread ID로 주소·분기</td></tr>
+            <tr><td>분기</td><td>명시적 mask 코드</td><td>HW 자동 mask / serialize</td></tr>
+            <tr><td>메모리</td><td>aligned gather</td><td>lane별 독립 주소</td></tr>
+            <tr><td>모델</td><td>data-parallel</td><td>SPMD</td></tr>
+            <tr><td>예</td><td>AVX-512 · ARM SVE</td><td>NVIDIA warp · AMD wavefront</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Warp Scheduler State
+          <span class="mnemonic">E·I·S</span>
+        </h3>
+        <ul>
+          <li><b>Eligible</b>: 의존성 해소, 실행 준비 완료</li>
+          <li><b>Issued</b>: 이번 cycle에 dispatch 됨</li>
+          <li><b>Stalled</b>: barrier / long-latency / scoreboard 대기</li>
+        </ul>
+        <div class="formula">
+          SM 매 cycle = pick one eligible warp per scheduler<br/>
+          A100 SM = 4 scheduler → 최대 4 warp / cycle issue
+          <span class="legend">stall reason 분류 <span class="xref">↗ V18 §7</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Thread Hierarchy 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>단위</th><th>통신</th><th>동기</th><th>한계</th></tr></thead>
+          <tbody>
+            <tr><td>Thread</td><td>register</td><td>—</td><td>255 reg</td></tr>
+            <tr><td>Warp</td><td>shfl · vote</td><td><code>__syncwarp</code></td><td>32 thread</td></tr>
+            <tr><td>Block</td><td>smem</td><td><code>__syncthreads</code></td><td>1024 thread · 48+ KB smem</td></tr>
+            <tr><td>Cluster</td><td>DSMEM</td><td><code>cluster.sync</code></td><td>≤16 block (sm_90+)</td></tr>
+            <tr><td>Grid</td><td>global</td><td>kernel 경계</td><td>2³¹ block</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Transparent Scalability ★</h3>
+        <div class="def"><span class="label">원리</span>
+          block 간 실행 순서·동시성을 <span class="red">가정하지 않는다</span> → 동일 바이너리가 SM 수 더 많은 미래 GPU 에서 자동으로 빨라짐.
+        </div>
+        <ul>
+          <li>∴ block 간 동기화 API가 <b>의도적으로 부재</b></li>
+          <li>grid-level 동기는 kernel 분할로 달성</li>
+          <li>또는 cooperative groups <code>grid_group::sync()</code> (persistent kernel <span class="xref">↗ V05 §9</span>)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Warp Formation 규칙</h3>
+        <ul>
+          <li>block (Bx, By, Bz) → 1D linearize <code>t = tx + ty·Bx + tz·Bx·By</code></li>
+          <li>warp id = t / 32 · lane id = t % 32</li>
+          <li><b>같은 warp</b> ⟺ t / 32 동일</li>
+          <li>∴ 16×16 block → warp 0 = (0..15, 0), warp 1 = (0..15, 1) 등</li>
+        </ul>
+        <div class="mnem"><span class="label"></span>
+          Compute 5핵심: <span class="key">SWDLT</span>
+          (<b>S</b>M · <b>W</b>arp · <b>D</b>ivergence · <b>L</b>atency hiding · <b>T</b>ransparent scale)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 5 -</div>
+</section>
+
+<!-- ============================ PAGE 6: §5 Scheduling · Divergence · Occupancy ============================ -->
+<section class="page" data-screen-label="06 Scheduling·Divergence·Occupancy">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — Warp Scheduling · Divergence · Occupancy</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Control Divergence ★
+          <span class="mnemonic">uniform warp</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          같은 warp 내 thread 가 서로 <span class="kw">다른 경로</span>로 분기 →
+          path 별 <b>순차 실행</b> + 반대 쪽 thread mask <span class="arrow">→</span> <span class="red">throughput ÷ path 수</span>.
+        </div>
+<pre class="code"><span class="kw2">if</span> (tid % <span class="num2">2</span> == <span class="num2">0</span>)    <span class="cmt">// ❌ warp ½ mask</span>
+  even_work();
+<span class="kw2">else</span>
+  odd_work();             <span class="cmt">// 두 경로 직렬</span></pre>
+        <div class="warn-box"><span class="label"></span>
+          해법: 분기 조건을 <b>warp 경계</b> 에 맞춰라. <code>if (tid / 32 ...)</code> 처럼 warp 전체가 같은 path.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Divergence 비용 공식</h3>
+        <div class="formula">
+          T<sub>div</sub> = Σ<sub>path</sub> T<sub>path</sub>(active<sub>path</sub>)<br/>
+          vs T<sub>uniform</sub> = max path &nbsp; <span class="legend">분기 수 = path 수 · 비용은 path 길이 합</span>
+        </div>
+        <ul>
+          <li>단, 모든 thread 가 skip 하면 whole-warp skip (cost 0)</li>
+          <li>early-return 이 mid-loop break 보다 저렴 (compiler 가 predicate)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 분기 회피 패턴</h3>
+        <ol>
+          <li>조건 산술화: <code>y = c ? a : b</code> <span class="arrow">→</span> <code>y = a*c + b*(1-c)</code></li>
+          <li>boundary check는 가장 바깥 block 에서만</li>
+          <li>warp 별 uniform branch 유지 (tid/32 기준)</li>
+          <li>predicate instruction: compiler가 짧은 분기를 <code>@p instr</code> 로 변환</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Synchronization 3종</h3>
+        <table class="compact">
+          <thead><tr><th>API</th><th>scope</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>__syncthreads()</code></td><td>block</td><td>smem 가시성</td></tr>
+            <tr><td><code>__syncwarp(mask)</code></td><td>warp</td><td>ITS 후 필수</td></tr>
+            <tr><td><code>__threadfence()</code></td><td>device</td><td>global 순서 강제</td></tr>
+            <tr><td><code>__threadfence_block()</code></td><td>block</td><td>smem 순서 강제</td></tr>
+            <tr><td><code>cluster.sync()</code></td><td>cluster</td><td>sm_90+</td></tr>
+          </tbody>
+        </table>
+        <div class="warn-box"><span class="label"></span>
+          <code>__syncthreads()</code> 를 <span class="red">if 안쪽</span> 에 두면 일부 thread 만 도달 → deadlock. 조건을 uniform 하게 만든 뒤 호출.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Latency Hiding ★</h3>
+        <div class="def"><span class="label">원리</span>
+          한 warp가 long-latency op (DRAM load) 대기 → scheduler 가 다른 eligible warp 실행. 충분한 warp → latency 은폐.
+        </div>
+        <div class="formula">
+          warps<sub>needed</sub> ≥ latency · issue_rate / ops_per_warp<br/>
+          Little's Law: in-flight bytes = BW × latency
+          <span class="legend">A100: 2.0 TB/s × 400 cyc @ 1.4 GHz ≈ 572 KB in-flight · ILP · MLP 와 결합</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Occupancy 정의 ★
+          <span class="mnemonic">active / max</span>
+        </h3>
+        <div class="formula">
+          Occupancy = warps<sub>active</sub> / warps<sub>max/SM</sub><br/>
+          A100: max_warps/SM = 64 (= 2048 thread / 32)
+        </div>
+        <div class="ex"><span class="label"></span>
+          block=256 (8 warp) · SM당 4 block → 32 active warp<br/>
+          Occupancy = 32/64 = <b>0.50 (50%)</b>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Occupancy 제약 4요소
+          <span class="mnemonic">B·T·R·S</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>자원</th><th class="num">A100 /SM</th><th class="num">H100 /SM</th><th>영향</th></tr></thead>
+          <tbody>
+            <tr><td><b>B</b>locks</td><td class="num">32</td><td class="num">32</td><td>block 수 상한</td></tr>
+            <tr><td><b>T</b>hreads</td><td class="num">2048</td><td class="num">2048</td><td>warp 수 상한</td></tr>
+            <tr><td><b>R</b>egs</td><td class="num">65,536</td><td class="num">65,536</td><td>thread당 reg</td></tr>
+            <tr><td><b>S</b>mem</td><td class="num">164 KB</td><td class="num">228 KB</td><td>block당 shared</td></tr>
+          </tbody>
+        </table>
+        <div class="formula">
+          warps<sub>limit</sub> = min(<br/>
+          &nbsp;max_warps,<br/>
+          &nbsp;max_blocks · warps/block,<br/>
+          &nbsp;reg<sub>SM</sub> / (reg<sub>thr</sub>·32),<br/>
+          &nbsp;smem<sub>SM</sub> / smem<sub>block</sub>)
+        </div>
+        <div class="mnem"><span class="label"></span>
+          Occupancy 4제약: <span class="key">BTRS</span> (Block · Thread · Register · Shared)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Occupancy ≠ Performance</h3>
+        <ul>
+          <li>높은 occupancy = latency hiding 여력</li>
+          <li><span class="red">너무 높이면</span> register spill → local memory (DRAM) → 오히려 ↓</li>
+          <li>GEMM · attention 은 reg 많이 씀 → 25~50% 가 정상</li>
+          <li>ILP / MLP 로 보완 가능 (한 thread 가 여러 독립 op 동시 in-flight)</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          목표는 <b>충분한</b> occupancy (50%+) , <span class="red">100% 아님</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> <code>__launch_bounds__</code></h3>
+<pre class="code"><span class="kw2">__global__</span>
+<span class="kw2">__launch_bounds__</span>(<span class="num2">256</span>, <span class="num2">4</span>)   <span class="cmt">// T, minBlocks/SM</span>
+<span class="ty">void</span> <span class="fn">k</span>(...){ ... }</pre>
+        <ul>
+          <li>컴파일러에게 "이 block 크기와 최소 occupancy 맞춰라" 지시</li>
+          <li>reg 사용을 제한해 지정 occupancy 달성</li>
+          <li><code>-Xptxas -v</code> 로 실제 reg/smem 확인</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 6 -</div>
+</section>
+
+<!-- ============================ PAGE 7: §6 Memory Hierarchy ============================ -->
+<section class="page" data-screen-label="07 Memory Hierarchy">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Memory Hierarchy (Quantitative, A100 &amp; H100)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 메모리 계층 정량표 ★★
+          <span class="mnemonic">전상지공레텍</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>scope</th><th class="num">latency</th><th class="num">크기</th><th>선언</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Register</mark></td><td>thread</td><td class="num">1 cyc</td><td class="num">255/thr</td><td>auto</td></tr>
+            <tr><td><mark>Shared / L1</mark></td><td>block</td><td class="num">~30 cyc</td><td class="num">164/228 KB</td><td><code>__shared__</code></td></tr>
+            <tr><td>DSMEM</td><td>cluster</td><td class="num">~50 cyc</td><td class="num">≤16 SM</td><td>sm_90+</td></tr>
+            <tr><td>Constant</td><td>device RO</td><td class="num">~L1 cache</td><td class="num">64 KB</td><td><code>__constant__</code></td></tr>
+            <tr><td>L2</td><td>device</td><td class="num">~200 cyc</td><td class="num">40/50 MB</td><td>auto</td></tr>
+            <tr><td>Texture</td><td>grid RO</td><td class="num">spatial cache</td><td class="num">—</td><td>tex API</td></tr>
+            <tr><td>Local</td><td>thread</td><td class="num">~DRAM</td><td class="num">stack spill</td><td>auto</td></tr>
+            <tr><td><mark>Global (HBM)</mark></td><td>grid · host</td><td class="num">~400 cyc</td><td class="num">40/80 GB</td><td><code>__device__</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Source: A100 / H100 Whitepaper. latency는 근사치, 세대별 실측 <span class="xref">↗ V02 §14</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Bandwidth 비교</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th class="num">A100 BW</th><th class="num">H100 BW</th></tr></thead>
+          <tbody>
+            <tr><td>Reg file /SM</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>Smem /SM</td><td class="num">~19 TB/s</td><td class="num">~33 TB/s</td></tr>
+            <tr><td>L2</td><td class="num">~4 TB/s</td><td class="num">~5.5 TB/s</td></tr>
+            <tr><td>HBM</td><td class="num">2.0 TB/s</td><td class="num">3.35 TB/s</td></tr>
+            <tr><td>NVLink</td><td class="num">600 GB/s</td><td class="num">900 GB/s</td></tr>
+            <tr><td>PCIe Gen4 x16</td><td class="num">64 GB/s</td><td class="num">—</td></tr>
+            <tr><td>PCIe Gen5 x16</td><td class="num">—</td><td class="num">128 GB/s</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> A100 vs H100 정량 비교 ★★ <span class="ko">10+ metric</span></h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th class="num">A100 SXM4 80GB</th><th class="num">H100 SXM5 80GB</th></tr></thead>
+          <tbody>
+            <tr><td>Compute Cap</td><td class="num">8.0</td><td class="num">9.0</td></tr>
+            <tr><td>SM 수</td><td class="num">108</td><td class="num">132</td></tr>
+            <tr><td>FP32 core</td><td class="num">6,912</td><td class="num">16,896</td></tr>
+            <tr><td>Tensor Core</td><td class="num">432 (3rd)</td><td class="num">528 (4th)</td></tr>
+            <tr><td>Register / SM</td><td class="num">256 KB</td><td class="num">256 KB</td></tr>
+            <tr><td>Smem max / SM</td><td class="num">164 KB</td><td class="num">228 KB</td></tr>
+            <tr><td>L2 cache</td><td class="num">40 MB</td><td class="num">50 MB</td></tr>
+            <tr><td>HBM</td><td class="num">80 GB HBM2e</td><td class="num">80 GB HBM3</td></tr>
+            <tr><td>Mem BW</td><td class="num">2.0 TB/s</td><td class="num">3.35 TB/s</td></tr>
+            <tr><td>FP64 peak</td><td class="num">9.7 TF</td><td class="num">34 TF</td></tr>
+            <tr><td>FP32 peak</td><td class="num">19.5 TF</td><td class="num">67 TF</td></tr>
+            <tr><td>TF32 TC</td><td class="num">156 TF</td><td class="num">495 TF</td></tr>
+            <tr><td>FP16 / BF16 TC</td><td class="num">312 TF</td><td class="num">989 TF</td></tr>
+            <tr><td>FP8 TC</td><td class="num">—</td><td class="num">1,979 TF</td></tr>
+            <tr><td>NVLink</td><td class="num">600 GB/s</td><td class="num">900 GB/s</td></tr>
+            <tr><td>TDP</td><td class="num">400 W</td><td class="num">700 W</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">세대별 신기능 표 <span class="xref">↗ V02 §7, §8</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Local Memory ⚠
+          <span class="mnemonic">이름이 속임수</span>
+        </h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">Local memory 는 물리적으로 HBM</span>. "지역" 은 scope 만 의미.
+          register spill · 큰 자동 배열 → local 로 떨어짐 → global latency.
+        </div>
+        <ul>
+          <li>compiler 가 register 부족 시 자동 allocate</li>
+          <li><code>-Xptxas -v</code> 로 "X bytes stack frame" 확인</li>
+          <li>해법: loop fuse, 배열 크기 compile-time 상수화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> PTX Storage Class 매핑</h3>
+        <table class="compact">
+          <thead><tr><th>CUDA C</th><th>PTX</th><th>backing</th></tr></thead>
+          <tbody>
+            <tr><td>auto var</td><td><code>.reg</code></td><td>register file</td></tr>
+            <tr><td>spill</td><td><code>.local</code></td><td>HBM (thread)</td></tr>
+            <tr><td><code>__shared__</code></td><td><code>.shared</code></td><td>SRAM (block)</td></tr>
+            <tr><td><code>__constant__</code></td><td><code>.const</code></td><td>const cache</td></tr>
+            <tr><td><code>__device__</code></td><td><code>.global</code></td><td>HBM</td></tr>
+            <tr><td>tex / surf</td><td><code>.tex</code></td><td>read-only L1</td></tr>
+            <tr><td>kernel arg</td><td><code>.param</code></td><td>const bank</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">PTX state space 상세 <span class="xref">↗ V03 §3</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Compute / Memory Ratio ★
+          <span class="mnemonic">CGMA · AI</span>
+        </h3>
+        <div class="formula">
+          CGMA = FLOPs / Bytes<sub>HBM</sub><br/>
+          ridge point = peak_FLOPS / peak_BW
+        </div>
+        <div class="ex"><span class="label"></span>
+          A100: 156 TF / 2.0 TB/s = <b>78 FLOP/B</b> (TF32)<br/>
+          H100: 989 TF / 3.35 TB/s = <b>295 FLOP/B</b> (FP16)<br/>
+          AI &lt; ridge → memory-bound · AI ≥ ridge → compute-bound
+        </div>
+        <p class="tiny">Roofline 상세 공식과 multi-tier 차트 <span class="xref">↗ V18 §1~3</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 7 -</div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Tiling · Shared Memory ============================ -->
+<section class="page" data-screen-label="08 Tiling·Shared Memory">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Tiling · Shared Memory · Matmul ★★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Tiling 핵심 ★★</h3>
+        <div class="def"><span class="label">정의</span>
+          큰 행렬을 <mark>TILE × TILE</mark> 조각으로 분할 → shared memory 에 한 번 로드 후 block 내부 thread 들이 <span class="kw">재사용</span> → DRAM 방문 횟수 ÷ TILE 배 감소.
+        </div>
+        <ol class="bullet-num">
+          <li><b>Load phase</b>: A 타일 · B 타일 → smem (협력 로드)</li>
+          <li><code>__syncthreads()</code></li>
+          <li><b>Compute phase</b>: smem 에서 내적 부분합 누적</li>
+          <li><code>__syncthreads()</code> · 다음 phase</li>
+        </ol>
+        <div class="mnem"><span class="label"></span>
+          Tiling 4step: <span class="key">로싱계싱</span> (로드·sync·계산·sync)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Reuse Factor 분석</h3>
+        <div class="formula">
+          naive: DRAM loads/thr = 2N · 8B (A, B) <br/>
+          tiled: DRAM loads/thr = 2N/TILE · 8B<br/>
+          reuse = <span class="hl">TILE</span> <br/>
+          CGMA(tile) = 2·TILE FLOP / (2·8B) = <span class="hl">TILE/8 FLOP/B</span>
+          <span class="legend">TILE=32 → CGMA 4 FLOP/B · BW 요구 1/32</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          N=1024, TILE=32 · thread당 DRAM load: naive 2048 → tiled <b>64</b>.
+          compute 동일 → AI × 32 개선.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Tile Size Trade-off</h3>
+        <table class="compact">
+          <thead><tr><th>TILE</th><th class="num">smem/block</th><th class="num">CGMA</th><th>Occupancy</th></tr></thead>
+          <tbody>
+            <tr><td>8</td><td class="num">0.5 KB</td><td class="num">1 F/B</td><td>높음</td></tr>
+            <tr><td>16</td><td class="num">2 KB</td><td class="num">2 F/B</td><td>좋음</td></tr>
+            <tr><td>32</td><td class="num">8 KB</td><td class="num">4 F/B</td><td>감소</td></tr>
+            <tr><td>64</td><td class="num">32 KB</td><td class="num">8 F/B</td><td>낮음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Tiled Matmul ★★ <span class="ko">shared mem full listing</span></h3>
+<pre class="code"><span class="kw2">#define</span> TILE <span class="num2">32</span>
+
+<span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">matMulTiled</span>(
+    <span class="ty">float</span>* C, <span class="kw2">const</span> <span class="ty">float</span>* A,
+    <span class="kw2">const</span> <span class="ty">float</span>* B, <span class="ty">int</span> N){
+
+  <span class="kw2">__shared__</span> <span class="ty">float</span> As[TILE][TILE];
+  <span class="kw2">__shared__</span> <span class="ty">float</span> Bs[TILE][TILE];
+
+  <span class="ty">int</span> bx = blockIdx.x, by = blockIdx.y;
+  <span class="ty">int</span> tx = threadIdx.x, ty = threadIdx.y;
+
+  <span class="ty">int</span> row = by*TILE + ty;
+  <span class="ty">int</span> col = bx*TILE + tx;
+  <span class="ty">float</span> acc = <span class="num2">0.0f</span>;
+
+  <span class="cmt">// phase 순회 (K 방향)</span>
+  <span class="kw2">for</span>(<span class="ty">int</span> ph = <span class="num2">0</span>; ph &lt; (N+TILE-<span class="num2">1</span>)/TILE; ++ph){
+
+    <span class="cmt">// ── 1. 협력 로드 ──</span>
+    <span class="ty">int</span> aCol = ph*TILE + tx;
+    <span class="ty">int</span> bRow = ph*TILE + ty;
+    As[ty][tx] = (row &lt; N &amp;&amp; aCol &lt; N)
+               ? A[row*N + aCol] : <span class="num2">0.0f</span>;
+    Bs[ty][tx] = (bRow &lt; N &amp;&amp; col &lt; N)
+               ? B[bRow*N + col] : <span class="num2">0.0f</span>;
+    <span class="fn">__syncthreads</span>();
+
+    <span class="cmt">// ── 2. 부분 내적 ──</span>
+    <span class="kw2">#pragma unroll</span>
+    <span class="kw2">for</span>(<span class="ty">int</span> k = <span class="num2">0</span>; k &lt; TILE; ++k)
+      acc += <span class="hl">As[ty][k] * Bs[k][tx]</span>;
+
+    <span class="fn">__syncthreads</span>();
+  }
+
+  <span class="kw2">if</span>(row &lt; N &amp;&amp; col &lt; N)
+    C[row*N + col] = acc;
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Double Buffering <span class="ko">개념</span></h3>
+        <div class="def"><span class="label">개념</span>
+          두 smem 버퍼 A/B 번갈아 — <b>A 계산 중 B 로드</b> → compute · memory 병렬 (pipeline).
+        </div>
+<pre class="ascii">iter i   : load → B      compute ← A
+iter i+1 : load → A      compute ← B
+iter i+2 : load → B      compute ← A</pre>
+        <ul>
+          <li>smem 2배 필요 (occupancy ↓ 가능)</li>
+          <li>Ampere <code>cp.async</code> 로 자동화 <span class="xref">↗ V03 §6</span></li>
+          <li>Hopper TMA + mbarrier <span class="xref">↗ V04 §4</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Thread Coarsening</h3>
+        <div class="def"><span class="label">정의</span>
+          한 thread 가 출력 <b>여러 개</b> (예 2×2) 담당 → smem 재사용 ↑, 중복 로드 ↓, register 사용 ↑.
+        </div>
+        <div class="formula">
+          coarsening factor K → CGMA · K 배 개선<br/>
+          단, register 사용 · K 배 → occupancy 감소 상충
+          <span class="legend">일반 matmul: K = 4~8 가 sweet spot</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Boundary Tile</h3>
+        <ul>
+          <li>N 이 TILE 배수 아닐 때 out-of-range → <code>0.0f</code> 로드 (neutral)</li>
+          <li>출력 쓰기 직전 <code>if(r&lt;N &amp;&amp; c&lt;N)</code></li>
+          <li>zero padding → 수치적 안전 (summation 에 0 기여)</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">두 번째 <code>__syncthreads()</code> 생략 금지</span>. 다음 phase 의 로드가 아직 쓰이는 As/Bs 를 덮어써 race condition.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 8 -</div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Coalescing · Bank Conflict ============================ -->
+<section class="page" data-screen-label="09 Coalescing·Bank Conflict">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Global Coalescing · Shared Bank Conflict</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Coalesced Access ★★
+          <span class="mnemonic">warp → 1 trans</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          warp 32 thread 가 <mark>정렬된 128 B segment</mark> 에 접근 → HW 가 <b>1 transaction</b> 으로 묶음. 흐트러지면 최대 32 trans.
+        </div>
+<pre class="ascii">✓ coalesced:  t0→a[0],  t1→a[1],  ... t31→a[31]   (128 B)
+✗ strided  :  t0→a[0],  t1→a[N],  ...             (N trans)
+✗ random   :  t0→a[?]                              (최대 32 trans)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Coalescing 조건</h3>
+        <ol class="bullet-num">
+          <li>warp 전체가 동일 명령 (not divergent)</li>
+          <li>주소 = base + stride·lane, stride = element size</li>
+          <li>base 가 128 B 정렬 (preferred)</li>
+          <li>elements 합 = 32 · 4B = 128 B (or 256B for 8B type)</li>
+        </ol>
+        <div class="formula">
+          efficiency = requested_bytes / transferred_bytes<br/>
+          strided(stride=2): 50% · stride=32: 3.1%
+          <span class="legend">H/W 가 aligned 128 B 단위로만 읽기 때문</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Row vs Col Major 접근</h3>
+        <table class="vs">
+          <thead><tr><th>접근</th><th>row-major A[r][c]</th><th>결과</th></tr></thead>
+          <tbody>
+            <tr><td>tid→c</td><td>A[r][tid]</td><td><span class="red">✓ coalesced</span></td></tr>
+            <tr><td>tid→r</td><td>A[tid][c]</td><td><span class="red">✗ strided</span></td></tr>
+            <tr><td>transpose</td><td>A[c][tid]</td><td>strided 읽기 + coalesced 쓰기</td></tr>
+          </tbody>
+        </table>
+        <div class="warn-box"><span class="label"></span>
+          Matmul B 접근 (col-major) 이 strided 될 때 → smem transpose 로 해결.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> AoS vs SoA</h3>
+<pre class="code"><span class="cmt">// AoS (Array of Struct) — ❌ strided per-field</span>
+<span class="kw2">struct</span> Atom { <span class="ty">float</span> x, y, z, m; };
+Atom A[N];
+<span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">k</span>(Atom* A){
+  <span class="ty">int</span> i = ...;
+  <span class="ty">float</span> x = A[i].x;      <span class="cmt">// stride 16B · 25% eff</span>
+}
+
+<span class="cmt">// SoA (Struct of Array) — ✓ coalesced</span>
+<span class="kw2">struct</span> Atoms {
+  <span class="ty">float</span>* x; <span class="ty">float</span>* y;
+  <span class="ty">float</span>* z; <span class="ty">float</span>* m;
+};
+<span class="ty">float</span> x = A.x[i];         <span class="cmt">// stride 4B · 100% eff</span></pre>
+        <p class="tiny">LLM tensor layout 은 자연스럽게 SoA (각 tensor 가 별도 배열).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Shared Memory Bank 구조</h3>
+        <div class="def"><span class="label">정의</span>
+          shared mem = <mark>32 bank</mark> · 각 bank 는 4B stripe · 동일 bank 에 서로 <span class="kw">다른 word</span> 동시 접근 → <span class="red">N-way conflict</span> (직렬화 N배). 같은 word → broadcast (free).
+        </div>
+        <div class="formula">
+          bank(addr) = (addr / 4) mod 32
+          <span class="legend">Kepler+: 32 bank, 4B word · 64-bit 모드 선택 가능 (sm_80+)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Bank Conflict 예시</h3>
+<pre class="ascii">s[tid]       : bank(tid) → 모두 다른 bank ✓ OK
+s[2*tid]     : bank 0,2,4,...,62 → 2-way conflict
+s[32*tid]    : 모두 bank 0        → 32-way (완전 직렬)
+s[tid ^ pad] : XOR swizzle        → conflict 회피</pre>
+        <ul>
+          <li>A[32][32] col 접근 = 32-way conflict</li>
+          <li>A[32][33] padding → conflict 0 (한 칸 offset)</li>
+          <li>swizzle: XOR-based 재매핑 <span class="xref">↗ V06 §11</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Padding Trick</h3>
+<pre class="code"><span class="cmt">// ❌ 32-way on column read</span>
+<span class="kw2">__shared__</span> <span class="ty">float</span> A[<span class="num2">32</span>][<span class="num2">32</span>];
+
+<span class="cmt">// ✓ no conflict · 1 col wasted</span>
+<span class="kw2">__shared__</span> <span class="ty">float</span> A[<span class="num2">32</span>][<span class="num2">33</span>];</pre>
+        <ul>
+          <li>비용: smem 3% 낭비 (32→33)</li>
+          <li>이득: 32× throughput</li>
+          <li>vectorized load (<code>float4</code>) 시에는 padding 전략 달라짐</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Vectorized Load/Store</h3>
+        <ul>
+          <li><code>float4</code> load = 128 B / 32 thread (1 tx)</li>
+          <li><code>int4</code>, <code>double2</code> 동일 효과</li>
+          <li>alignment 필수: <code>__align__(16)</code> 또는 <code>reinterpret_cast&lt;float4*&gt;</code></li>
+          <li>PTX <code>ld.global.v4.f32</code> → 4-way vectorized</li>
+        </ul>
+        <div class="formula">
+          transactions = requests / 4  (float → float4)
+          <span class="legend">inst 수 ↓ · issue 여력 ↑ · BW 동일</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Latency Hiding 역산</h3>
+        <div class="formula">
+          필요 parallelism = BW × latency<br/>
+          A100: 2.0 TB/s × 400 ns ≈ <b>800 KB in-flight</b>
+          <span class="legend">Little's Law · 32 B / load → 25,000 동시 load 필요</span>
+        </div>
+        <div class="mnem"><span class="label"></span>
+          Mem 최적화 5: <span class="key">병코재분레</span>
+          (<b>병</b>렬 · <b>코</b>alesce · <b>재</b>사용 · <b>분</b>기 · <b>레</b>지스터 균형)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 9 -</div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Convolution ============================ -->
+<section class="page" data-screen-label="10 Convolution">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Convolution · Halo · Constant Memory</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 1D · 2D Convolution 정의</h3>
+        <div class="formula">
+          y[i] = Σ<sub>k=−R..R</sub> x[i+k] · F[k+R]<br/>
+          Y[r][c] = Σ<sub>i=−R..R</sub> Σ<sub>j=−R..R</sub> X[r+i][c+j] · F[i+R][j+R]
+          <span class="legend">F = filter/mask · R = radius = (K−1)/2 · K = kernel size</span>
+        </div>
+        <ul>
+          <li>각 출력점 = 주변 (2R+1) 개 입력의 가중합</li>
+          <li>F 는 작고 (5×5, 7×7) 전 thread 가 재사용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Naive 1D Convolution</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">conv1d</span>(<span class="ty">float</span>* y,
+    <span class="kw2">const</span> <span class="ty">float</span>* x, <span class="kw2">const</span> <span class="ty">float</span>* F,
+    <span class="ty">int</span> N, <span class="ty">int</span> R){
+  <span class="ty">int</span> i = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="kw2">if</span>(i &gt;= N) <span class="kw2">return</span>;
+  <span class="ty">float</span> s = <span class="num2">0.0f</span>;
+  <span class="kw2">for</span>(<span class="ty">int</span> k = -R; k &lt;= R; ++k){
+    <span class="ty">int</span> j = i + k;
+    <span class="kw2">if</span>(j &gt;= <span class="num2">0</span> &amp;&amp; j &lt; N)
+      s += x[j] * F[k + R];
+  }
+  y[i] = s;
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          CGMA: (2R+1) FLOP / ((2R+1)·4B) = <b>0.25 F/B</b> — memory-bound.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 3단계 최적화 ★
+          <span class="mnemonic">상타할</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><b>상</b>수 memory: F 를 <code>__constant__</code> 로 (broadcast cache)</li>
+          <li><b>타</b>일링: input tile 을 smem 에 로드</li>
+          <li><b>할</b>로: tile + R 테두리 확장 로드 (neighbor 접근)</li>
+        </ol>
+        <div class="mnem"><span class="label"></span>
+          Conv 3: <span class="key">상타할</span> (상수 · 타일 · 할로)
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Constant Memory 패턴</h3>
+<pre class="code"><span class="kw2">__constant__</span> <span class="ty">float</span> F[<span class="num2">25</span>];    <span class="cmt">// 5×5 filter</span>
+
+<span class="cmt">// host</span>
+<span class="fn">cudaMemcpyToSymbol</span>(F, h_F, <span class="kw2">sizeof</span>(F));
+
+<span class="cmt">// device</span>
+<span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">conv</span>(...){
+  ...
+  s += X[...] * F[k + R];   <span class="cmt">// broadcast</span>
+  ...
+}</pre>
+        <ul>
+          <li>64 KB 총량 · warp 전체가 같은 주소 읽으면 1 cycle</li>
+          <li>서로 다른 주소 → 직렬화</li>
+          <li>cached → 두 번째 접근부터 L1-cache 수준</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Tiled + Halo 구조 ★</h3>
+<pre class="ascii">tile: TILE=16, R=2
+┌──────── tile + halo ────────┐
+│ halo ▒▒ │  inner tile  │ ▒▒ │
+│      R  │   TILE       │  R │
+└─────────┴──────────────┴────┘
+smem 크기 = (TILE + 2R)
+output 범위 = TILE
+input 범위 = TILE + 2R</pre>
+        <ul>
+          <li>block thread 수 = TILE (또는 TILE+2R 협력)</li>
+          <li>halo thread 가 경계 예외 처리</li>
+          <li>경계 밖 → zero (또는 mirror/clamp/wrap)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Halo 로드 패턴</h3>
+<pre class="code"><span class="kw2">__shared__</span> <span class="ty">float</span> sX[TILE + <span class="num2">2</span>*R];
+<span class="ty">int</span> tx = threadIdx.x;
+<span class="ty">int</span> gi = blockIdx.x*TILE + tx;
+
+<span class="cmt">// 중앙 로드</span>
+sX[tx + R] = (gi &lt; N) ? x[gi] : <span class="num2">0</span>;
+
+<span class="cmt">// 좌측 halo</span>
+<span class="kw2">if</span>(tx &lt; R){
+  <span class="ty">int</span> li = gi - R;
+  sX[tx] = (li &gt;= <span class="num2">0</span>) ? x[li] : <span class="num2">0</span>;
+}
+<span class="cmt">// 우측 halo 유사</span>
+<span class="fn">__syncthreads</span>();</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Boundary 처리 모드</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>규칙</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>zero</td><td>경계 밖 = 0</td><td>기본 · 수치 안전</td></tr>
+            <tr><td>clamp</td><td>가장자리 복제</td><td>edge detection</td></tr>
+            <tr><td>mirror</td><td>반사</td><td>영상</td></tr>
+            <tr><td>wrap</td><td>순환 (periodic)</td><td>FFT · physics</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Separable Convolution</h3>
+        <div class="def"><span class="label">정의</span>
+          2D filter F = f<sub>row</sub> ⊗ f<sub>col</sub> (외적 분해) → 2 개의 1D pass 로 대체. O(K²) → <mark>O(2K)</mark>.
+        </div>
+        <ul>
+          <li>Gaussian · box · Sobel 등 분리 가능</li>
+          <li>임시 버퍼 T = x * f<sub>row</sub>, y = T * f<sub>col</sub></li>
+          <li>K = 5 → 25 → 10 연산 (2.5× 절약)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> CGMA 개선 예 <span class="ko">2D 5×5</span></h3>
+        <div class="ex"><span class="label"></span>
+          Naive: 25 FLOP / 25·4B = <b>0.25 F/B</b><br/>
+          Tiled 16×16 + halo R=2: input 20×20 = 400 · 4B = 1600B<br/>
+          output 16×16 = 256 thread → 25 FLOP/thr · 6.25 B/thr<br/>
+          CGMA = <b>4.0 F/B</b> (16× 개선)
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        최신 GPU (Ampere+) 는 L2 hit rate 가 높아 naive + constant mem 조합으로도 양호. halo tile 은 큰 K 에서 이득 큼.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 10 -</div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Stencil · Histogram ============================ -->
+<section class="page" data-screen-label="11 Stencil·Histogram">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Stencil · Parallel Histogram</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Stencil 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          격자 점이 자기 자신 + <b>이웃 고정 패턴</b> 만 참조해 시간 step 진행. PDE · 유체 · 열 · CA.
+        </div>
+        <div class="formula">
+          u<sup>t+1</sup>[i,j] = c<sub>0</sub>·u<sup>t</sup>[i,j] + c<sub>1</sub>·(u<sup>t</sup>[i±1,j] + u<sup>t</sup>[i,j±1])
+          <span class="legend">5-point 2D · 7-point 3D · 9-point · 13-point 등</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 3D Tiled Stencil</h3>
+<pre class="ascii">3D volume → z-axis slab 순회
+slab[z]        : smem (xy-plane, tile + halo)
+slab[z-1, z+1] : register (z-neighbor)
+                 → smem 절약
+┌──────┐
+│ halo │   reg: u[z-1], u[z], u[z+1]
+│ xy   │   smem: tile(z) + halo
+│ halo │
+└──────┘</pre>
+        <ul>
+          <li>brick / 3.5D blocking 기법</li>
+          <li>read-read-write pattern 유지</li>
+          <li>thread coarsening (2~4개 z 담당) 효과 큼</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 안정성 조건 (PDE)</h3>
+        <div class="formula">
+          CFL: Δt ≤ Δx / max|v|  (advection)<br/>
+          CFL: Δt ≤ Δx² / (2·D)  (diffusion)
+          <span class="legend">미달 시 수치적 발산 — kernel 수치 안정성 제약</span>
+        </div>
+        <ul>
+          <li>double buffer: u_old ↔ u_new 교대</li>
+          <li>halo 초기화 = Dirichlet / Neumann / periodic 경계 조건</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Histogram 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          입력 원소를 <b>bin</b> 으로 분류 → 각 bin 카운트 증가.
+          output 공유 → <span class="red">race condition 필연</span> → atomic 필요.
+        </div>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">histNaive</span>(
+    <span class="ty">int</span>* h, <span class="kw2">const</span> <span class="ty">uchar</span>* x, <span class="ty">int</span> N){
+  <span class="ty">int</span> i = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="kw2">if</span>(i &lt; N) <span class="fn">atomicAdd</span>(&amp;h[x[i]], <span class="num2">1</span>);
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">skewed input</span> (거의 동일 bin) → global atomic contention → 수십× 저하.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Privatization ★
+          <span class="mnemonic">사프머</span>
+        </h3>
+        <ol class="bullet-num">
+          <li>block 마다 <b>private smem hist</b> 소유</li>
+          <li>thread 가 smem atomic 으로 카운트 (빠름)</li>
+          <li><code>__syncthreads()</code></li>
+          <li>block 결과 → global atomic merge</li>
+        </ol>
+        <div class="formula">
+          contention: N threads → N/G × B/B<sub>block</sub> (≈ 1/G)
+          <span class="legend">G = block 수 · 하드웨어 원자 경합 분산</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Privatized Histogram Kernel</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">histP</span>(<span class="ty">int</span>* h,
+    <span class="kw2">const</span> <span class="ty">uchar</span>* x, <span class="ty">int</span> N, <span class="ty">int</span> B){
+  <span class="kw2">__shared__</span> <span class="ty">int</span> s[<span class="num2">256</span>];
+  <span class="kw2">for</span>(<span class="ty">int</span> t = threadIdx.x; t &lt; B; t += blockDim.x)
+    s[t] = <span class="num2">0</span>;
+  <span class="fn">__syncthreads</span>();
+
+  <span class="cmt">// 각 thread grid-stride</span>
+  <span class="kw2">for</span>(<span class="ty">int</span> i = blockIdx.x*blockDim.x + threadIdx.x;
+       i &lt; N;
+       i += gridDim.x*blockDim.x)
+    <span class="fn">atomicAdd</span>(&amp;s[x[i]], <span class="num2">1</span>);
+  <span class="fn">__syncthreads</span>();
+
+  <span class="kw2">for</span>(<span class="ty">int</span> t = threadIdx.x; t &lt; B; t += blockDim.x)
+    <span class="fn">atomicAdd</span>(&amp;h[t], s[t]);
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Aggregation 기법</h3>
+        <ul>
+          <li>thread local counter 유지, bin 이 같으면 누적</li>
+          <li>bin 이 바뀔 때만 atomic</li>
+          <li>image spatial locality 클수록 이득 ↑</li>
+          <li>MoE / sort-then-reduce 계열로 확장 <span class="xref">↗ V05 §5</span></li>
+        </ul>
+<pre class="code"><span class="ty">int</span> curBin = -<span class="num2">1</span>, count = <span class="num2">0</span>;
+<span class="kw2">for</span>(i = ...; i &lt; N; i += stride){
+  <span class="ty">int</span> b = x[i];
+  <span class="kw2">if</span>(b == curBin) ++count;
+  <span class="kw2">else</span>{
+    <span class="kw2">if</span>(curBin &gt;= <span class="num2">0</span>)
+      <span class="fn">atomicAdd</span>(&amp;s[curBin], count);
+    curBin = b; count = <span class="num2">1</span>;
+  }
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Large Bin 전략</h3>
+        <ul>
+          <li>bin 수 &gt; smem 용량 (예 65536) → 단일 block 에 못 넣음</li>
+          <li>해법 1: block 별 부분 bin 담당 (bin 범위 분할)</li>
+          <li>해법 2: 2-pass (coarse hist → fine hist)</li>
+          <li>해법 3: register privatization (적은 bin)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Atomic API 요약</h3>
+        <table class="compact">
+          <thead><tr><th>API</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>atomicAdd</code></td><td>+ (int/float/double)</td></tr>
+            <tr><td><code>atomicMin/Max</code></td><td>최소·최대</td></tr>
+            <tr><td><code>atomicAnd/Or/Xor</code></td><td>비트 연산</td></tr>
+            <tr><td><code>atomicExch</code></td><td>swap</td></tr>
+            <tr><td><code>atomicCAS</code></td><td>compare-and-swap</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">PTX scope qualifier (.cta / .gpu / .sys) <span class="xref">↗ V03 §11</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 11 -</div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Reduction 7단계 진화 ============================ -->
+<section class="page" data-screen-label="12 Reduction 7-stage">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Reduction · 7-Stage Evolution ★★</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Reduction 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          배열 전체를 <mark>결합연산</mark> (+, max, min, ⊕) 으로 단일 값으로 축소.
+          결합법칙 · 교환법칙 있어야 tree reduction 가능.
+        </div>
+        <div class="formula">
+          work = O(N), depth = O(log N)
+          <span class="legend">이상: work-efficient · log-depth · bank conflict 0 · divergence 0</span>
+        </div>
+        <p class="tiny">부동소수는 결합법칙 근사적 성립 — 순서 다르면 미세 차이. <span class="xref">↗ V09 §7</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Stage 1 — Naive Divergent ★</h3>
+<pre class="code"><span class="cmt">// ❌ warp 내 절반씩 mask → divergence ↑</span>
+<span class="kw2">__shared__</span> <span class="ty">float</span> s[BS];
+s[tid] = input[i]; <span class="fn">__syncthreads</span>();
+<span class="kw2">for</span>(<span class="ty">int</span> st = <span class="num2">1</span>; st &lt; blockDim.x; st *= <span class="num2">2</span>){
+  <span class="kw2">if</span>(tid % (<span class="num2">2</span>*st) == <span class="num2">0</span>)
+    s[tid] += s[tid+st];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          <code>%</code> 조건 → warp 절반씩 꺼짐. 모든 warp 가 divergent 상태.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Stage 2 — Interleaved Addressing</h3>
+<pre class="code"><span class="cmt">// 연속 thread가 동작 — divergence ↓</span>
+<span class="kw2">for</span>(<span class="ty">int</span> st = <span class="num2">1</span>; st &lt; blockDim.x; st *= <span class="num2">2</span>){
+  <span class="ty">int</span> idx = <span class="num2">2</span>*st*tid;
+  <span class="kw2">if</span>(idx &lt; blockDim.x)
+    s[idx] += s[idx+st];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <ul>
+          <li>tid 연속 → warp 앞쪽만 활성</li>
+          <li>단 <b>bank conflict</b> 발생 (stride 2, 4, ... 증가)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Stage 3 — Sequential Addressing ★</h3>
+<pre class="code"><span class="cmt">// ✓ divergence 0 + bank conflict 0</span>
+<span class="kw2">for</span>(<span class="ty">int</span> st = blockDim.x/<span class="num2">2</span>; st &gt; <span class="num2">0</span>; st &gt;&gt;= <span class="num2">1</span>){
+  <span class="kw2">if</span>(tid &lt; st)
+    s[tid] += s[tid+st];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <ul>
+          <li>active thread 가 warp 의 앞쪽에 몰림 → divergence 없음</li>
+          <li>stride = 1 단위 → bank conflict 없음</li>
+          <li>thread 절반은 idle (해결 Stage 4)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Stage 4 — First Add on Load</h3>
+<pre class="code"><span class="cmt">// load 단계에서 2개 합산</span>
+<span class="ty">int</span> i = blockIdx.x*(blockDim.x*<span class="num2">2</span>)
+      + threadIdx.x;
+s[tid] = input[i] + input[i + blockDim.x];
+<span class="fn">__syncthreads</span>();
+<span class="cmt">// 이후 sequential reduction</span></pre>
+        <ul>
+          <li>grid 크기 ½ → block 수 반감</li>
+          <li>thread 0 번째 load 에서 ½ work 이미 수행</li>
+          <li>DRAM throughput ↑</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Stage 5 — Unroll Last Warp</h3>
+<pre class="code"><span class="cmt">// warp (32 thread) 는 implicit sync</span>
+<span class="kw2">if</span>(tid &lt; <span class="num2">32</span>){
+  <span class="kw2">volatile</span> <span class="ty">float</span>* vs = s;
+  vs[tid] += vs[tid+<span class="num2">32</span>];
+  vs[tid] += vs[tid+<span class="num2">16</span>];
+  vs[tid] += vs[tid+<span class="num2">8</span>];
+  vs[tid] += vs[tid+<span class="num2">4</span>];
+  vs[tid] += vs[tid+<span class="num2">2</span>];
+  vs[tid] += vs[tid+<span class="num2">1</span>];
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          Volta+ ITS: <code>volatile</code> 만으로 안전하지 않음 — <code>__syncwarp()</code> 또는 shuffle 사용.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Stage 6 — Warp Shuffle ★★</h3>
+<pre class="code"><span class="cmt">// smem 불필요 · 레지스터만</span>
+<span class="ty">float</span> v = s[tid];
+<span class="kw2">if</span>(tid &lt; <span class="num2">32</span>){
+  v += __shfl_down_sync(<span class="num2">0xffffffff</span>, v, <span class="num2">16</span>);
+  v += __shfl_down_sync(<span class="num2">0xffffffff</span>, v, <span class="num2">8</span>);
+  v += __shfl_down_sync(<span class="num2">0xffffffff</span>, v, <span class="num2">4</span>);
+  v += __shfl_down_sync(<span class="num2">0xffffffff</span>, v, <span class="num2">2</span>);
+  v += __shfl_down_sync(<span class="num2">0xffffffff</span>, v, <span class="num2">1</span>);
+  <span class="kw2">if</span>(tid == <span class="num2">0</span>) out[blockIdx.x] = v;
+}</pre>
+        <ul>
+          <li>lane 간 direct register exchange</li>
+          <li>smem 사용 0 · __syncthreads 불필요</li>
+          <li><code>__shfl_down_sync(mask, v, offset)</code></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Stage 7 — Multi-block / Library</h3>
+        <ol class="bullet-num">
+          <li>block level: warp shuffle 로 partial sum → smem</li>
+          <li>block 0 (warp 0) 이 block sum 들을 다시 reduce</li>
+          <li>또는 <code>atomicAdd(&amp;out[0], blockSum)</code></li>
+          <li>실무: <code>cub::DeviceReduce</code> / <code>thrust::reduce</code></li>
+        </ol>
+        <div class="formula">
+          Cooperative Groups: <br/>
+          <code>cg::reduce(tile, val, plus&lt;&gt;())</code>
+          <span class="legend">grid 전체 cooperative kernel <span class="xref">↗ V05 §2</span></span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 7-Stage 진화 요약표</h3>
+        <table class="compact">
+          <thead><tr><th>Stage</th><th>Div</th><th>Bank</th><th>Idle</th></tr></thead>
+          <tbody>
+            <tr><td>1 Naive</td><td>대</td><td>—</td><td>—</td></tr>
+            <tr><td>2 Interleave</td><td>↓</td><td>대</td><td>—</td></tr>
+            <tr><td>3 Sequential</td><td>0</td><td>0</td><td>½</td></tr>
+            <tr><td>4 +LoadAdd</td><td>0</td><td>0</td><td>½</td></tr>
+            <tr><td>5 Unroll last warp</td><td>0</td><td>0</td><td>↓</td></tr>
+            <tr><td>6 Shuffle</td><td>0</td><td>n/a</td><td>↓</td></tr>
+            <tr><td>7 Multi-blk/CUB</td><td>0</td><td>n/a</td><td>0</td></tr>
+          </tbody>
+        </table>
+        <div class="mnem"><span class="label"></span>
+          Reduction 7: <span class="key">나인시로언셔다</span>
+          (<b>나</b>이브·<b>인</b>터리브·<b>시</b>퀀셜·<b>로</b>드합·<b>언</b>롤·<b>셔</b>플·<b>다</b>중블록)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 12 -</div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Prefix Sum (Scan) ============================ -->
+<section class="page" data-screen-label="13 Prefix Sum (Scan)">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Prefix Sum (Scan) · Kogge-Stone · Brent-Kung</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Scan 정의 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Inclusive</mark>: y[i] = x[0] ⊕ x[1] ⊕ ... ⊕ x[i]<br/>
+          <mark>Exclusive</mark>: y[i] = x[0] ⊕ ... ⊕ x[i−1] · y[0] = identity
+        </div>
+        <div class="ex"><span class="label"></span>
+          x = [3, 1, 7, 0, 4, 1, 6, 3]<br/>
+          inc = [3, 4, 11, 11, 15, 16, 22, 25]<br/>
+          exc = [0, 3, 4, 11, 11, 15, 16, 22]
+        </div>
+        <ul>
+          <li>⊕ = 임의의 결합 연산 (+, max, *, string concat …)</li>
+          <li>stream compaction · radix sort · sparse 의 기반</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Kogge-Stone <span class="ko">work = N log N</span></h3>
+<pre class="code"><span class="kw2">__shared__</span> <span class="ty">float</span> s[BS];
+s[tid] = x[i]; <span class="fn">__syncthreads</span>();
+<span class="kw2">for</span>(<span class="ty">int</span> o = <span class="num2">1</span>; o &lt; BS; o *= <span class="num2">2</span>){
+  <span class="ty">float</span> v = (tid &gt;= o) ? s[tid - o] : <span class="num2">0</span>;
+  <span class="fn">__syncthreads</span>();
+  <span class="kw2">if</span>(tid &gt;= o) s[tid] += v;
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <div class="formula">
+          work = N · log N, depth = log N
+          <span class="legend">중복 작업 많음 · 병렬성 ↑ · 구현 단순</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Brent-Kung ★
+          <span class="mnemonic">up·down</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><b>Up-sweep</b>: pairwise 합을 binary tree 위로 (reduction 과 동일)</li>
+          <li>tree 맨 위 원소를 identity (= 0) 로 초기화</li>
+          <li><b>Down-sweep</b>: 왼쪽·오른쪽 합 교환·누적하며 내려옴</li>
+        </ol>
+        <div class="formula">
+          work = 2N − 2, depth = 2 log N
+          <span class="legend">work-efficient · Kogge-Stone 보다 work ½ · depth 2배</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Brent-Kung Up-Sweep</h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> st = <span class="num2">1</span>; st &lt; BS; st *= <span class="num2">2</span>){
+  <span class="ty">int</span> idx = (tid + <span class="num2">1</span>) * <span class="num2">2</span> * st - <span class="num2">1</span>;
+  <span class="kw2">if</span>(idx &lt; BS)
+    s[idx] += s[idx - st];
+  <span class="fn">__syncthreads</span>();
+}
+<span class="cmt">// 맨 위 원소 초기화 (exclusive 의 경우)</span>
+<span class="kw2">if</span>(tid == <span class="num2">0</span>) s[BS-<span class="num2">1</span>] = <span class="num2">0</span>;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Brent-Kung Down-Sweep</h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> st = BS/<span class="num2">2</span>; st &gt; <span class="num2">0</span>; st /= <span class="num2">2</span>){
+  <span class="fn">__syncthreads</span>();
+  <span class="ty">int</span> idx = (tid + <span class="num2">1</span>) * <span class="num2">2</span> * st - <span class="num2">1</span>;
+  <span class="kw2">if</span>(idx &lt; BS){
+    <span class="ty">float</span> t = s[idx - st];
+    s[idx - st] = s[idx];
+    s[idx] += t;
+  }
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 3-Phase Hierarchical Scan</h3>
+        <ol class="bullet-num">
+          <li>각 block 이 local scan (shared mem)</li>
+          <li>block sum 수집 → aux[]</li>
+          <li>aux 를 scan</li>
+          <li>block i 의 모든 원소에 aux[i−1] 더함</li>
+        </ol>
+<pre class="ascii">┌ blk0 ┐┌ blk1 ┐┌ blk2 ┐
+ local   local   local
+   Σ0      Σ1      Σ2
+   └────── scan aux ─────┘
+   +0      +Σ0     +Σ0+Σ1</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Scan 알고리즘 비교표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>알고리즘</th><th class="num">work</th><th class="num">depth</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>Sequential</td><td class="num">N</td><td class="num">N</td><td>기준</td></tr>
+            <tr><td>Hillis-Steele</td><td class="num">N log N</td><td class="num">log N</td><td>단순 · 짧은 N</td></tr>
+            <tr><td>Kogge-Stone</td><td class="num">N log N</td><td class="num">log N</td><td>work ↑ · 병렬 ↑</td></tr>
+            <tr><td><mark>Brent-Kung</mark></td><td class="num">2N</td><td class="num">2 log N</td><td>work-efficient ★</td></tr>
+            <tr><td>Sklansky</td><td class="num">(N/2)·log N</td><td class="num">log N</td><td>divide &amp; conquer</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">고급 변종 (segmented · warp-level · CUB) <span class="xref">↗ V05 §4</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Scan 응용 ★</h3>
+        <ul>
+          <li><mark>Stream compaction</mark>: flag[i] ∈ {0,1} scan → 밀집 output index</li>
+          <li><mark>Radix sort</mark>: bit 별 scan + scatter</li>
+          <li><mark>CSR build</mark>: row 길이 → row_ptr (exclusive scan) <span class="xref">↗ §14</span></li>
+          <li>quicksort partition · histogram CDF</li>
+          <li>LLM MoE token permutation <span class="xref">↗ V08 §2</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Warp-level Scan</h3>
+<pre class="code"><span class="cmt">// inclusive scan within warp</span>
+<span class="ty">float</span> v = x;
+<span class="kw2">for</span>(<span class="ty">int</span> o = <span class="num2">1</span>; o &lt; <span class="num2">32</span>; o *= <span class="num2">2</span>){
+  <span class="ty">float</span> t = __shfl_up_sync(
+             <span class="num2">0xffffffff</span>, v, o);
+  <span class="kw2">if</span>(lane &gt;= o) v += t;
+}</pre>
+        <div class="mnem"><span class="label"></span>
+          Scan 4 key: <span class="key">인엑업다</span>
+          (<b>인</b>clusive · <b>엑</b>clusive · <b>업</b>-sweep · <b>다</b>운-sweep)
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">결합성 필수</span>. 부동소수 합 순서 바뀌면 값 미세 변화 → 재현성 주의. 수치 안정성 <span class="xref">↗ V09 §7</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 13 -</div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Merge · Sort ============================ -->
+<section class="page" data-screen-label="14 Merge·Sort">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Parallel Merge · Sort · Radix</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Parallel Merge 정의</h3>
+        <div class="def"><span class="label">정의</span>
+          두 정렬 배열 A (|A|=m) , B (|B|=n) → 정렬된 C (|C|=m+n).
+          핵심: <mark>co-rank</mark> 함수로 각 thread 가 담당할 (i, j) 시작점을 binary search 로 찾음.
+        </div>
+        <div class="formula">
+          co-rank(k) = (i, j) such that i + j = k<br/>
+          and A[i−1] ≤ B[j] &amp;&amp; B[j−1] &lt; A[i]
+          <span class="legend">k = thread 담당 출력 index 범위의 시작</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Co-rank Binary Search</h3>
+<pre class="code"><span class="ty">int</span> <span class="fn">coRank</span>(<span class="ty">int</span> k, <span class="kw2">const</span> <span class="ty">T</span>* A, <span class="ty">int</span> m,
+                   <span class="kw2">const</span> <span class="ty">T</span>* B, <span class="ty">int</span> n){
+  <span class="ty">int</span> iLow = max(<span class="num2">0</span>, k - n);
+  <span class="ty">int</span> iHigh = min(k, m);
+  <span class="kw2">while</span>(<span class="num2">1</span>){
+    <span class="ty">int</span> i = (iLow + iHigh)/<span class="num2">2</span>;
+    <span class="ty">int</span> j = k - i;
+    <span class="kw2">if</span>(i &gt; <span class="num2">0</span> &amp;&amp; j &lt; n &amp;&amp; A[i-<span class="num2">1</span>] &gt; B[j])
+      iHigh = i - <span class="num2">1</span>;
+    <span class="kw2">else</span> <span class="kw2">if</span>(j &gt; <span class="num2">0</span> &amp;&amp; i &lt; m &amp;&amp; B[j-<span class="num2">1</span>] &gt; A[i])
+      iLow = i + <span class="num2">1</span>;
+    <span class="kw2">else</span> <span class="kw2">return</span> i;
+  }
+}</pre>
+        <p class="tiny">O(log(m+n)) per thread · total O((m+n) log(m+n)) work.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Merge Path</h3>
+<pre class="ascii">A →
+│A[0] A[1] A[2] A[3]
+│  ╱╱╱
+B↓ ╱╱╱
+B[0]  → 대각선 = merge path
+B[1]
+B[2]</pre>
+        <ul>
+          <li>각 대각선 위의 점 → 하나의 출력 구간</li>
+          <li>thread block 이 하나의 tile 담당</li>
+          <li>block 간 완전 독립 → grid scale</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Sort 방식 비교</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th class="num">복잡도</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>Merge sort</td><td class="num">O(N log N)</td><td>병합 기반 (§1-3)</td></tr>
+            <tr><td><mark>Radix sort</mark></td><td class="num">O(N·k)</td><td>bit scan + scatter</td></tr>
+            <tr><td>Bitonic</td><td class="num">O(N log²N)</td><td>정렬 네트워크 · 고정 size</td></tr>
+            <tr><td>Sample sort</td><td class="num">O(N log N)</td><td>pivot 기반 · 분산</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">실무: <code>cub::DeviceRadixSort</code> · <code>thrust::sort</code>. 직접 구현은 특수 요건일 때만.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Radix Sort 원리 ★</h3>
+        <ol class="bullet-num">
+          <li>LSB (또는 MSB) 부터 b-bit 씩</li>
+          <li>각 pass: 각 key 의 그 b-bit 추출</li>
+          <li>histogram (2<sup>b</sup> bin) + scan → scatter index</li>
+          <li>key 를 output 위치에 scatter</li>
+          <li>상위 bit 로 반복</li>
+        </ol>
+        <div class="formula">
+          pass 수 = ⌈bits / b⌉ · 4-bit radix → 8 pass (32-bit int)
+          <span class="legend">안정 정렬 필수 → 같은 bin 내 순서 유지</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Radix Sort 핵심 Kernel</h3>
+<pre class="code"><span class="cmt">// 1 pass of b-bit radix</span>
+<span class="ty">int</span> key = in[i];
+<span class="ty">int</span> digit = (key &gt;&gt; shift) &amp; MASK;
+
+<span class="cmt">// block-level hist + scan</span>
+<span class="fn">atomicAdd</span>(&amp;hist[digit], <span class="num2">1</span>);
+<span class="fn">__syncthreads</span>();
+<span class="fn">blockExclusiveScan</span>(hist);
+
+<span class="cmt">// scatter</span>
+<span class="ty">int</span> dst = hist[digit]
+          + <span class="fn">blockOffset</span>(digit);
+out[dst] = key;</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Bitonic Sort</h3>
+        <div class="def"><span class="label">정의</span>
+          bitonic 수열 = 단조 증가 + 단조 감소 연결. log²N 단계의 <b>고정 comparator 네트워크</b> 로 정렬.
+        </div>
+        <ul>
+          <li>SIMT 친화적 (branch-free)</li>
+          <li>작은 N · power-of-2 · warp 단위 sort 에 유리</li>
+          <li>top-k selection 기반 구현</li>
+        </ul>
+<pre class="ascii">bitonic network log²N step
+stage 1: compare (i, i±1)
+stage 2: compare (i, i±2)
+...
+stage log N: compare (i, i±N/2)
+각 stage = log N substep</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Sort 선택 결정 트리</h3>
+        <ul>
+          <li>integer key · N 큼 → <b>radix sort</b></li>
+          <li>float32 · stable 필요 없음 → radix (IEEE 754 비트 tweaking)</li>
+          <li>일반 compare-sort · 작은 N → bitonic / block sort</li>
+          <li>top-k · 큰 K → radix top-k <span class="xref">↗ V05 §6</span></li>
+          <li>top-k · 작은 K → bitonic top-k</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Implementation Notes</h3>
+        <table class="compact">
+          <thead><tr><th>라이브러리</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td><code>cub::DeviceRadixSort</code></td><td>keys / key-value · stable</td></tr>
+            <tr><td><code>cub::BlockRadixSort</code></td><td>block 내 radix</td></tr>
+            <tr><td><code>thrust::sort</code></td><td>STL-style · radix backend</td></tr>
+            <tr><td><code>cub::DeviceMergeSort</code></td><td>merge 기반 · custom compare</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 14 -</div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Sparse · Graph (BFS) ============================ -->
+<section class="page" data-screen-label="15 Sparse·Graph (BFS)">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Sparse · SpMV · Graph (BFS)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Sparse Matrix Format 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th>format</th><th>구성</th><th>장단</th></tr></thead>
+          <tbody>
+            <tr><td>COO</td><td>(row, col, val)</td><td>단순 · 랜덤 access ×</td></tr>
+            <tr><td><mark>CSR</mark></td><td>row_ptr, col_idx, val</td><td>표준 · SpMV · row-major</td></tr>
+            <tr><td>CSC</td><td>col_ptr, row_idx, val</td><td>col access 유리</td></tr>
+            <tr><td>ELL</td><td>고정 폭 padded</td><td>균일 row · waste</td></tr>
+            <tr><td>JDS</td><td>정렬 + jagged</td><td>load balance ↑</td></tr>
+            <tr><td>HYB</td><td>ELL + COO</td><td>혼합 sparsity</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> CSR 구조</h3>
+<pre class="ascii">A = [1 0 2 0]     rp=[0,2,3,5,6]
+    [0 0 3 0]     ci=[0,2,2,1,3,0]
+    [0 4 5 0]     val=[1,2,3,4,5,6]
+    [6 0 0 0]
+V=4, nnz=6
+row r 의 원소 = ci, val [rp[r]..rp[r+1])</pre>
+        <ul>
+          <li>row_ptr 크기 = V+1 (exclusive scan of row 길이)</li>
+          <li>col_idx 크기 = nnz</li>
+          <li>val 크기 = nnz</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> SpMV (CSR)</h3>
+        <div class="formula">
+          y = A · x <br/>
+          y[r] = Σ<sub>k=rp[r]..rp[r+1]</sub> val[k] · x[ci[k]]
+          <span class="legend">row 길이 불균등 → load imbalance 주의</span>
+        </div>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">spmv_csr</span>(
+    <span class="ty">float</span>* y, <span class="kw2">const</span> <span class="ty">int</span>* rp,
+    <span class="kw2">const</span> <span class="ty">int</span>* ci, <span class="kw2">const</span> <span class="ty">float</span>* val,
+    <span class="kw2">const</span> <span class="ty">float</span>* x, <span class="ty">int</span> V){
+  <span class="ty">int</span> r = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="kw2">if</span>(r &gt;= V) <span class="kw2">return</span>;
+  <span class="ty">float</span> s = <span class="num2">0</span>;
+  <span class="kw2">for</span>(<span class="ty">int</span> k = rp[r]; k &lt; rp[r+<span class="num2">1</span>]; ++k)
+    s += val[k] * x[ci[k]];
+  y[r] = s;
+}</pre>
+        <p class="tiny">vector · CSR-stream · merge-based kernel 전략 <span class="xref">↗ V05 §13</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> CSR Build = Scan !</h3>
+        <ul>
+          <li>step 1: row 별 nnz 카운트</li>
+          <li>step 2: exclusive scan → row_ptr</li>
+          <li>step 3: (r, c) 쌍을 row_ptr 위치로 scatter</li>
+          <li>§12 scan 직접 활용 ★</li>
+        </ul>
+        <div class="formula">
+          row_ptr[r+1] = Σ<sub>i≤r</sub> nnz(row_i)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Graph = Sparse Matrix</h3>
+        <div class="def"><span class="label">대응</span>
+          adjacency matrix A: A[u][v] = 1 iff edge (u,v) 존재.
+          sparse → CSR 직접 재사용. <code>row_ptr[v]</code> = v 의 이웃 범위.
+        </div>
+<pre class="ascii">V=5, E=7 (directed)
+row_ptr: [0, 2, 3, 5, 6, 7]
+col_idx: [1,2, 3, 0,4, 4, 2]
+(v=0 neighbors: 1,2 · v=1: 3 · v=2: 0,4 · ...)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> BFS — Level-Sync ★</h3>
+        <ul>
+          <li>source 로부터 level 단위 동심원 확장</li>
+          <li>각 level = 1 kernel launch (grid-level sync = kernel 경계)</li>
+          <li>depth = O(diameter) ≪ V</li>
+        </ul>
+        <div class="formula">
+          frontier<sub>L+1</sub> = {u | ∃v ∈ frontier<sub>L</sub>, (v,u)∈E, level[u]=∞}
+          <span class="legend">level[u] = L+1 로 세팅</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Vertex-Centric BFS (naive)</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">bfsV</span>(
+    <span class="kw2">const</span> <span class="ty">int</span>* rp, <span class="kw2">const</span> <span class="ty">int</span>* ci,
+    <span class="ty">int</span>* lvl, <span class="ty">int</span> L, <span class="ty">int</span>* done){
+  <span class="ty">int</span> v = blockIdx.x*blockDim.x + threadIdx.x;
+  <span class="kw2">if</span>(lvl[v] == L){
+    <span class="kw2">for</span>(<span class="ty">int</span> k = rp[v]; k &lt; rp[v+<span class="num2">1</span>]; ++k){
+      <span class="ty">int</span> u = ci[k];
+      <span class="kw2">if</span>(lvl[u] == INF){
+        lvl[u] = L + <span class="num2">1</span>;
+        *done = <span class="num2">0</span>;
+      }
+    }
+  }
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          degree 편차 큼 → <span class="red">load imbalance</span>. 고차 vertex 가 warp 독점.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Frontier-Based BFS ★
+          <span class="mnemonic">프론</span>
+        </h3>
+        <ol class="bullet-num">
+          <li>현재 frontier 큐 유지 (크기 ≪ V)</li>
+          <li>thread 당 frontier 원소 → 이웃 탐색</li>
+          <li>새 vertex 는 atomic으로 next frontier push</li>
+          <li>frontier swap · level++</li>
+        </ol>
+        <div class="formula">
+          work = O(V+E) · 실제 access = Σ|frontier<sub>L</sub>|
+          <span class="legend">모든 vertex 검사 naive 보다 압도적 빠름</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Direction-Optimizing (Beamer)</h3>
+        <div class="def"><span class="label">정의</span>
+          frontier 크면 <mark>bottom-up</mark> (모든 미방문 vertex가 부모 있는지 확인),
+          작으면 <mark>top-down</mark> (기존 push).
+        </div>
+        <ul>
+          <li>social graph (small-world) 에서 큰 이득</li>
+          <li>heuristic: |frontier| / V 임계값 (≈ 1/20)</li>
+          <li>Privatization → block smem next-frontier → global atomic 1회</li>
+        </ul>
+        <div class="mnem"><span class="label"></span>
+          BFS 4 key: <span class="key">레프엣방</span>
+          (<b>레</b>벨 · <b>프</b>론티어 · <b>엣</b>지 중심 · <b>방</b>향 전환)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 15 -</div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Deep Learning Primitives ============================ -->
+<section class="page" data-screen-label="16 Deep Learning Primitives">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Deep Learning Primitives · GEMM · Conv · BN</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 학습 파이프라인</h3>
+        <ol class="bullet-num">
+          <li><b>Forward</b>: x → (Conv / FC / Norm / Act)… → ŷ</li>
+          <li><b>Loss</b>: L(ŷ, y)</li>
+          <li><b>Backward</b>: ∂L/∂w · ∂L/∂x (chain rule)</li>
+          <li><b>Update</b>: w ← w − η · ∂L/∂w (SGD / Adam)</li>
+        </ol>
+        <p class="tiny">mini-batch = data-parallel 병렬 축 · distributed 학습은 <span class="xref">↗ V17</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> FC Layer = GEMM</h3>
+        <div class="formula">
+          Y = X · W + b<br/>
+          X: [B, K] · W: [K, M] · Y: [B, M]
+          <span class="legend">B = batch · K = in feature · M = out feature</span>
+        </div>
+        <ul>
+          <li>§7 tiled matmul 그대로 사용</li>
+          <li>cuBLAS / CUTLASS <span class="xref">↗ V06</span></li>
+          <li>Tensor Core FP16/BF16 input · FP32 accumulate</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Convolution Layer</h3>
+        <div class="formula">
+          Y[n,m,r,c] = Σ<sub>k,i,j</sub> X[n,k,r+i,c+j] · W[m,k,i,j] + b[m]
+          <span class="legend">n = batch · m = out ch · k = in ch · (i,j) = 필터 위치</span>
+        </div>
+        <p class="tiny">5-nested loop → naive kernel CGMA 낮음 → 재구성 필요.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> im2col + GEMM ★
+          <span class="mnemonic">펴서 곱하기</span>
+        </h3>
+        <div class="def"><span class="label">변환</span>
+          conv = unfold input → 2D column matrix → W reshape 후 GEMM.
+        </div>
+<pre class="ascii">Conv = (unfold X) × (reshape W)
+X_col : [C·Kh·Kw, N·Oh·Ow]  ← patch 중복 저장
+W_row : [M, C·Kh·Kw]
+Y     : W_row · X_col       ← GEMM!</pre>
+        <ul>
+          <li>X_col 중복 저장 → memory ↑, GEMM 재사용 큰 이득</li>
+          <li>cuDNN 이 내부 알고리즘 자동 선택</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Conv 알고리즘 선택</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th>유리 조건</th></tr></thead>
+          <tbody>
+            <tr><td>Direct</td><td>큰 C · 작은 spatial</td></tr>
+            <tr><td><mark>im2col+GEMM</mark></td><td>범용 · 안정</td></tr>
+            <tr><td>Implicit GEMM</td><td>memory ↓ · indexing 복잡</td></tr>
+            <tr><td>Winograd</td><td>3×3 · F(2,3), F(4,3)</td></tr>
+            <tr><td>FFT</td><td>큰 필터 (≥7×7)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">cuDNN <code>findAlgorithm</code> 자동 벤치.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Backward = 3 GEMM</h3>
+        <div class="formula">
+          dW = X<sup>T</sup> · dY<br/>
+          dX = dY · W<sup>T</sup><br/>
+          db = Σ<sub>b</sub> dY (reduction)
+          <span class="legend">세 GEMM · 동일 tile kernel 재사용</span>
+        </div>
+        <ul>
+          <li>conv backward: transposed conv 로 구현</li>
+          <li>recompute (gradient checkpoint) → memory ↓ <span class="xref">↗ V17 §7</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Mixed Precision ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>FP16/BF16</mark> 저장 · 연산 + <mark>FP32 accumulate</mark>.
+          A100 FP16 TC 312 TF (FP32 의 ~16×) · H100 989 TF.
+        </div>
+        <ul>
+          <li>BF16: FP32 와 동일 exponent → loss scaling 불필요</li>
+          <li>FP16: loss scaling 필요 (underflow 방지)</li>
+          <li>FP8: per-tensor amax history · delayed scaling</li>
+          <li>dtype 상세 <span class="xref">↗ V09 §2~5</span></li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">accumulate 는 FP32 유지</span>. 이유: 부분합이 길어 오차 누적.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Normalization Kernel</h3>
+        <div class="formula">
+          LayerNorm: y = γ · (x − μ) / √(σ² + ε) + β<br/>
+          RMSNorm: y = γ · x / √(mean(x²) + ε)
+        </div>
+        <ul>
+          <li>2-pass (mean → var) → 1-pass Welford</li>
+          <li>warp reduction 으로 row-wise stats</li>
+          <li>residual · dropout fused 가능 <span class="xref">↗ V08 §8</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Softmax · Activation</h3>
+        <div class="formula">
+          softmax(x)<sub>i</sub> = exp(x<sub>i</sub> − max) / Σ exp(x<sub>j</sub> − max)
+          <span class="legend">subtract max → overflow 방지 (log-sum-exp)</span>
+        </div>
+        <ul>
+          <li>2-pass → online softmax 1-pass <span class="xref">↗ V07 §2</span></li>
+          <li>ReLU / GELU / SwiGLU: element-wise · fuse into prev GEMM epilogue <span class="xref">↗ V06 §16</span></li>
+          <li>attention 은 softmax + matmul 의 합성 kernel <span class="xref">↗ V07</span></li>
+        </ul>
+        <div class="mnem"><span class="label"></span>
+          DL primitive 3: <span class="key">젬임믹</span>
+          (<b>GEMM</b> · <b>im2col</b> · <b>mixed precision</b>)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 16 -</div>
+</section>
+
+<!-- ============================ PAGE 17: §16 MPI + CUDA ============================ -->
+<section class="page" data-screen-label="17 MPI+CUDA">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — MPI + CUDA 기초 · Multi-GPU · Domain Decomposition</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 Multi-GPU?</h3>
+        <ul>
+          <li>단일 노드 GPU 메모리 한계 (A100/H100 80 GB)</li>
+          <li>대형 과학 시뮬 · LLM 학습 · 추론</li>
+          <li>노드 간: <mark>MPI</mark> (message passing)</li>
+          <li>노드 내: <mark>CUDA</mark> + NCCL (shared · NVLink)</li>
+        </ul>
+<pre class="ascii">Node0 [GPU0 GPU1 ...] ─┐
+Node1 [GPU0 GPU1 ...] ─┼─ IB / NVLink Switch
+...                    │
+  └─ MPI_COMM_WORLD ───┘</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Device Management</h3>
+<pre class="code"><span class="ty">int</span> n;
+<span class="fn">cudaGetDeviceCount</span>(&amp;n);        <span class="cmt">// 노드 내 GPU 수</span>
+<span class="fn">cudaSetDevice</span>(rank % n);       <span class="cmt">// rank → GPU 매핑</span>
+
+<span class="ty">cudaDeviceProp</span> p;
+<span class="fn">cudaGetDeviceProperties</span>(&amp;p, id);
+<span class="cmt">// p.name, p.totalGlobalMem, p.multiProcessorCount ...</span></pre>
+        <ul>
+          <li>프로세스당 1 GPU 권장 (context 충돌 회피)</li>
+          <li>SLURM / PBS 가 rank → GPU 배정</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Peer Access</h3>
+<pre class="code"><span class="ty">int</span> canAccess;
+<span class="fn">cudaDeviceCanAccessPeer</span>(&amp;canAccess,
+                          src, dst);
+<span class="kw2">if</span>(canAccess){
+  <span class="fn">cudaSetDevice</span>(src);
+  <span class="fn">cudaDeviceEnablePeerAccess</span>(dst, <span class="num2">0</span>);
+  <span class="cmt">// 이후 dst 포인터 직접 read/write OK</span>
+}
+<span class="fn">cudaMemcpyPeer</span>(d_dst, dst, d_src, src, n);</pre>
+        <p class="tiny">NVLink 통한 P2P DMA · PCIe 도 가능 (BW 낮음).</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> MPI 핵심 API</h3>
+        <table class="compact">
+          <thead><tr><th>API</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>MPI_Init</code></td><td>초기화</td></tr>
+            <tr><td><code>MPI_Comm_rank</code></td><td>내 rank</td></tr>
+            <tr><td><code>MPI_Comm_size</code></td><td>총 rank 수</td></tr>
+            <tr><td><code>MPI_Send/Recv</code></td><td>P2P blocking</td></tr>
+            <tr><td><code>MPI_Isend/Irecv</code></td><td>non-blocking + Wait</td></tr>
+            <tr><td><mark>MPI_Allreduce</mark></td><td>모든 rank reduce 결과</td></tr>
+            <tr><td><code>MPI_Bcast</code></td><td>rank 0 → all</td></tr>
+            <tr><td><code>MPI_Barrier</code></td><td>동기화</td></tr>
+            <tr><td><code>MPI_Reduce_scatter</code></td><td>reduce + scatter</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Domain Decomposition ★</h3>
+        <div class="def"><span class="label">정의</span>
+          격자를 rank 수만큼 분할 · 각 rank가 자신 영역 담당.
+          경계는 <mark>ghost / halo</mark>를 인접 rank와 교환.
+        </div>
+<pre class="ascii">┌──────┬──────┬──────┐
+│rank0 │rank1 │rank2 │
+│  ▒▒▒ │▒▒▒▒▒▒│ ▒▒▒  │  ← halo 교환
+└──────┴──────┴──────┘
+1D · 2D · 3D 분할 (surface/volume ratio 고려)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 전형 Loop</h3>
+<pre class="code"><span class="kw2">for</span>(step){
+  <span class="fn">MPI_Isend</span>(halo_right, right_rank, ..., &amp;req[<span class="num2">0</span>]);
+  <span class="fn">MPI_Irecv</span>(halo_left,  left_rank,  ..., &amp;req[<span class="num2">1</span>]);
+
+  <span class="fn">compute_interior</span>&lt;&lt;&lt;&gt;&gt;&gt;(...);   <span class="cmt">// overlap</span>
+
+  <span class="fn">MPI_Waitall</span>(<span class="num2">2</span>, req, status);
+  <span class="fn">compute_boundary</span>&lt;&lt;&lt;&gt;&gt;&gt;(...);
+}</pre>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">통신·계산 overlap</span> 이 strong scaling 핵심. Isend/Irecv 필수.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> CUDA-aware MPI ★</h3>
+        <ul>
+          <li>GPU 포인터를 <code>MPI_Send</code> 에 직접 전달 가능</li>
+          <li>내부적으로 GPUDirect RDMA → CPU 경유 ×</li>
+          <li>OpenMPI · MVAPICH2 · HPC-X 지원</li>
+          <li>컴파일 확인: <code>ompi_info --all | grep mca_btl_openib_cuda</code></li>
+        </ul>
+        <div class="formula">
+          effective BW ≈ min(NVLink, IB/Ethernet)
+          <span class="legend">NVLink 600~900 GB/s · IB HDR 25 GB/s → inter-node 병목</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> NCCL vs MPI</h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>MPI</th><th>NCCL</th></tr></thead>
+          <tbody>
+            <tr><td>범위</td><td>일반 HPC</td><td>DL 특화</td></tr>
+            <tr><td>원소</td><td>임의 datatype</td><td>GPU tensor</td></tr>
+            <tr><td>topology</td><td>수동/자동</td><td>자동 detect</td></tr>
+            <tr><td>API</td><td>많음 (수십)</td><td>좁음 (collective 중심)</td></tr>
+            <tr><td>사용처</td><td>과학 시뮬</td><td>PyTorch DDP · FSDP</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">collective · topology · ring/tree 상세 <span class="xref">↗ V15</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Scaling 개념</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>고정</th><th>확장</th></tr></thead>
+          <tbody>
+            <tr><td>Strong</td><td>총 문제 크기</td><td>rank ↑ → time ↓ (Amdahl)</td></tr>
+            <tr><td>Weak</td><td>rank당 크기</td><td>rank ↑ → 문제 ↑ (Gustafson)</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>α-β 통신 모델 · ring allreduce 알고리즘 <span class="xref">↗ V15 §3</span></li>
+          <li>TP / PP / DP / EP / SP / CP 병렬화 축 <span class="xref">↗ V15 §7~13</span></li>
+        </ul>
+        <div class="mnem"><span class="label"></span>
+          MPI+CUDA 4: <span class="key">도할오어</span>
+          (<b>도</b>메인 · <b>할</b>로 · <b>오</b>버랩 · <b>어</b>웨어 MPI/NCCL)
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 17 -</div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V01 PMPP Core <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Cheat Sheet · 패턴 · 공식 · 실수 10선</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 7 Parallel Pattern 1-liner</h3>
+        <table class="compact">
+          <thead><tr><th>패턴</th><th>핵심 1-line</th></tr></thead>
+          <tbody>
+            <tr><td>Map</td><td>thread 1개 → output 1개 · embarrassingly parallel</td></tr>
+            <tr><td>Stencil</td><td>이웃 참조 · halo + smem tile</td></tr>
+            <tr><td>Reduction</td><td>tree · shuffle · multi-block</td></tr>
+            <tr><td>Scan</td><td>Brent-Kung · up/down-sweep</td></tr>
+            <tr><td>Histogram</td><td>privatization · atomic merge</td></tr>
+            <tr><td>Convolution</td><td>const filter + tiled halo</td></tr>
+            <tr><td>Sort/Merge</td><td>co-rank · radix scan/scatter</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Indexing 공식 5종 ★</h3>
+        <div class="formula">
+          1D: i = bx·Bx + tx<br/>
+          2D row: r = by·By + ty · c = bx·Bx + tx · idx = r·W + c<br/>
+          3D: z·(H·W) + y·W + x<br/>
+          grid-stride: for(i; i&lt;N; i += gridDim·blockDim)<br/>
+          warp id = tid/32 · lane = tid%32
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Occupancy 3제약</h3>
+        <div class="formula">
+          warps<sub>SM</sub> ≤ min(<br/>
+          &nbsp;max_warps = 64,<br/>
+          &nbsp;reg<sub>SM</sub>/(reg<sub>thr</sub>·32),<br/>
+          &nbsp;smem<sub>SM</sub>/smem<sub>block</sub>)<br/>
+          Occupancy = warps<sub>active</sub>/64
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 메모리 6종 1-line</h3>
+        <table class="compact">
+          <thead><tr><th>scope</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>Register</td><td>1 cyc · thread · 255 상한</td></tr>
+            <tr><td>Shared</td><td>30 cyc · block · 32 bank</td></tr>
+            <tr><td>L2</td><td>200 cyc · device · 40/50 MB</td></tr>
+            <tr><td>Global</td><td>400 cyc · grid · 80 GB</td></tr>
+            <tr><td>Constant</td><td>broadcast · 64 KB</td></tr>
+            <tr><td>Texture</td><td>spatial cache · RO</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 흔한 실수 10선 ★</h3>
+        <ol class="bullet-num">
+          <li>host 포인터를 kernel에 전달 → segfault</li>
+          <li><code>cudaMemcpy</code> 방향 플래그 혼동</li>
+          <li>launch 직후 오류 체크 누락 (<code>cudaGetLastError</code>)</li>
+          <li>boundary <code>if</code> 빠짐 → OOB</li>
+          <li><code>__syncthreads()</code> 를 분기 안쪽</li>
+          <li>shared mem 초기화 race (<code>sync</code> 누락)</li>
+          <li>strided global access → BW 낭비</li>
+          <li>shared mem bank conflict (32-way)</li>
+          <li>auto 배열 → local spill → DRAM</li>
+          <li>FP16 accumulate → overflow · 결과 망가짐</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 수식 Cheat</h3>
+        <div class="formula">
+          Amdahl: 1/((1−p) + p/s)<br/>
+          CGMA: FLOP / Byte<sub>HBM</sub><br/>
+          Roofline: min(peak, AI·BW)<br/>
+          Little: in-flight = BW · latency<br/>
+          Tiling reuse = TILE<br/>
+          Scan BK: work 2N, depth 2 log N<br/>
+          Reduction: work N, depth log N
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 니모닉 총정리</h3>
+        <div class="mnem"><span class="label"></span>
+          CUDA 5단계: <span class="key">할복실복해</span><br/>
+          Compute 5: <span class="key">SWDLT</span><br/>
+          메모리 6: <span class="key">전상지공레텍</span><br/>
+          Occupancy 4: <span class="key">BTRS</span><br/>
+          튜닝 5: <span class="key">병코재분레</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 패턴 뱃지</h3>
+        <div class="badge-row">
+          <span class="b y">Map</span>
+          <span class="b b">Stencil</span>
+          <span class="b p">Hist</span>
+          <span class="b g">Reduce</span>
+          <span class="b y">Scan</span>
+          <span class="b b">Merge</span>
+          <span class="b p">Sort</span>
+          <span class="b g">SpMV</span>
+          <span class="b y">BFS</span>
+          <span class="b b">Conv</span>
+          <span class="b p">GEMM</span>
+        </div>
+        <p class="tiny">공통 변환: <b>tile + smem + coalesce + atomic 최소화 + scan 기반</b>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">9</span> 18권 전체 의존 지도</h3>
+<pre class="ascii">V01 (PMPP)
+ │
+ ├─► V02 (HW)    ─► V03 (PTX) ─► V04 (Hopper)
+ │                                   │
+ ├─► V05 (Primitive)                 │
+ │     │                             │
+ │     └─► V06 (GEMM) ─► V07 (Attn)
+ │                            │
+ ├─► V09 (Numeric) ─► V10 (Quant)
+ │                                   │
+ └─► V15 (Distrib)                   │
+           ├─► V16 (Serving)         │
+           └─► V17 (Training) ◄──────┘
+
+V11–V14: Triton · MLIR · Inductor · XLA/TVM
+V18: Profiling (모든 권 뒤)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 다음 권으로 이동</h3>
+        <ul>
+          <li>실리콘 정량 · 세대별 기능 → <span class="xref">↗ V02</span></li>
+          <li>PTX ISA · mma · cp.async → <span class="xref">↗ V03</span></li>
+          <li>Hopper TMA · WGMMA · SASS → <span class="xref">↗ V04</span></li>
+          <li>병렬 primitive 고급 · Stream-K → <span class="xref">↗ V05</span></li>
+          <li>CUTLASS · CuTe · layout algebra → <span class="xref">↗ V06</span></li>
+          <li>FlashAttention v1/v2/v3 · Paged → <span class="xref">↗ V07</span></li>
+          <li>MoE · RoPE · RMSNorm · speculative → <span class="xref">↗ V08</span></li>
+          <li>FP32/TF32/BF16/FP16/FP8/FP4 → <span class="xref">↗ V09</span></li>
+          <li>GPTQ · AWQ · SmoothQuant · KV quant → <span class="xref">↗ V10</span></li>
+          <li>Triton compiler · Layout inference → <span class="xref">↗ V11</span></li>
+          <li>MLIR · NVPTX backend → <span class="xref">↗ V12</span></li>
+          <li>TorchInductor · FX graph → <span class="xref">↗ V13</span></li>
+          <li>XLA · TVM · Polyhedral → <span class="xref">↗ V14</span></li>
+          <li>NCCL · TP/PP/DP/EP/SP/CP → <span class="xref">↗ V15</span></li>
+          <li>vLLM · SGLang · TRT-LLM → <span class="xref">↗ V16</span></li>
+          <li>FSDP · ZeRO · checkpointing → <span class="xref">↗ V17</span></li>
+          <li>Roofline · stall · metric → <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">11</span> 완성 체크리스트 ★</h3>
+        <table class="compact">
+          <thead><tr><th>점검 항목</th><th>OK</th></tr></thead>
+          <tbody>
+            <tr><td>warp 정렬 분기 (div ↓)</td><td class="center">□</td></tr>
+            <tr><td>Coalesced global access</td><td class="center">□</td></tr>
+            <tr><td>Shared mem reuse (tile)</td><td class="center">□</td></tr>
+            <tr><td>Bank conflict 회피 (pad/swizzle)</td><td class="center">□</td></tr>
+            <tr><td>Occupancy 50%+ · reg 과다 ×</td><td class="center">□</td></tr>
+            <tr><td>atomic → smem 먼저</td><td class="center">□</td></tr>
+            <tr><td>boundary if 빠짐 없음</td><td class="center">□</td></tr>
+            <tr><td><code>__syncthreads</code> uniform 위치</td><td class="center">□</td></tr>
+            <tr><td>CUDA_CHECK · memcheck 통과</td><td class="center">□</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        실무: <code>CUB</code> · <code>thrust</code> · <code>cuBLAS</code> · <code>cuSPARSE</code> · <code>cuDNN</code> · <code>CUTLASS</code> 먼저 고려. 직접 구현은 특수 케이스 · fused activation/norm 수준만.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 18 -</div>
+</section>
+
+</div><!-- /.sheet-stack -->
+
+<script src="tweaks.js"></script>
+</body>
+</html>

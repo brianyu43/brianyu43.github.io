@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10장. 리덕션: 다이버전스와의 전쟁 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 10</p>
+    <h1>리덕션: 다이버전스와의 전쟁</h1>
+    <p class="subtitle">한 값으로 줄이기 위한 N단계의 결단</p>
+  </header>
+
+  <h2>10.1 배경: 결합법칙이라는 자유</h2>
+  <p>리덕션(reduction)은 배열을 하나의 값으로 축약하는 연산이다. 합(sum), 최댓값(max), 최솟값(min), 곱(product), XOR — 이항 연산자(binary operator) ⊕가 결합법칙(associativity)을 만족하기만 하면, 우리는 입력을 임의의 순서로 묶어서 계산할 자유를 얻는다. (a⊕b)⊕c = a⊕(b⊕c)이기에 (a⊕b)⊕(c⊕d)도, ((a⊕b)⊕c)⊕d도 같은 답을 낸다. 이 자유가 곧 병렬 가능성의 원천이다.</p>
+  <p>또 하나 필요한 건 항등원(identity element)이다. 합의 항등원은 0, 곱의 항등원은 1, max의 항등원은 -∞, min은 +∞다. 빈 영역에 들어갈 "안전한 초깃값"을 알아야, 입력이 정확히 2의 거듭제곱이 아닐 때 패딩 처리가 깔끔해진다.</p>
+  <p>참고로 부동소수점 덧셈은 엄밀히 말해 결합법칙이 깨진다. 둥글기 오차 때문에 (a+b)+c ≠ a+(b+c)일 수 있다. 그래서 GPU 리덕션의 결과는 입력 순서에 따라 마지막 비트 단위로 다를 수 있다. 이는 버그가 아니라 설계 트레이드오프다.</p>
+
+  <h2>10.2 리덕션 트리: 일과 깊이의 분리</h2>
+  <p>N개 원소를 한 값으로 줄이려면 최소 N-1번의 이항 연산이 필요하다. 직렬로 하면 N-1 단계가 걸린다. 그러나 트리 형태로 묶으면 단계 수는 log₂N이다. 일(work)과 깊이(step) 두 축으로 평가하면, 직렬은 work=N-1, step=N-1이고 트리는 work=N-1, step=⌈log₂N⌉이다. 일은 똑같지만 깊이가 극적으로 줄어든다 — 깊이가 곧 latency이므로 GPU에서 트리가 압도적으로 유리하다.</p>
+
+  <div class="figure">
+<pre>
+N=8, 합 리덕션 트리
+
+  d0:  a  b  c  d  e  f  g  h
+        \\/    \\/    \\/    \\/
+  d1:   ab    cd    ef    gh
+          \\___/      \\___/
+  d2:     abcd        efgh
+              \\______/
+  d3:        abcdefgh
+</pre>
+  </div>
+  <p class="figure-caption">그림 10.1 — 8개 원소의 트리 리덕션. 깊이 3=log₂8, 일 7=8-1.</p>
+
+  <h2>10.3 단순 리덕션 커널 (naive)</h2>
+  <p>가장 직관적인 구현은 stride를 1, 2, 4, …로 키우면서 짝수 인덱스만 자기 옆 값을 흡수하는 형태다. 256개의 스레드가 256개의 입력을 처리한다고 하자.</p>
+  <pre><code>// 다이버전스가 심한 단순 리덕션
+__global__ void reduce_naive(const float* in, float* out, int N) {
+    extern __shared__ float s[];
+    int tid = threadIdx.x;
+    int g   = blockIdx.x * blockDim.x + tid;
+    s[tid] = (g &lt; N) ? in[g] : 0.0f;
+    __syncthreads();
+
+    for (int stride = 1; stride &lt; blockDim.x; stride *= 2) {
+        if (tid % (2 * stride) == 0) {        // 짝수 위치만 활성
+            s[tid] += s[tid + stride];
+        }
+        __syncthreads();
+    }
+    if (tid == 0) out[blockIdx.x] = s[0];
+}</code></pre>
+  <p>왜 이게 느릴까. 첫 단계에서는 256개 중 128개의 스레드가 활성. 워프 안에서 짝수 lane만 if를 통과한다. 즉 워프의 절반이 idle이지만 나머지 절반의 명령이 끝날 때까지 대기한다. 이게 <b>컨트롤 다이버전스(control divergence)</b>다. 마지막 단계로 갈수록 활성 스레드는 1개씩만 남는데, 그 한 명이 어떤 워프에 속해 있든 그 워프 전체(32 lane)가 그 명령을 위해 대기한다. 워프 활용률이 1/32까지 떨어진다.</p>
+  <p>정량적으로 보자. 블록 크기 256(=8 워프)에서 step별 활성 lane 수: 128, 64, 32, 16, 8, 4, 2, 1. 이걸 워프 단위로 보면 각 step에 깨어 있는 워프 수: 8, 4, 2, 1, 1, 1, 1, 1. 각 워프 안에서의 활성 lane은 16, 16, 16, 16, 8, 4, 2, 1. 워프-사이클로 따져 보면 다이버전스로 손해 본 사이클이 무시할 수 없다.</p>
+
+  <h2>10.4 컨트롤 다이버전스 최소화 — sequential addressing</h2>
+  <p>핵심 통찰: 활성 스레드를 워프 경계에 붙여 모으면, 깨어 있는 워프 수는 줄지만 그 워프 안의 lane은 모두 활성이다. 깨어 있는 워프는 다이버전스 없이 일사불란하게 일하고, 비활성 워프는 통째로 스케줄링에서 빠진다. 이걸 위해 stride를 거꾸로 — 큰 값에서 시작해 절반씩 줄이는 — 인덱스 매핑을 쓴다.</p>
+  <pre><code>// 다이버전스 최소화 (sequential addressing)
+__global__ void reduce_seq_addr(const float* in, float* out, int N) {
+    extern __shared__ float s[];
+    int tid = threadIdx.x;
+    int g   = blockIdx.x * blockDim.x + tid;
+    s[tid] = (g &lt; N) ? in[g] : 0.0f;
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (tid &lt; stride) {                     // 앞쪽 tid가 활성
+            s[tid] += s[tid + stride];
+        }
+        __syncthreads();
+    }
+    if (tid == 0) out[blockIdx.x] = s[0];
+}</code></pre>
+  <p>블록 256에서 step별 활성 스레드: 128(워프 0~3), 64(워프 0~1), 32(워프 0), 16(워프 0의 앞 half), 8, 4, 2, 1. 처음 세 step까지는 활성 워프 안의 모든 lane이 일한다 — 다이버전스 0. 네 step째부터는 워프 0 안에서만 lane이 줄지만, 그땐 어차피 한 워프밖에 안 남았으니 손해의 절대량이 작다.</p>
+
+  <h2>10.5 메모리 다이버전스 최소화</h2>
+  <p>shared memory에서는 코얼레싱(coalescing) 개념이 글로벌과는 약간 다르지만, 대신 뱅크 충돌(bank conflict)이 있다. sequential addressing은 뱅크 충돌 측면에서도 깔끔하다. 한 워프의 32 스레드가 s[tid]와 s[tid+stride]를 각각 읽고 쓰는데, 두 주소 사이의 거리가 2의 거듭제곱이라 32-way 인터리빙된 뱅크에서 충돌이 발생하지 않는다.</p>
+  <p>글로벌 메모리에서의 첫 로드도 코얼레싱을 만족해야 한다. 위 코드에서 <code>s[tid] = in[g]</code>는 워프 안의 32 스레드가 in[blockBase], in[blockBase+1], … in[blockBase+31]을 읽으니 한 트랜잭션으로 합쳐진다. 좋다.</p>
+
+  <div class="callout warn">
+    <div class="label">주의</div>
+    <p>예전 책이나 블로그에서 "워프 동기화" 트릭으로 stride ≤ 32일 때 __syncthreads를 생략하는 코드를 본 적이 있을 것이다. Volta 이후 SIMT 모델이 바뀌면서 그 가정이 깨졌다 — 워프 안의 lane들이 항상 lock-step으로 돌지 않는다. 명시적으로 __syncwarp나 cooperative_groups의 sync를 써야 안전하다.</p>
+  </div>
+
+  <h2>10.6 글로벌 메모리 접근 줄이기 — shared memory의 효과</h2>
+  <p>위 코드들은 이미 shared memory를 한 번 거치는 구조다. 만약 shared memory 없이 글로벌 메모리에서 바로 stride 점프를 해 가며 update를 한다면? 매 step마다 N개의 글로벌 read와 N/2개의 글로벌 write가 발생한다. log₂N 단계니까 총 1.5 N log₂N 회의 글로벌 트랜잭션이다. shared memory 버전은 N개 글로벌 read 1회와 1개 글로벌 write — 글로벌 트래픽이 log₂N 배로 줄어든다. N=2²⁰이면 20배다.</p>
+  <p>이 차이가 곧 reduction 커널이 메모리 바운드(memory-bound)일 때 결정타가 된다. 합산 자체의 산술 강도(arithmetic intensity)가 낮으니, 메모리 접근 한 번 한 번을 아끼는 게 곧 시간을 아끼는 일이다.</p>
+
+  <h2>10.7 임의 길이 입력의 계층적 리덕션</h2>
+  <p>지금까지의 커널은 한 블록이 한 부분합을 만든다. 입력이 매우 크면 블록 수가 많아지고, 그러면 마지막에 "블록 부분합들"을 다시 합치는 단계가 필요하다. 두 가지 흔한 전략이 있다.</p>
+  <ul>
+    <li><b>Multi-pass</b>: 첫 패스에서 N → ⌈N/B⌉, 두 번째 패스에서 ⌈N/B⌉ → ⌈N/B²⌉, … 마지막엔 1. 깔끔하지만 커널 호출이 여러 번이라 오버헤드가 있다.</li>
+    <li><b>Single-pass with global atomic</b>: 각 블록의 부분합을 마지막에 한 번씩 글로벌에 atomicAdd. 블록 수만큼만 atomic이라 contention이 작고, 한 번의 커널 호출로 끝난다.</li>
+  </ul>
+  <pre><code>// 한 패스로 끝내는 합 리덕션 (블록 부분합 + 글로벌 atomic)
+__global__ void reduce_singlepass(const float* in, float* out, int N) {
+    extern __shared__ float s[];
+    int tid = threadIdx.x;
+    int g   = blockIdx.x * blockDim.x + tid;
+    s[tid] = (g &lt; N) ? in[g] : 0.0f;
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (tid &lt; stride) s[tid] += s[tid + stride];
+        __syncthreads();
+    }
+    if (tid == 0) atomicAdd(out, s[0]);     // 블록당 1번만 글로벌 atomic
+}</code></pre>
+  <p>여기서 글로벌 atomic 비용은 "블록 수 × 1회"이므로, 블록이 1024개라도 1024번의 atomic이다 — 9장의 히스토그램과는 비교가 안 되게 작다.</p>
+
+  <h2>10.8 코어스닝으로 오버헤드 줄이기</h2>
+  <p>한 스레드가 입력 하나만 보면, 같은 입력 N에 대해 트리 깊이는 log₂(스레드 수)에 비례한다. 한 스레드가 K개의 입력을 직렬로 더한 다음에 트리에 들어가면, 같은 입력 N에 트리 사이즈가 N/K가 되고 깊이는 log₂(N/K)로 줄어든다. 매 step마다 발생하는 __syncthreads 비용도 그만큼 줄어든다.</p>
+  <pre><code>// 코어스닝 적용 — 스레드당 K개 입력을 먼저 직렬로 합산
+template &lt;int K&gt;
+__global__ void reduce_coarsened(const float* in, float* out, int N) {
+    extern __shared__ float s[];
+    int tid = threadIdx.x;
+    int gbase = blockIdx.x * blockDim.x * K + tid;
+
+    float sum = 0.0f;
+    #pragma unroll
+    for (int k = 0; k &lt; K; ++k) {
+        int g = gbase + k * blockDim.x;     // 인터리브드: 코얼레싱 보존
+        if (g &lt; N) sum += in[g];
+    }
+    s[tid] = sum;
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (tid &lt; stride) s[tid] += s[tid + stride];
+        __syncthreads();
+    }
+    if (tid == 0) atomicAdd(out, s[0]);
+}</code></pre>
+  <p>K=4 정도가 흔히 좋은 출발점이다. K를 너무 키우면 점유율(occupancy)이 떨어져서 latency 은닉(latency hiding)이 약해질 수 있으니 측정으로 정한다.</p>
+
+  <div class="callout good">
+    <div class="label">실전 팁</div>
+    <p>현대 CUDA에서는 cooperative groups의 reduce, 또는 CUB 라이브러리의 BlockReduce/DeviceReduce를 쓰는 게 일반적이다. 직접 짜보는 건 원리 학습용이고, 프로덕션은 잘 튜닝된 라이브러리를 쓴다. 다만 라이브러리 사용 시에도 안에서 무슨 일이 일어나는지 알면 buffer 사이즈 정하기, K 고르기, 메모리 풋프린트 추정하기에 유리하다.</p>
+  </div>
+
+  <h2>10.9 정리</h2>
+  <p>리덕션은 GPU 병렬화의 가장 기본적이지만 가장 깊은 패턴이다. 트리 구조로 깊이를 log₂N로 줄이는 게 출발이고, 거기서부터 컨트롤 다이버전스를 어떻게 죽이고, 메모리 다이버전스를 어떻게 막고, 글로벌 트래픽을 어떻게 줄이고, 임의 길이 입력에서 계층적으로 어떻게 결합할지가 모두 별개의 결정이다. 그리고 이 모든 결정은 다음 챕터의 스캔에서도 거의 그대로 다시 등장한다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>리덕션은 결합법칙 + 항등원이 있는 이항 연산자에 대해 정의되며, 트리로 깊이를 log₂N으로 줄인다.</li>
+      <li>naive stride 패턴은 다이버전스가 심하다. sequential addressing으로 활성 스레드를 워프 경계에 모은다.</li>
+      <li>shared memory는 글로벌 트래픽을 log₂N 배로 줄여 메모리 바운드 워크로드의 핵심 무기가 된다.</li>
+      <li>임의 길이 입력은 multi-pass 또는 글로벌 atomic으로 결합한다 — 블록 수가 작으니 atomic 비용도 작다.</li>
+      <li>코어스닝(K개 직렬 누적)은 트리 사이즈와 sync 비용을 동시에 줄인다. K는 측정으로 고른다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch09.html"><span class="dir">← 이전</span><span>히스토그램</span></a>
+    <a href="ch11.html" class="next"><span class="dir">다음 →</span><span>접두사 합 (스캔)</span></a>
+  </nav>
+</article>
+</body>
+</html>

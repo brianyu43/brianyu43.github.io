@@ -1,0 +1,227 @@
+<section class="chapter" data-chapter="8" data-part="III">
+  <h2><span class="chnum">8장</span> 함수 정의와 값 <span class="entitle">Function Definitions and Values</span></h2>
+  <p class="lede">지금까지 우리가 다룬 산술 표현식들에는 한 가지 결정적인 것이 빠져 있다. 바로 <em>추상</em>이다. 같은 패턴의 계산을 매번 새로 적어내야 한다면, 그 언어는 사실상 매크로 치환기에 가깝다. 이 장에서는 함수를 일급 시민으로 격상시키지는 않되, 적어도 이름 붙은 정의로서 다루는 첫 단계를 밟는다.</p>
+
+  <h3>정의에 의한 함수</h3>
+  <p>가장 소박한 형태의 함수는 "이름 + 매개변수 목록 + 본문"이라는 삼중주이다. <code>fun f(x:τ₁):τ₂ = e</code> 와 같은 선언은 <em>실행</em>되지 않고, 환경에 등록되어 호출될 때 비로소 본문이 풀려난다. 이때의 의미론은 단순한 매크로 펼침과 미묘하게 다르다. 매개변수 <code>x</code>는 자유 변수가 아니라 묶인 이름이며, α-동치 하에서 의미가 보존되어야 한다.</p>
+  <p>호출 <code>f(e)</code>의 형식 규칙은 직관적이다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : τ₁</code> &nbsp; <code>f : τ₁ → τ₂ ∈ Σ</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ f(e) : τ₂</code></div>
+  </div>
+  <p>여기서 Σ는 전역 함수 시그니처들의 모임이다. 본문 <code>e</code>는 Σ에 속한 다른 이름들을 자유롭게 호출할 수 있으나, <em>자기 자신</em>은 호출할 수 없다. 적어도 이 장의 시점에서는 그렇다. 재귀는 다음 단계로 미뤄두자.</p>
+
+  <h3>값으로서의 함수</h3>
+  <p>이름 붙은 정의는 편리하지만 한계가 분명하다. 함수를 인자로 넘기거나, 반환값으로 돌려보내거나, 자료구조에 담을 수 없기 때문이다. 다음 발걸음은 함수를 <em>값</em>으로 취급하는 것이다. 즉 람다 추상 <code>λ(x:τ).e</code>를 표현식의 한 종류로 인정하고, <code>τ₁ → τ₂</code>라는 새 타입을 도입한다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ, x:τ₁ ⊢ e : τ₂</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ λ(x:τ₁).e : τ₁ → τ₂</code></div>
+  </div>
+  <p>호출의 동역학은 β-축약이다. <code>(λ(x:τ).e)(v) ↦ [v/x]e</code>. 호출 시점에 인자가 이미 값인지를 따지느냐 마느냐에 따라 호출-바이-값과 호출-바이-네임이 갈라지지만, 이 장에서는 전자에 머무른다.</p>
+
+  <p class="aside">함수를 값으로 취급한다는 말은, 함수란 본디 "쓰는 것"이 아니라 "주고받는 것"이라는 선언이다. 매크로의 시대는 이로써 끝난다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>정의에 의한 함수와 값으로서의 함수는 표현력이 같은가? 결론부터 말하면 그렇지 않다. 일급 함수가 있는 언어에서는 정의 모음을 손쉽게 흉내낼 수 있지만, 그 역은 일반적으로 성립하지 않는다. 고차성은 표현력의 질적 도약이며, 9장의 System T는 그 도약 위에서 비로소 가능해진다.</p>
+</section>
+
+<section class="chapter" data-chapter="9" data-part="III">
+  <h2><span class="chnum">9장</span> 고차 타입의 System T <span class="entitle">System T of Higher Type</span></h2>
+  <p class="lede">자연수 위에서 종료하는 모든 함수를 적고 싶다면 어디까지 가야 할까? Gödel의 답은 "충분히 높은 차수까지"였다. System T는 자연수와 함수 타입, 그리고 원시 재귀자(recursor) 하나로 이루어진 미니멀한 언어이지만, 그 표현력은 전체 함수의 거대한 부분 클래스를 포함한다.</p>
+
+  <h3>구문과 타입</h3>
+  <p>타입은 <code>τ ::= nat | τ₁ → τ₂</code>로 단정하게 시작한다. 항은 변수, 람다, 적용, 0, 후속자 <code>s(e)</code>, 그리고 재귀자 <code>rec e {z ↦ e₀ | s(x) with y ↦ e₁}</code>로 구성된다. 재귀자의 형식 규칙은 다음과 같다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : nat</code> &nbsp; <code>Γ ⊢ e₀ : τ</code> &nbsp; <code>Γ, x:nat, y:τ ⊢ e₁ : τ</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ rec e {z ↦ e₀ | s(x) with y ↦ e₁} : τ</code></div>
+  </div>
+  <p>핵심은 <code>y</code>이다. 재귀 호출의 결과를 직접 다시 부르는 대신, 한 단계 아래의 결과를 이미 계산된 <em>값</em>으로 받아쓴다. 이는 무한 루프를 원천 봉쇄한다.</p>
+
+  <h3>동역학과 종료성</h3>
+  <p>축약 규칙은 두 갈래다. <code>rec z {…}</code>는 <code>e₀</code>로 가고, <code>rec s(n) {…}</code>는 <code>[n, rec n {…} / x, y]e₁</code>로 풀린다. 매번 인자 자연수가 한 단계씩 내려가므로, 어떤 입력에서 시작해도 유한 단계 안에 멈춘다.</p>
+  <p>덧셈은 가벼운 손풀기 예다.</p>
+  <p class="display"><code>add ≡ λ(m:nat).λ(n:nat). rec m {z ↦ n | s(_) with y ↦ s(y)}</code></p>
+  <p>곱셈, 거듭제곱, 아커만 함수의 잘려나간 형태까지 모두 같은 틀에 들어간다. 다만 진짜 아커만은 차수가 부족해 표현되지 않는데, 이는 결함이 아니라 설계의 정직함이다.</p>
+
+  <h3>고차의 효용</h3>
+  <p>왜 굳이 차수를 올려야 하는가? 어떤 자연수 함수는 1차 원시 재귀로는 정의되지 않지만, 함수를 인자로 받는 재귀자 사용을 허용하면 비로소 잡힌다. <code>(nat → nat) → nat</code>이나 그보다 높은 타입을 매개로 삼아야만 도달 가능한 함수들이 있다는 사실은 표현력과 타입 차수 사이의 미묘한 사다리를 보여준다.</p>
+
+  <p class="aside">아커만이 위로 솟구쳐 도망가도, 충분한 차수의 사다리만 있다면 따라잡을 수 있다. 단, ω차에는 영영 닿지 못한다 — 그 너머는 9장의 영토가 아니다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>System T로 정의 가능한 함수 클래스는 정확히 Gödel의 원시 재귀 함수족이며, 이는 Peano 산술에서 종료성이 증명되는 함수들과 일치한다. 즉 "표현력 = 증명력"이라는 깔끔한 등식이 성립한다. 그러나 모든 계산 가능 함수를 잡으려면, 종료를 포기해야 한다. 다음 장의 PCF는 바로 그 거래의 형식이다.</p>
+</section>
+
+<section class="chapter" data-chapter="10" data-part="IV">
+  <h2><span class="chnum">10장</span> Plotkin의 PCF <span class="entitle">Plotkin's PCF</span></h2>
+  <p class="lede">전체 함수만으로는 진짜 프로그래밍 언어의 영혼을 담을 수 없다. 무한 루프와 비종료, 발산하는 계산 — 이 모든 그림자를 끌어안기 위해 Plotkin은 부분성을 정면으로 받아들이는 미니 언어 PCF를 설계했다. 종료를 보장하는 재귀자 대신, <em>일반 재귀</em>를 도입하는 것이다.</p>
+
+  <h3>구문과 타입</h3>
+  <p>타입은 System T와 똑같다. 차이는 항에 있다. 재귀자가 사라지고, 그 자리를 부동점 연산자 <code>fix(x:τ.e)</code>가 차지한다. 또한 자연수 분기를 위한 <code>ifz e {z ↦ e₀ | s(x) ↦ e₁}</code>를 갖춘다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ, x:τ ⊢ e : τ</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ fix(x:τ.e) : τ</code></div>
+  </div>
+  <p>의미는 자기 자신과 동치인 항을 한 번에 만들어낸다는 것이다. 동역학 규칙도 그만큼 솔직하다.</p>
+  <p class="display"><code>fix(x:τ.e) ↦ [fix(x:τ.e)/x] e</code></p>
+  <p>축약이 끝없이 풀려나갈 가능성을 안고 있는데, 이게 바로 PCF가 부분 함수의 언어인 까닭이다.</p>
+
+  <h3>발산을 허용한 대가</h3>
+  <p>이제 <code>fix(x:nat.x)</code>와 같은 무해한 듯 위험한 항이 합법적으로 타입을 갖는다. 평가하면 영영 자기 자신으로 돌아오며 결코 값이 되지 않는다. 우리는 이를 <em>발산</em>이라 부르고, ⇑로 표기한다. 진보 정리는 살아남되, "값으로 끝나거나 무한히 한 발씩 나아간다" 형태로 약화된다.</p>
+
+  <h3>예: 계승 함수</h3>
+  <p class="display"><code>fact ≡ fix(f:nat→nat. λ(n:nat). ifz n {z ↦ s(z) | s(m) ↦ mul(n, f(m))})</code></p>
+  <p>System T에서 짠 계승보다 자연스럽다. 종료가 자명하지 않다는 점 또한 자연스럽다 — 일반 재귀는 자유와 위험을 함께 준다.</p>
+
+  <p class="aside">PCF의 부동점은 약속한다. "당신이 필요로 하는 자기 참조는 내가 제공하겠다. 다만 멈춘다는 보장은 함께 가지 않는다."</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>PCF는 "고차 함수형 언어의 본질을 담은 가장 작은 표본"으로 자주 인용된다. Plotkin이 1977년에 보였듯, 이 언어의 연산적 의미와 표시적 의미 사이에는 미묘한 간극이 있다 — 표시적 의미에서 동치인 두 항이 연산적으로 구별 불가능하지 않을 수 있다는 <em>완전 추상성</em> 문제다. PCF는 그 작음에 비해 놀라울 만큼 깊은 메타이론을 거느린다.</p>
+</section>
+
+<section class="chapter" data-chapter="11" data-part="V">
+  <h2><span class="chnum">11장</span> 곱 타입 <span class="entitle">Product Types</span></h2>
+  <p class="lede">현실의 데이터는 좀처럼 단독으로 다니지 않는다. 좌표는 두 수의 짝, 사람은 이름과 나이의 짝, 기록은 여러 필드의 묶음이다. 곱 타입은 이러한 "함께 다님"을 가장 단순한 형태로 형식화한다.</p>
+
+  <h3>이항 곱과 단위</h3>
+  <p>두 타입 τ₁, τ₂에 대해 곱 <code>τ₁ × τ₂</code>는 짝 ⟨e₁, e₂⟩의 타입이다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e₁ : τ₁</code> &nbsp; <code>Γ ⊢ e₂ : τ₂</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ ⟨e₁, e₂⟩ : τ₁ × τ₂</code></div>
+  </div>
+  <p>해체 규칙은 두 사영 <code>e·l</code>, <code>e·r</code>로 주어지며, 동역학은 명확하다. <code>⟨v₁, v₂⟩·l ↦ v₁</code>, <code>⟨v₁, v₂⟩·r ↦ v₂</code>. 단위 타입 <code>unit</code>은 0항 곱으로, 유일한 값 <code>⟨⟩</code>를 갖는다. "정보를 거의 주지 않는 타입"이지만 이후 합 타입과 짝지어 큰 역할을 맡는다.</p>
+
+  <h3>유한 곱: 라벨이 있는 묶음</h3>
+  <p>인덱스 집합 <code>I = {l₁, …, lₙ}</code>에 대해 <code>×{l : τ_l}_{l ∈ I}</code>를 도입한다. 항은 라벨이 있는 묶음 <code>⟨l ↪ e_l⟩_{l ∈ I}</code>이고, 사영은 <code>e·l</code>이다. 위치가 아니라 이름으로 접근한다는 점에서 레코드의 형식론적 골격이다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e_l : τ_l</code> (모든 <code>l ∈ I</code>)</div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ ⟨l ↪ e_l⟩ : ×{l : τ_l}</code></div>
+  </div>
+
+  <h3>두 가지 평가 방식</h3>
+  <p>짝의 평가는 두 가지 결을 갖는다. <em>열심히</em>(eager) 만들면 짝을 구성하기 전에 두 성분을 모두 값으로 환원한다. <em>게으르게</em>(lazy) 만들면 짝은 곧장 값이 되고, 사영을 만났을 때 비로소 해당 성분을 평가한다. 표현력에는 미묘한 차이가 생긴다 — 게으른 곱에서는 <code>⟨fix(x.x), 0⟩·r</code>이 <code>0</code>이 되지만, 열심인 곱에서는 발산한다.</p>
+
+  <p class="aside">짝을 만든다는 것은 약속이다. 열심한 약속은 즉시 갚고, 게으른 약속은 청구가 들어와야 갚는다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>곱 타입의 도입·소거 규칙은 자연 연역의 <em>합집</em>(conjunction) 규칙과 정확히 평행하다. Curry–Howard 대응 하에서 곱은 논리곱이고, 사영은 <code>A ∧ B ⊢ A</code>의 증명이다. 형식론에서는 이런 평행이 우연이 아니라 설계의 거울이다.</p>
+</section>
+
+<section class="chapter" data-chapter="12" data-part="V">
+  <h2><span class="chnum">12장</span> 합 타입 <span class="entitle">Sum Types</span></h2>
+  <p class="lede">곱이 "함께"의 형식이라면, 합은 "혹은"의 형식이다. 어떤 값은 이 모양일 수도 있고 저 모양일 수도 있다. 이 선택지를 타입 차원에서 명시할 때 비로소 우리는 "데이터가 어떤 모양인지" 정직하게 적을 수 있다.</p>
+
+  <h3>이항 합과 빈 타입</h3>
+  <p>합 <code>τ₁ + τ₂</code>의 항은 두 가지 주입 중 하나다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : τ₁</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ l·e : τ₁ + τ₂</code></div>
+  </div>
+  <p>그리고 마찬가지로 <code>r·e : τ₁ + τ₂</code>가 있다. 해체는 분기로 이루어진다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : τ₁ + τ₂</code> &nbsp; <code>Γ, x:τ₁ ⊢ e₁ : τ</code> &nbsp; <code>Γ, y:τ₂ ⊢ e₂ : τ</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ case e {l·x ↦ e₁ | r·y ↦ e₂} : τ</code></div>
+  </div>
+  <p>빈 타입 <code>void</code>는 0항 합이다. 값이 존재하지 않는 타입이며, 분기 규칙은 0개의 분기를 요구한다 — 즉 <code>void</code> 값을 받았다고 가정하면 무엇이든 결론지을 수 있다. 모순으로부터 임의의 결론. 논리에서 본 적 있는 풍경이다.</p>
+
+  <h3>유한 합: 태그된 합집합</h3>
+  <p><code>+{l : τ_l}_{l ∈ I}</code>는 라벨로 인덱스된 합이다. 옵션 타입, 결과 타입, 색깔 열거 — 모두 이 형식의 인스턴스다. 가령 <code>option(τ) ≡ +{none : unit, some : τ}</code>는 unit과의 합으로 결측을 표현한다.</p>
+
+  <h3>예: 트리 형태</h3>
+  <p class="display"><code>tree ≈ +{leaf : unit, node : tree × nat × tree}</code></p>
+  <p>물론 이 정의는 자기 참조이므로, 진짜로 닫힌 형태로 쓰려면 다음 장 이후의 귀납형이 필요하다. 그러나 합 타입이 모양을 가르고, 곱 타입이 한 모양 안의 데이터를 묶는다는 분업은 이미 분명하다.</p>
+
+  <p class="aside">합 타입이 없다면 우리는 "이건 사실 두 가지 중 하나야"라고 말할 수밖에 없다. 합 타입이 있으면, 컴파일러도 그 말을 이해한다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>합은 Curry–Howard 하에서 논리합에 대응한다. 분기 분석은 "<code>A ∨ B</code>가 주어졌을 때 어느 쪽이든 같은 결론을 끌어낼 수 있어야 한다"는 추론 그 자체다. 곱과 합은 서로의 거울상이며, 이 대칭성은 다음 장의 패턴 매칭에서 한층 더 분명한 모습으로 드러난다.</p>
+</section>
+
+<section class="chapter" data-chapter="13" data-part="VI">
+  <h2><span class="chnum">13장</span> 패턴 매칭 <span class="entitle">Pattern Matching</span></h2>
+  <p class="lede">합과 곱이 갖춰지자, 분기와 사영을 일일이 적는 일이 부끄러울 만큼 번거로워진다. 패턴 매칭은 데이터의 모양을 "그림"으로 적게 해주는 표기 장치이자, 그 자체로 흥미로운 형식론적 대상이다.</p>
+
+  <h3>패턴의 문법</h3>
+  <p>패턴은 항을 거꾸로 본 것이다. 변수 패턴 <code>x</code>, 와일드카드 <code>_</code>, 곱 패턴 <code>⟨p₁, p₂⟩</code>, 합 패턴 <code>l·p</code>가 기본 재료다. 매칭 표현은 다음과 같이 적는다.</p>
+  <p class="display"><code>match e {p₁ ↦ e₁ | … | pₙ ↦ eₙ}</code></p>
+  <p>각 패턴은 자기 자신만의 변수 컨텍스트를 만들고, 그 아래에서 우변이 타입을 검사받는다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : τ</code> &nbsp; <code>p_i : τ ⊣ Δ_i</code> &nbsp; <code>Γ, Δ_i ⊢ e_i : τ'</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ match e {p_i ↦ e_i} : τ'</code></div>
+  </div>
+  <p>여기서 <code>p : τ ⊣ Δ</code>는 "타입 τ의 패턴 p가 변수 컨텍스트 Δ를 만들어낸다"고 읽는다.</p>
+
+  <h3>완전성과 비완전성</h3>
+  <p>패턴 모음이 모든 가능한 값의 모양을 덮느냐 — 이것이 <em>완전성</em>(exhaustiveness) 검사다. 합 타입의 모든 라벨이 등장하는가? 곱 안의 분기가 빠짐없는가? 이론적으로는 패턴들의 집합이 타입의 값 집합에 대한 분할을 이루어야 한다. 실용적으로는 컴파일러가 누락된 케이스를 짚어주거나, 적어도 경고로 알린다.</p>
+
+  <h3>중첩과 컴파일</h3>
+  <p>중첩된 패턴은 깊이 우선 분기 트리로 펼쳐진다. <code>match e {⟨l·x, y⟩ ↦ …}</code>는 먼저 짝을 분해하고, 그 첫 성분이 <code>l</code>로 태그되었는지 검사하고, 안의 <code>x</code>를 묶는 일련의 과정으로 풀어쓸 수 있다. 이 펼침은 형식적으로 정의 가능하며, 표면 언어의 표현력은 핵심 언어의 분기와 사영의 합으로 환원된다.</p>
+
+  <p class="aside">패턴 매칭은 추리 소설의 단서표와 같다. 데이터의 모양을 그림으로 그려두면, 컴파일러는 우리가 빠뜨린 용의자를 친절하게 일러준다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>패턴은 "직관적 표기 → 형식적 핵심"으로 번역되는 다리다. 이 번역이 잘 정의되어 있고 의미를 보존한다는 사실은, 표면 문법과 핵심 의미론을 분리하는 이층 구조가 형식론에서 얼마나 유용한지를 보여준다. 사용자는 그림을 그리고, 이론은 그것을 풀어 쓴다.</p>
+</section>
+
+<section class="chapter" data-chapter="14" data-part="VI">
+  <h2><span class="chnum">14장</span> 제네릭 프로그래밍 <span class="entitle">Generic Programming</span></h2>
+  <p class="lede">자료구조의 모양은 다양하지만, 그 위에서 하고 싶은 일은 종종 같다. 모든 잎에 함수를 적용하고 싶다, 모든 정수 필드를 두 배로 만들고 싶다, 구조를 보존하면서 한 자리만 갈아끼우고 싶다. 제네릭 프로그래밍은 이 "모양에 따라 자동으로 행동이 정해지는" 일을 형식적으로 다룬다.</p>
+
+  <h3>타입 함수와 위치</h3>
+  <p>타입 변수 <code>α</code>를 매개로 한 타입 표현 <code>t[α]</code>를 생각하자. 이는 α의 위치에 따라 모양이 달라지는 "구멍 뚫린" 타입이다. 가령 <code>t[α] = α × (α → nat)</code>은 양의(positive) 위치와 음의(negative) 위치 양쪽에 α가 등장한다. 제네릭 변환은 이 위치 분석에 의지한다.</p>
+
+  <h3>맵 연산</h3>
+  <p>가장 자주 만나는 제네릭 연산은 <code>map_t : (α → α') → t[α] → t[α']</code>이다. 단, t에 음의 위치에서 α가 등장하면 이 단방향 맵은 정의되지 않는다. 양방향이 필요해지기 때문이다. 그래서 일반적인 정의에서는 t를 양의 위치만 사용하는 <em>공변</em>(covariant) 타입 함수로 제한하거나, 두 방향의 함수를 함께 받는다.</p>
+  <p class="display"><code>map_{τ₁ × τ₂}(f, ⟨e₁, e₂⟩) ≡ ⟨map_{τ₁}(f, e₁), map_{τ₂}(f, e₂)⟩</code></p>
+  <p>곱 타입 위에서는 성분별로, 합 타입 위에서는 라벨을 보존한 채 안쪽으로 내려가며, 함수 타입에서는 입력을 후방으로 변환하고 출력을 전방으로 변환한다 — 이것이 음의 위치의 비밀이다.</p>
+
+  <h3>구조에 따른 정의</h3>
+  <p>이런 변환은 타입의 구조에 대한 재귀로 정의된다. 즉 타입을 인덱스 삼아 함수를 만든다는 뜻이다. 이 점에서 제네릭 프로그래밍은 의존 타입의 사촌이지만, 우리는 메타 수준의 구조 재귀로도 충분히 많은 일을 해낼 수 있다.</p>
+
+  <p class="aside">제네릭은 게으름의 형식이다. "이 모양에 대해 매번 적기는 귀찮으니, 모양 자체를 인자로 받자." 좋은 게으름은 좋은 추상이 된다.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>제네릭 변환의 존재는 타입 시스템의 부수적 사치가 아니다. 그것은 타입을 단순히 값을 분류하는 라벨이 아니라, 그 위에서 함수를 자동으로 합성할 수 있는 <em>대수적 대상</em>으로 본다는 선언이다. 이 관점은 다음 장의 귀납형에서 정점을 찍는다 — 거기서는 타입 자체가 부동점으로 정의되며, 제네릭 도구는 그 부동점을 다루는 표준 수단이 된다.</p>
+</section>
+
+<section class="chapter" data-chapter="15" data-part="VI">
+  <h2><span class="chnum">15장</span> 귀납·공귀납 타입 <span class="entitle">Inductive and Co-Inductive Types</span></h2>
+  <p class="lede">자연수, 리스트, 트리는 "유한하게 쌓아 올린 데이터"이고, 무한 스트림과 게으른 객체는 "끝없이 관찰할 수 있는 데이터"다. 두 세계는 형식적으로 거울상이며, 이 장은 양쪽을 같은 언어 안에 들여놓는다.</p>
+
+  <h3>귀납형: μ로 묶기</h3>
+  <p>타입 함수 <code>t[α]</code>가 공변일 때, 귀납형 <code>μα.t[α]</code>는 "이 등식 <code>α ≅ t[α]</code>의 최소 해"로 이해된다. 그 항은 <em>접기</em> <code>fold(e)</code>로 만들고, <em>펼치기</em>로 해체한다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : t[μα.t[α]]</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ fold(e) : μα.t[α]</code></div>
+  </div>
+  <p>자연수는 <code>μα. unit + α</code>이고, 리스트는 <code>μα. unit + (τ × α)</code>다. 진짜 재귀자는 다음과 같이 등장한다.</p>
+  <p class="display"><code>rec_{μα.t[α]} : (t[ρ] → ρ) → μα.t[α] → ρ</code></p>
+  <p>"한 단계의 펼친 모양에서 답을 만드는 법"을 주면, 임의의 깊이까지 자동으로 끌어 올린다. 종료는 부동점이 <em>최소</em>라는 사실에서 따라온다.</p>
+
+  <h3>공귀납형: ν로 풀어내기</h3>
+  <p>같은 등식 <code>α ≅ t[α]</code>의 <em>최대</em> 해는 공귀납형 <code>να.t[α]</code>다. 이쪽의 항은 <em>풀어내기</em> <code>unfold</code>로 만든다.</p>
+  <div class="rule">
+    <div class="prem"><code>Γ ⊢ e : ρ</code> &nbsp; <code>Γ, x:ρ ⊢ e' : t[ρ]</code></div>
+    <div class="bar"></div>
+    <div class="conc"><code>Γ ⊢ unfold(e, x.e') : να.t[α]</code></div>
+  </div>
+  <p>"한 단계 관찰을 만들어내는 법"을 주면, 무한히 관찰 가능한 객체가 된다. 자연수의 거울상인 자연수-혹은-무한대 <code>nat∞ = να. unit + α</code>는 종료가 보장되지 않은 카운터를 정직하게 표현한다. 무한 스트림 <code>να. τ × α</code>는 머리와 꼬리를 영원히 내어준다.</p>
+
+  <h3>두 세계의 대칭</h3>
+  <p>귀납형은 "구성"의 언어이고, 공귀납형은 "관찰"의 언어다. 전자에서는 어떻게 지어졌는지를 가지고 분석하고, 후자에서는 무엇이 보이는지를 가지고 정의한다. 한쪽은 패턴 매칭, 다른 쪽은 코쇼크-매칭이라 부르는 이중성이 자연스레 나온다.</p>
+
+  <p class="aside">귀납이 "어디서 왔는가"라면, 공귀납은 "무엇을 보여주는가"다. 같은 방을 안에서 보느냐, 밖에서 보느냐의 차이.</p>
+
+  <h3>메타이론 한 마디</h3>
+  <p>두 부동점의 공존은 형식론의 우아한 균형을 보여준다. 최소 부동점은 유한한 증인을, 최대 부동점은 가능한 모든 일관된 행동을 잡는다. 후자는 PCF의 일반 재귀를 다른 각도에서 끌어안는 길이기도 하며, 부분성을 데이터의 모양 자체에 새긴다는 점에서 깊다. 본질적으로 같은 등식이 두 가지 합법적 해를 갖는다는 사실 — 이 작은 비대칭이 데이터의 유한성과 무한성이라는 거대한 차이를 만든다.</p>
+</section>

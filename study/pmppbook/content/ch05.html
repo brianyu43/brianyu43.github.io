@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5장. 메모리 계층과 데이터 지역성 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 5</p>
+    <h1>메모리 계층과 데이터 지역성</h1>
+    <p class="subtitle">왜 GPU의 진짜 성능은 "데이터를 얼마나 덜 옮기느냐"에서 나오는가</p>
+  </header>
+
+  <h2>5.1 메모리 접근 효율의 중요성</h2>
+  <p>3장과 4장에서 우리는 GPU에 수만 개의 스레드를 풀어놓는 법을 배웠다. 그런데 막상 스레드가 많다고 해서 GPU가 자동으로 빨라지는 것은 아니다. 스레드들이 일제히 글로벌 메모리(global memory)에 손을 뻗는 순간, 마치 출퇴근길 지하철 환승통로처럼 모두가 한 곳에서 병목을 겪게 된다. GPU의 연산 유닛이 아무리 많아도 데이터가 도착하지 않으면 SM은 멍하니 시계를 돌릴 뿐이다.</p>
+  <p>이 문제를 정량적으로 보기 위해 <strong>산술 강도(arithmetic intensity)</strong> 개념을 도입한다. 산술 강도란 메모리에서 1바이트를 읽어올 때 그 데이터로 몇 번의 부동소수점 연산을 수행하는지를 나타내는 비율이다. 단위는 FLOP/Byte다.</p>
+  <p>예를 들어 5장 후반에 다룰 <code>M × N</code> 행렬 곱을 생각해 보자. 단순(naive) 구현에서 출력 원소 하나를 계산하려면 행렬 A의 한 행과 B의 한 열, 즉 N개의 float 원소를 두 번 읽어 N번의 곱셈과 N번의 덧셈을 한다. FLOP은 2N, 메모리 트래픽은 8N바이트(float 8바이트 × 2개씩 N번)이므로 산술 강도는 정확히 <code>2N / 8N = 0.25 FLOP/B</code>가 된다.</p>
+  <p>이 숫자가 얼마나 가혹한지 보려면 하드웨어 한계와 비교해야 한다. NVIDIA A100을 예로 들면 글로벌 메모리 대역폭이 약 1.5 TB/s이고, FP32 피크 연산 성능이 약 19.5 TFLOPS다. 산술 강도 0.25라면 1.5 × 10¹² × 0.25 = 약 0.375 TFLOPS밖에 못 낸다. 즉 하드웨어가 약속한 19.5 TFLOPS의 <strong>고작 1.9% 수준</strong>이다. 나머지 98%의 시간은 메모리 컨트롤러가 데이터를 퍼나르길 기다리는 데 쓰인다.</p>
+  <p>이런 상태를 <strong>메모리 바운드(memory-bound)</strong>라 부른다. 반대로 데이터를 한 번 읽어와 충분히 많이 재사용하여 연산기가 쉬지 않고 돌아간다면 <strong>컴퓨트 바운드(compute-bound)</strong>다. GPU 프로그래밍의 절반은 메모리 바운드를 컴퓨트 바운드로 끌어올리는 싸움이다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>"내 커널이 빠른가?"의 진짜 기준은 <em>피크 FLOPS의 몇 %를 쓰고 있는가</em>가 아니라 <em>입력의 산술 강도가 허용하는 상한선의 몇 %를 쓰고 있는가</em>다. 산술 강도가 0.25 FLOP/B인 알고리즘으로 19.5 TFLOPS를 달성하는 것은 물리적으로 불가능하다.</p>
+  </div>
+
+  <h2>5.2 CUDA의 메모리 종류</h2>
+  <p>CUDA는 한 종류의 메모리만 제공하지 않는다. 우리가 다룰 수 있는 메모리 공간은 6가지로, 각자 latency·범위(scope)·수명(lifetime)이 다르다. 이 표를 머릿속에 새기는 것은 GPU 코딩의 기본기다.</p>
+  <table>
+    <thead>
+      <tr><th>종류</th><th>위치</th><th>접근 속도</th><th>scope</th><th>lifetime</th><th>선언 키워드</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>레지스터(register)</td><td>SM 내부</td><td>1 cycle</td><td>스레드</td><td>커널 종료 시</td><td>지역 변수 (자동)</td></tr>
+      <tr><td>로컬 메모리</td><td>DRAM</td><td>수백 cycle</td><td>스레드</td><td>커널 종료 시</td><td>레지스터 spill 시</td></tr>
+      <tr><td>공유 메모리(shared)</td><td>SM 내부</td><td>수~수십 cycle</td><td>블록</td><td>블록 종료 시</td><td><code>__shared__</code></td></tr>
+      <tr><td>글로벌 메모리</td><td>DRAM</td><td>수백 cycle</td><td>그리드 전체</td><td>호스트 free까지</td><td><code>__device__</code> 또는 <code>cudaMalloc</code></td></tr>
+      <tr><td>상수 메모리(constant)</td><td>DRAM + 캐시</td><td>캐시 hit 시 빠름</td><td>그리드 전체 (읽기)</td><td>커널 라이프</td><td><code>__constant__</code></td></tr>
+      <tr><td>텍스처(texture)</td><td>DRAM + 캐시</td><td>캐시 hit 시 빠름</td><td>그리드 전체 (읽기)</td><td>커널 라이프</td><td>texture fetch API</td></tr>
+    </tbody>
+  </table>
+  <p>여기서 핵심은 셋이다. <strong>레지스터</strong>는 스레드만의 사물함이라 빠르지만 다른 스레드와 공유 못 한다. <strong>공유 메모리</strong>는 블록 안의 스레드들이 함께 쓰는 칠판으로, 글로벌 메모리보다 100배 정도 빠르다. <strong>글로벌 메모리</strong>는 모두가 접근 가능하지만 멀리 있어 느리다. 이 세 가지의 trade-off를 설계로 풀어내는 것이 5장의 주제다.</p>
+
+  <h2>5.3 타일링으로 메모리 트래픽 줄이기</h2>
+  <p>다시 행렬 곱으로 돌아가자. naive 구현이 0.25 FLOP/B에 갇힌 진짜 이유는 같은 데이터를 여러 스레드가 <em>각자 따로</em> 글로벌에서 읽어오기 때문이다. 행렬 A의 i번째 행은 결과 행렬의 i번째 행 전부, 즉 N개의 출력 원소가 모두 필요로 한다. naive 커널에서는 이 행을 N번 따로 읽는다. 같은 책을 N명이 각자 도서관에 다녀와서 빌리는 격이다.</p>
+  <p>해법은 <strong>타일링(tiling)</strong>이다. 한 블록의 스레드들이 협력해서 입력의 작은 조각을 공유 메모리에 한 번만 올려둔 뒤 그 조각을 모두가 함께 사용하는 방식이다. 도서관 비유로는 한 사람이 책을 빌려와서 회의실 책상에 펴두면 N명이 거기서 읽는다.</p>
+  <p>타일 크기를 <code>TILE_WIDTH</code>로 두자. 한 블록이 출력 행렬의 <code>TILE_WIDTH × TILE_WIDTH</code>짜리 부분을 담당한다. 곱셈을 단계별로 진행하면서 매 phase마다 A의 타일 하나, B의 타일 하나를 공유 메모리로 협력 로드하고, 모든 스레드가 그 타일을 함께 사용해 부분합을 누적한다.</p>
+  <p>중요한 것은 트래픽 비율이다. 타일링 없이는 출력 원소 하나당 2N개의 float을 읽어야 하지만, 타일링 후에는 한 블록 안의 <code>TILE_WIDTH²</code>개 출력이 매 phase마다 <code>2 × TILE_WIDTH</code>개의 float만 글로벌에서 읽고, 내부 dot product에서 그것을 <code>TILE_WIDTH</code>번씩 재사용한다. 즉 출력 원소 하나당 글로벌 트래픽이 <code>2N / TILE_WIDTH</code>개로 줄어든다. <strong>TILE_WIDTH=16이면 트래픽은 1/16, TILE_WIDTH=32면 1/32로 떨어진다.</strong> 산술 강도는 거꾸로 16배, 32배로 올라간다.</p>
+
+  <div class="figure">  Phase 0: A타일[0..TILE-1, 0..TILE-1]    B타일[0..TILE-1, 0..TILE-1]
+              + 부분합 누적
+  Phase 1: A타일[0..TILE-1, TILE..2TILE-1]  B타일[TILE..2TILE-1, 0..TILE-1]
+              + 부분합 누적
+   ...
+  Phase k: 마지막 타일까지 진행 → 결과 행렬의 한 타일 완성
+
+  ┌─ 블록(B)이 책임지는 출력 타일 ─┐
+  │  TILE_WIDTH × TILE_WIDTH 원소  │   ← 매 phase마다 글로벌에서
+  └────────────────────────────────┘     2 × TILE_WIDTH 만큼만 새로 가져옴
+</div>
+  <p class="figure-caption">그림 5.1 — 타일링된 행렬 곱이 phase별로 진행되는 방식</p>
+
+  <h2>5.4 타일드 행렬 곱 커널</h2>
+  <p>이제 코드를 보자. 정사각 행렬 <code>A, B, C</code>가 모두 <code>Width × Width</code>라고 가정한다.</p>
+  <pre><code>#define TILE_WIDTH 16
+
+__global__ void matmulTiled(const float* A, const float* B, float* C, int Width) {
+    __shared__ float As[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Bs[TILE_WIDTH][TILE_WIDTH];
+
+    int bx = blockIdx.x, by = blockIdx.y;
+    int tx = threadIdx.x, ty = threadIdx.y;
+
+    int row = by * TILE_WIDTH + ty;
+    int col = bx * TILE_WIDTH + tx;
+
+    float acc = 0.0f;
+
+    // 전체 phase 수: ceil(Width / TILE_WIDTH)
+    for (int ph = 0; ph &lt; (Width + TILE_WIDTH - 1) / TILE_WIDTH; ++ph) {
+        // (1) 협력 로드: 각 스레드가 A 타일과 B 타일에서 한 원소씩 가져옴
+        int aCol = ph * TILE_WIDTH + tx;
+        int bRow = ph * TILE_WIDTH + ty;
+
+        As[ty][tx] = (row &lt; Width &amp;&amp; aCol &lt; Width) ? A[row * Width + aCol] : 0.0f;
+        Bs[ty][tx] = (bRow &lt; Width &amp;&amp; col &lt; Width) ? B[bRow * Width + col] : 0.0f;
+
+        __syncthreads();   // 타일 로드 완료를 모두 기다림
+
+        // (2) 공유 메모리 안에서 부분 dot product
+        for (int k = 0; k &lt; TILE_WIDTH; ++k) {
+            acc += As[ty][k] * Bs[k][tx];
+        }
+
+        __syncthreads();   // 다음 phase 로드 전에 현재 사용 종료를 보장
+    }
+
+    if (row &lt; Width &amp;&amp; col &lt; Width) {
+        C[row * Width + col] = acc;
+    }
+}</code></pre>
+  <p>이 커널의 백미는 <code>__syncthreads()</code> 두 번이다. 첫 번째는 "타일이 다 채워졌는지" 확인하는 장벽이다. 한 스레드라도 빨리 dot product 루프에 들어가면 다른 스레드가 아직 쓰지 않은 자리를 읽게 된다. 두 번째는 "이번 phase 다 썼는지" 확인하는 장벽이다. 이게 없으면 누군가 다음 phase의 데이터를 덮어쓰기 시작했는데 다른 스레드는 아직 이전 phase의 부분합을 누적 중일 수 있다.</p>
+
+  <div class="callout warn">
+    <div class="label">함정</div>
+    <p><code>__syncthreads()</code>를 if문 안에 넣으면 안 된다. 분기에 따라 일부 스레드만 장벽에 도달하면 데드락이 발생한다. 위 커널에서 boundary check를 if 바깥으로 빼고, 대신 0.0f를 패딩한 이유다.</p>
+  </div>
+
+  <h2>5.5 경계 검사: ghost element 처리</h2>
+  <p>실제 행렬 크기 <code>Width</code>가 <code>TILE_WIDTH</code>의 배수가 아니면 마지막 phase의 마지막 타일은 부분적으로 행렬 바깥을 가리키게 된다. 이 영역을 그대로 읽으면 미정의 메모리(undefined memory)에서 쓰레기 값을 가져오거나 segfault가 난다. 위 커널에서 다음 코드가 그 처리를 한다.</p>
+  <pre><code>As[ty][tx] = (row &lt; Width &amp;&amp; aCol &lt; Width) ? A[row * Width + aCol] : 0.0f;</code></pre>
+  <p>핵심 통찰은 단순하다. 범위 밖이면 0을 넣어둔다. 0은 곱셈에서 항등원의 반대 — 곱하면 무조건 0이 되어 부분합에 기여하지 않는다. 즉 <strong>"있는 셈 치되 결과에는 영향 없음"</strong>을 메모리에 기록한다. 이런 가짜 원소를 ghost element 또는 padding이라 부른다. 마지막에 결과를 쓸 때만 다시 한 번 boundary 체크를 해서 진짜 행렬 크기 안에만 쓴다.</p>
+
+  <h2>5.6 메모리 사용이 occupancy에 미치는 영향</h2>
+  <p>"타일을 키우면 좋은 거 아닌가?"라고 묻고 싶을 것이다. TILE_WIDTH가 클수록 트래픽은 줄어든다. 그렇지만 공짜는 없다. 공유 메모리는 SM당 한정된 자원이고, 한 블록이 너무 많이 쓰면 SM에 동시에 상주할 수 있는 블록 수, 즉 <strong>occupancy</strong>가 떨어진다.</p>
+  <p>구체적인 예시. SM당 공유 메모리 한도가 96KB인 GPU가 있다고 하자. 위 커널에서 한 블록이 쓰는 공유 메모리는 As와 Bs 두 개, 즉 <code>2 × TILE_WIDTH² × 4 byte</code>다.</p>
+  <ul>
+    <li>TILE_WIDTH=16 → 블록당 2KB → 한 SM에 최대 48블록 가능 (다만 다른 한도가 먼저 걸린다)</li>
+    <li>TILE_WIDTH=32 → 블록당 8KB → 12블록</li>
+    <li>TILE_WIDTH=64 → 블록당 32KB → 3블록</li>
+  </ul>
+  <p>블록 수가 줄어들면 SM에서 동시 실행 가능한 워프 수도 줄어, 메모리 latency를 가릴 다른 워프가 부족해진다. 트래픽 절감과 latency 숨기기는 trade-off다. 일반적으로 TILE_WIDTH=16이나 32가 sweet spot인데, 이는 GPU 세대마다 달라서 실제로는 프로파일러로 확인하는 게 정석이다.</p>
+  <p>레지스터도 마찬가지다. 한 스레드가 32개 레지스터를 쓰는데 SM당 레지스터 풀이 65,536개라면 SM당 최대 2,048스레드가 동시에 살 수 있다. 한 스레드가 64개로 늘면 1,024스레드밖에 못 쓴다. <strong>occupancy는 자원 한도와 자원 사용량의 비율로 결정되며, 어느 한 자원이라도 부족하면 그 자원이 병목이 된다.</strong></p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>occupancy는 클수록 항상 좋은 게 아니다. 100% occupancy를 위해 레지스터를 깎으면 spill이 발생해 로컬 메모리 트래픽이 폭발할 수 있다. 70~80%에서 멈추는 게 보통은 더 빠르다. CUDA의 <code>cudaOccupancyMaxActiveBlocksPerMultiprocessor()</code> API로 직접 계산하거나 Nsight Compute의 occupancy 보고서를 활용하자.</p>
+  </div>
+
+  <h2>5.7 정리</h2>
+  <p>이 챕터의 메시지는 한 줄로 요약된다. <strong>"한 번 가져온 데이터를 최대한 우려먹어라."</strong> 글로벌 메모리는 멀고 느리고 비싸다. 공유 메모리는 가깝고 빠르지만 작다. 타일링은 이 둘 사이에서 협력 로드와 재사용을 통해 실질 산술 강도를 끌어올리는 기법이다. naive 행렬 곱이 0.25 FLOP/B에 머물던 것이 TILE_WIDTH=16의 타일드 버전에서는 4 FLOP/B로, TILE_WIDTH=32면 8 FLOP/B로 뛴다. 이론 throughput에서의 비율은 16배, 32배 차이다.</p>
+  <p>다음 장에서는 이 아이디어를 더 일반화한 성능 고려사항을 다룬다. 메모리 코얼레싱, 워프 다이버전스, 그리고 한 스레드에 여러 출력을 맡기는 코어스닝까지. 5장이 "왜"를 설명했다면 6장은 "어떻게 더"를 다룬다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>산술 강도 = FLOP/Byte. 이 값과 GPU의 대역폭/연산 비율을 비교해 메모리 바운드인지 컴퓨트 바운드인지 판단한다.</li>
+      <li>CUDA 메모리 6종 중 실전에서 가장 자주 다루는 것은 레지스터·공유 메모리·글로벌 메모리 셋이다.</li>
+      <li>타일링은 출력 원소당 글로벌 트래픽을 1/TILE_WIDTH로 줄인다. 산술 강도가 그만큼 올라간다.</li>
+      <li>타일드 커널은 phase별로 협력 로드 → <code>__syncthreads</code> → 부분합 → <code>__syncthreads</code> 패턴이 핵심이다.</li>
+      <li>경계가 맞지 않을 때는 ghost element에 0을 채우는 padding 트릭을 쓴다.</li>
+      <li>공유 메모리/레지스터 사용량은 occupancy를 결정한다. 무작정 키우지 말고 sweet spot을 찾는다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch04.html">
+      <span class="dir">← 이전</span>
+      <span>GPU 아키텍처와 워프 스케줄링</span>
+    </a>
+    <a href="ch06.html" class="next">
+      <span class="dir">다음 →</span>
+      <span>성능 고려사항</span>
+    </a>
+  </nav>
+</article>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제10장 · 시스템 수준 입출력 | CS:APP 한글 노트</title>
+<link rel="stylesheet" href="../styles.css">
+<script src="../app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="../index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">제10장 · 시스템 수준 입출력</span>
+  <div class="spacer"></div>
+  <div class="nav-links">
+    <a href="chapter09.html">← 이전</a>
+    <a href="../index.html">목차</a>
+    <a href="chapter11.html">다음 →</a>
+  </div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="search-box" type="search" placeholder="이 챕터 검색...">
+    <div class="ch-title">제10장 · 시스템 수준 입출력</div>
+    <h2>섹션</h2>
+    <ol>
+      <li><a href="#sec-10-1">10.1 Unix I/O</a></li>
+      <li><a href="#sec-10-2">10.2 파일</a></li>
+      <li><a href="#sec-10-3">10.3 파일 열고 닫기</a></li>
+      <li><a href="#sec-10-4">10.4 파일 읽고 쓰기</a></li>
+      <li><a href="#sec-10-5">10.5 RIO 패키지로 견고한 I/O</a></li>
+      <li class="sub-li"><a href="#sec-10-5-1">10.5.1 RIO 비버퍼링</a></li>
+      <li class="sub-li"><a href="#sec-10-5-2">10.5.2 RIO 버퍼링</a></li>
+      <li><a href="#sec-10-6">10.6 파일 메타데이터</a></li>
+      <li><a href="#sec-10-7">10.7 디렉토리 내용 읽기</a></li>
+      <li><a href="#sec-10-8">10.8 파일 공유</a></li>
+      <li><a href="#sec-10-9">10.9 I/O 리다이렉션</a></li>
+      <li><a href="#sec-10-10">10.10 표준 I/O</a></li>
+      <li><a href="#sec-10-11">10.11 어떤 I/O 함수를 써야 하나</a></li>
+      <li><a href="#sec-10-12">10.12 요약</a></li>
+    </ol>
+  </aside>
+
+  <main class="content">
+    <header class="ch-header">
+      <span class="num">CHAPTER 10</span>
+      <h1>시스템 수준 입출력</h1>
+      <div class="en">System-Level I/O</div>
+      <p class="blurb">
+        파일, 소켓, 터미널, 파이프 — 겉보기는 다 다른데 OS는 이걸 전부 같은 인터페이스로 묶어 놓았다.
+        "모든 것은 파일이다"라는 유닉스의 한 줄 철학이 어떻게 코드 레벨에서 작동하는지, 그리고
+        <code>read</code>가 왜 <em>요청한 만큼 안 읽어 줄 수 있는지</em>까지 — 이 장은 그 단순함과 함정을 동시에 다룬다.
+        다음 장의 네트워크 프로그래밍을 위한 핵심 토대이기도 하다.
+      </p>
+    </header>
+
+    <article class="section" id="sec-10-1">
+      <h2><span class="anchor-num">10.1</span>Unix I/O</h2>
+
+      <p>
+        유닉스는 출발선부터 한 가지 야심을 품고 있었다 — <strong>모든 I/O 장치를 하나의 인터페이스로 통일하자</strong>.
+        디스크 위의 텍스트 파일이든, 키보드든, 화면이든, 네트워크 소켓이든, 같은 다섯 개의 함수
+        (<code>open</code>, <code>read</code>, <code>write</code>, <code>lseek</code>, <code>close</code>)로 다룰 수 있게 한다는 것.
+        이 약속이 너무 잘 지켜져서 우리는 평소에 그게 약속인지조차 잊는다.
+      </p>
+
+      <p>
+        프로세스가 어떤 파일을 열면 OS는 <strong>파일 디스크립터(file descriptor, fd)</strong>라는 작은 음이 아닌 정수를 돌려준다.
+        이 정수가 그 파일을 가리키는 손잡이다. 이후 모든 작업은 이 fd만 들고 다니면 된다.
+        커널 내부의 복잡한 자료구조는 응용에게서 완전히 가려진다.
+      </p>
+
+      <p>그리고 모든 프로세스는 시작과 동시에 세 개의 디스크립터를 미리 받아 둔다:</p>
+
+      <table>
+        <thead><tr><th>fd</th><th>이름</th><th>매크로</th><th>기본 연결</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>표준 입력</td><td><code>STDIN_FILENO</code></td><td>키보드</td></tr>
+          <tr><td>1</td><td>표준 출력</td><td><code>STDOUT_FILENO</code></td><td>화면</td></tr>
+          <tr><td>2</td><td>표준 에러</td><td><code>STDERR_FILENO</code></td><td>화면</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        파일을 새로 열면 이 셋 다음의 가장 작은 빈 정수가 할당된다 — 보통 3부터.
+        그래서 <code>open</code> 직후 <code>printf("%d\n", fd)</code>를 찍어 보면 <code>3</code>이 나오는 게 일반적이다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          파일 디스크립터는 프로세스마다 별개로 매겨진다. 프로세스 A의 fd 5와 프로세스 B의 fd 5는 서로 아무 관련이 없다.
+          이 "프로세스 로컬"이라는 성질이 10.8의 세 테이블 그림과 연결된다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-10-2">
+      <h2><span class="anchor-num">10.2</span>파일</h2>
+
+      <p>
+        리눅스가 보는 "파일"은 우리가 평소에 떠올리는 디스크 위 문서뿐이 아니다. 종류를 좀 늘어놓고 보자:
+      </p>
+
+      <ul>
+        <li><strong>일반 파일(regular file)</strong> — 디스크 위의 바이트 묶음. 텍스트든 이진이든 OS 입장에서는 똑같이 그냥 바이트의 나열일 뿐이다.</li>
+        <li><strong>디렉토리(directory)</strong> — 다른 파일들에 대한 링크 목록을 담은 특수 파일. 그 자체도 파일이라는 점이 묘미다.</li>
+        <li><strong>소켓(socket)</strong> — 네트워크 통신을 위한 끝점. 같은 머신 내부일 수도, 인터넷 너머일 수도 있다. 11장의 주인공.</li>
+        <li><strong>파이프(pipe)</strong> — 같은 부모를 둔 프로세스들 사이를 잇는 일방향 바이트 흐름. 셸의 <code>|</code>가 이걸 만든다.</li>
+        <li><strong>FIFO (named pipe)</strong> — 파일시스템에 이름이 붙은 파이프. 무관한 프로세스끼리도 연결 가능.</li>
+        <li><strong>문자/블록 장치(character/block device)</strong> — 키보드/직렬 포트는 한 글자씩 흐르는 문자 장치, 디스크는 블록 단위로 다루는 블록 장치.</li>
+        <li><strong>심볼릭 링크(symbolic link)</strong> — 다른 경로를 가리키는 작은 텍스트 파일. <code>ln -s</code>로 만든다.</li>
+      </ul>
+
+      <p>
+        놀라운 건, 이 모든 것에 대해 <code>read</code>/<code>write</code>가 <em>그냥 동작한다</em>는 점이다.
+        키보드에서 <code>read</code>는 한 글자가 들어올 때까지 블록되고, 디스크에서는 즉시 바이트를 가져오며, 소켓에서는 패킷이 도착할 때까지 기다린다.
+        같은 함수 시그니처가 이렇게 다른 의미를 갖는데도 응용은 신경 쓸 필요가 없다 — 이게 추상화의 힘이다.
+      </p>
+
+      <p>
+        한편 모든 일반 파일에는 두 가지 형식 분류가 있다. <strong>텍스트 파일</strong>은 오로지 ASCII(또는 유니코드) 문자만 담은 것이고,
+        그 외는 모두 <strong>이진 파일</strong>이다. 사실 OS 커널 입장에서 둘은 구분되지 않는다 — 이건 어디까지나 응용이 그렇게 해석하기로 한 약속에 불과하다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-10-3">
+      <h2><span class="anchor-num">10.3</span>파일 열고 닫기</h2>
+
+      <p>
+        I/O의 시작은 <code>open</code>이고, 끝은 <code>close</code>다. 시그니처를 보자:
+      </p>
+
+<pre><code>#include &lt;fcntl.h&gt;
+#include &lt;unistd.h&gt;
+
+int open(const char *filename, int flags, mode_t mode);
+int close(int fd);
+</code></pre>
+
+      <p>
+        <code>flags</code>는 어떤 방식으로 열지를 비트마스크로 지정한다. 가장 자주 쓰는 셋은 <em>읽기/쓰기 방향</em>을 나타낸다 — 이 셋은 서로 배타적이다.
+      </p>
+
+      <table>
+        <thead><tr><th>플래그</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>O_RDONLY</code></td><td>읽기 전용으로 연다</td></tr>
+          <tr><td><code>O_WRONLY</code></td><td>쓰기 전용으로 연다</td></tr>
+          <tr><td><code>O_RDWR</code></td><td>읽고 쓰기 모두 가능하게 연다</td></tr>
+        </tbody>
+      </table>
+
+      <p>여기에 OR로 끼워 넣는 부가 플래그들이 있다:</p>
+
+      <table>
+        <thead><tr><th>플래그</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td><code>O_CREAT</code></td><td>파일이 없으면 새로 만든다 (이때 <code>mode</code> 인자가 의미를 가짐)</td></tr>
+          <tr><td><code>O_TRUNC</code></td><td>이미 있는 파일이면 길이를 0으로 자른다</td></tr>
+          <tr><td><code>O_APPEND</code></td><td>매 <code>write</code>마다 파일 끝으로 자동 이동 (로그 파일에 안전)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>mode</code>는 새로 생성될 때의 권한 비트 9개 — 소유자/그룹/기타에 대해 각각 읽기·쓰기·실행 — 를 나타낸다.
+        <code>S_IRUSR</code>, <code>S_IWUSR</code>, <code>S_IRGRP</code> 등을 OR로 묶거나, 8진수로 <code>0644</code>처럼 직접 적기도 한다.
+      </p>
+
+      <p>
+        그런데 실제로 만들어지는 권한은 <code>mode</code> 그대로가 아니다. 프로세스는 <strong>umask</strong>라는 비트마스크를 갖고 있어서,
+        실제 권한은 <code>mode &amp; ~umask</code>로 정해진다. 셸에서 <code>umask</code>가 보통 <code>022</code>인 이유는, 다른 사람들에게 쓰기 권한을 자동으로 빼 주기 위해서다.
+      </p>
+
+      <div class="callout tip">
+        <span class="label">꿀팁</span>
+        <p>
+          <code>close</code>를 빼먹으면 파일 디스크립터가 새는데(<em>fd leak</em>), 프로세스당 fd 한도(보통 1024 또는 더 적음)에 걸리면 어느 순간 <code>open</code>이 실패하기 시작한다.
+          서버 프로그램에서는 이게 진짜 망가지는 원인 1순위 중 하나.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-10-4">
+      <h2><span class="anchor-num">10.4</span>파일 읽고 쓰기</h2>
+
+      <p>fd가 손에 있으면 이제 데이터를 옮길 차례다. 두 함수가 핵심이다:</p>
+
+<pre><code>#include &lt;unistd.h&gt;
+
+ssize_t read(int fd, void *buf, size_t n);
+ssize_t write(int fd, const void *buf, size_t n);
+</code></pre>
+
+      <p>
+        <code>read</code>는 파일의 현재 오프셋에서 최대 <code>n</code>바이트를 <code>buf</code>로 읽어 오고,
+        실제로 읽은 바이트 수를 반환한다. <code>write</code>도 대칭적이다. 반환값이 <code>-1</code>이면 에러, <code>0</code>이면 EOF다.
+      </p>
+
+      <p>
+        그런데 여기에 큰 함정이 숨어 있다. <strong>요청한 <code>n</code>바이트가 다 읽히지 않는 경우(short count)</strong>가 있다는 것.
+        이건 버그가 아니라 정상 동작이다. 하지만 모르고 짠 코드는 조용히 데이터를 잃는다.
+      </p>
+
+      <p>짧은 read/write가 일어나는 대표 경우는:</p>
+
+      <ul>
+        <li><strong>EOF에 도달</strong> — 파일에 50바이트 남았는데 100을 요청하면 50만 돌아온다. 정상.</li>
+        <li><strong>터미널에서 한 줄씩</strong> — 키보드에서 읽을 때는 사용자가 엔터를 친 시점까지의 한 줄만 돌아온다.</li>
+        <li><strong>시그널 인터럽트</strong> — 블로킹 중이던 <code>read</code>가 시그널 핸들러 때문에 깨어나면, 일부만 읽고 돌아올 수 있다.</li>
+        <li><strong>네트워크 소켓</strong> — 패킷이 쪼개져 도착하므로, 한 번의 <code>read</code>가 보낸 쪽이 한 번에 보낸 양만큼을 보장하지 않는다.</li>
+        <li><strong>파이프</strong> — 비슷한 이유로 짧을 수 있다.</li>
+      </ul>
+
+      <div class="callout warn">
+        <span class="label">중요</span>
+        <p>
+          <em>일반 디스크 파일</em>에서 <code>read</code>는 EOF가 아닌 한 짧지 않다. 이 사실이 디스크 파일 한정 코드의 단순함을 가능케 한다.
+          그러나 소켓·터미널·파이프에서는 <strong>항상</strong> 짧을 수 있다고 가정하고 짜야 한다. 이게 다음 절 RIO의 존재 이유다.
+        </p>
+      </div>
+
+      <p>
+        <code>write</code>도 마찬가지로 짧을 수 있다. 디스크 공간이 모자라거나, 소켓 송신 버퍼가 가득 찼거나 하면 일부만 보내고 돌아온다.
+        그래서 "정확히 n바이트를 끝까지 보낸다"는 보장을 원하면 직접 루프로 감싸야 한다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-10-5">
+      <h2><span class="anchor-num">10.5</span>RIO 패키지로 견고한 I/O</h2>
+
+      <p>
+        CS:APP 저자들은 짧은 read/write 문제를 해결하면서도 단순한 인터페이스를 유지하기 위해 작은 라이브러리 하나를 만들었다 —
+        <strong>Robust I/O (RIO)</strong>. 두 가지 모드를 제공한다.
+      </p>
+
+      <ul>
+        <li><strong>비버퍼링 입출력(unbuffered)</strong> — 짧은 read/write를 단순히 루프로 처리. 이진 데이터에 적합.</li>
+        <li><strong>버퍼링 입력(buffered)</strong> — 내부 버퍼를 두고 작은 read 여러 번을 효율적으로 처리. 텍스트 라인 읽기에 좋음.</li>
+      </ul>
+
+      <article class="section" id="sec-10-5-1">
+        <h3><span class="anchor-num">10.5.1</span>RIO 비버퍼링 입출력</h3>
+
+        <p>
+          짧은 카운트 문제를 정공법으로 해결한다 — 그냥 루프 돌리면 된다. 핵심은 <code>rio_readn</code>과 <code>rio_writen</code> 두 개.
+        </p>
+
+<pre class="with-caption"><span class="caption">코드 10.1 · rio_readn 골격 (한국어 주석)</span><code>ssize_t rio_readn(int fd, void *buf, size_t n) {
+    // 정확히 n바이트 읽거나 EOF/에러까지 반복
+    size_t  nleft  = n;          // 아직 못 읽은 바이트 수
+    ssize_t nread;               // 한 번 읽기 결과
+    char   *bufp   = buf;        // 다음에 채워 넣을 위치
+
+    while (nleft &gt; 0) {
+        if ((nread = read(fd, bufp, nleft)) &lt; 0) {
+            if (errno == EINTR)  // 시그널로 깬 경우는 그냥 재시도
+                nread = 0;
+            else
+                return -1;       // 진짜 에러
+        }
+        else if (nread == 0) {
+            break;               // EOF — 더 못 읽음
+        }
+        nleft -= nread;
+        bufp  += nread;
+    }
+    return n - nleft;            // 실제로 읽은 총 바이트
+}
+</code></pre>
+
+        <p>
+          <code>rio_writen</code>도 거울상이다. 시그널로 깨어났을 때(<code>EINTR</code>) 자동으로 재시도해 준다는 점이 특히 친절하다.
+          이게 없으면 사용자가 일일이 시그널을 신경 써야 하는데, 시그널과 I/O가 만나는 순간은 정말 골치 아프다.
+        </p>
+
+        <div class="callout note">
+          <span class="label">메모</span>
+          <p>
+            <code>rio_readn</code>과 <code>rio_writen</code>은 <em>같은 fd에 대해 임의 순서로 섞어 호출해도</em> 안전하다.
+            내부 상태를 가지지 않기 때문이다. 이 점이 다음의 버퍼링 버전과의 결정적 차이.
+          </p>
+        </div>
+      </article>
+
+      <article class="section" id="sec-10-5-2">
+        <h3><span class="anchor-num">10.5.2</span>RIO 버퍼링 입력</h3>
+
+        <p>
+          텍스트 파일이나 네트워크에서 한 줄씩 읽는 일은 흔하다. 그런데 한 글자 read를 1바이트씩 시스템 콜로 부르면 너무 느리다 —
+          한 번의 시스템 콜이 수백 사이클짜리 비용이기 때문에. 그래서 RIO는 내부 버퍼를 둔다.
+        </p>
+
+        <p>
+          <code>rio_t</code> 구조체에 fd, 내부 버퍼, 그리고 그 버퍼에서 다음에 읽을 위치 포인터를 담는다.
+          한 번 시스템 콜로 큰 덩어리(예: <code>RIO_BUFSIZE</code>=8192바이트)를 가져온 뒤, 사용자에게는 그 안에서 잘라 준다.
+        </p>
+
+        <table>
+          <thead><tr><th>함수</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><code>rio_readinitb</code></td><td><code>rio_t</code> 구조체를 fd에 묶어 초기화</td></tr>
+            <tr><td><code>rio_readlineb</code></td><td>다음 개행(<code>\n</code>)까지 한 줄을 읽음</td></tr>
+            <tr><td><code>rio_readnb</code></td><td>버퍼링 버전 <code>readn</code> — n바이트 정확히</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          <code>rio_readlineb</code>는 텍스트 프로토콜(HTTP, SMTP 등)을 다룰 때 신이 내린 함수다. 한 줄 읽기 + 짧은 read 안전 + 효율 셋을 한 번에 챙겨 준다.
+        </p>
+
+        <div class="callout warn">
+          <span class="label">주의</span>
+          <p>
+            같은 fd에 대해 <em>버퍼링 함수와 비버퍼링 read를 섞어 부르면 안 된다</em>. 버퍼 안에 이미 일부 데이터가 들어와 있을 수 있어서,
+            <code>read</code>로 직접 가는 호출이 그 데이터를 건너뛴다. 한 fd엔 한 가지 모드만.
+          </p>
+        </div>
+      </article>
+    </article>
+
+    <article class="section" id="sec-10-6">
+      <h2><span class="anchor-num">10.6</span>파일 메타데이터</h2>
+
+      <p>
+        파일의 내용물 말고 <em>그 파일에 대한 정보</em>가 필요할 때가 있다 — 크기, 권한, 종류, 마지막 수정 시각 같은 것들.
+        이런 메타데이터는 <code>stat</code> 계열 함수로 얻는다.
+      </p>
+
+<pre><code>#include &lt;sys/stat.h&gt;
+
+int stat(const char *filename, struct stat *buf);
+int fstat(int fd, struct stat *buf);
+</code></pre>
+
+      <p>
+        <code>stat</code>은 경로명으로, <code>fstat</code>은 이미 열린 fd로 정보를 채워 준다.
+        <code>struct stat</code>의 주요 필드는:
+      </p>
+
+      <table>
+        <thead><tr><th>필드</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>st_size</code></td><td>파일 크기(바이트)</td></tr>
+          <tr><td><code>st_mode</code></td><td>파일 종류 + 권한 비트</td></tr>
+          <tr><td><code>st_uid</code></td><td>소유자 사용자 ID</td></tr>
+          <tr><td><code>st_gid</code></td><td>소유자 그룹 ID</td></tr>
+          <tr><td><code>st_mtime</code></td><td>마지막 수정 시각 (epoch 초)</td></tr>
+          <tr><td><code>st_ino</code></td><td>i-node 번호 (파일시스템 내부 식별자)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>st_mode</code>는 영리하게 두 정보를 한 정수에 욱여넣었다. 매크로로 종류를 검사한다 — <code>S_ISREG(m)</code>(일반),
+        <code>S_ISDIR(m)</code>(디렉토리), <code>S_ISSOCK(m)</code>(소켓), <code>S_ISLNK(m)</code>(심볼릭 링크) 등.
+        권한 비트는 <code>m &amp; S_IRUSR</code> 같은 식으로 검사한다.
+      </p>
+
+      <div class="callout tip">
+        <span class="label">꿀팁</span>
+        <p>
+          셸에서 <code>ls -l</code>이 보여주는 거의 모든 정보가 <code>stat</code> 한 번이면 다 얻어진다. 시간이 남으면 작은 <code>myls.c</code>를 짜 보면 감이 잡힌다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-10-7">
+      <h2><span class="anchor-num">10.7</span>디렉토리 내용 읽기</h2>
+
+      <p>
+        디렉토리도 결국 파일이긴 하지만, 일반 <code>read</code>로 파싱하는 건 형식이 OS에 따라 다르므로 권장되지 않는다. 대신 전용 함수 셋이 있다.
+      </p>
+
+<pre><code>#include &lt;dirent.h&gt;
+
+DIR           *opendir(const char *path);
+struct dirent *readdir(DIR *dp);
+int            closedir(DIR *dp);
+</code></pre>
+
+      <p>
+        <code>opendir</code>이 <code>DIR *</code> 핸들을 돌려주면, <code>readdir</code>을 반복 호출해 한 항목씩 받는다.
+        <code>readdir</code>은 더 항목이 없거나 에러가 나면 <code>NULL</code>을 반환한다.
+        이때 <code>errno</code>를 미리 0으로 초기화해 두고, NULL 반환 후 <code>errno</code>가 변했는지로 EOF와 에러를 구분하는 게 관습이다.
+      </p>
+
+      <p>
+        <code>struct dirent</code>의 두 가지 핵심 필드는 <code>d_ino</code>(i-node 번호)와 <code>d_name</code>(파일 이름 문자열).
+        파일 종류를 알고 싶으면 다시 <code>stat</code>을 호출하거나 (가능한 시스템에서는) <code>d_type</code> 필드를 본다.
+      </p>
+
+<pre class="with-caption"><span class="caption">코드 10.2 · 디렉토리 한 줄 한 줄 출력</span><code>DIR *dp = opendir(path);
+if (!dp) { perror("opendir"); exit(1); }
+
+errno = 0;
+struct dirent *de;
+while ((de = readdir(dp)) != NULL) {
+    printf("%s\n", de-&gt;d_name);
+}
+if (errno != 0) perror("readdir");
+
+closedir(dp);
+</code></pre>
+    </article>
+
+    <article class="section" id="sec-10-8">
+      <h2><span class="anchor-num">10.8</span>파일 공유</h2>
+
+      <p>
+        커널은 열린 파일들을 관리하기 위해 <strong>세 단계의 자료구조</strong>를 둔다. 이 셋의 관계를 정확히 그릴 줄 알면, fork·dup·offset 공유 같은
+        헷갈리는 동작이 한 방에 정리된다.
+      </p>
+
+      <ol>
+        <li><strong>디스크립터 테이블(descriptor table)</strong> — <em>프로세스마다</em> 하나씩. fd 번호 → 파일 테이블 항목으로의 포인터.</li>
+        <li><strong>파일 테이블(file table)</strong> — <em>시스템 전역</em>으로 하나. 각 항목은 현재 파일 오프셋, 참조 카운트, v-node로의 포인터를 담음.</li>
+        <li><strong>v-node 테이블(v-node table)</strong> — <em>파일마다</em> 하나. <code>st_size</code>, <code>st_mode</code> 같은 메타데이터와 디스크 내 위치 정보 등을 담음.</li>
+      </ol>
+
+<pre class="with-caption"><span class="caption">그림 10.1 · 같은 파일을 두 번 열었을 때의 세 테이블</span><code>프로세스 A의 디스크립터 테이블
+   fd 0 ───────┐
+   fd 1 ───────┤
+   fd 2 ───────┤
+   fd 3 ───┐   │   파일 테이블(시스템 전역)
+   fd 4 ─┐ │   │   ┌──────────────────────────┐
+         │ │   ├──→│ entry 0: 오프셋=300        │──┐
+         │ │   │   │           refcnt=1, v→A   │  │
+         │ └──┐│   ├──────────────────────────┤  │
+         │    └────│ entry 1: 오프셋=820       │──┤
+         │     │   │           refcnt=1, v→A   │  │
+         └────┐│   └──────────────────────────┘  │
+              ││                                  │
+              ↓↓                                  ↓
+              ──── 두 개의 별도 file table 항목이  v-node table
+                   같은 v-node를 가리킴            ┌────────────┐
+                                                   │ A: foo.txt │
+                                                   └────────────┘
+</code></pre>
+
+      <p>
+        같은 파일을 두 번 <code>open</code>하면 — 디스크립터 테이블에는 두 항목이 생기고, 파일 테이블에도 두 항목이 생기지만, v-node는 하나만 공유된다.
+        그래서 <strong>각 fd는 자기만의 오프셋을 갖는다</strong>. 한쪽이 읽어도 다른 쪽 위치는 안 바뀐다.
+      </p>
+
+      <p>
+        그러나 <code>dup</code>이나 <code>dup2</code>로 fd를 복제하면 얘기가 다르다. 두 fd가 <em>같은 파일 테이블 항목</em>을 가리킨다.
+        그러면 둘이 오프셋을 공유한다 — 한쪽에서 100바이트 읽으면 다른 쪽도 그만큼 진행된다. 이게 셸 리다이렉션 기법의 기반이다.
+      </p>
+
+      <p>
+        <code>fork</code> 후에도 부모와 자식이 같은 파일 테이블 항목을 공유한다. 자식의 디스크립터 테이블은 부모를 그대로 복사한 것인데, 항목들은 각각의 <em>같은</em> 파일 테이블 항목을 가리킨다.
+        그래서 부모와 자식이 같은 fd로 쓰면 출력이 끼어들지언정 덮어쓰진 않는다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          파일 테이블 항목의 참조 카운트(refcnt)가 0이 될 때 비로소 그 항목이 해제된다. 그래서 부모가 <code>close</code>해도 자식이 살아 있으면 항목은 남아 있다.
+          이 사실 모르면 "왜 이 파이프 EOF가 안 떨어지지?" 같은 디버깅에서 길을 잃는다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-10-9">
+      <h2><span class="anchor-num">10.9</span>I/O 리다이렉션</h2>
+
+      <p>
+        셸에서 <code>./prog &gt; out.txt</code>를 치면 표준 출력이 화면이 아니라 파일로 흐른다. 이걸 어떻게 구현할까?
+        답은 한 줄짜리 시스템 콜 <code>dup2</code>다.
+      </p>
+
+<pre><code>#include &lt;unistd.h&gt;
+
+int dup2(int oldfd, int newfd);
+</code></pre>
+
+      <p>
+        <code>dup2(oldfd, newfd)</code>는 <code>newfd</code>를 (열려 있었다면) 닫고, 그 자리에 <code>oldfd</code>의 사본을 만든다.
+        결과적으로 <code>newfd</code>와 <code>oldfd</code>는 <em>같은 파일 테이블 항목</em>을 가리키게 된다 — 10.8의 그림을 다시 떠올리자.
+      </p>
+
+      <p>그러면 셸의 <code>cmd &gt; out</code>은 이렇게 분해된다:</p>
+
+<pre class="with-caption"><span class="caption">코드 10.3 · 출력 리다이렉션의 본체</span><code>// 부모: fork()
+if (fork() == 0) {
+    // 자식 프로세스 안
+    int fd = open("out", O_WRONLY|O_CREAT|O_TRUNC, 0644);
+    dup2(fd, 1);     // stdout(fd 1)이 out 파일을 가리키게
+    close(fd);       // 원본 fd는 더 안 씀
+
+    char *argv[] = {"cmd", NULL};
+    execve("/path/to/cmd", argv, environ);
+    // execve 후에도 fd 1은 그대로 out을 가리킴
+}
+</code></pre>
+
+      <p>
+        핵심은 <code>execve</code>가 디스크립터 테이블을 <em>덮어쓰지 않는다</em>는 점이다. 그래서 <code>cmd</code>가 평소처럼 <code>printf</code>를 쓰면,
+        그게 fd 1을 통해 자동으로 <code>out</code> 파일로 흘러 들어간다. 자기가 리다이렉트되었다는 사실조차 모르고.
+      </p>
+
+      <p>
+        <code>cmd &lt; in</code>도 같은 식이다. <code>fd = open("in", O_RDONLY)</code>, <code>dup2(fd, 0)</code>, <code>close(fd)</code>, 그러고 <code>execve</code>.
+        파이프 <code>a | b</code>는 <code>pipe</code>로 fd 쌍을 만들고, 한쪽 자식은 <code>dup2(p[1], 1)</code>, 다른 자식은 <code>dup2(p[0], 0)</code>으로 묶는다.
+        간결한 메커니즘이 풍부한 표현력을 만든다 — 유닉스 디자인의 백미.
+      </p>
+    </article>
+
+    <article class="section" id="sec-10-10">
+      <h2><span class="anchor-num">10.10</span>표준 I/O</h2>
+
+      <p>
+        지금까지 본 Unix I/O는 OS가 직접 제공하는 저수준 인터페이스였다. C 표준 라이브러리는 그 위에 한 겹의 추상을 더 깔았다 —
+        <strong>표준 I/O(standard I/O)</strong>. <code>printf</code>, <code>fopen</code>, <code>fread</code>가 다 여기 산다.
+      </p>
+
+      <p>
+        표준 I/O의 단위는 fd가 아니라 <code>FILE *</code> 즉 <em>스트림(stream)</em>이다. <code>FILE</code> 구조체는 내부에 fd 하나, 그리고
+        효율을 위한 <strong>버퍼</strong>를 들고 있다. 한 번의 <code>fwrite</code>가 즉시 시스템 콜로 가지 않고, 일단 버퍼에 모아 두었다가 일정 조건에서 한꺼번에 비운다.
+      </p>
+
+      <table>
+        <thead><tr><th>버퍼링 모드</th><th>매크로</th><th>비우는 시점</th><th>기본 적용</th></tr></thead>
+        <tbody>
+          <tr><td>풀 버퍼</td><td><code>_IOFBF</code></td><td>버퍼가 꽉 찼을 때</td><td>일반 디스크 파일</td></tr>
+          <tr><td>라인 버퍼</td><td><code>_IOLBF</code></td><td>개행을 만났을 때 또는 꽉 찼을 때</td><td>터미널 (대화형)</td></tr>
+          <tr><td>버퍼 없음</td><td><code>_IONBF</code></td><td>매번 즉시</td><td>표준 에러(<code>stderr</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        그래서 <code>printf("hello")</code>가 출력이 안 보이고 가만히 있는 것처럼 느껴질 때가 있다 — 끝에 <code>\n</code>이 없으면 라인 버퍼가 비워지지 않기 때문.
+        터미널에서 그렇다. 디스크로 리다이렉트되면 풀 버퍼로 바뀌어 더 한참 머문다. 디버깅용으론 <code>fflush(stdout)</code>이나 <code>stderr</code>가 안전하다.
+      </p>
+
+      <p>주요 함수들을 한눈에:</p>
+
+      <table>
+        <thead><tr><th>함수</th><th>대응 시스템 콜</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td><code>fopen</code></td><td><code>open</code></td><td>경로명으로 스트림 열기</td></tr>
+          <tr><td><code>fdopen</code></td><td>(없음)</td><td>fd로부터 스트림 만들기</td></tr>
+          <tr><td><code>fread / fwrite</code></td><td><code>read / write</code></td><td>이진 데이터 읽기/쓰기</td></tr>
+          <tr><td><code>fgets / fputs</code></td><td>위와 같음</td><td>텍스트 한 줄 읽기/쓰기</td></tr>
+          <tr><td><code>fprintf / fscanf</code></td><td>위와 같음</td><td>형식화 입출력</td></tr>
+          <tr><td><code>fflush</code></td><td><code>write</code></td><td>버퍼를 강제로 비움</td></tr>
+          <tr><td><code>fclose</code></td><td><code>close</code></td><td>버퍼 비우고 닫기</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout tip">
+        <span class="label">꿀팁</span>
+        <p>
+          버퍼링 모드를 직접 바꾸려면 <code>setvbuf(stream, buf, mode, size)</code>를 쓴다.
+          서버 로그를 라인 버퍼로 바꿔 두면 <code>tail -f</code>로 실시간 추적이 매끄러워진다.
+        </p>
+      </div>
+    </article>
+
+    <article class="section" id="sec-10-11">
+      <h2><span class="anchor-num">10.11</span>어떤 I/O 함수를 써야 하나</h2>
+
+      <p>
+        세 가지 선택지가 있다 — 저수준 Unix I/O(<code>read</code>/<code>write</code>), RIO 패키지, 그리고 표준 I/O(<code>fopen</code>/<code>fread</code>).
+        결정 기준을 정리해 보자.
+      </p>
+
+      <table>
+        <thead><tr><th>상황</th><th>권장</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td>일반 디스크 파일에서 텍스트/이진 처리</td><td>표준 I/O (stdio)</td><td>버퍼링·형식화·이식성 다 해결</td></tr>
+          <tr><td>네트워크에서 텍스트 라인 읽기</td><td>RIO (<code>rio_readlineb</code>)</td><td>짧은 read 안전 + 버퍼링 효율</td></tr>
+          <tr><td>네트워크에서 이진 데이터 옮기기</td><td>RIO (<code>rio_readn / rio_writen</code>)</td><td>짧은 read/write 자동 처리</td></tr>
+          <tr><td>매우 단순한 일회성 작업</td><td>Unix I/O 직접</td><td>오버헤드 최소</td></tr>
+          <tr><td><strong>네트워크 소켓에 표준 I/O</strong></td><td><strong>피하라</strong></td><td>아래 박스 참조</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <span class="label">중요</span>
+        <p>
+          표준 I/O를 <em>네트워크 소켓에 직접 쓰면 위험하다</em>. 그 이유는 표준 I/O가 한 스트림에 대해
+          <strong>읽기와 쓰기가 시간상 분리된 반이중(half-duplex) 사용</strong>을 가정하기 때문이다.
+          소켓은 본질적으로 양방향이고 동시적이라, stdio의 내부 버퍼 상태가 양 방향 흐름과 충돌해 데이터가 사라지거나 데드락이 생긴다.
+          소켓에서는 RIO나 직접 <code>read</code>/<code>write</code>를 써라.
+        </p>
+      </div>
+
+      <p>
+        한 줄 요약하면 — <strong>디스크 파일은 stdio, 네트워크는 RIO</strong>. 정 stdio가 필요하면 양방향 흐름이 없는 단순 프로토콜에서만, 그것도
+        매 전환에서 <code>fflush</code>를 강박적으로 부르며 써야 한다. 그럴 바엔 RIO가 깔끔하다.
+      </p>
+    </article>
+
+    <article class="section" id="sec-10-12">
+      <h2><span class="anchor-num">10.12</span>요약</h2>
+
+      <p>이 장에서 챙긴 것들을 한 묶음으로:</p>
+
+      <ul>
+        <li>유닉스는 <strong>모든 I/O를 파일 디스크립터라는 정수로 통일</strong>한다. 디스크 파일·소켓·터미널·파이프 모두 같은 다섯 함수로 다룬다.</li>
+        <li><code>open</code>의 플래그(<code>O_RDONLY</code> 등)와 mode·umask로 권한이 결정된다.</li>
+        <li><code>read</code>/<code>write</code>는 짧은 카운트(short count)로 돌아올 수 있다 — 디스크 파일 외에는 항상 가능하다고 가정해야 안전하다.</li>
+        <li><strong>RIO 패키지</strong>는 짧은 read/write 문제와 작은 read의 비효율을 동시에 해결한다 — <code>rio_readn/writen</code>(비버퍼링)과 <code>rio_readlineb/readnb</code>(버퍼링).</li>
+        <li><code>stat</code> 계열로 파일의 메타데이터(크기, 종류, 권한, 시간)를 얻는다. <code>opendir/readdir</code>로 디렉토리 항목을 순회한다.</li>
+        <li>커널의 <strong>세 테이블</strong> — 디스크립터(프로세스별), 파일(전역), v-node(파일별) — 이 fd 공유와 오프셋 공유의 동작을 설명한다.</li>
+        <li><code>dup2</code> 한 줄이 셸의 모든 리다이렉션과 파이프 구현의 핵심이다.</li>
+        <li>표준 I/O는 풀/라인/없음의 세 버퍼링 모드를 갖는다. <strong>네트워크 소켓에는 stdio 대신 RIO</strong>를 써라.</li>
+      </ul>
+
+      <p>
+        이 장의 도구들은 다음 장에서 그대로 무기가 된다. 11장 네트워크 프로그래밍은 결국 "소켓이라는 fd에 RIO로 잘 읽고 쓰는 법"의 이야기다.
+        파일 디스크립터를 손에 익혀 두면, 네트워크 코드도 평소 짜던 파일 코드처럼 익숙하게 느껴질 것이다.
+      </p>
+
+      <div class="callout note">
+        <span class="label">메모</span>
+        <p>
+          이 장의 진짜 핵심은 <em>인터페이스의 통일</em>이라는 발상 그 자체다. 50년 전 켄 톰슨과 데니스 리치가 설계한 이 추상이 오늘날의 리눅스·맥OS·도커 컨테이너·심지어 컨테이너 안의 가상 파일시스템까지 그대로 이어진다.
+          좋은 추상은 오래 산다.
+        </p>
+      </div>
+    </article>
+
+    <nav class="ch-footer">
+      <a class="prev" href="chapter09.html">
+        <span class="dir">← 이전</span>
+        제9장 · 가상 메모리
+      </a>
+      <a class="next" href="chapter11.html">
+        <span class="dir">다음 →</span>
+        제11장 · 네트워크 프로그래밍
+      </a>
+    </nav>
+  </main>
+</div>
+
+</body>
+</html>

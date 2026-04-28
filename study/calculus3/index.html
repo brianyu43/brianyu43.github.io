@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>미적분학 Volume 3 | 다변수와 벡터해석</title>
+  <meta name="description" content="OpenStax Calculus Volume 3 흐름을 한국어 해설형 웹 교재로 재구성한 정적 HTML">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }, svg: { fontCache: 'global' } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="layout topbar-inner">
+      <a class="brand" href="index.html" aria-label="미적분학 III 홈">
+        <span class="brand-mark">C3</span>
+        <span>
+          미적분학 III
+          <small>Multivariable Calculus and Vector Calculus</small>
+        </span>
+      </a>
+      <a class="portal-link" href="../index.html">컴자료 포털</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="layout hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Calculus Volume 3</p>
+        <h1 id="page-title">평면을 벗어나면, 미적분은 공간의 언어가 됩니다.</h1>
+        <p>OpenStax Calculus Volume 3의 흐름을 따라 매개곡선, 3차원 벡터, 다변수 미분, 중적분, 벡터장 정리를 한국어 해설 노트로 엮었습니다. 좌표가 늘어나도 겁은 줄어들게.</p>
+      </div>
+      <aside class="hero-card" aria-label="교재 핵심 구조">
+        <ul class="factor-list">
+          <li><strong>1-3장</strong><span>매개곡선, 공간벡터, 벡터값 함수</span></li>
+          <li><strong>4장</strong><span>편미분, 그래디언트, 라그랑주 승수</span></li>
+          <li><strong>5장</strong><span>이중·삼중적분과 변수변환</span></li>
+          <li><strong>6-7장</strong><span>벡터장 정리와 2계 미분방정식</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="layout reader" aria-label="미적분학 Volume 3 리더">
+      <aside class="sidebar">
+        <div class="search-box">
+          <input data-search type="search" placeholder="챕터/개념 검색" aria-label="챕터 검색">
+        </div>
+        <nav class="chapter-nav" aria-label="챕터 선택">
+          <button class="chapter-button" type="button" data-chapter-target="ch1">
+            <small>01</small>
+            <span>매개방정식과 극좌표</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch2">
+            <small>02</small>
+            <span>공간의 벡터</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch3">
+            <small>03</small>
+            <span>벡터값 함수</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch4">
+            <small>04</small>
+            <span>다변수 함수의 미분</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch5">
+            <small>05</small>
+            <span>중적분</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch6">
+            <small>06</small>
+            <span>벡터해석</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="ch7">
+            <small>07</small>
+            <span>2계 미분방정식</span>
+          </button>
+          <button class="chapter-button" type="button" data-chapter-target="appendix">
+            <small>A-C</small>
+            <span>부록</span>
+          </button>
+        </nav>
+        <div class="section-pills" data-section-list aria-label="현재 챕터 섹션"></div>
+      </aside>
+
+      <div class="content">
+        <div class="empty" data-empty>검색 조건에 맞는 챕터가 없습니다.</div>
+<article class="chapter" id="ch1">
+  <header>
+    <span class="chapter-number">1장</span>
+    <h1>매개방정식과 극좌표</h1>
+    <p>
+      \(y=f(x)\) 꼴의 그래프는 익숙하지만, 세상 모든 곡선이 \(x\) 하나로 얌전히 설명되지는 않는다.
+      이 장에서는 곡선을 시간처럼 흐르는 매개변수로 그리는 법, 방향과 속도를 미분으로 읽는 법, 그리고 점을 직교좌표 대신 거리와 각도로 기록하는 극좌표를 배운다.
+      좌표계를 바꾸면 계산의 풍경도 바뀐다. 잘 고른 좌표는 복잡한 곡선을 꽤 협조적인 상대로 만들어 준다.
+    </p>
+  </header>
+
+  <section id="ch1-1">
+    <h2>1.1 매개방정식</h2>
+    <p>
+      매개방정식은 \(x\)와 \(y\)를 서로 직접 묶지 않고, 둘 다 제3의 변수 \(t\)로 표현한다.
+      \[
+        x=f(t),\qquad y=g(t)
+      \]
+      라고 두면 \(t\)가 변할 때 점 \((x(t),y(t))\)이 평면 위를 움직이며 곡선을 그린다.
+      여기서 \(t\)는 실제 시간일 수도 있고, 단지 곡선을 순서대로 훑기 위한 손잡이일 수도 있다.
+      같은 자취라도 \(t\)를 어떻게 잡느냐에 따라 출발점, 진행 방향, 움직이는 속도가 달라진다. 그래프는 길이고, 매개변수는 그 길을 걷는 발걸음이다.
+    </p>
+    <div class="formula-box">
+      \[
+        x=a\cos t,\qquad y=b\sin t\quad(0\le t\le 2\pi)
+      \]
+      는 타원 \(\frac{x^2}{a^2}+\frac{y^2}{b^2}=1\)을 반시계방향으로 한 바퀴 그린다.
+    </div>
+    <p>
+      매개변수를 없애면 익숙한 직교좌표 방정식을 얻기도 한다.
+      예를 들어 \(x=t^2-1,\ y=2t\)이면 \(t=y/2\)이므로 \(x=y^2/4-1\), 즉 오른쪽으로 열린 포물선이다.
+      하지만 매개방정식은 단순히 \(t\)를 제거하기 위한 중간 단계가 아니다.
+      \(x=\cos t,\ y=\sin 2t\)처럼 같은 \(x\)에서 여러 \(y\)가 나오는 곡선, 되돌아가는 곡선, 한 점을 여러 번 지나는 곡선도 자연스럽게 표현한다.
+    </p>
+  </section>
+
+  <section id="ch1-2">
+    <h2>1.2 매개곡선의 미적분</h2>
+    <p>
+      매개곡선에서 기울기는 \(y\)가 \(x\)에 대해 얼마나 변하는지를 묻는 말이다.
+      그런데 \(x\)와 \(y\)가 모두 \(t\)를 통해 움직이므로, 체인 룰을 거꾸로 읽으면 된다.
+      \(dx/dt\ne0\)인 곳에서
+      \[
+        \frac{dy}{dx}=\frac{dy/dt}{dx/dt}
+      \]
+      이고, 두 번째 도함수는 이미 구한 \(\frac{dy}{dx}\)를 다시 \(x\)에 대해 미분한다.
+      \(x'(t)=0\)이면 공식이 폭주할 수 있는데, 그곳은 수직접선이나 뾰족점이 나타나는지 조심해서 봐야 한다.
+    </p>
+    <div class="formula-box">
+      \[
+        \frac{d^2y}{dx^2}
+        =\frac{\frac{d}{dt}\left(\frac{dy}{dx}\right)}{dx/dt},
+        \qquad
+        L=\int_a^b\sqrt{\left(\frac{dx}{dt}\right)^2+\left(\frac{dy}{dt}\right)^2}\,dt
+      \]
+      \[
+        A=\int y\,dx=\int_a^b y(t)x'(t)\,dt
+      \]
+    </div>
+    <p>
+      길이 공식은 작은 이동량 \((dx,dy)\)의 피타고라스 길이 \(ds=\sqrt{dx^2+dy^2}\)에서 나온다.
+      예를 들어 \(x=3\cos t,\ y=3\sin t\)는 반지름 \(3\)인 원이고,
+      \(0\le t\le2\pi\)에서 길이는 \(\int_0^{2\pi}3\,dt=6\pi\)이다.
+      넓이 공식 \(\int y\,dx\)는 방향을 가진 넓이를 센다.
+      \(x'(t)\)가 음수인 구간은 오른쪽이 아니라 왼쪽으로 훑기 때문에 부호가 바뀐다. 그래서 매개곡선 계산에서는 "어디를 지나나"만큼 "어느 방향으로 지나나"가 중요하다.
+    </p>
+  </section>
+
+  <section id="ch1-3">
+    <h2>1.3 극좌표</h2>
+    <p>
+      극좌표는 점을 \((x,y)\) 대신 \((r,\theta)\)로 기록한다.
+      \(r\)은 원점에서의 거리, \(\theta\)는 양의 \(x\)-축에서 잰 각도다.
+      변환은
+      \[
+        x=r\cos\theta,\qquad y=r\sin\theta,\qquad r^2=x^2+y^2
+      \]
+      이다.
+      직교좌표가 격자 종이에 강하다면, 극좌표는 회전과 방사형 모양에 강하다.
+      원, 나선, 꽃잎 모양 곡선은 극좌표로 쓰면 식이 한 줄로 끝나는 일이 많다.
+    </p>
+    <div class="formula-box">
+      \[
+        r=2a\cos\theta
+        \quad\Longleftrightarrow\quad
+        x^2+y^2=2ax
+        \quad\Longleftrightarrow\quad
+        (x-a)^2+y^2=a^2
+      \]
+    </div>
+    <p>
+      극좌표의 특징은 같은 점을 여러 방식으로 표현할 수 있다는 점이다.
+      \((r,\theta)\), \((r,\theta+2\pi)\), \((-r,\theta+\pi)\)는 모두 같은 점이다.
+      그래서 그래프를 그릴 때는 \(r\)이 음수가 되는 구간도 겁낼 필요가 없다.
+      음수 반지름은 "그 각도의 반대 방향으로 가라"는 뜻이다.
+      예를 들어 \(r=1+\cos\theta\)는 오른쪽으로 볼록한 심장형 곡선을 만들고, \(r=2\sin(3\theta)\)는 각도가 조금 변할 때마다 잎이 반복되는 장미곡선을 만든다.
+    </p>
+  </section>
+
+  <section id="ch1-4">
+    <h2>1.4 극좌표에서의 넓이와 호의 길이</h2>
+    <p>
+      극좌표에서 작은 넓이 조각은 직사각형보다 부채꼴에 가깝다.
+      반지름이 \(r\), 각도 폭이 \(d\theta\)인 얇은 부채꼴의 넓이는 대략 \(\frac12 r^2\,d\theta\)이다.
+      따라서 \(r=f(\theta)\)가 \(\alpha\le\theta\le\beta\)에서 한 번 훑는 영역의 넓이는
+      \[
+        A=\frac12\int_\alpha^\beta \bigl(f(\theta)\bigr)^2\,d\theta
+      \]
+      로 계산한다.
+      두 극곡선 사이의 넓이는 바깥 반지름의 제곱에서 안쪽 반지름의 제곱을 빼면 된다.
+    </p>
+    <div class="formula-box">
+      \[
+        A=\frac12\int_\alpha^\beta \left(r_{\text{out}}^2-r_{\text{in}}^2\right)\,d\theta,
+        \qquad
+        L=\int_\alpha^\beta \sqrt{r^2+\left(\frac{dr}{d\theta}\right)^2}\,d\theta
+      \]
+    </div>
+    <p>
+      길이 공식은 \(x=r\cos\theta,\ y=r\sin\theta\)를 매개방정식으로 보고 앞 절의 길이 공식을 적용하면 나온다.
+      각도가 \(d\theta\)만큼 변할 때 점은 회전 때문에 \(r\,d\theta\)만큼, 반지름 변화 때문에 \(dr\)만큼 움직이므로
+      \(ds=\sqrt{r^2+(dr/d\theta)^2}\,d\theta\)라는 모양도 직관적이다.
+      예를 들어 \(r=2\sin\theta\), \(0\le\theta\le\pi\)는 반지름 \(1\)인 원을 한 번 그리며,
+      넓이는 \(\frac12\int_0^\pi4\sin^2\theta\,d\theta=\pi\)이다.
+    </p>
+  </section>
+
+  <section id="ch1-5">
+    <h2>1.5 원뿔곡선</h2>
+    <p>
+      원뿔곡선은 원뿔을 평면으로 잘랐을 때 나오는 곡선들이다.
+      잘라내는 각도에 따라 원, 타원, 포물선, 쌍곡선이 나타난다.
+      더 통일적으로는 한 점인 초점과 한 직선인 준선으로부터의 거리 비가 일정한 점들의 자취라고 볼 수 있다.
+      그 비를 이심률 \(e\)라고 하며, \(e&lt;1\)이면 타원, \(e=1\)이면 포물선, \(e&gt;1\)이면 쌍곡선이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \text{타원: }\frac{x^2}{a^2}+\frac{y^2}{b^2}=1,\qquad
+        \text{쌍곡선: }\frac{x^2}{a^2}-\frac{y^2}{b^2}=1
+      \]
+      \[
+        \text{포물선: }y^2=4px,\qquad
+        \text{극형식: }r=\frac{ed}{1\pm e\cos\theta}\ \text{또는}\ r=\frac{ed}{1\pm e\sin\theta}
+      \]
+    </div>
+    <p>
+      직교좌표 표준형은 중심, 꼭짓점, 축을 읽기 좋고, 극좌표 형식은 초점이 원점에 있을 때 특히 깔끔하다.
+      예를 들어 \(r=\frac{6}{1+2\cos\theta}\)는 \(e=2\)인 원뿔곡선이므로 쌍곡선이다.
+      반대로 행성 궤도처럼 한 초점을 중심에 둔 문제에서는 \(r=\frac{ed}{1+e\cos\theta}\) 꼴이 훨씬 자연스럽다.
+      같은 곡선도 좌표를 어디에 두느냐에 따라 표정이 달라진다. 수학에서도 자리 배치가 분위기를 만든다.
+    </p>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 한 스푼</h3>
+    <p>
+      이 장의 핵심은 "곡선을 어떤 방식으로 훑을 것인가"이다.
+      매개방정식은 점의 이동을 따라가며 기울기, 길이, 넓이를 계산하게 해 주고, 극좌표는 원점에서 뻗어 나가는 거리와 각도로 곡선을 읽게 해 준다.
+      좌표는 단순한 표기법이 아니라 문제를 바라보는 카메라 각도다. 좋은 각도에서는 복잡한 장면도 훨씬 덜 어지럽다.
+    </p>
+  </aside>
+
+  <section class="recap">
+    <h3>1장 요약</h3>
+    <ul>
+      <li>매개방정식 \(x=f(t), y=g(t)\)는 곡선의 자취뿐 아니라 진행 방향과 속도 정보를 함께 담는다.</li>
+      <li>매개곡선의 기울기는 \(\frac{dy}{dx}=\frac{dy/dt}{dx/dt}\), 길이는 \(\int\sqrt{(x')^2+(y')^2}\,dt\)로 계산한다.</li>
+      <li>극좌표는 \(x=r\cos\theta, y=r\sin\theta\)로 직교좌표와 연결되며, 한 점이 여러 극좌표 표현을 가질 수 있다.</li>
+      <li>극좌표 넓이는 \(\frac12\int r^2\,d\theta\), 극좌표 호의 길이는 \(\int\sqrt{r^2+(dr/d\theta)^2}\,d\theta\)이다.</li>
+      <li>원뿔곡선은 이심률 \(e\)로 분류되며, 초점이 원점일 때 극좌표 방정식이 특히 유용하다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch2">
+  <header>
+    <span class="chapter-number">2장</span>
+    <h1>공간의 벡터</h1>
+    <p>
+      다변수 미적분으로 가려면 먼저 공간에서 방향과 크기를 다루는 언어가 필요하다.
+      벡터는 "얼마나"와 "어느 쪽으로"를 한꺼번에 담는 물건이다.
+      이 장에서는 평면 벡터에서 출발해 3차원 좌표, 내적과 외적, 직선과 평면의 방정식, 2차곡면, 원통좌표와 구면좌표까지 이어 간다.
+      좌표가 하나 늘어날 뿐인데, 시야는 꽤 넓어진다.
+    </p>
+  </header>
+
+  <section id="ch2-1">
+    <h2>2.1 평면의 벡터</h2>
+    <p>
+      평면 벡터 \(\mathbf v=\langle a,b\rangle\)는 \(x\)방향으로 \(a\), \(y\)방향으로 \(b\)만큼 이동하라는 지시서다.
+      시작점이 어디든 같은 방향과 크기를 가지면 같은 벡터로 본다.
+      크기는 피타고라스 정리로
+      \[
+        \|\mathbf v\|=\sqrt{a^2+b^2}
+      \]
+      이고, \(\|\mathbf v\|\ne0\)이면 \(\mathbf v/\|\mathbf v\|\)는 같은 방향의 단위벡터다.
+      벡터를 더한다는 것은 이동을 이어 붙이는 일이고, 스칼라를 곱한다는 것은 같은 방향으로 늘리거나 반대로 뒤집는 일이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \mathbf u+\mathbf v=\langle u_1+v_1,\ u_2+v_2\rangle,\qquad
+        c\mathbf v=\langle cv_1,\ cv_2\rangle
+      \]
+      \[
+        \overrightarrow{PQ}=\langle x_2-x_1,\ y_2-y_1\rangle
+        \quad\text{for }P(x_1,y_1),\ Q(x_2,y_2)
+      \]
+    </div>
+    <p>
+      예를 들어 \(P(2,-1)\)에서 \(Q(5,3)\)으로 가는 변위는 \(\langle3,4\rangle\)이고 길이는 \(5\)이다.
+      이것을 단위벡터로 만들면 \(\langle3/5,4/5\rangle\)가 된다.
+      \(\mathbf i=\langle1,0\rangle\), \(\mathbf j=\langle0,1\rangle\)를 쓰면 \(\langle a,b\rangle=a\mathbf i+b\mathbf j\)로 표현한다.
+      성분 표기는 벡터를 좌표축 방향의 작은 이동 두 개로 분해해 놓은 장부라고 보면 된다.
+    </p>
+  </section>
+
+  <section id="ch2-2">
+    <h2>2.2 세 차원의 벡터</h2>
+    <p>
+      3차원에서는 점을 \((x,y,z)\), 벡터를 \(\langle a,b,c\rangle\)로 쓴다.
+      \(z\)-축이 추가되면 그림은 조금 바빠지지만, 계산 원리는 거의 그대로다.
+      두 점 \(P(x_1,y_1,z_1)\), \(Q(x_2,y_2,z_2)\) 사이의 변위와 거리는
+      \[
+        \overrightarrow{PQ}=\langle x_2-x_1,\ y_2-y_1,\ z_2-z_1\rangle,\qquad
+        d(P,Q)=\sqrt{(x_2-x_1)^2+(y_2-y_1)^2+(z_2-z_1)^2}
+      \]
+      이다.
+      2차원 피타고라스를 한 번 더 쌓은 셈이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \mathbf v=\langle a,b,c\rangle=a\mathbf i+b\mathbf j+c\mathbf k,\qquad
+        \|\mathbf v\|=\sqrt{a^2+b^2+c^2}
+      \]
+      \[
+        (x-h)^2+(y-k)^2+(z-\ell)^2=R^2
+      \]
+      는 중심 \((h,k,\ell)\), 반지름 \(R\)인 구면이다.
+    </div>
+    <p>
+      예를 들어 중심이 \((1,-2,3)\), 반지름이 \(4\)인 구면은
+      \((x-1)^2+(y+2)^2+(z-3)^2=16\)이다.
+      좌표평면도 세 개가 된다. \(xy\)-평면은 \(z=0\), \(yz\)-평면은 \(x=0\), \(xz\)-평면은 \(y=0\)이다.
+      공간 문제에서 그림이 어렵다면 먼저 좌표평면과 축에 대한 그림자를 보자. 3차원은 한 번에 보는 것보다 잘라서 보는 편이 더 친절할 때가 많다.
+    </p>
+  </section>
+
+  <section id="ch2-3">
+    <h2>2.3 내적</h2>
+    <p>
+      내적은 두 벡터가 얼마나 같은 방향을 향하는지 재는 연산이다.
+      성분으로는 곱해서 더하고, 기하적으로는 한 벡터를 다른 벡터 방향으로 그림자처럼 내려놓은 양을 잰다.
+      \[
+        \mathbf u\cdot\mathbf v=u_1v_1+u_2v_2+u_3v_3
+        =\|\mathbf u\|\,\|\mathbf v\|\cos\theta
+      \]
+      이므로 내적이 양수이면 대체로 같은 쪽, 음수이면 반대쪽, \(0\)이면 수직이다.
+      수직 판정이 방정식 하나로 끝난다는 점이 내적의 큰 매력이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \operatorname{comp}_{\mathbf v}\mathbf u
+        =\frac{\mathbf u\cdot\mathbf v}{\|\mathbf v\|},\qquad
+        \operatorname{proj}_{\mathbf v}\mathbf u
+        =\frac{\mathbf u\cdot\mathbf v}{\|\mathbf v\|^2}\mathbf v
+      \]
+    </div>
+    <p>
+      예를 들어 \(\mathbf u=\langle2,1,-1\rangle\), \(\mathbf v=\langle1,3,5\rangle\)이면
+      \(\mathbf u\cdot\mathbf v=2+3-5=0\)이므로 두 벡터는 수직이다.
+      물리에서는 힘 \(\mathbf F\)가 변위 \(\mathbf d\)를 따라 한 일 \(W\)를 \(W=\mathbf F\cdot\mathbf d\)로 계산한다.
+      힘이 아무리 커도 이동 방향과 수직이면 실제로 밀어 준 거리는 0이다. 내적은 이런 "방향이 맞아야 효과가 난다"는 사실을 숫자로 만든다.
+    </p>
+  </section>
+
+  <section id="ch2-4">
+    <h2>2.4 외적</h2>
+    <p>
+      외적 \(\mathbf u\times\mathbf v\)는 3차원에서 두 벡터에 모두 수직인 새 벡터를 만든다.
+      방향은 오른손 법칙으로 정하고, 크기는 두 벡터가 만드는 평행사변형의 넓이다.
+      \[
+        \|\mathbf u\times\mathbf v\|=\|\mathbf u\|\,\|\mathbf v\|\sin\theta
+      \]
+      이므로 두 벡터가 평행하면 외적은 \(\mathbf0\)이다.
+      내적이 "같은 방향 성분"을 재는 연산이라면, 외적은 "서로 벌어진 정도와 그 면의 방향"을 담는다.
+    </p>
+    <div class="formula-box">
+      \[
+      \mathbf u\times\mathbf v=
+      \begin{vmatrix}
+      \mathbf i&\mathbf j&\mathbf k\\
+      u_1&u_2&u_3\\
+      v_1&v_2&v_3
+      \end{vmatrix}
+      =
+      \langle u_2v_3-u_3v_2,\ u_3v_1-u_1v_3,\ u_1v_2-u_2v_1\rangle
+      \]
+    </div>
+    <p>
+      예를 들어 \(\langle1,0,0\rangle\times\langle0,1,0\rangle=\langle0,0,1\rangle\)이다.
+      순서를 바꾸면 부호가 바뀌어 \(\mathbf v\times\mathbf u=-(\mathbf u\times\mathbf v)\)가 된다.
+      세 벡터 \(\mathbf u,\mathbf v,\mathbf w\)가 만드는 평행육면체의 부피는
+      \[
+        |\mathbf u\cdot(\mathbf v\times\mathbf w)|
+      \]
+      로 계산한다.
+      외적은 평면의 법선벡터를 찾을 때, 면적을 계산할 때, 회전 효과를 나타내는 토크를 다룰 때 계속 등장한다.
+    </p>
+  </section>
+
+  <section id="ch2-5">
+    <h2>2.5 공간에서 직선과 평면의 방정식</h2>
+    <p>
+      공간의 직선은 한 점과 방향벡터 하나로 정해진다.
+      점 \(\mathbf r_0=\langle x_0,y_0,z_0\rangle\)을 지나고 방향벡터가 \(\mathbf v=\langle a,b,c\rangle\)인 직선은
+      \[
+        \mathbf r(t)=\mathbf r_0+t\mathbf v
+      \]
+      이다.
+      성분으로 쓰면 \(x=x_0+at,\ y=y_0+bt,\ z=z_0+ct\)이다.
+      \(a,b,c\)가 모두 0이 아니면 \(\frac{x-x_0}{a}=\frac{y-y_0}{b}=\frac{z-z_0}{c}\)라는 대칭형으로도 쓴다.
+    </p>
+    <div class="formula-box">
+      \[
+        \text{직선: }\mathbf r=\mathbf r_0+t\mathbf v,\qquad
+        \text{평면: }\mathbf n\cdot(\mathbf r-\mathbf r_0)=0
+      \]
+      \[
+        A(x-x_0)+B(y-y_0)+C(z-z_0)=0
+        \quad\Longleftrightarrow\quad
+        Ax+By+Cz=D
+      \]
+    </div>
+    <p>
+      평면은 한 점과 그 평면에 수직인 법선벡터 \(\mathbf n=\langle A,B,C\rangle\)로 정해진다.
+      예를 들어 점 \((1,2,-1)\)을 지나고 법선벡터가 \(\langle3,-1,4\rangle\)인 평면은
+      \(3(x-1)-(y-2)+4(z+1)=0\), 정리하면 \(3x-y+4z+3=0\)이다.
+      두 평면의 법선벡터가 평행하면 평면들은 평행하거나 같은 평면이고, 평행하지 않으면 교선이 생긴다.
+      공간의 도형 문제는 대개 "점, 방향벡터, 법선벡터 중 무엇을 알고 있나?"를 찾는 데서 출발한다.
+    </p>
+  </section>
+
+  <section id="ch2-6">
+    <h2>2.6 이차곡면</h2>
+    <p>
+      이차곡면은 \(x,y,z\)에 대한 이차식으로 표현되는 공간의 표면이다.
+      평면곡선에서 원뿔곡선이 중요한 것처럼, 공간에서는 타원면, 쌍곡면, 포물면, 원뿔, 원통이 기본 가족이다.
+      가장 좋은 관찰법은 흔적, 즉 \(x=c\), \(y=c\), \(z=c\) 같은 평면으로 잘랐을 때 생기는 단면을 보는 것이다.
+      한 번에 3차원을 상상하기 어렵다면, 얇게 썬 단면들을 쌓아 올리면 된다.
+    </p>
+    <div class="formula-box">
+      \[
+        \frac{x^2}{a^2}+\frac{y^2}{b^2}+\frac{z^2}{c^2}=1
+        \quad\text{타원면}
+      \]
+      \[
+        z=\frac{x^2}{a^2}+\frac{y^2}{b^2}
+        \quad\text{타원포물면},\qquad
+        z=\frac{x^2}{a^2}-\frac{y^2}{b^2}
+        \quad\text{쌍곡포물면}
+      \]
+      \[
+        \frac{x^2}{a^2}+\frac{y^2}{b^2}-\frac{z^2}{c^2}=1
+        \quad\text{한 장 쌍곡면},\qquad
+        -\frac{x^2}{a^2}-\frac{y^2}{b^2}+\frac{z^2}{c^2}=1
+        \quad\text{두 장 쌍곡면}
+      \]
+    </div>
+    <p>
+      부호와 빠진 변수에 주목하면 식의 얼굴이 보인다.
+      모든 제곱항이 양수이고 오른쪽이 \(1\)이면 닫힌 타원면, 한 항만 부호가 다르면 한 장 쌍곡면, 두 항이 부호가 다르면 두 장 쌍곡면이 된다.
+      \(z=x^2-y^2\) 같은 쌍곡포물면은 한 방향으로 자르면 위로 열린 포물선, 다른 방향으로 자르면 아래로 열린 포물선이라 안장 모양이 된다.
+      \(x^2+y^2=9\)처럼 한 변수가 빠지면 그 방향으로 끝없이 뻗은 원통이다.
+    </p>
+  </section>
+
+  <section id="ch2-7">
+    <h2>2.7 원통좌표와 구면좌표</h2>
+    <p>
+      원통좌표는 평면의 극좌표에 높이 \(z\)를 붙인 좌표계다.
+      \[
+        x=r\cos\theta,\qquad y=r\sin\theta,\qquad z=z
+      \]
+      이므로 \(z\)-축을 중심으로 회전대칭인 물체를 다룰 때 편하다.
+      예를 들어 \(x^2+y^2=9\)는 원통좌표에서 \(r=3\)이라는 짧은 문장이 된다.
+      \(r\)은 축에서의 거리, \(\theta\)는 축 둘레의 각도, \(z\)는 높이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \text{구면좌표:}\qquad
+        x=\rho\sin\phi\cos\theta,\quad
+        y=\rho\sin\phi\sin\theta,\quad
+        z=\rho\cos\phi
+      \]
+      \[
+        \rho^2=x^2+y^2+z^2,\qquad
+        r=\rho\sin\phi,\qquad
+        z=\rho\cos\phi
+      \]
+    </div>
+    <p>
+      구면좌표는 원점에서의 거리 \(\rho\), \(z\)-축에서 내려오는 각 \(\phi\), \(xy\)-평면에서의 회전각 \(\theta\)를 쓴다.
+      그래서 구면 \(\rho=R\), 원뿔 \(\phi=\alpha\), 반평면 \(\theta=\beta\)가 아주 간단해진다.
+      나중에 삼중적분을 할 때는 부피 조각도 좌표에 맞춰 바뀐다.
+      원통좌표에서는 \(dV=r\,dr\,d\theta\,dz\), 구면좌표에서는 \(dV=\rho^2\sin\phi\,d\rho\,d\phi\,d\theta\)가 된다.
+      아직 계산하지 않더라도 기억해 두자. 좌표를 바꾸면 작은 조각의 모양도 함께 바뀐다.
+    </p>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 한 스푼</h3>
+    <p>
+      벡터는 공간의 문장을 짧게 쓰는 문법이다.
+      내적은 "얼마나 같은 방향인가", 외적은 "둘이 만드는 면은 어느 쪽을 보나", 법선벡터는 "이 평면이 어느 방향으로 서 있나"를 알려 준다.
+      3차원 좌표와 이차곡면, 원통좌표와 구면좌표는 모두 같은 공간을 다른 방식으로 말하는 언어들이다.
+      문제의 대칭에 맞는 언어를 고르면 계산이 갑자기 상냥해진다.
+    </p>
+  </aside>
+
+  <section class="recap">
+    <h3>2장 요약</h3>
+    <ul>
+      <li>벡터는 크기와 방향을 가지며, 성분별 덧셈과 스칼라배로 계산한다.</li>
+      <li>3차원 거리, 구면, 벡터의 크기는 모두 피타고라스 정리의 확장으로 이해할 수 있다.</li>
+      <li>내적은 각도, 직교성, 정사영, 일을 계산하는 도구다.</li>
+      <li>외적은 두 벡터에 수직인 벡터를 만들며, 평행사변형의 넓이와 평면의 법선벡터를 제공한다.</li>
+      <li>공간의 직선은 점과 방향벡터, 평면은 점과 법선벡터로 표현한다.</li>
+      <li>이차곡면은 단면을 통해 읽고, 원통좌표와 구면좌표는 회전대칭 문제를 단순하게 만든다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch3">
+  <header>
+    <div class="chapter-number">3장</div>
+    <h1>벡터값 함수</h1>
+    <p>한 점이 시간에 따라 움직이면 숫자 하나가 아니라 위치 전체가 변한다. 3장은 \(x(t), y(t), z(t)\)를 한 묶음으로 다루어 곡선, 속도, 길이, 휘어짐을 계산하는 언어를 만든다.</p>
+  </header>
+
+  <section id="ch3-1">
+    <h2>3.1 벡터값 함수와 공간 곡선</h2>
+    <p>벡터값 함수는 입력 하나에 벡터 하나를 대응시키는 함수다. 보통 매개변수 \(t\)에 대해 \(\mathbf r(t)=\langle f(t),g(t),h(t)\rangle\)처럼 쓰며, 평면에서는 \(\mathbf r(t)=\langle f(t),g(t)\rangle\)로 충분하다. \(t\)가 움직일 때 벡터의 끝점이 그리는 자취가 곡선이다. 그래서 벡터값 함수는 “곡선을 방정식 하나로 붙잡는 방법”이라고 보면 된다. \(x^2+y^2=1\)은 원이라는 집합을 말하지만, \(\mathbf r(t)=\langle\cos t,\sin t\rangle\)는 그 원을 어떤 방향과 속도로 도는지도 말해 준다.</p>
+    <p>공간 곡선에서는 세 좌표가 각자 자기 일을 한다. 예를 들어 \(\mathbf r(t)=\langle\cos t,\sin t,t\rangle\)는 위에서 보면 원운동이지만 \(z=t\) 때문에 계속 올라가는 나선이다. 정의역은 세 성분 함수가 모두 정의되는 \(t\)의 공통 구간이고, 곡선의 방향은 \(t\)가 증가하는 방향이다. 같은 자취라도 \(\langle\cos 2t,\sin 2t\rangle\)는 더 빠르게 돌고, \(\langle\cos(-t),\sin(-t)\rangle\)는 반대로 돈다. 자취와 매개화는 친척이지만 같은 사람은 아니다.</p>
+  </section>
+
+  <section id="ch3-2">
+    <h2>3.2 벡터값 함수의 미적분</h2>
+    <p>벡터값 함수의 극한, 연속, 미분, 적분은 성분별로 계산한다. 즉 \(\mathbf r(t)=\langle f(t),g(t),h(t)\rangle\)이면
+      \[
+      \mathbf r'(t)=\langle f'(t),g'(t),h'(t)\rangle,\qquad
+      \int \mathbf r(t)\,dt=\left\langle\int f(t)\,dt,\int g(t)\,dt,\int h(t)\,dt\right\rangle.
+      \]
+      이름은 벡터 미적분이지만 손끝에서는 한 변수 미적분 세 개가 나란히 일하는 셈이다. 다만 결과가 벡터이므로 방향의 의미가 새로 붙는다.</p>
+    <p>도함수 \(\mathbf r'(t)\)는 곡선의 접벡터다. 짧은 시간 \(\Delta t\) 동안의 평균 변화량 \((\mathbf r(t+\Delta t)-\mathbf r(t))/\Delta t\)가 순간적으로 향하는 방향이 바로 접선 방향이다. 곱의 법칙도 성분별 계산과 내적, 외적의 성질에서 자연스럽게 이어진다:
+      \[
+      \frac{d}{dt}(\mathbf u\cdot\mathbf v)=\mathbf u'\cdot\mathbf v+\mathbf u\cdot\mathbf v',
+      \qquad
+      \frac{d}{dt}(\mathbf u\times\mathbf v)=\mathbf u'\times\mathbf v+\mathbf u\times\mathbf v'.
+      \]
+      순서가 중요한 외적에서는 특히 얌전히 순서를 지켜야 한다.</p>
+  </section>
+
+  <section id="ch3-3">
+    <h2>3.3 호의 길이와 곡률</h2>
+    <p>곡선의 길이는 아주 작은 직선 조각들을 더한 극한이다. \(\mathbf r(t)\)가 \(a\le t\le b\)에서 매끄럽다면 호의 길이는
+      \[
+      L=\int_a^b \|\mathbf r'(t)\|\,dt.
+      \]
+      여기서 \(\|\mathbf r'(t)\|\)는 속력이다. 즉 길이는 “얼마나 오래 움직였나”가 아니라 “매 순간 얼마나 빠르게 움직였나를 누적한 것”이다. 예를 들어 \(\mathbf r(t)=\langle 3t,4t\rangle\), \(0\le t\le1\)이면 \(\|\mathbf r'(t)\|=5\)라서 길이는 \(5\)다. 좌표는 두 개지만 피타고라스는 여전히 묵묵히 일한다.</p>
+    <p>곡률 \(\kappa\)는 곡선이 얼마나 급하게 방향을 바꾸는지 재는 양이다. 단위 접벡터를 \(\mathbf T=\mathbf r'/\|\mathbf r'\|\), 호의 길이를 \(s\)라 하면
+      \[
+      \kappa=\left\|\frac{d\mathbf T}{ds}\right\|.
+      \]
+      실제 계산에서는
+      \[
+      \kappa=\frac{\|\mathbf r'(t)\times\mathbf r''(t)\|}{\|\mathbf r'(t)\|^3}
+      \]
+      를 자주 쓴다. 직선은 방향이 변하지 않으므로 곡률이 \(0\), 반지름 \(a\)인 원은 \(\kappa=1/a\)다. 큰 원은 완만하고 작은 원은 성질이 급하다. 곡률은 곡선의 성격을 꽤 솔직하게 폭로한다.</p>
+  </section>
+
+  <section id="ch3-4">
+    <h2>3.4 공간에서의 운동</h2>
+    <p>위치가 \(\mathbf r(t)\)라면 속도와 가속도는
+      \[
+      \mathbf v(t)=\mathbf r'(t),\qquad \mathbf a(t)=\mathbf v'(t)=\mathbf r''(t)
+      \]
+      다. 속도의 크기 \(\|\mathbf v(t)\|\)가 속력이고, 가속도는 속도의 크기뿐 아니라 방향 변화까지 함께 담는다. 그래서 등속 원운동은 속력은 일정해도 가속도가 \(0\)이 아니다. 방향이 계속 바뀌기 때문이다. 물리에서 “움직임을 벡터로 보라”는 말은 결국 방향도 계산서에 넣으라는 뜻이다.</p>
+    <p>가속도는 접선 방향 성분과 법선 방향 성분으로 나눌 수 있다.
+      \[
+      \mathbf a=a_T\mathbf T+a_N\mathbf N,\qquad
+      a_T=\frac{d}{dt}\|\mathbf v\|,\qquad
+      a_N=\kappa\|\mathbf v\|^2.
+      \]
+      \(a_T\)는 속력이 빨라지거나 느려지는 정도이고, \(a_N\)은 궤도가 휘어서 생기는 방향 전환의 세기다. 포물선 운동에서는 \(\mathbf r(t)=\langle v_0\cos\theta\,t,\;v_0\sin\theta\,t-\frac12gt^2\rangle\)처럼 놓고 속도와 가속도를 읽는다. 중력 가속도는 아래쪽으로 일정하지만, 궤적은 성분들이 합쳐져 우아한 포물선을 만든다.</p>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 한 조각</h3>
+    <p>벡터값 함수는 “점의 일기장”이다. \(t\)번째 줄에는 점이 어디에 있는지 적혀 있고, 미분하면 그 줄 사이의 움직임이 드러난다. 호의 길이는 일기장 전체를 따라 실제 걸어간 거리, 곡률은 그 길 위에서 핸들을 얼마나 꺾었는지에 해당한다.</p>
+  </aside>
+
+  <section class="recap">
+    <h3>3장 요약</h3>
+    <ul>
+      <li>\(\mathbf r(t)=\langle f(t),g(t),h(t)\rangle\)는 곡선을 매개화하고, \(t\)의 증가 방향이 곡선의 진행 방향을 정한다.</li>
+      <li>벡터값 함수의 미분과 적분은 성분별로 계산하며, \(\mathbf r'(t)\)는 접벡터이자 속도 벡터다.</li>
+      <li>호의 길이는 \(L=\int_a^b\|\mathbf r'(t)\|\,dt\), 곡률은 방향 변화율을 재는 양이다.</li>
+      <li>공간 운동에서는 \(\mathbf v=\mathbf r'\), \(\mathbf a=\mathbf r''\)이고, 가속도는 접선 성분과 법선 성분으로 해석할 수 있다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch4">
+  <header>
+    <div class="chapter-number">4장</div>
+    <h1>다변수 함수의 미분</h1>
+    <p>현실의 함수는 대개 입력을 하나만 받지 않는다. 온도는 위치와 시간에 따라 변하고, 비용은 재료와 인건비와 수량에 따라 변한다. 4장은 여러 입력을 가진 함수에서 변화율을 읽는 법을 배운다.</p>
+  </header>
+
+  <section id="ch4-1">
+    <h2>4.1 여러 변수의 함수</h2>
+    <p>두 변수 함수 \(f(x,y)\)는 입력쌍 \((x,y)\)에 실수 하나를 대응시킨다. 그래프는 보통 \(z=f(x,y)\)라는 곡면이고, 정의역은 함수가 의미 있게 계산되는 평면의 영역이다. 예를 들어 \(f(x,y)=\sqrt{9-x^2-y^2}\)의 정의역은 \(x^2+y^2\le9\)인 원판이며, 그래프는 반지름 \(3\)인 구의 윗부분이다. 세 변수 함수 \(f(x,y,z)\)는 그래프로 그리기 어렵지만, “공간의 각 점에 숫자 라벨을 붙인다”고 생각하면 된다.</p>
+    <p>다변수 함수를 시각화할 때는 등위집합이 큰 도움을 준다. \(f(x,y)=c\)는 등고선, \(f(x,y,z)=c\)는 등위면이다. 산 지도에서 같은 고도를 이은 선이 등고선인 것처럼, \(f(x,y)=x^2+y^2\)의 등고선은 \(x^2+y^2=c\), 즉 중심이 원점인 원들이다. 그래프가 머릿속에서 안 보일 때 등고선은 꽤 믿음직한 손전등이 되어 준다.</p>
+  </section>
+
+  <section id="ch4-2">
+    <h2>4.2 극한과 연속</h2>
+    <p>다변수 극한 \(\lim_{(x,y)\to(a,b)}f(x,y)=L\)은 \((x,y)\)가 어떤 경로로 \((a,b)\)에 다가가도 함수값이 \(L\)로 가까워진다는 뜻이다. 한 변수에서는 왼쪽과 오른쪽만 조심하면 됐지만, 평면에서는 길이 무한히 많다. 그래서 두 경로에서 서로 다른 값이 나오면 극한은 바로 탈락이다. 예를 들어
+      \[
+      f(x,y)=\frac{x^2-y^2}{x^2+y^2}
+      \]
+      는 \(y=0\)으로 가면 \(1\), \(x=0\)으로 가면 \(-1\)이므로 원점에서 극한이 없다.</p>
+    <p>반대로 극한이 존재함을 보일 때는 경로 몇 개만 검사해서는 부족하다. 이때는 부등식으로 함수값을 눌러 잡거나 극좌표를 쓴다. \((x,y)=(r\cos\theta,r\sin\theta)\)로 두면 원점 접근은 \(r\to0^+\)가 되고, \(\theta\)와 무관하게 \(0\)으로 가는 상계를 찾으면 좋다. 연속성은 한 변수 때처럼 “함수값과 극한값이 일치”하는 성질이다. 다항식, 유리함수, 지수함수, 삼각함수의 합성과 조합은 정의되는 곳에서 연속이라는 사실도 여전히 든든한 기본 장비다.</p>
+  </section>
+
+  <section id="ch4-3">
+    <h2>4.3 편도함수</h2>
+    <p>편도함수는 여러 변수 중 하나만 움직이고 나머지는 잠시 고정해서 보는 변화율이다.
+      \[
+      f_x(a,b)=\lim_{h\to0}\frac{f(a+h,b)-f(a,b)}{h},\qquad
+      f_y(a,b)=\lim_{h\to0}\frac{f(a,b+h)-f(a,b)}{h}.
+      \]
+      \(f_x\)는 \(x\)방향으로 자른 단면 곡선의 기울기, \(f_y\)는 \(y\)방향 단면의 기울기다. 예를 들어 \(f(x,y)=x^2y+\sin y\)이면 \(y\)를 상수처럼 보고 \(f_x=2xy\), \(x\)를 상수처럼 보고 \(f_y=x^2+\cos y\)다.</p>
+    <p>두 번 미분한 \(f_{xx}, f_{yy}, f_{xy}, f_{yx}\)도 중요하다. \(f_{xy}\)는 먼저 \(x\)에 대해, 그다음 \(y\)에 대해 미분한다는 뜻이다. 함수와 관련 도함수가 충분히 연속이면 클레로 정리에 의해 \(f_{xy}=f_{yx}\)가 된다. 순서를 바꿔도 되는 건 선물 같은 일이지만, 선물 포장지에는 “연속성 조건 확인”이라고 작게 적혀 있다.</p>
+  </section>
+
+  <section id="ch4-4">
+    <h2>4.4 접평면과 선형근사</h2>
+    <p>한 변수 함수에서 접선이 그래프를 국소적으로 잘 대신하듯, \(z=f(x,y)\)에서는 접평면이 곡면을 가까이에서 대신한다. 점 \((a,b)\)에서 \(f_x, f_y\)가 잘 behaved하면 접평면은
+      \[
+      z=f(a,b)+f_x(a,b)(x-a)+f_y(a,b)(y-b).
+      \]
+      이 식은 \(x\)방향으로 조금 가면 \(f_x\)만큼, \(y\)방향으로 조금 가면 \(f_y\)만큼 높이가 바뀐다는 정보를 한 평면에 담는다.</p>
+    <p>선형근사는 같은 식을 계산 도구로 쓰는 것이다.
+      \[
+      f(x,y)\approx L(x,y)=f(a,b)+f_x(a,b)(x-a)+f_y(a,b)(y-b).
+      \]
+      예를 들어 \(\sqrt{x^2+y^2}\)를 \((3,4)\) 근처에서 근사하면 \(f(3,4)=5\), \(f_x(3,4)=3/5\), \(f_y(3,4)=4/5\)이므로 \(L(x,y)=5+\frac35(x-3)+\frac45(y-4)\)다. 복잡한 곡면도 아주 가까이에서는 평면처럼 행동한다. 미적분은 이 “가까이에서는 단순하다”는 태도를 끝까지 밀고 간다.</p>
+  </section>
+
+  <section id="ch4-5">
+    <h2>4.5 연쇄법칙</h2>
+    <p>다변수 함수의 연쇄법칙은 의존 관계를 따라 변화율을 전달한다. \(z=f(x,y)\), \(x=x(t)\), \(y=y(t)\)이면
+      \[
+      \frac{dz}{dt}=f_x(x(t),y(t))\frac{dx}{dt}+f_y(x(t),y(t))\frac{dy}{dt}.
+      \]
+      \(z\)는 \(x\)를 통해서도 변하고 \(y\)를 통해서도 변하므로, 두 경로의 기여를 더한다. 이 식은 “전체 변화율 = 각 입력의 민감도 × 그 입력의 변화율”이라는 문장으로 읽으면 덜 무섭다.</p>
+    <p>입력이 다시 여러 변수에 의존하면 가지가 더 많아진다. \(z=f(x,y)\), \(x=x(s,t)\), \(y=y(s,t)\)라면
+      \[
+      \frac{\partial z}{\partial s}=f_x\frac{\partial x}{\partial s}+f_y\frac{\partial y}{\partial s},\qquad
+      \frac{\partial z}{\partial t}=f_x\frac{\partial x}{\partial t}+f_y\frac{\partial y}{\partial t}.
+      \]
+      의존 관계가 복잡할수록 그림을 그리면 좋다. 변수들을 노드로 두고 화살표를 따라 미분을 곱한 뒤, 같은 출발점에서 같은 도착점으로 가는 경로들을 더한다. 계산이 아니라 배선도에 가깝다.</p>
+  </section>
+
+  <section id="ch4-6">
+    <h2>4.6 방향도함수와 그래디언트</h2>
+    <p>편도함수는 좌표축 방향의 변화율만 알려 준다. 임의의 단위벡터 \(\mathbf u=\langle u_1,u_2\rangle\) 방향으로의 변화율은 방향도함수
+      \[
+      D_{\mathbf u}f(a,b)=\lim_{h\to0}\frac{f(a+hu_1,b+hu_2)-f(a,b)}{h}
+      \]
+      로 정의한다. \(f\)가 미분 가능하면 계산은 훨씬 간단해져서
+      \[
+      D_{\mathbf u}f(a,b)=\nabla f(a,b)\cdot\mathbf u
+      \]
+      이다. 여기서 \(\nabla f=\langle f_x,f_y\rangle\)는 그래디언트다.</p>
+    <p>그래디언트는 가장 빠르게 증가하는 방향을 가리키며, 그때의 최대 변화율은 \(\|\nabla f\|\)다. 내적 공식에서 \(\nabla f\cdot\mathbf u=\|\nabla f\|\cos\theta\)이므로 \(\mathbf u\)가 그래디언트와 같은 방향일 때 최대가 된다. 또한 그래디언트는 등고선에 수직이다. 등고선을 따라 움직이면 함수값이 변하지 않으니 방향도함수가 \(0\), 따라서 그 방향은 그래디언트와 직교한다. 산길에서 등고선을 따라 걷는 일과 가장 가파른 오르막이 서로 직각인 이유다.</p>
+  </section>
+
+  <section id="ch4-7">
+    <h2>4.7 최대·최소 문제</h2>
+    <p>두 변수 함수의 국소 극값 후보는 내부에서 \(\nabla f(a,b)=\mathbf0\)이 되는 임계점이다. 하지만 기울기가 \(0\)이라고 해서 꼭 정상은 아니다. 안장점은 한 방향으로는 올라가고 다른 방향으로는 내려가는 얄미운 지형이다. 두 번째 편도함수 판정법은
+      \[
+      D=f_{xx}(a,b)f_{yy}(a,b)-[f_{xy}(a,b)]^2
+      \]
+      를 사용한다. \(D>0\)이고 \(f_{xx}>0\)이면 국소 최소, \(D>0\)이고 \(f_{xx}<0\)이면 국소 최대, \(D<0\)이면 안장점이다. \(D=0\)이면 판정이 보류된다. 수학도 가끔은 “더 조사 필요”라고 말한다.</p>
+    <p>닫히고 유계인 영역에서 연속함수는 절대최대와 절대최소를 가진다. 찾는 절차는 차분하다. 먼저 내부 임계점을 찾고, 그다음 경계에서의 후보를 찾고, 마지막으로 함수값을 비교한다. 경계가 \(x^2+y^2=1\) 같은 곡선이면 매개화하거나 다음 절의 라그랑주 승수를 쓸 수 있다. 최적화 문제에서 가장 흔한 실수는 내부만 보고 경계를 잊는 것이다. 문은 벽에도 있다.</p>
+  </section>
+
+  <section id="ch4-8">
+    <h2>4.8 라그랑주 승수</h2>
+    <p>제약조건 \(g(x,y)=c\) 아래에서 \(f(x,y)\)의 극값을 찾을 때, 라그랑주 승수법은
+      \[
+      \nabla f(x,y)=\lambda\nabla g(x,y),\qquad g(x,y)=c
+      \]
+      를 푼다. 이유는 기하적이다. 제약곡선 위의 최적점에서는 \(f\)의 등고선이 제약곡선과 접한다. 두 곡선이 접하면 법선 방향이 나란하고, 등고선의 법선은 그래디언트다. 그래서 두 그래디언트가 평행하다는 조건이 나온다.</p>
+    <p>예를 들어 \(f(x,y)=xy\)를 \(x^2+y^2=1\)에서 최대로 하려면 \(\langle y,x\rangle=\lambda\langle2x,2y\rangle\)와 \(x^2+y^2=1\)을 푼다. 대칭성을 이용하면 \(x=y=\pm1/\sqrt2\)에서 \(xy=1/2\), \(x=-y\)에서 \(xy=-1/2\)가 되어 최대와 최소가 보인다. 여러 제약조건이 있으면 \(\nabla f=\lambda\nabla g+\mu\nabla h\)처럼 승수가 늘어난다. 제약이 많아질수록 그래디언트들의 합창도 화음이 복잡해진다.</p>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 한 조각</h3>
+    <p>다변수 미분은 “어느 방향으로 조금 움직이면 값이 어떻게 바뀌는가”를 묻는 기술이다. 편도함수는 동서남북 중 두 축만 먼저 살피는 일, 그래디언트는 전체 지형에서 가장 가파른 오르막 표지판, 라그랑주 승수는 울타리 안에서 가장 높은 지점을 찾는 방법이다.</p>
+  </aside>
+
+  <section class="recap">
+    <h3>4장 요약</h3>
+    <ul>
+      <li>다변수 함수는 정의역, 그래프, 등고선·등위면을 함께 보면 구조가 훨씬 잘 보인다.</li>
+      <li>다변수 극한은 모든 접근 경로에서 같은 값이어야 하며, 연속성은 극한과 함수값의 일치다.</li>
+      <li>편도함수는 한 변수만 변화시킨 변화율이고, 접평면과 선형근사는 곡면의 국소적 평면 모델이다.</li>
+      <li>연쇄법칙은 의존 경로를 따라 변화율을 곱하고 더하며, 그래디언트는 최대 증가 방향과 크기를 알려 준다.</li>
+      <li>최적화에서는 내부 임계점과 경계를 모두 확인하고, 제약조건이 있으면 라그랑주 승수법을 사용할 수 있다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch5">
+  <header>
+    <p class="chapter-number">5장</p>
+    <h1>중적분</h1>
+    <p>
+      한 변수 적분이 선분을 잘게 잘라 더하는 기술이었다면, 중적분은 평면과 공간을 작은 조각으로 나누어 더하는 기술이다.
+      넓이, 부피, 질량, 무게중심, 관성모멘트처럼 "어디에 얼마나 퍼져 있는가"를 묻는 문제들이 이 장에서 한 줄로 연결된다.
+      핵심은 늘 같다. 작은 조각 하나의 기여를 쓰고, 전체 영역에 걸쳐 빠짐없이 더한다.
+    </p>
+  </header>
+
+  <section id="ch5-1">
+    <h2>5.1 직사각형 영역에서의 이중적분</h2>
+    <p>
+      직사각형 \(R=[a,b]\times[c,d]\) 위의 함수 \(f(x,y)\)를 적분한다는 것은, \(R\)을 작은 직사각형들로 나눈 뒤 각 조각에서
+      높이 \(f(x_{ij}^*,y_{ij}^*)\)와 바닥넓이 \(\Delta A\)를 곱해 모두 더한다는 뜻이다.
+      \(f\ge0\)이면 이 값은 표면 \(z=f(x,y)\) 아래, \(xy\)-평면 위에 놓인 입체의 부피다.
+      \(f\)가 음수가 될 수 있으면 양의 부피와 음의 부피를 부호 있게 합한 값으로 읽는다.
+    </p>
+    <div class="formula-box">
+      \[
+        \iint_R f(x,y)\,dA
+        =\lim_{m,n\to\infty}\sum_{i=1}^{m}\sum_{j=1}^{n}
+          f(x_{ij}^*,y_{ij}^*)\,\Delta A
+      \]
+    </div>
+    <p>
+      계산할 때는 푸비니 정리가 든든한 지름길이 된다. \(f\)가 직사각형에서 연속이면 이중적분을 두 번의 한 변수 적분으로 바꿀 수 있다.
+      안쪽 적분은 한 변수를 잠시 상수로 붙잡고 계산한다. 예를 들어 \(R=[0,2]\times[0,1]\)에서
+      \[
+        \iint_R (x+2y)\,dA
+        =\int_0^1\int_0^2 (x+2y)\,dx\,dy
+        =\int_0^1 (2+4y)\,dy=4.
+      \]
+      평균값도 자연스럽다. \(f_{\text{avg}}=\frac{1}{A(R)}\iint_R f\,dA\)는 직사각형 전체에 \(f\)를 고르게 펴 발랐을 때의 높이다.
+    </p>
+  </section>
+
+  <section id="ch5-2">
+    <h2>5.2 일반 영역에서의 이중적분</h2>
+    <p>
+      실제 영역은 직사각형처럼 얌전하게 생기지 않는 경우가 많다. 그래도 한 방향으로 훑었을 때 시작 곡선과 끝 곡선이 분명하면 적분 범위를 쓸 수 있다.
+      \(x\)를 먼저 고정해 세로로 자르면 \(D=\{(x,y):a\le x\le b,\ g_1(x)\le y\le g_2(x)\}\) 꼴이고,
+      이때는 안쪽 적분의 경계가 \(y=g_1(x)\)에서 \(y=g_2(x)\)까지가 된다.
+    </p>
+    <div class="formula-box">
+      \[
+        \iint_D f(x,y)\,dA
+        =\int_a^b\int_{g_1(x)}^{g_2(x)} f(x,y)\,dy\,dx
+      \]
+      \[
+        D=\{(x,y):c\le y\le d,\ h_1(y)\le x\le h_2(y)\}
+        \quad\Longrightarrow\quad
+        \iint_D f\,dA=\int_c^d\int_{h_1(y)}^{h_2(y)} f(x,y)\,dx\,dy.
+      \]
+    </div>
+    <p>
+      적분 순서를 바꾸는 일은 단순한 계산 기술이 아니라 영역을 다시 그려 보는 일이다.
+      예를 들어 \(D=\{(x,y):0\le x\le1,\ 0\le y\le x\}\)는 \(x\)-축, \(x=1\), \(y=x\)로 둘러싸인 삼각형이다.
+      따라서
+      \[
+        \int_0^1\int_0^x (x+y)\,dy\,dx
+        =\int_0^1\int_y^1 (x+y)\,dx\,dy
+        =\frac12.
+      \]
+      어느 순서가 더 쉬운지는 함수와 영역이 함께 결정한다. 계산이 꼬이면 펜을 내려놓고 그림부터 다시 보는 것이 의외로 가장 빠르다.
+    </p>
+  </section>
+
+  <section id="ch5-3">
+    <h2>5.3 극좌표에서의 이중적분</h2>
+    <p>
+      원, 부채꼴, 나선처럼 둥근 대칭이 보이면 직교좌표보다 극좌표가 훨씬 자연스럽다.
+      \(x=r\cos\theta,\ y=r\sin\theta\)로 두면 원점에서의 거리와 방향으로 점을 나타낸다.
+      이때 넓이 조각은 단순히 \(dr\,d\theta\)가 아니라 \(r\,dr\,d\theta\)다.
+      반지름 \(r\) 근처의 작은 부채꼴은 호의 길이가 대략 \(r\,d\theta\), 두께가 \(dr\)이기 때문이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \iint_D f(x,y)\,dA
+        =\int_{\alpha}^{\beta}\int_{r_1(\theta)}^{r_2(\theta)}
+          f(r\cos\theta,r\sin\theta)\,r\,dr\,d\theta
+      \]
+    </div>
+    <p>
+      예를 들어 단위원판 \(D:x^2+y^2\le1\)에서 \(x^2+y^2\)를 적분하면 \(x^2+y^2=r^2\), \(dA=r\,dr\,d\theta\)이므로
+      \[
+        \iint_D (x^2+y^2)\,dA
+        =\int_0^{2\pi}\int_0^1 r^3\,dr\,d\theta
+        =\frac{\pi}{2}.
+      \]
+      극좌표에서 자주 하는 실수는 마지막의 \(r\)을 빠뜨리는 것이다.
+      그 \(r\) 하나가 원점 근처의 작은 조각과 바깥쪽의 긴 조각이 같은 넓이가 아니라는 사실을 보정해 준다.
+    </p>
+  </section>
+
+  <section id="ch5-4">
+    <h2>5.4 삼중적분</h2>
+    <p>
+      삼중적분은 공간 영역 \(E\)를 작은 상자들로 잘라 함수 \(f(x,y,z)\)의 값을 더한다.
+      \(f=1\)이면 \(\iiint_E 1\,dV\)는 \(E\)의 부피이고, \(f\)가 밀도 \(\rho\)이면 \(\iiint_E \rho\,dV\)는 질량이다.
+      한 변수에서 길이, 두 변수에서 넓이, 세 변수에서 부피가 등장할 뿐, 리만합의 정신은 그대로다.
+    </p>
+    <div class="formula-box">
+      \[
+        \iiint_E f(x,y,z)\,dV
+        =\lim\sum f(x_{ijk}^*,y_{ijk}^*,z_{ijk}^*)\,\Delta V
+      \]
+    </div>
+    <p>
+      직육면체 \(B=[a,b]\times[c,d]\times[p,q]\)에서는 세 번의 반복적분으로 계산한다.
+      일반 영역에서는 먼저 바닥 영역 \(D\)를 \(xy\)-평면에 잡고, 그 위에서 \(z\)가 아래 표면 \(u_1(x,y)\)부터 위 표면 \(u_2(x,y)\)까지 움직인다고 쓰는 방식이 흔하다.
+      \[
+        \iiint_E f\,dV
+        =\iint_D\int_{u_1(x,y)}^{u_2(x,y)} f(x,y,z)\,dz\,dA.
+      \]
+      예컨대 \(0\le x\le1,\ 0\le y\le2,\ 0\le z\le x+y\)인 입체의 부피는
+      \[
+        \int_0^1\int_0^2\int_0^{x+y}1\,dz\,dy\,dx=3.
+      \]
+    </p>
+  </section>
+
+  <section id="ch5-5">
+    <h2>5.5 원기둥좌표와 구면좌표에서의 삼중적분</h2>
+    <p>
+      공간에서도 대칭을 잘 고르면 적분이 훨씬 가벼워진다.
+      원기둥좌표는 \(x=r\cos\theta,\ y=r\sin\theta,\ z=z\)로, \(z\)-축을 중심으로 둥근 입체에 잘 맞는다.
+      부피 조각은 평면에서와 마찬가지로 \(dV=r\,dz\,dr\,d\theta\) 또는 순서에 맞게 \(r\)을 곱한 형태다.
+      원기둥 \(x^2+y^2\le a^2,\ 0\le z\le h\)의 부피는
+      \[
+        \int_0^{2\pi}\int_0^a\int_0^h r\,dz\,dr\,d\theta=\pi a^2h
+      \]
+      로 바로 나온다.
+    </p>
+    <div class="formula-box">
+      \[
+        \text{원기둥좌표:}\quad x=r\cos\theta,\quad y=r\sin\theta,\quad dV=r\,dz\,dr\,d\theta
+      \]
+      \[
+        \text{구면좌표:}\quad
+        x=\rho\sin\phi\cos\theta,\quad
+        y=\rho\sin\phi\sin\theta,\quad
+        z=\rho\cos\phi,\quad
+        dV=\rho^2\sin\phi\,d\rho\,d\phi\,d\theta.
+      \]
+    </div>
+    <p>
+      구면좌표는 원점에서의 거리 \(\rho\), 양의 \(z\)-축에서 내려오는 각 \(\phi\), \(xy\)-평면에서 도는 각 \(\theta\)로 점을 나타낸다.
+      구, 원뿔, 원점 중심의 껍질 문제에서 특히 강하다.
+      반지름 \(a\)인 공의 부피도
+      \[
+        \int_0^{2\pi}\int_0^\pi\int_0^a \rho^2\sin\phi\,d\rho\,d\phi\,d\theta
+        =\frac{4}{3}\pi a^3
+      \]
+      처럼 한 줄로 정리된다. 여기서 \(\rho^2\sin\phi\)는 좌표 격자가 공간에서 얼마나 늘어나는지를 말해 주는 부피 보정계수다.
+    </p>
+  </section>
+
+  <section id="ch5-6">
+    <h2>5.6 질량중심과 관성모멘트 계산</h2>
+    <p>
+      적분은 단순히 크기를 재는 데서 끝나지 않는다. 물체가 어디에 무게를 두고 있는지, 회전에 얼마나 버티는지도 계산한다.
+      평면 얇은 판 \(D\)의 밀도가 \(\rho(x,y)\)이면 질량은 \(m=\iint_D \rho\,dA\)이고,
+      \(x\)-축과 \(y\)-축에 대한 모멘트는 각각 \(M_x=\iint_D y\rho\,dA\), \(M_y=\iint_D x\rho\,dA\)이다.
+      질량중심은 모멘트를 질량으로 나눈 점이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \bar{x}=\frac{M_y}{m}
+        =\frac{1}{m}\iint_D x\rho(x,y)\,dA,\qquad
+        \bar{y}=\frac{M_x}{m}
+        =\frac{1}{m}\iint_D y\rho(x,y)\,dA
+      \]
+    </div>
+    <p>
+      공간 물체도 같은 원리다. \(m=\iiint_E\rho\,dV\)이고
+      \[
+        \bar{x}=\frac{1}{m}\iiint_E x\rho\,dV,\quad
+        \bar{y}=\frac{1}{m}\iiint_E y\rho\,dV,\quad
+        \bar{z}=\frac{1}{m}\iiint_E z\rho\,dV.
+      \]
+      관성모멘트는 축에서 멀수록 회전에 더 큰 영향을 준다는 생각을 \(거리^2\times 질량\)으로 적분한 것이다.
+      평면 판에서는 \(I_x=\iint_D y^2\rho\,dA\), \(I_y=\iint_D x^2\rho\,dA\), 원점에 대한 극관성모멘트는
+      \(I_0=I_x+I_y=\iint_D (x^2+y^2)\rho\,dA\)이다.
+      무게중심은 "균형점", 관성모멘트는 "돌리기 어려운 정도"라고 기억하면 공식의 표정이 한결 부드러워진다.
+    </p>
+  </section>
+
+  <section id="ch5-7">
+    <h2>5.7 중적분에서의 변수변환</h2>
+    <p>
+      변수변환은 영역을 더 편한 좌표망으로 다시 그리는 기술이다.
+      한 변수 치환에서 \(dx\)가 \(\frac{dx}{du}\,du\)로 바뀌었듯, 두 변수에서는 작은 넓이가 얼마나 늘어나거나 줄어드는지를 야코비안이 알려 준다.
+      \(x=x(u,v),\ y=y(u,v)\)이고 변환이 적절히 일대일이면
+      \[
+        dA=\left|\frac{\partial(x,y)}{\partial(u,v)}\right|\,du\,dv
+      \]
+      로 바꾼다. 절댓값을 붙이는 이유는 넓이가 방향을 갖지 않기 때문이다.
+    </p>
+    <div class="formula-box">
+      \[
+        \iint_R f(x,y)\,dA
+        =\iint_S f(x(u,v),y(u,v))
+          \left|\frac{\partial(x,y)}{\partial(u,v)}\right|\,du\,dv
+      \]
+      \[
+        \frac{\partial(x,y)}{\partial(u,v)}
+        =
+        \begin{vmatrix}
+          \dfrac{\partial x}{\partial u} & \dfrac{\partial x}{\partial v}\\[4pt]
+          \dfrac{\partial y}{\partial u} & \dfrac{\partial y}{\partial v}
+        \end{vmatrix}.
+      \]
+    </div>
+    <p>
+      극좌표는 이 공식의 대표 사례다. \(x=r\cos\theta,\ y=r\sin\theta\)이면 야코비안은 \(r\)이고, 그래서 \(dA=r\,dr\,d\theta\)가 된다.
+      평행사변형처럼 기울어진 영역도 변수변환으로 직사각형이 될 수 있다.
+      예를 들어 \(x=u+v,\ y=u-v\)이면 야코비안은 \(-2\)라서 넓이 보정계수는 \(2\)이다.
+      좌표를 바꾸면 함수만 바뀌는 것이 아니라 조각의 크기도 바뀐다. 변수변환의 절반은 새 좌표로 식을 예쁘게 만드는 일이고, 나머지 절반은 야코비안으로 면적 장부를 정확히 맞추는 일이다.
+    </p>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 한 스푼</h3>
+    <p>
+      중적분을 어렵게 만드는 것은 기호가 아니라 영역이다.
+      먼저 영역을 그리고, 작은 조각의 모양을 고르고, 그 조각 하나가 무엇을 기여하는지 적어 보자.
+      직사각형 조각이면 \(dA\), 부채꼴 조각이면 \(r\,dr\,d\theta\), 구면 껍질 조각이면 \(\rho^2\sin\phi\,d\rho\,d\phi\,d\theta\)가 나온다.
+      공식은 외우는 물건이기도 하지만, 사실은 작은 조각들이 남긴 발자국이다.
+    </p>
+  </aside>
+
+  <section class="recap">
+    <h3>5장 정리</h3>
+    <ul>
+      <li>이중적분은 평면 영역 위의 함수값을 작은 넓이 조각과 곱해 더한 극한이며, \(f\ge0\)일 때 표면 아래의 부피를 준다.</li>
+      <li>푸비니 정리는 적절한 조건에서 이중적분과 삼중적분을 반복적분으로 계산하게 해 준다.</li>
+      <li>일반 영역에서는 먼저 영역을 그린 뒤, 한 변수를 고정했을 때 다른 변수가 어디서 어디까지 움직이는지 읽는다.</li>
+      <li>극좌표, 원기둥좌표, 구면좌표에서는 좌표 조각의 크기가 달라지므로 각각 \(r\), \(r\), \(\rho^2\sin\phi\) 보정계수가 붙는다.</li>
+      <li>질량, 질량중심, 관성모멘트는 밀도에 위치 또는 거리의 제곱을 곱해 적분하는 방식으로 계산한다.</li>
+      <li>변수변환에서는 함수와 영역뿐 아니라 넓이 또는 부피 조각의 스케일도 바뀌며, 그 스케일을 야코비안이 담당한다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch6">
+  <header>
+    <p class="chapter-number">6장</p>
+    <h1>벡터해석</h1>
+    <p>벡터해석은 “공간 곳곳에 방향이 붙어 있다면 미적분은 무엇을 계산할까?”라는 질문에서 출발한다. 바람의 속도장, 전기장, 유체의 흐름, 중력장처럼 점마다 벡터가 놓인 상황에서는 함수값 하나보다 흐름, 회전, 빠져나감이 더 중요해진다. 이번 장의 적분들은 선을 따라 더하고, 면을 통과하는 양을 세고, 부피 안에서 생기는 총량을 경계에서 읽어 내는 방식으로 서로 연결된다.</p>
+  </header>
+
+  <section id="ch6-1">
+    <h2>6.1 벡터장</h2>
+    <p>벡터장은 평면이나 공간의 각 점에 벡터 하나를 붙인 것이다. 평면에서는 보통 \(\mathbf F(x,y)=\langle P(x,y),Q(x,y)\rangle\), 공간에서는 \(\mathbf F(x,y,z)=\langle P,Q,R\rangle\)처럼 쓴다. 예를 들어 \(\langle x,y\rangle\)는 원점에서 바깥으로 밀어내는 방사형 장이고, \(\langle -y,x\rangle\)는 원점 주위를 반시계방향으로 도는 회전형 장이다. 그림을 그릴 때는 모든 점에 화살표를 다 꽂지 말고, 격자점 몇 개를 골라 방향과 크기 변화를 읽으면 충분하다.</p>
+    <p>중요한 벡터장 하나는 그래디언트장이다. 스칼라 함수 \(f(x,y,z)\)가 높이, 온도, 전위처럼 “값의 지형”을 만들면 \(\nabla f\)는 그 값이 가장 빠르게 증가하는 방향을 가리킨다. 그래서 그래디언트장은 등위면에 수직이고, 나중에 보게 될 보존장과도 바로 이어진다. 짧게 말해 벡터장은 공간에 깔린 방향의 지도이고, 그래디언트장은 그중에서도 어떤 스칼라 풍경의 경사 지도다.</p>
+    <div class="formula-box">
+      \[
+        \mathbf F(x,y)=\langle P(x,y),Q(x,y)\rangle,\qquad
+        \mathbf F(x,y,z)=\langle P,Q,R\rangle
+      \]
+      \[
+        \nabla f=\left\langle f_x,f_y,f_z\right\rangle,\qquad
+        \mathbf F=\nabla f \text{이면 그래디언트장}
+      \]
+      \[
+        \langle x,y\rangle \text{은 바깥쪽 흐름},\qquad
+        \langle -y,x\rangle \text{은 회전 흐름}
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-2">
+    <h2>6.2 선적분</h2>
+    <p>선적분은 곡선을 따라 값을 더하는 적분이다. 스칼라 함수 \(f\)의 선적분 \(\int_C f\,ds\)는 곡선 위를 작은 길이 조각 \(ds\)로 나누고, 각 조각에서 \(f\)를 곱해 더한다. 곡선이 \(\mathbf r(t)\), \(a\le t\le b\)로 주어지면 \(ds=\|\mathbf r'(t)\|dt\)이므로 계산은 한 변수 적분으로 바뀐다. 예를 들어 \(f(x,y)=x+y\), \(\mathbf r(t)=\langle t,t\rangle\), \(0\le t\le1\)이면 \(\int_C f\,ds=\sqrt2\int_0^1 2t\,dt=\sqrt2\)이다.</p>
+    <p>벡터장의 선적분 \(\int_C \mathbf F\cdot d\mathbf r\)는 곡선 방향으로 작용한 성분만 더한다. 물리적으로는 힘 \(\mathbf F\)가 경로 \(C\)를 따라 한 일(work)로 읽을 수 있다. 같은 곡선이라도 방향을 반대로 잡으면 벡터 선적분의 부호가 바뀌지만, 스칼라 선적분 \(\int_C f\,ds\)는 보통 방향과 무관하다. 즉 \(ds\)는 길이를 세고, \(d\mathbf r\)은 움직임의 방향까지 기억한다.</p>
+    <div class="formula-box">
+      \[
+        \int_C f\,ds=\int_a^b f(\mathbf r(t))\|\mathbf r'(t)\|\,dt
+      \]
+      \[
+        \int_C \mathbf F\cdot d\mathbf r
+        =\int_a^b \mathbf F(\mathbf r(t))\cdot \mathbf r'(t)\,dt
+      \]
+      \[
+        \mathbf F=\langle P,Q,R\rangle,\quad
+        d\mathbf r=\langle dx,dy,dz\rangle
+        \quad\Longrightarrow\quad
+        \mathbf F\cdot d\mathbf r=P\,dx+Q\,dy+R\,dz
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-3">
+    <h2>6.3 보존 벡터장</h2>
+    <p>보존 벡터장은 어떤 퍼텐셜 함수 \(f\)의 그래디언트로 쓸 수 있는 벡터장이다. \(\mathbf F=\nabla f\)이면 선적분은 경로의 세부 모양을 잊고 시작점과 끝점만 본다. 이것이 선적분의 기본정리다. 산길을 어떻게 구불구불 걸어도 고도 변화는 출발 고도와 도착 고도의 차이로 정해지는 것과 비슷하다. 예를 들어 \(\mathbf F=\langle 2xy,x^2+3y^2\rangle\)는 \(f=x^2y+y^3\)의 그래디언트이므로, \((0,0)\)에서 \((1,2)\)까지의 적분은 \(f(1,2)-f(0,0)=10\)이다.</p>
+    <p>평면에서 \(\mathbf F=\langle P,Q\rangle\)가 매끄럽고 영역에 구멍이 없을 때는 \(P_y=Q_x\)가 보존장 여부를 가르는 강력한 검사법이 된다. 공간에서는 \(\nabla\times\mathbf F=\mathbf 0\)이 같은 역할을 한다. 다만 “영역에 구멍이 없음”이라는 조건은 장식이 아니다. 원점이 빠진 평면 같은 곳에서는 국소적으로 회전이 없어 보여도 전역적으로는 경로 독립이 깨질 수 있다. 계산은 공식으로 하고, 판단은 영역의 모양까지 함께 보자.</p>
+    <div class="formula-box">
+      \[
+        \mathbf F=\nabla f
+        \quad\Longrightarrow\quad
+        \int_C \mathbf F\cdot d\mathbf r=f(\mathbf r(b))-f(\mathbf r(a))
+      \]
+      \[
+        \mathbf F=\langle P,Q\rangle,\quad
+        P_y=Q_x
+        \quad\text{on a simply connected region}
+        \quad\Longrightarrow\quad
+        \mathbf F \text{ is conservative}
+      \]
+      \[
+        \nabla\times\mathbf F=\mathbf 0
+        \quad\text{is the three-dimensional curl test.}
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-4">
+    <h2>6.4 그린 정리</h2>
+    <p>그린 정리는 닫힌 평면곡선 위의 선적분을 그 안쪽 영역의 이중적분으로 바꾼다. \(C\)가 단순폐곡선이고 양의 방향, 즉 내부를 왼쪽에 두는 반시계방향으로 돈다고 하자. 그러면 \(\oint_C P\,dx+Q\,dy\)는 영역 \(D\) 안에서의 작은 회전량 \(Q_x-P_y\)을 모두 더한 값과 같다. 경계에서 빙 도는 효과를 내부의 미세한 회전들이 합쳐 만든다고 보면 된다.</p>
+    <p>이 정리는 계산 요령으로도 아주 유용하다. 경계가 복잡하지만 영역이 단순하면 이중적분이 쉽고, 반대로 영역의 넓이를 선적분으로 구할 수도 있다. 특히 \(P=-y/2\), \(Q=x/2\)를 택하면 \(Q_x-P_y=1\)이어서 \(D\)의 넓이가 \(\frac12\oint_C x\,dy-y\,dx\)가 된다. 또 플럭스 형태의 그린 정리는 경계를 통과해 바깥으로 나가는 총량을 내부의 발산으로 계산하게 해 준다.</p>
+    <div class="formula-box">
+      \[
+        \oint_C P\,dx+Q\,dy
+        =
+        \iint_D \left(Q_x-P_y\right)\,dA
+      \]
+      \[
+        A(D)=\frac12\oint_C x\,dy-y\,dx
+      \]
+      \[
+        \oint_C \mathbf F\cdot\mathbf n\,ds
+        =
+        \oint_C P\,dy-Q\,dx
+        =
+        \iint_D (P_x+Q_y)\,dA
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-5">
+    <h2>6.5 발산과 회전</h2>
+    <p>발산 \(\nabla\cdot\mathbf F\)는 한 점 근처에서 벡터장이 얼마나 밖으로 퍼져 나가는지를 재는 양이다. 양수이면 작은 상자에서 더 많이 빠져나가고, 음수이면 더 많이 들어온다. 회전 \(\nabla\times\mathbf F\)는 그 점 주변의 국소적인 소용돌이 성향을 벡터로 나타낸다. 평면장 \(\langle P,Q\rangle\)에서는 회전의 \(z\)-성분 \(Q_x-P_y\)만 남기 때문에 스칼라처럼 다루는 경우가 많다.</p>
+    <p>이 둘은 그린 정리, 스토크스 정리, 발산 정리의 주인공이다. 발산은 “부피 안의 원천과 흡수”를 경계 플럭스로 연결하고, 회전은 “면 위의 미세한 회전”을 경계 순환으로 연결한다. 또한 \(\nabla\times(\nabla f)=\mathbf 0\)은 그래디언트장이 본질적으로 회전하지 않음을 말하고, \(\nabla\cdot(\nabla f)=\Delta f\)는 라플라시안으로 이어진다. 기호가 많아 보여도 핵심 질문은 두 개다. 여기서 흘러나가나? 여기서 도나?</p>
+    <div class="formula-box">
+      \[
+        \nabla\cdot\mathbf F=P_x+Q_y+R_z
+      \]
+      \[
+        \nabla\times\mathbf F
+        =
+        \left\langle R_y-Q_z,\; P_z-R_x,\; Q_x-P_y\right\rangle
+      \]
+      \[
+        \text{in the plane: }\quad
+        \operatorname{curl}\langle P,Q\rangle=Q_x-P_y
+      \]
+      \[
+        \nabla\times(\nabla f)=\mathbf 0,\qquad
+        \nabla\cdot(\nabla f)=\Delta f
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-6">
+    <h2>6.6 면적분</h2>
+    <p>면적분은 곡선 대신 곡면 위에서 값을 더한다. 곡면이 \(\mathbf r(u,v)\)로 매개화되어 있으면 두 접벡터 \(\mathbf r_u\), \(\mathbf r_v\)가 만드는 작은 평행사변형의 넓이는 \(\|\mathbf r_u\times\mathbf r_v\|\,du\,dv\)이다. 따라서 스칼라 함수의 면적분은 \(\iint_S f\,dS=\iint_D f(\mathbf r(u,v))\|\mathbf r_u\times\mathbf r_v\|\,du\,dv\)로 계산한다. 그래프 \(z=g(x,y)\)라면 \(dS=\sqrt{1+g_x^2+g_y^2}\,dA\)가 되어 조금 더 익숙한 모양이 된다.</p>
+    <p>벡터장의 면적분, 특히 플럭스 \(\iint_S \mathbf F\cdot\mathbf n\,dS\)는 곡면을 통과하는 흐름의 총량이다. 여기서는 방향이 중요하다. 같은 면이라도 법선벡터를 반대로 잡으면 부호가 바뀐다. 매개화에서는 \(\mathbf r_u\times\mathbf r_v\)가 방향이 있는 면적벡터 역할을 하므로 \(\mathbf F(\mathbf r(u,v))\cdot(\mathbf r_u\times\mathbf r_v)\)를 적분하면 된다. 닫힌 곡면에서는 보통 바깥쪽 법선을 양의 방향으로 약속한다.</p>
+    <div class="formula-box">
+      \[
+        dS=\|\mathbf r_u\times\mathbf r_v\|\,du\,dv
+      \]
+      \[
+        \iint_S f\,dS
+        =
+        \iint_D f(\mathbf r(u,v))\|\mathbf r_u\times\mathbf r_v\|\,du\,dv
+      \]
+      \[
+        \iint_S \mathbf F\cdot\mathbf n\,dS
+        =
+        \iint_D \mathbf F(\mathbf r(u,v))\cdot(\mathbf r_u\times\mathbf r_v)\,du\,dv
+      \]
+      \[
+        z=g(x,y),\quad
+        dS=\sqrt{1+g_x^2+g_y^2}\,dA,\quad
+        \mathbf n\,dS=\langle -g_x,-g_y,1\rangle\,dA
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-7">
+    <h2>6.7 스토크스 정리</h2>
+    <p>스토크스 정리는 그린 정리를 공간 곡면으로 끌어올린 결과다. 곡면 \(S\)의 경계가 \(C\)이고, \(S\)의 법선방향과 \(C\)의 진행방향이 오른손 법칙으로 맞을 때, 경계에서의 순환 \(\oint_C\mathbf F\cdot d\mathbf r\)은 곡면 위 회전장 \(\nabla\times\mathbf F\)의 플럭스와 같다. 엄지손가락이 법선방향을 가리키게 오른손을 세우면, 손가락이 감기는 방향이 양의 경계 방향이다.</p>
+    <p>이 정리의 멋진 점은 같은 경계를 가진 곡면을 마음대로 바꿔도 값이 같다는 데 있다. 울퉁불퉁한 막을 적분하기 어렵다면, 같은 테두리를 갖는 평평한 원판이나 계산 쉬운 곡면으로 갈아타면 된다. 물론 \(\mathbf F\)가 필요한 영역에서 매끄럽고, 방향 약속을 제대로 맞춰야 한다. 스토크스 정리는 “경계의 순환은 내부 회전의 합”이라는 그린 정리의 문장을 3차원 언어로 다시 쓴 것이다.</p>
+    <div class="formula-box">
+      \[
+        \oint_C \mathbf F\cdot d\mathbf r
+        =
+        \iint_S (\nabla\times\mathbf F)\cdot\mathbf n\,dS
+      \]
+      \[
+        \text{orientation: }\quad
+        \mathbf n \text{ and } C \text{ follow the right-hand rule}
+      \]
+      \[
+        \text{If two surfaces share the same boundary, choose the easier one.}
+      \]
+    </div>
+  </section>
+
+  <section id="ch6-8">
+    <h2>6.8 발산 정리</h2>
+    <p>발산 정리는 닫힌 곡면을 통과하는 총 플럭스를 그 안쪽 부피에서의 발산 적분으로 바꾼다. \(S\)가 입체 \(E\)의 경계이고 바깥쪽 법선으로 방향이 정해져 있다면, \(\iint_S\mathbf F\cdot\mathbf n\,dS=\iiint_E\nabla\cdot\mathbf F\,dV\)이다. 직관은 선명하다. 부피 안에서 생긴 양이 많으면 밖으로 나가는 순플럭스가 양수이고, 사라지는 양이 많으면 음수다. 내부에서 이리저리 흐르는 것은 서로 상쇄되고, 최종적으로 경계 밖으로 빠져나간 것만 남는다.</p>
+    <p>계산에서는 직접 곡면을 여러 조각으로 나누어 플럭스를 구하는 대신 발산을 적분하는 편이 훨씬 쉬울 때가 많다. 예를 들어 \(\mathbf F=\langle x,y,z\rangle\)이고 \(S\)가 반지름 \(a\)인 구의 표면이면 \(\nabla\cdot\mathbf F=3\)이므로 플럭스는 \(3\cdot\frac43\pi a^3=4\pi a^3\)이다. 방향은 꼭 바깥쪽이어야 한다. 안쪽 법선을 쓰면 같은 크기에 부호만 반대가 된다.</p>
+    <div class="formula-box">
+      \[
+        \iint_S \mathbf F\cdot\mathbf n\,dS
+        =
+        \iiint_E \nabla\cdot\mathbf F\,dV
+      \]
+      \[
+        \mathbf F=\langle x,y,z\rangle,\quad
+        \nabla\cdot\mathbf F=3,\quad
+        \Phi_{\text{sphere radius }a}=4\pi a^3
+      \]
+      \[
+        S \text{ must be closed and oriented outward.}
+      \]
+    </div>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 메모</h3>
+    <p>6장의 큰 정리들은 모두 같은 성격을 가진다. 작은 조각에서 일어나는 회전이나 발산을 영역 전체에 더하면, 경계에서 보이는 순환이나 플럭스가 된다. 그린 정리는 평면, 스토크스 정리는 곡면, 발산 정리는 입체 버전이다. 미적분의 기본정리가 “안쪽의 변화율을 적분하면 양끝의 변화”라고 말했던 것을, 이제 선과 면과 부피가 함께 말하고 있다.</p>
+  </aside>
+
+  <section class="recap">
+    <h3>6장 요약</h3>
+    <ul>
+      <li>벡터장은 점마다 방향과 크기를 붙인 함수이며, 그래디언트장은 스칼라 함수의 가장 빠른 증가 방향을 나타낸다.</li>
+      <li>선적분은 곡선을 따라 스칼라량 또는 벡터장의 접선 성분을 더한다.</li>
+      <li>보존장에서는 선적분이 경로와 무관하고, 퍼텐셜 함수의 끝값 차이로 계산된다.</li>
+      <li>그린 정리는 평면 경계의 선적분과 내부의 회전 또는 발산을 연결한다.</li>
+      <li>면적분과 플럭스는 곡면의 면적요소와 법선방향을 통해 계산한다.</li>
+      <li>스토크스 정리는 경계 순환과 곡면 위 회전 플럭스를, 발산 정리는 닫힌 곡면 플럭스와 부피 발산 적분을 연결한다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="ch7">
+  <header>
+    <p class="chapter-number">7장</p>
+    <h1>2계 미분방정식</h1>
+    <p>2계 미분방정식은 함수 \(y\)뿐 아니라 \(y'\), \(y''\)가 함께 등장하는 방정식이다. 위치와 속도가 주어지면 운동이 정해지는 물리 상황과 잘 맞기 때문에, 진동, 전기회로, 구조물의 반응 같은 문제에서 자주 나타난다. 이번 장의 핵심은 해를 무작정 맞히는 것이 아니라, 선형성 덕분에 해의 구조를 분해하고 다시 조립하는 법을 익히는 것이다.</p>
+  </header>
+
+  <section id="ch7-1">
+    <h2>7.1 2계 선형방정식</h2>
+    <p>2계 선형 미분방정식은 표준형으로 \(y''+p(t)y'+q(t)y=g(t)\)처럼 쓴다. 여기서 \(g(t)=0\)이면 동차방정식, \(g(t)\ne0\)이면 비동차방정식이다. \(p,q,g\)가 어떤 구간에서 연속이면 초기조건 \(y(t_0)=y_0\), \(y'(t_0)=v_0\)에 대해 해가 하나로 정해진다. 2계라서 값 하나만으로는 부족하고, 위치와 속도처럼 두 정보가 필요하다는 점이 자연스럽다.</p>
+    <p>상수계수 동차방정식 \(ay''+by'+cy=0\)은 특성방정식 \(ar^2+br+c=0\)으로 푼다. 서로 다른 실근 \(r_1,r_2\)가 나오면 \(e^{r_1t}\), \(e^{r_2t}\)가 기본해이고, 중근 \(r\)이면 \(e^{rt}\), \(te^{rt}\)가 짝을 이룬다. 복소근 \(\alpha\pm\beta i\)가 나오면 해는 \(e^{\alpha t}\cos\beta t\), \(e^{\alpha t}\sin\beta t\)로 바뀐다. 복소수가 갑자기 등장해도 결과는 실제 진동 함수로 돌아오니 너무 놀랄 필요는 없다.</p>
+    <div class="formula-box">
+      \[
+        y''+p(t)y'+q(t)y=g(t)
+      \]
+      \[
+        ay''+by'+cy=0
+        \quad\Longrightarrow\quad
+        ar^2+br+c=0
+      \]
+      \[
+        \begin{array}{ll}
+        r_1\ne r_2: & y=C_1e^{r_1t}+C_2e^{r_2t}\\[2mm]
+        r_1=r_2=r: & y=C_1e^{rt}+C_2te^{rt}\\[2mm]
+        r=\alpha\pm\beta i: & y=e^{\alpha t}(C_1\cos\beta t+C_2\sin\beta t)
+        \end{array}
+      \]
+    </div>
+  </section>
+
+  <section id="ch7-2">
+    <h2>7.2 비동차 선형방정식</h2>
+    <p>비동차 선형방정식의 해는 보통 \(y=y_c+y_p\)로 나눈다. \(y_c\)는 대응하는 동차방정식의 일반해이고, \(y_p\)는 원래 비동차방정식을 만족하는 특정해 하나다. 오른쪽 \(g(t)\)가 다항식, 지수함수, 사인과 코사인의 조합이면 미정계수법이 빠르다. 예를 들어 \(y''-y=e^t\)에서는 \(e^t\)가 이미 동차해에 들어 있으므로 \(Ae^t\)가 아니라 \(Ate^t\)를 시도해야 한다. 같은 모양이 겹치면 \(t\)를 곱해 독립성을 확보한다.</p>
+    <p>오른쪽 함수가 미정계수법에 잘 맞지 않거나 계수가 변수함수일 때는 매개변수변화법을 쓴다. 동차해 \(y_1,y_2\)를 알고 있을 때 \(y_p=u_1y_1+u_2y_2\)로 두고 \(u_1,u_2\)를 적분으로 구한다. 이 방법은 계산이 길 수 있지만 원리는 단정하다. 이미 알고 있는 두 기본해를 고정된 상수배로만 섞지 말고, 상수 자리에 천천히 변하는 함수 \(u_1(t),u_2(t)\)를 넣어 외부 입력 \(g(t)\)를 따라가게 하는 것이다.</p>
+    <div class="formula-box">
+      \[
+        y''+p(t)y'+q(t)y=g(t),\qquad
+        y=y_c+y_p
+      \]
+      \[
+        W(y_1,y_2)=
+        \begin{vmatrix}
+        y_1 & y_2\\
+        y_1' & y_2'
+        \end{vmatrix}
+        =y_1y_2'-y_1'y_2
+      \]
+      \[
+        y_p=-y_1\int\frac{y_2g}{W}\,dt
+        +y_2\int\frac{y_1g}{W}\,dt
+        \quad\text{for } y''+p y'+q y=g
+      \]
+    </div>
+  </section>
+
+  <section id="ch7-3">
+    <h2>7.3 응용</h2>
+    <p>가장 대표적인 응용은 질량-스프링-감쇠 시스템이다. 변위 \(x(t)\)에 대해 질량은 \(mx''\), 감쇠력은 속도에 비례해 \(cx'\), 스프링 복원력은 \(kx\)로 나타나므로 \(mx''+cx'+kx=F(t)\)가 된다. \(F(t)=0\)이면 자유진동, \(F(t)\ne0\)이면 외력이 있는 강제진동이다. 감쇠가 없으면 자연진동수 \(\omega_0=\sqrt{k/m}\)로 계속 흔들리고, 감쇠가 있으면 특성방정식의 판별식에 따라 과감쇠, 임계감쇠, 부족감쇠로 나뉜다.</p>
+    <p>같은 방정식은 RLC 회로에도 나타난다. 전하 \(q(t)\)에 대해 \(Lq''+Rq'+\frac1Cq=E(t)\)가 되고, 여기서 인덕턴스 \(L\), 저항 \(R\), 커패시턴스 \(C\)가 각각 질량, 감쇠, 스프링 상수와 비슷한 역할을 한다. 응용문제에서는 공식을 외우기보다 모델링의 단위를 보라. 무엇이 저장되고, 무엇이 저항하며, 무엇이 원래 자리로 되돌리려 하는지 파악하면 미분방정식의 각 항이 덜 낯설어진다.</p>
+    <div class="formula-box">
+      \[
+        mx''+cx'+kx=F(t),\qquad
+        \omega_0=\sqrt{\frac{k}{m}}
+      \]
+      \[
+        mr^2+cr+k=0
+        \quad\begin{cases}
+        c^2-4mk\gt0 & \text{overdamped}\\
+        c^2-4mk=0 & \text{critically damped}\\
+        c^2-4mk\lt0 & \text{underdamped}
+        \end{cases}
+      \]
+      \[
+        Lq''+Rq'+\frac1Cq=E(t)
+      \]
+    </div>
+  </section>
+
+  <section id="ch7-4">
+    <h2>7.4 미분방정식의 급수해</h2>
+    <p>계수가 변수함수라서 특성방정식 방법이 통하지 않을 때는 해를 멱급수로 가정할 수 있다. 어떤 점 \(x_0\) 근처에서 \(y=\sum_{n=0}^{\infty}a_n(x-x_0)^n\)라고 두고, \(y'\), \(y''\)도 항별로 미분한 뒤 방정식에 대입한다. 그런 다음 같은 차수의 항 계수를 맞추면 \(a_n\)들 사이의 점화식이 나온다. 이 방법은 “해를 한 번에 찾기”보다 “해의 테일러 계수를 차례로 생산하기”에 가깝다.</p>
+    <p>예를 들어 \(y''+y=0\)에서 \(x_0=0\)으로 두면 \(a_{n+2}=-a_n/((n+2)(n+1))\)가 나온다. \(a_0\)에서 짝수항들이 이어져 \(\cos x\)가 되고, \(a_1\)에서 홀수항들이 이어져 \(\sin x\)가 된다. 더 일반적인 방정식에서는 표준형으로 만들었을 때 \(p(x)\), \(q(x)\)가 \(x_0\)에서 해석적이면 그 점을 보통점이라고 부르고, 급수해를 안정적으로 기대할 수 있다. 초기조건은 보통 \(a_0=y(x_0)\), \(a_1=y'(x_0)\)로 들어온다.</p>
+    <div class="formula-box">
+      \[
+        y=\sum_{n=0}^{\infty}a_n(x-x_0)^n,\qquad
+        y'=\sum_{n=1}^{\infty}na_n(x-x_0)^{n-1}
+      \]
+      \[
+        y''=\sum_{n=2}^{\infty}n(n-1)a_n(x-x_0)^{n-2}
+      \]
+      \[
+        y''+y=0
+        \quad\Longrightarrow\quad
+        a_{n+2}=-\frac{a_n}{(n+2)(n+1)}
+      \]
+    </div>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 메모</h3>
+    <p>2계 선형방정식은 “두 개의 기본 움직임을 섞는다”는 관점으로 보면 훨씬 편하다. 동차해는 시스템이 스스로 움직이는 방식이고, 특정해는 외부 입력에 끌려가는 방식이다. 초기조건은 그 둘을 어떤 비율로 섞을지 정해 주며, 급수해는 닫힌꼴 공식이 어색한 곳에서 해를 계수 단위로 조립하는 기술이다.</p>
+  </aside>
+
+  <section class="recap">
+    <h3>7장 요약</h3>
+    <ul>
+      <li>2계 선형방정식은 \(y''+p(t)y'+q(t)y=g(t)\)로 쓰며, 초기조건 두 개가 해를 정한다.</li>
+      <li>상수계수 동차방정식은 특성방정식의 근에 따라 지수해, \(te^{rt}\), 감쇠진동형 해로 나뉜다.</li>
+      <li>비동차방정식의 일반해는 동차해 \(y_c\)와 특정해 \(y_p\)의 합이다.</li>
+      <li>미정계수법은 오른쪽 항이 단순한 함수 조합일 때 빠르고, 매개변수변화법은 더 일반적이다.</li>
+      <li>질량-스프링 시스템과 RLC 회로는 같은 2계 선형 구조를 공유한다.</li>
+      <li>급수해는 해를 멱급수로 가정하고 계수 비교로 점화식을 얻는 방법이다.</li>
+    </ul>
+  </section>
+</article>
+
+<article class="chapter" id="appendix">
+  <header>
+    <p class="chapter-number">부록</p>
+    <h1>부록 안내</h1>
+    <p>부록은 본문 뒤에 붙은 덤이 아니라, 계산이 막힐 때 다시 꺼내는 공구함이다. 적분표와 미분표는 공식을 “외우는 목록”이라기보다 문제의 모양을 알아보는 색인에 가깝고, 프리칼큘러스 복습은 대수와 삼각함수가 흔들릴 때 다시 발판을 놓아 준다. 좋은 사용법은 간단하다. 먼저 스스로 문제의 구조를 보고, 필요한 도구를 찾고, 적용한 뒤 검산한다.</p>
+  </header>
+
+  <section id="appendix-a">
+    <h2>A. 적분표</h2>
+    <p>적분표는 복잡한 적분을 패턴으로 정리해 둔 표다. 다만 표는 보통 \(\int f(u)\,du\) 꼴로 정리되어 있으므로, 실제 문제에서는 치환과 상수 조정이 먼저다. 예를 들어 \(\int \frac{dx}{4+9x^2}\)는 \(u=3x\)로 두어 \(\frac13\int\frac{du}{4+u^2}\)로 바꾸면 역탄젠트 꼴이 보인다. 표는 문을 열어 주지만, 열쇠를 맞춰 넣는 일은 여전히 계산하는 사람의 몫이다.</p>
+    <p>특히 삼각함수의 거듭제곱, 부분분수로 나뉘는 유리함수, \(\sqrt{a^2-u^2}\), \(\sqrt{u^2-a^2}\), \(\sqrt{a^2+u^2}\)가 섞인 적분은 표와 치환이 잘 어울린다. 답을 얻은 뒤에는 미분해서 원래 integrand가 돌아오는지 확인하자. 적분상수 \(C\)를 빠뜨리는 실수보다 더 조용히 위험한 것은 부호와 상수배가 한 칸 어긋나는 일이다.</p>
+    <div class="formula-box">
+      \[
+        \int u^n\,du=\frac{u^{n+1}}{n+1}+C\quad(n\ne -1),\qquad
+        \int \frac{du}{u}=\ln|u|+C
+      \]
+      \[
+        \int e^{au}\,du=\frac1a e^{au}+C,\qquad
+        \int \frac{du}{a^2+u^2}=\frac1a\arctan\left(\frac ua\right)+C
+      \]
+      \[
+        \int \sin u\,du=-\cos u+C,\qquad
+        \int \cos u\,du=\sin u+C
+      \]
+    </div>
+  </section>
+
+  <section id="appendix-b">
+    <h2>B. 미분표</h2>
+    <p>미분표는 기본 함수들의 변화율을 한눈에 보여 준다. 거듭제곱, 지수, 로그, 삼각함수, 역삼각함수의 미분을 알고, 여기에 곱의 법칙, 몫의 법칙, 체인룰을 얹으면 대부분의 계산이 풀린다. 예를 들어 \(\frac{d}{dx}\sin(x^2)=2x\cos(x^2)\)는 표의 \((\sin u)'=\cos u\,u'\)를 그대로 적용한 것이다. 표를 외운다는 말은 사실 “체인룰과 함께 즉시 꺼낼 수 있다”는 뜻에 가깝다.</p>
+    <p>미분표는 적분 공부에서도 계속 돌아온다. \(\int\frac{1}{1+x^2}\,dx\)를 보면 \((\arctan x)'=\frac1{1+x^2}\)가 떠올라야 하고, \(\int\frac{1}{\sqrt{1-x^2}}\,dx\)에서는 \(\arcsin x\)가 후보로 올라와야 한다. 적분은 종종 미분을 거꾸로 읽는 일이므로, 미분표가 선명할수록 적분표도 덜 무섭다.</p>
+    <div class="formula-box">
+      \[
+        \frac{d}{dx}u^n=nu^{n-1}u',\qquad
+        \frac{d}{dx}e^u=e^u u',\qquad
+        \frac{d}{dx}\ln|u|=\frac{u'}{u}
+      \]
+      \[
+        \frac{d}{dx}\sin u=\cos u\,u',\qquad
+        \frac{d}{dx}\cos u=-\sin u\,u'
+      \]
+      \[
+        \frac{d}{dx}\arcsin u=\frac{u'}{\sqrt{1-u^2}},\qquad
+        \frac{d}{dx}\arctan u=\frac{u'}{1+u^2}
+      \]
+    </div>
+  </section>
+
+  <section id="appendix-c">
+    <h2>C. 프리칼큘러스 복습</h2>
+    <p>미적분에서 막히는 순간의 상당수는 미분과 적분 자체보다 그 이전의 대수, 삼각함수, 함수 그래프에서 온다. 완전제곱, 인수분해, 지수법칙, 로그법칙, 삼각항등식은 계산의 바닥재 같은 존재다. 벡터해석에서는 좌표기하와 삼각함수의 기본값이 자주 필요하고, 미분방정식에서는 지수함수와 삼각함수가 해의 언어로 반복해서 등장한다.</p>
+    <p>복습할 때는 처음부터 끝까지 다시 읽기보다, 현재 문제에서 삐걱거린 도구를 바로 찾아보는 편이 효율적이다. 극좌표나 원통좌표가 헷갈리면 라디안과 삼각비를, 2계 방정식에서 특성방정식을 풀다 막히면 이차방정식과 복소수를, 적분에서 제곱근 꼴이 나오면 피타고라스 항등식과 삼각치환을 확인하자. 미적분은 높은 층에 있지만, 계단은 프리칼큘러스가 만든다.</p>
+    <div class="formula-box">
+      \[
+        \sin^2\theta+\cos^2\theta=1,\qquad
+        1+\tan^2\theta=\sec^2\theta
+      \]
+      \[
+        a^{m+n}=a^m a^n,\qquad
+        \ln(ab)=\ln a+\ln b
+      \]
+      \[
+        ax^2+bx+c=0
+        \quad\Longrightarrow\quad
+        x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}
+      \]
+      \[
+        \text{radian measure:}\qquad
+        s=r\theta,\qquad
+        A_{\text{sector}}=\frac12r^2\theta
+      \]
+    </div>
+  </section>
+
+  <aside class="intuition">
+    <h3>직관 메모</h3>
+    <p>부록은 답을 대신 내주는 곳이 아니라, 계산의 손잡이를 다시 잡게 해 주는 곳이다. 적분표는 패턴, 미분표는 변화율, 프리칼큘러스 복습은 대수와 삼각의 기본기를 맡는다. 본문을 읽다가 “이건 어디서 온 공식이지?”라는 느낌이 들면, 부록으로 돌아가는 것이 후퇴가 아니라 좋은 공부 루프다.</p>
+  </aside>
+
+  <section class="recap">
+    <h3>부록 요약</h3>
+    <ul>
+      <li>적분표는 치환과 상수배 조정 후에 가장 잘 작동한다.</li>
+      <li>미분표는 체인룰, 곱의 법칙, 몫의 법칙과 함께 써야 실제 계산력이 된다.</li>
+      <li>프리칼큘러스 복습은 대수, 삼각함수, 로그와 지수, 이차방정식을 빠르게 되살리는 기준점이다.</li>
+      <li>공식을 적용한 뒤에는 미분, 대입, 단위 확인 같은 검산으로 결과를 단단하게 만들자.</li>
+    </ul>
+  </section>
+</article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="layout footer">
+    OpenStax Calculus Volume 3의 목차를 따라 만든 한국어 해설형 적응 자료입니다. Access for free at openstax.org.
+  </footer>
+</body>
+</html>

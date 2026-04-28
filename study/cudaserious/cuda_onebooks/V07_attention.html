@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V07 Attention Kernel 계보 단권화 — 20p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18권 · T2 KERNEL 패턴 · CONTENT-FIRST · A4 LANDSCAPE · 20p</div>
+    <h1>Attention Kernel <span class="accent">계보</span></h1>
+    <div class="subtitle">Online Softmax · FlashAttention v1·v2·v3 · Ring · GQA/MQA · MLA · PagedAttention · RadixAttention</div>
+    <div class="meta">
+      <div><b>Volume</b> V07 / 18</div>
+      <div><b>Tier</b> T2 Kernel 패턴</div>
+      <div><b>선행</b> V01 · V03 · V04 · V06</div>
+      <div><b>용도</b> attention kernel reading · kernel 설계 인출</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차 (19 content pages)</h4>
+      <div class="toc">
+        <div class="row"><span class="t">1. Attention naive — QKᵀ→softmax→AV, O(N²)</span><span class="p">p.2</span></div>
+        <div class="row star"><span class="t">2. Online Softmax 유도 (3-pass → 1-pass)</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">3. Online Softmax 결합 공식 증명</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">4. FA v1 핵심 아이디어 — SRAM tile</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">5. FA1 Forward 의사코드</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">6. FA1 Backward — recompute</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">7. FA2 개선점 — loop 교환·rescale 절감</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">8. FA2 Forward 의사코드</span><span class="p">p.9</span></div>
+        <div class="row star"><span class="t">9. FA3 Hopper — WGMMA·TMA·FP8</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. FA3 Pingpong warpgroup 스케줄</span><span class="p">p.11</span></div>
+        <div class="row star"><span class="t">11. FA v1/v2/v3 정량 비교표</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. Causal Mask block skip</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. Ring Attention (context parallel)</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. GQA / MQA — KV head 공유</span><span class="p">p.15</span></div>
+        <div class="row star"><span class="t">15. MLA (DeepSeek-V2) — KV latent 압축</span><span class="p">p.16</span></div>
+        <div class="row star"><span class="t">16. PagedAttention 자료구조</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">17. PagedAttention kernel (gather-scatter)</span><span class="p">p.18</span></div>
+        <div class="row"><span class="t">18. RadixAttention (SGLang prefix trie)</span><span class="p">p.19</span></div>
+        <div class="row star"><span class="t">19. Cheat Sheet — 변종 선택 결정트리</span><span class="p">p.20</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요·표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수 지점</span></div>
+      <div class="row"><span class="sym">★</span><span>면접·kernel reading 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤ 5)</span></div>
+      <div class="row"><span class="sym">m / ℓ</span><span>row max · row sum (denominator)</span></div>
+      <div class="row"><span class="sym">B<sub>r</sub> · B<sub>c</sub></span><span>Q-row · KV-col block</span></div>
+      <div class="row"><span class="sym">↗ V##</span><span>다른 권 cross-ref</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>Out of Scope</b> vLLM scheduler 자체 (↗ V16) · speculative decoding 알고리즘 상세 (↗ V08)</div>
+    <div class="mono">Milakov 2018 · FA1/2/3 papers · Ring Attn · DeepSeek-V2 · PagedAttn · SGLang</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Attention Naive ============================ -->
+<section class="page" data-screen-label="02 Attention naive">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(2p)</span></div><div class="chap">§1 — Attention Naive: QKᵀ → softmax → AV</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Scaled Dot-Product Attention <span class="ko">표기</span></h3>
+        <div class="formula">
+          Q, K, V &isin; &#8477;<sup>N&times;d</sup><br/>
+          S = QK<sup>T</sup> / &radic;d &isin; &#8477;<sup>N&times;N</sup><br/>
+          P = softmax(S, axis=1)<br/>
+          O = P&middot;V &isin; &#8477;<sup>N&times;d</sup>
+          <span class="legend">&tau; = 1/&radic;d head_dim normalization · row-wise softmax</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 3-단계 분해</h3>
+        <ol class="bullet-num">
+          <li><mark>QK<sup>T</sup></mark>: 2&middot;N&middot;N&middot;d FLOP · write S (N&times;N)</li>
+          <li><mark>softmax</mark>: 3 pass over S row &rarr; max, exp+sum, div</li>
+          <li><mark>P&middot;V</mark>: 2&middot;N&middot;N&middot;d FLOP &rarr; O</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 시공간 복잡도</h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>FLOP</th><th>HBM bytes</th></tr></thead>
+          <tbody>
+            <tr><td>QK<sup>T</sup></td><td class="num">2N<sup>2</sup>d</td><td class="num">2Nd + N<sup>2</sup></td></tr>
+            <tr><td>softmax</td><td class="num">O(N<sup>2</sup>)</td><td class="num">3N<sup>2</sup></td></tr>
+            <tr><td>P&middot;V</td><td class="num">2N<sup>2</sup>d</td><td class="num">N<sup>2</sup> + 2Nd</td></tr>
+            <tr><td><b>total</b></td><td class="num">&Theta;(N<sup>2</sup>d)</td><td class="num">&Theta;(N<sup>2</sup>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Arithmetic Intensity ★ <span class="ko">memory bound 증명</span></h3>
+        <div class="formula">
+          AI = FLOP / bytes<br/>
+          = 4N<sup>2</sup>d / (4N<sup>2</sup> + 4Nd)<br/>
+          &asymp; d &nbsp; (N &gg; d)
+          <span class="legend">d=64 &rarr; AI&asymp;64 · A100 balance point &asymp; 100 (19.5 TF / 1.5 TB/s &middot; 4B FP32) &rarr; memory bound</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> S 저장의 비용</h3>
+        <ul>
+          <li>S, P &isin; &#8477;<sup>N&times;N</sup> &rarr; <span class="red">O(N<sup>2</sup>) HBM</span></li>
+          <li>N=8K FP16 &rarr; 128 MB &rArr; batch&times;head 곱해 GB 단위</li>
+          <li>학습 backward 위해 보존 필요 &rarr; activation checkpointing 요구</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Naive CUDA 커널 분할</h3>
+<pre class="code"><span class="cmt">// 3 kernel launches</span>
+gemm(S = Q @ K.T * tau);     <span class="cmt">// N<sup>2</sup>d</span>
+softmax_row(P = exp(S - m) / d);
+gemm(O = P @ V);              <span class="cmt">// N<sup>2</sup>d</span></pre>
+        <p>중간 S/P를 HBM에 write+read &rArr; round-trip 3&middot;N<sup>2</sup> bytes.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Kernel fusion이 어려운 이유</h3>
+        <div class="def"><span class="label">관찰</span>
+          softmax는 <mark>row 전체 max / sum</mark> 의존 &rarr; reduction barrier.
+          row 전체 S를 다 계산해야 P 구성. 단일 streaming pass로 불가 (겉보기엔).
+        </div>
+        <p>해법 &rarr; <span class="kw">online softmax</span>: running (m, &ell;) 유지 &rarr; streaming fusion 가능. <span class="xref">↗ V07 §2</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 수치 안정성 이슈</h3>
+        <ul>
+          <li>naive softmax: exp(x) overflow (x &gt; 88 in FP32)</li>
+          <li>해법: x &minus; max 먼저 빼기 (safe softmax)</li>
+          <li>FP16 exp는 [&minus;10, 10] 밖 부정확 &rarr; FP32 accumulator</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 길이 스케일링</h3>
+        <table class="compact">
+          <thead><tr><th>N</th><th>S bytes (FP16)</th><th>FLOP / seq</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1K</td><td class="num">2 MB</td><td class="num">0.13 GF</td></tr>
+            <tr><td class="num">8K</td><td class="num">128 MB</td><td class="num">8.4 GF</td></tr>
+            <tr><td class="num">128K</td><td class="num">32 GB</td><td class="num">2.1 TF</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">d=128, single head. N=128K &rarr; HBM이 병목, S 저장 불가능.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">핵심 통찰</span>: attention은 O(N<sup>2</sup>d) <mark>compute</mark>이지만 HBM O(N<sup>2</sup>) <mark>material-ization</mark>이 메모리 bound 원인. S를 쓰지 않으면 compute bound로 전환 가능.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 2</span></div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Online Softmax 유도 ============================ -->
+<section class="page" data-screen-label="03 Online Softmax 유도">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(3p)</span></div><div class="chap">§2 — Online Softmax 유도: 일반 → stable → 2-pass → 1-pass</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Step 0: Naive softmax</h3>
+        <div class="formula">
+          y<sub>i</sub> = e<sup>x<sub>i</sub></sup> / &Sigma;<sub>j</sub> e<sup>x<sub>j</sub></sup>
+        </div>
+        <ul>
+          <li>FP32 exp overflow: x &gt; 88</li>
+          <li>FP16: x &gt; 11 overflow</li>
+          <li>실전에서 그대로 쓰면 NaN</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Step 1: Safe softmax (3-pass)</h3>
+        <div class="formula">
+          m = max<sub>j</sub> x<sub>j</sub><br/>
+          &ell; = &Sigma;<sub>j</sub> e<sup>x<sub>j</sub>&minus;m</sup><br/>
+          y<sub>i</sub> = e<sup>x<sub>i</sub>&minus;m</sup> / &ell;
+          <span class="legend">3 pass: m → ℓ → y &middot; row당 3N HBM 트래픽</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Step 2: Running 갱신식 ★</h3>
+        <div class="formula">
+          m<sup>(k)</sup> = max(m<sup>(k&minus;1)</sup>, x<sub>k</sub>)<br/>
+          &ell;<sup>(k)</sup> = &ell;<sup>(k&minus;1)</sup>&middot;e<sup>m<sup>(k&minus;1)</sup>&minus;m<sup>(k)</sup></sup> + e<sup>x<sub>k</sub>&minus;m<sup>(k)</sup></sup>
+          <span class="legend">새 x<sub>k</sub>가 더 크면 m 갱신 → 기존 ℓ는 e<sup>Δm</sup> &lt; 1로 rescale</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Step 3: 2-pass online</h3>
+<pre class="code"><span class="cmt"># pass 1: streaming (m, ℓ)</span>
+m, l = -inf, <span class="num2">0</span>
+<span class="kw2">for</span> x <span class="kw2">in</span> row:
+    m_new = max(m, x)
+    l     = l * exp(m - m_new) + exp(x - m_new)
+    m     = m_new
+
+<span class="cmt"># pass 2: output y</span>
+<span class="kw2">for</span> i: y[i] = exp(x[i] - m) / l</pre>
+        <p>HBM 트래픽 2N &rarr; safe보다 1N 절감.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Step 4: 1-pass fused (attention용) ★</h3>
+        <div class="def"><span class="label">핵심</span>
+          softmax 출력만 필요한 경우 (OK로 정규화 지연) &rarr; <mark>(m, &ell;, O)</mark> 를 함께 streaming.
+          O = &Sigma; p<sub>i</sub>&middot;v<sub>i</sub> 누산 중 m 갱신마다 rescale.
+        </div>
+        <div class="formula">
+          O<sup>(k)</sup> = O<sup>(k&minus;1)</sup>&middot;e<sup>m<sup>(k&minus;1)</sup>&minus;m<sup>(k)</sup></sup> + e<sup>x<sub>k</sub>&minus;m<sup>(k)</sup></sup>&middot;v<sub>k</sub>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Pass 수 비교 표</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>pass</th><th>HBM/row</th><th>fusion 가능?</th></tr></thead>
+          <tbody>
+            <tr><td>naive</td><td class="num">2</td><td class="num">2N</td><td>exp overflow</td></tr>
+            <tr><td>safe 3-pass</td><td class="num">3</td><td class="num">3N</td><td>no</td></tr>
+            <tr><td>online 2-pass</td><td class="num">2</td><td class="num">2N</td><td>partial</td></tr>
+            <tr><td><mark>fused 1-pass</mark></td><td class="num">1</td><td class="num">1N</td><td><b>yes</b> (FA)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Associativity <span class="ko">결합법칙</span></h3>
+        <div class="def"><span class="label">정의</span>
+          결합자 &oplus;: (m<sub>a</sub>, &ell;<sub>a</sub>) &oplus; (m<sub>b</sub>, &ell;<sub>b</sub>) = (M, L) 이 교환·결합 성립.
+          &rArr; <mark>tree reduction</mark> / warp shuffle OK. 증명은 <span class="xref">↗ V07 §3</span>.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> exp2f scale 트릭 <span class="ko">SFU 가속</span></h3>
+        <div class="formula">
+          x' = (x &minus; m)&middot;log<sub>2</sub>e<br/>
+          P = exp2f(x')
+          <span class="legend">__expf 대비 SFU throughput ↑ · FA3 표준</span>
+        </div>
+        <p class="tiny">log<sub>2</sub>e &asymp; 1.4427 compile-time 상수. &tau; 에 사전 흡수 가능.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> LSE (log-sum-exp) 보존</h3>
+        <div class="formula">
+          LSE = log &Sigma; e<sup>x<sub>j</sub></sup> = m + log &ell;
+        </div>
+        <p>FA backward 위해 forward 끝에 <mark>LSE만 저장</mark>: N &middot; 4 bytes &rarr; S 전체 (N<sup>2</sup>) 대신.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">초기값</span>: m<sub>0</sub> = &minus;&infin;, &ell;<sub>0</sub> = 0. exp(&minus;&infin; &minus; m_new) = 0 (IEEE 정확). 첫 step에서 safe.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        online softmax 3-tuple: <span class="key">m·&ell;·O</span> (max · denom · weighted sum)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 3</span></div>
+</section>
+
+<!-- ============================ PAGE 4: §3 결합 공식 증명 ============================ -->
+<section class="page" data-screen-label="04 결합 공식 증명">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(4p)</span></div><div class="chap">§3 — Online Softmax 결합 공식 증명 (block merge)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 문제 설정 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          두 disjoint 부분 집합 S<sub>a</sub>, S<sub>b</sub> (S = S<sub>a</sub> &cup; S<sub>b</sub>) 에 대해 각각 (m<sub>a</sub>, &ell;<sub>a</sub>)와 (m<sub>b</sub>, &ell;<sub>b</sub>) 를 이미 계산.
+          전체 S의 (m<sub>ab</sub>, &ell;<sub>ab</sub>) 를 <mark>재계산 없이</mark> 구하기.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Partial 정의</h3>
+        <div class="formula">
+          m<sub>a</sub> = max<sub>i&isin;S<sub>a</sub></sub> x<sub>i</sub><br/>
+          &ell;<sub>a</sub> = &Sigma;<sub>i&isin;S<sub>a</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>a</sub></sup><br/>
+          m<sub>b</sub> = max<sub>i&isin;S<sub>b</sub></sub> x<sub>i</sub><br/>
+          &ell;<sub>b</sub> = &Sigma;<sub>i&isin;S<sub>b</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>b</sub></sup>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 결합 공식 ★★</h3>
+        <div class="formula">
+          m<sub>ab</sub> = max(m<sub>a</sub>, m<sub>b</sub>)<br/>
+          &ell;<sub>ab</sub> = &ell;<sub>a</sub>&middot;e<sup>m<sub>a</sub>&minus;m<sub>ab</sub></sup> + &ell;<sub>b</sub>&middot;e<sup>m<sub>b</sub>&minus;m<sub>ab</sub></sup>
+          <span class="legend">correction factor: α<sub>a</sub> = e<sup>m<sub>a</sub>&minus;m<sub>ab</sub></sup> ∈ (0, 1]</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 증명 단계 1 — m<sub>ab</sub></h3>
+        <div class="formula">
+          m<sub>ab</sub> = max<sub>i&isin;S</sub> x<sub>i</sub><br/>
+          = max( max<sub>i&isin;S<sub>a</sub></sub> x<sub>i</sub>, max<sub>i&isin;S<sub>b</sub></sub> x<sub>i</sub> )<br/>
+          = max(m<sub>a</sub>, m<sub>b</sub>) &nbsp; &#9633;
+          <span class="legend">max의 분배성 (sup over union)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 증명 단계 2 — &ell;<sub>ab</sub> 확장</h3>
+        <div class="formula">
+          &ell;<sub>ab</sub> = &Sigma;<sub>i&isin;S</sub> e<sup>x<sub>i</sub>&minus;m<sub>ab</sub></sup><br/>
+          = &Sigma;<sub>i&isin;S<sub>a</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>ab</sub></sup> + &Sigma;<sub>i&isin;S<sub>b</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>ab</sub></sup>
+          <span class="legend">합의 분해 (S<sub>a</sub> ∩ S<sub>b</sub> = ∅)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 증명 단계 3 — shift 삽입</h3>
+        <div class="formula">
+          &Sigma;<sub>i&isin;S<sub>a</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>ab</sub></sup><br/>
+          = &Sigma;<sub>i&isin;S<sub>a</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>a</sub>+m<sub>a</sub>&minus;m<sub>ab</sub></sup><br/>
+          = e<sup>m<sub>a</sub>&minus;m<sub>ab</sub></sup>&middot;&Sigma;<sub>i&isin;S<sub>a</sub></sub> e<sup>x<sub>i</sub>&minus;m<sub>a</sub></sup><br/>
+          = e<sup>m<sub>a</sub>&minus;m<sub>ab</sub></sup>&middot;&ell;<sub>a</sub>
+          <span class="legend">지수의 곱셈 분리 → 상수 factor 반출</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 증명 단계 4 — 종합 ★</h3>
+        <div class="formula">
+          &ell;<sub>ab</sub> = e<sup>m<sub>a</sub>&minus;m<sub>ab</sub></sup>&middot;&ell;<sub>a</sub> + e<sup>m<sub>b</sub>&minus;m<sub>ab</sub></sup>&middot;&ell;<sub>b</sub><br/>
+          = &alpha;<sub>a</sub>&middot;&ell;<sub>a</sub> + &alpha;<sub>b</sub>&middot;&ell;<sub>b</sub> &nbsp; &#9633;
+          <span class="legend">α<sub>a</sub>, α<sub>b</sub> ∈ (0, 1], 둘 중 하나는 정확히 1 (m_ab 선택된 쪽)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Output O 결합 ★</h3>
+        <div class="formula">
+          O<sub>ab</sub> = &alpha;<sub>a</sub>&middot;O<sub>a</sub> + &alpha;<sub>b</sub>&middot;O<sub>b</sub>
+          <span class="legend">O<sub>a</sub> = Σ<sub>i∈S<sub>a</sub></sub> e<sup>x<sub>i</sub>−m<sub>a</sub></sup>·v<sub>i</sub> (unnormalized numerator)</span>
+        </div>
+        <p>같은 shift 삽입 argument로 O도 동일 correction factor로 결합.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 결합·교환성</h3>
+        <table class="compact">
+          <thead><tr><th>성질</th><th>성립?</th></tr></thead>
+          <tbody>
+            <tr><td>교환 (a &oplus; b = b &oplus; a)</td><td>✓ (max, +)</td></tr>
+            <tr><td>결합 ((a &oplus; b) &oplus; c = a &oplus; (b &oplus; c))</td><td>✓</td></tr>
+            <tr><td>항등원 (&minus;&infin;, 0)</td><td>✓</td></tr>
+            <tr><td>tree reduction 가능</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FP 정확성</span>: (a &oplus; b) &oplus; c ≠ a &oplus; (b &oplus; c) in FP (부동소수점은 결합 아님). 수학적으로는 성립 · 수치적으로 미세한 차이 발생. determinism 문제는 <span class="xref">↗ V09 §7</span>.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        merge 3-rule: <span class="key">max·rescale·add</span> (M → α<sub>a</sub>, α<sub>b</sub> → &Sigma;)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 4</span></div>
+</section>
+
+<!-- ============================ PAGE 5: §4 FA1 핵심 아이디어 ============================ -->
+<section class="page" data-screen-label="05 FA1 아이디어">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(5p)</span></div><div class="chap">§4 — FlashAttention v1 핵심 아이디어 (Dao et al. 2022)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 3대 아이디어 ★</h3>
+        <ol class="bullet-num">
+          <li><mark>Tile into SRAM</mark>: Q·K·V 블록을 SMEM에 올려 S materialization 회피</li>
+          <li><mark>Online softmax</mark>: (m, &ell;, O) streaming &rarr; S 저장 불필요 <span class="xref">↗ V07 §2</span></li>
+          <li><mark>Recomputation</mark>: backward에서 LSE만 저장, S/P 재계산</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Tile 정의</h3>
+        <ul>
+          <li>Q를 B<sub>r</sub> row 단위로 분할 (N/B<sub>r</sub> tile)</li>
+          <li>K, V를 B<sub>c</sub> col 단위로 분할 (N/B<sub>c</sub> tile)</li>
+          <li>1 CTA = 1 Q-tile 담당 (FA1)</li>
+        </ul>
+        <div class="formula">
+          smem &asymp; (B<sub>r</sub>&middot;d + 2&middot;B<sub>c</sub>&middot;d)&middot;2B<br/>
+          예: 64&middot;64&middot;2 + 2&middot;64&middot;64&middot;2 = 24 KB
+          <span class="legend">A100 smem 192KB 여유 · double buffering 가능</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> HBM 트래픽 비교 ★</h3>
+        <div class="formula">
+          Naive: &Theta;(N&middot;d + N<sup>2</sup>) bytes<br/>
+          FA: &Theta;(N<sup>2</sup>&middot;d<sup>2</sup> / M) bytes
+          <span class="legend">M = on-chip SRAM · d<sup>2</sup>/M &laquo; 1 이면 FA 우세</span>
+        </div>
+        <p class="tiny">d=64, M=192KB &rarr; d<sup>2</sup>/M &asymp; 0.022 → 45&times; HBM 절감. Dao et al. 2022 Thm 2.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Memory O(N) 성립 ★</h3>
+        <table class="compact">
+          <thead><tr><th>저장 대상</th><th>naive</th><th>FA</th></tr></thead>
+          <tbody>
+            <tr><td>S, P</td><td class="num">N<sup>2</sup>&middot;2B</td><td class="num">0 (SRAM)</td></tr>
+            <tr><td>O</td><td class="num">N&middot;d&middot;2B</td><td class="num">N&middot;d&middot;2B</td></tr>
+            <tr><td>LSE (bwd)</td><td class="num">&mdash;</td><td class="num">N&middot;4B</td></tr>
+            <tr><td><b>total HBM</b></td><td class="num">O(N<sup>2</sup>)</td><td class="num"><b>O(N)</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Loop 구조 (FA1)</h3>
+        <pre class="ascii">outer: for j in 0..N step Bc   ← K/V tile
+  load K[j:j+Bc], V[j:j+Bc] to smem
+  inner: for i in 0..N step Br ← Q tile
+    load Q[i:i+Br], (m,ℓ,O)[i] from HBM
+    compute block, update (m,ℓ,O)
+    store back (m,ℓ,O)[i]</pre>
+        <p class="tiny">Q를 <span class="red">매 outer iter마다 reload</span> → FA2에서 역전.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Block-wise softmax 원리</h3>
+        <div class="formula">
+          S<sub>ij</sub> = Q<sub>i</sub>K<sub>j</sub><sup>T</sup>&middot;&tau; (B<sub>r</sub>&times;B<sub>c</sub>)<br/>
+          m<sub>new</sub> = max(m, rowmax(S<sub>ij</sub>))<br/>
+          &alpha; = e<sup>m&minus;m<sub>new</sub></sup><br/>
+          &ell; &larr; &alpha;&middot;&ell; + rowsum(e<sup>S<sub>ij</sub>&minus;m<sub>new</sub></sup>)<br/>
+          O &larr; &alpha;&middot;O + e<sup>S<sub>ij</sub>&minus;m<sub>new</sub></sup>&middot;V<sub>j</sub>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 결합 공식과의 관계</h3>
+        <p>위 갱신식 = <mark>(m, &ell;, O) &oplus; (rowmax(S<sub>ij</sub>), rowsum(P<sub>ij</sub>), P<sub>ij</sub>V<sub>j</sub>)</mark>. 매 KV tile당 1회 merge. <span class="xref">↗ V07 §3</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 복잡도 요약</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td>FLOP</td><td class="num">4N<sup>2</sup>d (naive 동일)</td></tr>
+            <tr><td>HBM bytes</td><td class="num">&Theta;(N<sup>2</sup>d<sup>2</sup>/M)</td></tr>
+            <tr><td>SMEM</td><td class="num">O(B<sub>r</sub>d + B<sub>c</sub>d)</td></tr>
+            <tr><td>activation HBM</td><td class="num">O(N) (LSE만)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">compute 증가 없음</span>: FLOP는 naive와 동일. 차이는 HBM 트래픽과 활성값 저장량. FA는 <b>IO-aware</b> 설계.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 5</span></div>
+</section>
+
+<!-- ============================ PAGE 6: §5 FA1 Forward 의사코드 ============================ -->
+<section class="page" data-screen-label="06 FA1 Forward">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(6p)</span></div><div class="chap">§5 — FA1 Forward 의사코드 (Q-inner loop)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 입력 · 출력</h3>
+        <ul>
+          <li>in: Q, K, V &isin; HBM&nbsp; (N&times;d)</li>
+          <li>out: O &isin; HBM (N&times;d), LSE &isin; HBM (N)</li>
+          <li>&tau; = 1/&radic;d</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Grid / CTA 구성 (FA1)</h3>
+        <pre class="ascii">grid = (batch × head, 1)
+1 CTA = 1 (batch, head)
+각 CTA 안에서 Q tile loop (inner)
+                K/V tile loop (outer) ← 병렬축 아님</pre>
+        <p class="tiny">병렬축 좁음 → short-seq에서 SM 활용률 낮음.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> SMEM 배치</h3>
+        <table class="compact">
+          <thead><tr><th>buffer</th><th>size</th></tr></thead>
+          <tbody>
+            <tr><td>Q_tile</td><td class="num">B<sub>r</sub>&middot;d&middot;2B</td></tr>
+            <tr><td>K_tile[stage]</td><td class="num">B<sub>c</sub>&middot;d&middot;2B</td></tr>
+            <tr><td>V_tile[stage]</td><td class="num">B<sub>c</sub>&middot;d&middot;2B</td></tr>
+            <tr><td>S_tile</td><td class="num">B<sub>r</sub>&middot;B<sub>c</sub>&middot;4B</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Forward 의사코드 ★★</h3>
+<pre class="code"><span class="cmt"># FA1: K/V outer, Q inner</span>
+<span class="kw2">for</span> j <span class="kw2">in</span> range(<span class="num2">0</span>, N, Bc):
+    Kj = load_smem(K[j:j+Bc])     <span class="cmt"># cp.async</span>
+    Vj = load_smem(V[j:j+Bc])
+    <span class="kw2">for</span> i <span class="kw2">in</span> range(<span class="num2">0</span>, N, Br):
+        Qi  = load_smem(Q[i:i+Br])
+        mi  = load(m[i:i+Br])     <span class="cmt"># from HBM</span>
+        li  = load(l[i:i+Br])
+        Oi  = load(O[i:i+Br])
+
+        Sij = (Qi @ Kj.T) * tau             <span class="cmt"># Br×Bc</span>
+        <span class="kw2">if</span> causal: Sij += mask(i, j)
+
+        m_new = maximum(mi, rowmax(Sij))
+        Pij   = exp(Sij - m_new[:, <span class="kw2">None</span>])
+        alpha = exp(mi - m_new)
+        l_new = alpha*li + rowsum(Pij)
+        O_new = (Oi * (alpha*li)[:,<span class="kw2">None</span>]
+                   + Pij @ Vj) / l_new[:,<span class="kw2">None</span>]
+
+        store(m[i:i+Br] = m_new)
+        store(l[i:i+Br] = l_new)
+        store(O[i:i+Br] = O_new)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Forward 수식 (per block update)</h3>
+        <div class="formula">
+          S<sub>ij</sub> = Q<sub>i</sub>K<sub>j</sub><sup>T</sup>&middot;&tau;<br/>
+          m<sub>new</sub> = max(m<sub>i</sub>, rowmax(S<sub>ij</sub>))<br/>
+          &alpha; = e<sup>m<sub>i</sub>&minus;m<sub>new</sub></sup>, &beta; = e<sup>&minus;m<sub>new</sub></sup>&middot;rowmax shift<br/>
+          &ell;<sub>new</sub> = &alpha;&middot;&ell;<sub>i</sub> + rowsum(e<sup>S<sub>ij</sub>&minus;m<sub>new</sub></sup>)<br/>
+          O<sub>new</sub> = (&alpha;&middot;&ell;<sub>i</sub>&middot;O<sub>i</sub> + e<sup>S<sub>ij</sub>&minus;m<sub>new</sub></sup>V<sub>j</sub>) / &ell;<sub>new</sub>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 비효율 지점 (FA2가 고침)</h3>
+        <ul>
+          <li>매 KV tile마다 O/&ell; <mark>rescale</mark> (divide) &rarr; non-mma FLOP ~25%</li>
+          <li>Q_tile을 매 outer iter reload</li>
+          <li>(m, &ell;, O) HBM round-trip 반복</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> End-state 저장</h3>
+<pre class="code"><span class="cmt"># after loop: normalize</span>
+<span class="cmt"># FA1 rescale 이미 매 step → 추가 없음</span>
+LSE[i] = m[i] + log(l[i])   <span class="cmt"># for bwd</span>
+<span class="cmt"># FA2는 여기서 한번에 O /= l</span></pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FP16 accumulator 금지</span>: P&middot;V 누산은 반드시 FP32. FP16으로 누적하면 NaN 빈발. <span class="xref">↗ V09 §7</span>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 6</span></div>
+</section>
+
+<!-- ============================ PAGE 7: §6 FA1 Backward ============================ -->
+<section class="page" data-screen-label="07 FA1 Backward">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(7p)</span></div><div class="chap">§6 — FA1 Backward (recompute · LSE 기반)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Gradient 수식 ★</h3>
+        <div class="formula">
+          dV = P<sup>T</sup>&middot;dO<br/>
+          dP = dO&middot;V<sup>T</sup><br/>
+          dS<sub>ij</sub> = P<sub>ij</sub>&middot;(dP<sub>ij</sub> &minus; D<sub>i</sub>)<br/>
+          dQ = dS&middot;K&middot;&tau;<br/>
+          dK = dS<sup>T</sup>&middot;Q&middot;&tau;
+          <span class="legend">D<sub>i</sub> = Σ<sub>k</sub> P<sub>ik</sub>·dP<sub>ik</sub> (row-wise dot)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> D<sub>i</sub> precompute 동치</h3>
+        <div class="formula">
+          D<sub>i</sub> = &Sigma;<sub>j</sub> O<sub>ij</sub>&middot;dO<sub>ij</sub><br/>
+          = &Sigma;<sub>j</sub> P<sub>ij</sub>&middot;dP<sub>ij</sub>
+          <span class="legend">O = P·V 관계에서 미분 체인 적용하면 동일</span>
+        </div>
+        <p>O와 dO의 row-wise dot &rarr; <mark>D<sub>i</sub> 먼저 1-pass</mark> 계산.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 저장 vs 재계산</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>저장</th><th>bwd 작업</th></tr></thead>
+          <tbody>
+            <tr><td>Naive</td><td>P (N<sup>2</sup>)</td><td>load only</td></tr>
+            <tr><td>FA</td><td><mark>LSE (N)</mark></td><td>S, P recompute</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Backward 의사코드 ★</h3>
+<pre class="code"><span class="cmt"># Step 1: D_i precompute (all i)</span>
+<span class="kw2">for</span> i: D[i] = sum(O[i] * dO[i])
+
+<span class="cmt"># Step 2: KV-outer loop (accumulate dK, dV)</span>
+<span class="kw2">for</span> j <span class="kw2">in</span> range(<span class="num2">0</span>, N, Bc):
+    dKj = <span class="num2">0</span>; dVj = <span class="num2">0</span>
+    Kj  = load(K[j:j+Bc])
+    Vj  = load(V[j:j+Bc])
+
+    <span class="kw2">for</span> i <span class="kw2">in</span> range(<span class="num2">0</span>, N, Br):
+        Qi    = load(Q[i:i+Br])
+        LSEi  = load(LSE[i:i+Br])
+        dOi   = load(dO[i:i+Br])
+        Di    = load(D[i:i+Br])
+
+        Sij   = Qi @ Kj.T * tau
+        Pij   = exp(Sij - LSEi[:, <span class="kw2">None</span>])    <span class="cmt"># recompute</span>
+        dPij  = dOi @ Vj.T
+        dSij  = Pij * (dPij - Di[:, <span class="kw2">None</span>]) * tau
+
+        dVj  += Pij.T @ dOi
+        dKj  += dSij.T @ Qi
+        atomic_add(dQ[i:], dSij @ Kj)
+
+    write(dK[j:] = dKj)
+    write(dV[j:] = dVj)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> dQ atomic 이슈 ★</h3>
+        <ul>
+          <li>같은 i가 여러 j-block에서 갱신 &rarr; <mark>atomicAdd</mark></li>
+          <li>해법 A: KV outer, Q inner (현재 표준)</li>
+          <li>해법 B: j축 reduction buffer in smem (FA2 선호)</li>
+          <li>해법 C: split-K + 2-stage reduce</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 복잡도 비교</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>Mem</th><th>FLOP bwd</th></tr></thead>
+          <tbody>
+            <tr><td>Naive (P save)</td><td class="num">O(N<sup>2</sup>)</td><td class="num">5N<sup>2</sup>d</td></tr>
+            <tr><td>FA recompute</td><td class="num">O(N)</td><td class="num">7N<sup>2</sup>d</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">FLOP 40% ↑ but HBM 트래픽 대폭 ↓ → 실행시간 FA 빠름.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Causal in bwd</h3>
+        <ul>
+          <li>j &gt; i 영역 P=0 &rarr; dV, dK 기여 0</li>
+          <li>upper-triangular block 전체 skip</li>
+          <li>FLOP ~ 1/2 절감</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">recompute 부작용</span>: forward의 (m, &ell;) 즉 LSE가 bwd S 재계산으로 정확히 재현되어야 함. <b>비결정적 dropout 금지</b> (mask state 저장 필요).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 7</span></div>
+</section>
+
+<!-- ============================ PAGE 8: §7 FA2 개선점 ============================ -->
+<section class="page" data-screen-label="08 FA2 개선">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(8p)</span></div><div class="chap">§7 — FA2 개선점 (Dao 2023): loop swap · deferred rescale · warp split</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 3대 변경점 ★</h3>
+        <ol class="bullet-num">
+          <li><mark>Q outer / KV inner</mark>: 병렬축이 seq에 직접</li>
+          <li><mark>Deferred rescale</mark>: 매 step O/&ell; 대신 최후 1회</li>
+          <li><mark>Warp 분배 K-split</mark>: warp간 통신 1회로 감소</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Loop 교환 효과</h3>
+        <pre class="ascii">FA1: for j(KV): for i(Q): ...
+     Q를 매번 reload
+
+FA2: for i(Q):   for j(KV): ...
+     Q는 register/smem에 고정
+     (m,ℓ,O)도 register 영속</pre>
+        <ul>
+          <li>Q 로드 횟수: N/B<sub>c</sub> &rarr; 1</li>
+          <li>(m, &ell;, O) HBM round-trip 제거</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 병렬축 확장</h3>
+        <div class="formula">
+          grid = (N/B<sub>r</sub>, batch&middot;head)
+          <span class="legend">N축이 추가되어 short-seq에서도 SM 충분 활용</span>
+        </div>
+        <p class="tiny">예: N=64K, BH=1, H=16, B<sub>r</sub>=64 → 1024×16 = 16K blocks → 132 SM 포화.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Deferred rescale 수식 ★</h3>
+        <div class="formula">
+          loop 중: &ell;' &larr; &alpha;&middot;&ell; + rowsum(P)<br/>
+          O' &larr; &alpha;&middot;O + P&middot;V &nbsp;<span class="tiny">(/&ell; 없이)</span><br/>
+          ---<br/>
+          loop 끝: O &larr; O / &ell;
+          <span class="legend">rescale 횟수: N/B<sub>c</sub> → 1 · non-mma FLOP 25% → 10%</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Warp 분할 비교 ★</h3>
+        <pre class="ascii">FA1 (Q-split):
+  warp0 ← Q[0..15]    warp1 ← Q[16..31] ...
+  각 warp가 전체 K loop
+  smem로 O 통신 (매 KV tile)
+
+FA2 (K-split):
+  모든 warp가 같은 Q_i
+  K/V를 warp별 분할 → 독립 partial O
+  loop 끝에 warp-간 O reduce (smem 1회)</pre>
+        <p>warp 간 통신 횟수: K_steps &rarr; <mark>1회</mark>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> non-mma FLOP 비중</h3>
+        <table class="compact">
+          <thead><tr><th>연산</th><th>FA1</th><th>FA2</th></tr></thead>
+          <tbody>
+            <tr><td>rescale</td><td class="num">~25%</td><td class="num">~10%</td></tr>
+            <tr><td>softmax exp</td><td class="num">~15%</td><td class="num">~15%</td></tr>
+            <tr><td>mma (GEMM)</td><td class="num">~60%</td><td class="num"><b>~75%</b></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Dao 2023 Table 1 · A100 FP16 d=128.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Shared memory 재구성</h3>
+        <ul>
+          <li>K/V를 <mark>pipeline stage</mark>로 (num_stages=2~3)</li>
+          <li>cp.async prefetch &rarr; GEMM과 overlap <span class="xref">↗ V03 §6</span></li>
+          <li>Q는 register-heavy 배치 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> dQ atomic 제거</h3>
+        <div class="def"><span class="label">핵심</span>
+          FA2 backward: Q가 outer &rarr; 같은 Q_i에 대해 KV loop 안에서 누적.
+          <mark>atomicAdd 불필요</mark> (thread 단위 register 누적).
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 성능 정량</h3>
+        <table class="compact">
+          <thead><tr><th>HW / len</th><th>FA1</th><th>FA2</th></tr></thead>
+          <tbody>
+            <tr><td>A100 FP16 d=128 N=2K</td><td class="num">124 TF</td><td class="num">225 TF</td></tr>
+            <tr><td>H100 FP16 d=128</td><td class="num">&mdash;</td><td class="num">350 TF</td></tr>
+            <tr><td>속도 ratio</td><td class="num">1.0&times;</td><td class="num"><b>1.8&times;</b></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">저자 보고 · Dao 2023 Fig 5.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FA2도 Ampere (sm_80) 타겟</span>. Hopper의 WGMMA/TMA는 FA3에서 활용 &rarr; <span class="xref">↗ V07 §9</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 8</span></div>
+</section>
+
+<!-- ============================ PAGE 9: §8 FA2 Forward 의사코드 ============================ -->
+<section class="page" data-screen-label="09 FA2 Forward">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(9p)</span></div><div class="chap">§8 — FA2 Forward 의사코드 (Q-outer)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Grid / CTA (FA2)</h3>
+        <pre class="ascii">grid = (N/Br, batch × head)
+1 CTA = 1 Q-tile × 1 (batch, head)
+
+block threads = 128 or 256
+  warps = 4 or 8
+  각 warp가 Kj·Vj의 일부 담당 (K-split)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 레지스터·SMEM 배치</h3>
+        <table class="compact">
+          <thead><tr><th>위치</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td>register</td><td>Q_tile (B<sub>r</sub>&times;d)</td></tr>
+            <tr><td>register</td><td>(m, &ell;, O) per warp / thread</td></tr>
+            <tr><td>smem[stage]</td><td>K_tile, V_tile (B<sub>c</sub>&times;d)</td></tr>
+            <tr><td>smem</td><td>warp-간 O reduce buffer</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 초기화</h3>
+<pre class="code">m = -inf (Br)
+l = <span class="num2">0</span>   (Br)
+O = <span class="num2">0</span>   (Br × d)
+Qi = load_smem(Q[i_block]) <span class="cmt"># once</span>
+Qi = load_reg(Qi)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> FA2 Forward 의사코드 ★★</h3>
+<pre class="code"><span class="cmt"># Q outer: Q_i is fixed for entire CTA life</span>
+<span class="kw2">for</span> j <span class="kw2">in</span> range(<span class="num2">0</span>, N, Bc):
+    Kj = load_smem_async(K[j:j+Bc])  <span class="cmt"># cp.async prefetch</span>
+    Vj = load_smem_async(V[j:j+Bc])
+    cp_async_wait()
+
+    Sij = (Qi @ Kj.T) * tau
+    <span class="kw2">if</span> causal:
+        <span class="kw2">if</span> j_end &lt;= i_start: skip
+        <span class="kw2">else</span>: Sij += causal_mask(i, j)
+
+    m_new = maximum(m, rowmax(Sij))
+    Pij   = exp2f((Sij - m_new[:, <span class="kw2">None</span>]) * log2e)
+    alpha = exp2f((m - m_new) * log2e)
+    l     = alpha*l + rowsum(Pij)
+    O     = alpha[:, <span class="kw2">None</span>]*O + Pij @ Vj  <span class="cmt"># no /l</span>
+    m     = m_new
+
+<span class="cmt"># end of KV loop: single rescale</span>
+O = O / l[:, <span class="kw2">None</span>]
+LSE = m + log(l)
+write_hbm(O[i_block], LSE[i_block])</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> K-split warp reduction</h3>
+<pre class="code"><span class="cmt"># Each warp w holds partial (m_w, l_w, O_w)</span>
+<span class="cmt"># after KV loop: reduce across warps</span>
+smem_write(m_w, l_w, O_w, warp_id=w)
+__syncthreads()
+
+<span class="cmt"># warp 0 reduces</span>
+<span class="kw2">if</span> warp_id == <span class="num2">0</span>:
+    m_all = max over w
+    <span class="kw2">for</span> w: alpha_w = exp(m_w - m_all)
+    l_all = sum(alpha_w * l_w)
+    O_all = sum(alpha_w * O_w) / l_all
+    write_hbm(O_all)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> per-head_dim block 추천 ★</h3>
+        <table class="compact">
+          <thead><tr><th>head d</th><th>B<sub>r</sub></th><th>B<sub>c</sub></th><th>stages</th></tr></thead>
+          <tbody>
+            <tr><td class="num">64</td><td class="num">64</td><td class="num">64</td><td class="num">3 / 2</td></tr>
+            <tr><td class="num">128</td><td class="num">64</td><td class="num">64</td><td class="num">3 / 2</td></tr>
+            <tr><td class="num">256</td><td class="num">64</td><td class="num">32</td><td class="num">2 / 2</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">A100 / H100 기준. d=256에서 smem 한계 도달.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">head_dim ≤ 256</span>: smem에 B<sub>r</sub>&middot;d + 2&middot;B<sub>c</sub>&middot;d 올려야 함. d=512 이상은 Q를 추가 tile로 나눠야 하는 별도 경로 필요.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        FA2 변경 3키: <span class="key">Q외·defer·K분</span> (Q outer · deferred rescale · K-split warps)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 9</span></div>
+</section>
+
+<!-- ============================ PAGE 10: §9 FA3 Hopper ============================ -->
+<section class="page" data-screen-label="10 FA3 Hopper">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(10p)</span></div><div class="chap">§9 — FA3 Hopper: WGMMA · TMA · Warp Specialization · FP8</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Hopper가 요구한 재설계 ★</h3>
+        <ol class="bullet-num">
+          <li><mark>WGMMA</mark> asynchronous &rarr; GEMM 발행 후 softmax 가능</li>
+          <li><mark>TMA</mark> async bulk copy &rarr; prefetch 복잡도 감소 <span class="xref">↗ V04 §4</span></li>
+          <li><mark>Thread Block Cluster</mark> / DSM &rarr; 추가 여지</li>
+          <li><mark>FP8 Tensor Core</mark> E4M3/E5M2 <span class="xref">↗ V09 §3</span></li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Warp Specialization 구성</h3>
+        <pre class="ascii">CTA threads = 384 (3 warpgroup, 12 warp)
+  WG0 (warp 0..3)   = producer (TMA issue)
+  WG1 (warp 4..7)   = consumer A (WGMMA)
+  WG2 (warp 8..11)  = consumer B (WGMMA)
+    ↑ pingpong</pre>
+        <ul>
+          <li>WG0 reg = 40 (setmaxnreg.dec)</li>
+          <li>WG1, WG2 reg = 232 (setmaxnreg.inc)</li>
+          <li>WG1·WG2는 다른 Q-row 처리 (M축 분담)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> TMA + mbarrier 파이프라인 ★</h3>
+<pre class="code"><span class="cmt"># producer warp (WG0)</span>
+<span class="kw2">for</span> s <span class="kw2">in</span> range(stages):
+    mbarrier.expect_tx(K_full[s], <span class="num2">bytes</span>)
+    tma.load(Kj[s], K_full[s])
+    mbarrier.expect_tx(V_full[s], <span class="num2">bytes</span>)
+    tma.load(Vj[s], V_full[s])
+
+<span class="cmt"># consumer warp (WG1/2)</span>
+<span class="kw2">for</span> j_step:
+    mbarrier.wait(K_full[s], parity)
+    wgmma.mma_async(S += Qi @ Kj[s].T)
+    wgmma.wait_group(<span class="num2">0</span>)
+    mbarrier.arrive(K_empty[s])
+    softmax_update(m, l, S)
+
+    mbarrier.wait(V_full[s], parity)
+    wgmma.mma_async(O += P @ Vj[s])
+    wgmma.wait_group(<span class="num2">1</span>)
+    mbarrier.arrive(V_empty[s])</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> WGMMA operand 배치</h3>
+        <table class="compact">
+          <thead><tr><th>연산</th><th>A operand</th><th>B operand</th><th>Acc</th></tr></thead>
+          <tbody>
+            <tr><td>QK<sup>T</sup></td><td>Q (reg)</td><td>K (smem)</td><td>S (reg FP32)</td></tr>
+            <tr><td>PV</td><td>P (reg)</td><td>V (smem)</td><td>O (reg FP32)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">B operand는 smem 직접 접근 (shape m64n*k16). <span class="xref">↗ V04 §8</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> FP8 incoherent processing ★</h3>
+        <div class="def"><span class="label">아이디어</span>
+          무작위 직교 R 곱: Q' = Q&middot;R, K' = K&middot;R &rArr; S = Q&middot;K<sup>T</sup> 불변.
+          R이 outlier 분산 &rarr; block-quant scale 효율 ↑.
+        </div>
+        <ul>
+          <li>R = <mark>Hadamard</mark> (&plusmn;1, 구현 단순)</li>
+          <li>V는 row/col block-scale (per-token · per-channel)</li>
+          <li>FP8 E4M3 · acc FP32</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 성능 수치</h3>
+        <table class="compact">
+          <thead><tr><th>config</th><th>TFLOPS</th></tr></thead>
+          <tbody>
+            <tr><td>H100 FP16 d=128</td><td class="num">740</td></tr>
+            <tr><td>H100 FP8 d=128</td><td class="num"><b>1,200</b></td></tr>
+            <tr><td>H100 FP8 peak (WGMMA)</td><td class="num">1,979</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Shah et al. 2024 · H100 SXM · 저자 보고.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FP8 함정</span>: forward 중 scale 동적 갱신하면 비결정. 미리 calibration scale 사용. <span class="xref">↗ V10 §10</span>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 10</span></div>
+</section>
+
+<!-- ============================ PAGE 11: §10 FA3 Pingpong ============================ -->
+<section class="page" data-screen-label="11 FA3 Pingpong">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(11p)</span></div><div class="chap">§10 — FA3 Pingpong 스케줄 (두 warpgroup 교차 GEMM)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Pingpong 동기 ★</h3>
+        <div class="def"><span class="label">동기</span>
+          WGMMA 1회 async 발행 후 issue slot 여유 &rarr; 같은 warpgroup이 softmax 하는 동안 다른 warpgroup의 GEMM 발행.
+          WGMMA unit 이용률 &uarr;.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 2-WG 타임라인</h3>
+        <pre class="ascii">time ►►►
+WG1: |GEMM1|soft|GEMM2|GEMM1|soft|GEMM2|
+WG2:        |GEMM1|soft|GEMM2|GEMM1|soft|
+WG0:  TMA load K[j+1], V[j+1] 지속
+
+GEMM1 = Q @ Kj.T
+GEMM2 = P @ Vj
+soft  = online softmax update</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 3-stage intra-WG</h3>
+        <pre class="ascii">WG 1개 안 slot 파이프:
+slot 0 | GEMM1 |  soft  | GEMM2 |
+slot 1 |       | GEMM1  |  soft | GEMM2 |
+slot 2 |       |        | GEMM1 |  soft | GEMM2 |
+
+→ 다음 iter S<sub>j+1</sub> GEMM1 미리 시작</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 의사코드 (2-WG pingpong)</h3>
+<pre class="code"><span class="cmt"># WG1 and WG2 run symmetrically on different Q rows</span>
+<span class="cmt"># 조건 synchronization via named barriers</span>
+<span class="kw2">for</span> j <span class="kw2">in</span> range(<span class="num2">0</span>, N, Bc):
+    wait_for(Kj[s])         <span class="cmt"># TMA done</span>
+    <span class="kw2">if</span> wg == <span class="num2">1</span>:
+        barrier.wait(wg1_gemm_turn)
+        wgmma.issue(S = Qi @ Kj.T)
+        barrier.arrive(wg2_gemm_turn)
+        softmax_update(...)
+        barrier.wait(wg1_gemm_turn)
+        wgmma.issue(O += P @ Vj)
+        barrier.arrive(wg2_gemm_turn)
+    <span class="kw2">else</span>:   <span class="cmt"># wg == 2</span>
+        <span class="cmt"># 교차된 순서</span>
+        softmax_update(...)
+        barrier.wait(wg2_gemm_turn)
+        wgmma.issue(S2 = Qi2 @ Kj.T)
+        ...
+    arrive(Kj_empty[s])</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> mbarrier 운용</h3>
+        <ul>
+          <li>K_full[s], K_empty[s], V_full[s], V_empty[s]</li>
+          <li><mark>parity bit</mark>로 같은 barrier 재사용 (named barrier 16개 한도)</li>
+          <li>WG0 expect_tx에 byte 등록 &rarr; TMA 완료 시 자동 arrive</li>
+          <li>WG1, WG2 간 named barrier 4개 추가 (gemm turn, softmax turn)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 성능 분석</h3>
+        <table class="compact">
+          <thead><tr><th>기법</th><th>WGMMA util</th></tr></thead>
+          <tbody>
+            <tr><td>FA2 style (1 WG)</td><td class="num">~55%</td></tr>
+            <tr><td>WS + TMA</td><td class="num">~75%</td></tr>
+            <tr><td><mark>WS + Pingpong</mark></td><td class="num"><b>~90%</b></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Shah et al. 2024 · H100 FP16 d=128. 정성적 추정.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 수치 트릭 (exp2f + clamp)</h3>
+        <div class="formula">
+          x' = (S &minus; m)&middot;log<sub>2</sub>e&middot;&tau;<br/>
+          P = exp2f(x')<br/>
+          P = clamp(P, 0, 1) <span class="tiny">(FP8 overflow 방지)</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">named barrier 충돌</span>: 16개 한도. K/V stage × full/empty × 2 WG = 쉽게 도달. parity trick 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 11</span></div>
+</section>
+
+<!-- ============================ PAGE 12: §11 FA v1/v2/v3 정량 비교 ============================ -->
+<section class="page" data-screen-label="12 FA 정량 비교">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(12p)</span></div><div class="chap">§11 — FA v1 · v2 · v3 정량 비교 ★</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 3-column 비교표 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>관점</th><th>v1 (2022)</th><th>v2 (2023)</th><th>v3 (2024)</th></tr></thead>
+          <tbody>
+            <tr><td>핵심</td><td>tile + online softmax</td><td>+ deferred rescale<br/>+ N축 병렬</td><td>+ TMA · WGMMA<br/>+ WS · FP8</td></tr>
+            <tr><td>loop order</td><td>KV outer, Q inner</td><td><mark>Q outer</mark>, KV inner</td><td>Q outer + WS</td></tr>
+            <tr><td>rescale</td><td>매 KV step O/&ell;</td><td><mark>최후 1회</mark></td><td>최후 1회</td></tr>
+            <tr><td>병렬축</td><td>batch &times; head</td><td>+ <mark>seq (N/B<sub>r</sub>)</mark></td><td>+ tile scheduler</td></tr>
+            <tr><td>warp split</td><td>Q-split</td><td><mark>K-split</mark></td><td>WS producer/consumer</td></tr>
+            <tr><td>async copy</td><td>cp.async (opt)</td><td>cp.async</td><td><b>TMA</b></td></tr>
+            <tr><td>MMA</td><td>mma.sync</td><td>mma.sync</td><td><b>WGMMA async</b></td></tr>
+            <tr><td>target SM</td><td>sm_80</td><td>sm_80, sm_90</td><td><b>sm_90</b></td></tr>
+            <tr><td>FP8 지원</td><td>&mdash;</td><td>&mdash;</td><td><b>E4M3 + incoherent</b></td></tr>
+            <tr><td>dQ atomic</td><td>yes (KV outer)</td><td>no (Q outer)</td><td>no</td></tr>
+            <tr><td>Hopper features</td><td>&mdash;</td><td>&mdash;</td><td>TMA, WGMMA, mbarrier, setmaxnreg</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> 성능 수치 비교</h3>
+        <table class="compact">
+          <thead><tr><th>HW / config</th><th>FA1</th><th>FA2</th><th>FA3</th></tr></thead>
+          <tbody>
+            <tr><td>A100 FP16 d=128 N=2K</td><td class="num">124 TF</td><td class="num">225 TF</td><td class="num">&mdash;</td></tr>
+            <tr><td>H100 FP16 d=128</td><td class="num">&mdash;</td><td class="num">350 TF</td><td class="num">740 TF</td></tr>
+            <tr><td>H100 FP8 d=128</td><td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num"><b>1,200 TF</b></td></tr>
+            <tr><td>H100 peak FP16 WGMMA</td><td colspan="3" class="num">989 TF</td></tr>
+            <tr><td>H100 peak FP8 WGMMA</td><td colspan="3" class="num">1,979 TF</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">저자 보고치. Dao 2022·2023, Shah 2024.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> non-mma FLOP 비중</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>FA1</th><th>FA2</th><th>FA3</th></tr></thead>
+          <tbody>
+            <tr><td>rescale</td><td class="num">~25%</td><td class="num">~10%</td><td class="num">~5%</td></tr>
+            <tr><td>exp (SFU)</td><td class="num">~15%</td><td class="num">~15%</td><td class="num">~12%</td></tr>
+            <tr><td>mma</td><td class="num">~60%</td><td class="num">~75%</td><td class="num"><b>~83%</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Memory O(N) 유지</h3>
+        <p>세 버전 모두 forward activation은 <mark>LSE (N)</mark> 만 저장. S materialization 없음 공통.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 지원 변형</h3>
+        <table class="compact">
+          <thead><tr><th>변형</th><th>FA1</th><th>FA2</th><th>FA3</th></tr></thead>
+          <tbody>
+            <tr><td>Causal</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>GQA/MQA</td><td>&mdash;</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Sliding window</td><td>&mdash;</td><td>✓</td><td>✓</td></tr>
+            <tr><td>ALiBi bias</td><td>&mdash;</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Soft-cap (Gemma)</td><td>&mdash;</td><td>&mdash;</td><td>✓</td></tr>
+            <tr><td>varlen (packed)</td><td>&mdash;</td><td>✓</td><td>✓</td></tr>
+            <tr><td>FP8</td><td>&mdash;</td><td>&mdash;</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 한계 공통</h3>
+        <ul>
+          <li>head_dim &le; 256 (smem)</li>
+          <li>FA3 FP8: 정확도 손실 ~0.5% &rarr; incoherent로 보정</li>
+          <li>variable seq는 ragged/packed 처리 필요</li>
+          <li>Blackwell (sm_100)는 FA3 kernel 재타겟 중</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 진화 3-단계 요약</h3>
+        <div class="formula">
+          v1: <b>IO-aware</b> (SRAM tile + online softmax)<br/>
+          v2: <b>Parallel-aware</b> (Q-outer + seq 병렬)<br/>
+          v3: <b>Hopper-aware</b> (TMA + WGMMA + WS + FP8)
+        </div>
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        FA 진화: <span class="key">T · PR · WSF</span>
+        (Tile · Partition+Rescale · WarpSpec+FP8)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 12</span></div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Causal Mask ============================ -->
+<section class="page" data-screen-label="13 Causal Mask">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(13p)</span></div><div class="chap">§12 — Causal Mask 처리 (block skip · diagonal)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Causal 정의</h3>
+        <div class="formula">
+          S<sub>ij</sub> = &minus;&infin; &nbsp; if j &gt; i
+          <span class="legend">token i는 자기 이전 토큰만 참조 · language modeling 기본</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Block 분류</h3>
+        <pre class="ascii">KV block j_start..j_end vs Q block i_start..i_end:
+
+case A: j_end ≤ i_start     → full-keep, mask 불필요
+case B: j_start > i_end     → full-skip (전부 −∞)
+case C: overlap (diagonal)  → per-element mask</pre>
+        <ul>
+          <li>A: mask 연산 0</li>
+          <li>B: 전체 KV tile <mark>skip</mark> (GEMM 자체 생략)</li>
+          <li>C: diagonal block만 mask 적용</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Compute 절감</h3>
+        <div class="formula">
+          keep ratio = 1/2 + B<sub>c</sub>/(2N)<br/>
+          &rarr; 거의 정확히 1/2
+          <span class="legend">전체 N²/2 + diagonal strip</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 의사코드 ★</h3>
+<pre class="code"><span class="kw2">for</span> j <span class="kw2">in</span> range(<span class="num2">0</span>, N, Bc):
+    j_end = j + Bc
+    <span class="kw2">if</span> j &gt; i_end:        <span class="cmt"># case B</span>
+        <span class="kw2">continue</span>         <span class="cmt"># full skip</span>
+
+    Sij = (Qi @ Kj.T) * tau
+
+    <span class="kw2">if</span> j_end &gt; i_start: <span class="cmt"># case C</span>
+        Sij = where(
+            row &gt;= col_in_global,
+            Sij, -inf
+        )
+    <span class="cmt"># else: case A, no mask</span>
+
+    <span class="cmt"># continue FA update</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Mask 구현 패턴</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th>비용</th></tr></thead>
+          <tbody>
+            <tr><td>additive (+ &minus;∞)</td><td>FP op 1회</td></tr>
+            <tr><td>select (where)</td><td>predicate compare</td></tr>
+            <tr><td>precomputed mask mem</td><td>smem/HBM load</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">FA2는 compile-time per-block 분기 → mask 자체 load 없음.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Tile scheduler 효과</h3>
+        <ul>
+          <li>naive: 모든 (i, j) pair 할당 &rarr; upper-triangle warp도 대기</li>
+          <li>causal-aware scheduler: <mark>lower-triangle + diagonal</mark> 만 워크큐</li>
+          <li>SM간 load balance &uarr;</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 변종 mask</h3>
+        <table class="compact">
+          <thead><tr><th>mask</th><th>정의</th></tr></thead>
+          <tbody>
+            <tr><td>causal</td><td>j &le; i</td></tr>
+            <tr><td>sliding window</td><td>i&minus;W &le; j &le; i</td></tr>
+            <tr><td>prefix-LM</td><td>prefix 내부 full, suffix causal</td></tr>
+            <tr><td>document-packed</td><td>같은 doc_id 내에서만</td></tr>
+            <tr><td>tree (spec decode)</td><td>branch 구조 기반</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> ALiBi · Soft-cap</h3>
+        <div class="formula">
+          ALiBi: S<sub>ij</sub> += &minus;m<sub>h</sub>&middot;|i&minus;j|<br/>
+          Soft-cap: S<sub>ij</sub> &larr; cap&middot;tanh(S<sub>ij</sub>/cap)
+          <span class="legend">m<sub>h</sub> = head-specific slope · soft-cap은 Gemma-2 사용</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">negative infinity</span>: FP16 exp(&minus;65504) 는 0이지만 일부 GPU에서 NaN. 대체로 큰 음수 (&minus;1e4) 사용이 안전.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 13</span></div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Ring Attention ============================ -->
+<section class="page" data-screen-label="14 Ring Attention">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(14p)</span></div><div class="chap">§13 — Ring Attention (sequence / context parallel)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 ★</h3>
+        <ul>
+          <li>long-context: N = 1M &rarr; single GPU KV 저장 불가</li>
+          <li>seq축을 여러 GPU에 <mark>sharding</mark> 필요</li>
+          <li>FA의 online softmax 결합 공식 활용 &rarr; GPU간 partial merge</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Sharding 구조</h3>
+        <div class="formula">
+          N = P&middot;N<sub>p</sub><br/>
+          rank r 은 Q<sub>r</sub>, K<sub>r</sub>, V<sub>r</sub> &isin; &#8477;<sup>N<sub>p</sub>&times;d</sup> 보유
+          <span class="legend">P개 GPU가 ring 위에 위치 · Q는 rank 고정, KV는 순환</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Ring rotation</h3>
+        <pre class="ascii">time step 0:   rank r holds (K_r, V_r)
+            compute Q_r · K_r
+step 1:  send K_r → r+1, recv K_{r−1}
+         compute Q_r · K_{r−1}
+step 2:  순환 P−1 회
+end:    Q_r 가 모든 rank의 KV 본 셈</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 의사코드 ★</h3>
+<pre class="code"><span class="cmt"># per rank r</span>
+Qr = load_local()
+Kr_cur = Kr; Vr_cur = Vr
+(m, l, O) = (-inf, <span class="num2">0</span>, <span class="num2">0</span>)
+
+<span class="kw2">for</span> step <span class="kw2">in</span> range(P):
+    <span class="cmt"># async send/recv while compute</span>
+    isend(Kr_cur, Vr_cur, dst=r+<span class="num2">1</span>)
+    irecv(K_next, V_next, src=r-<span class="num2">1</span>)
+
+    <span class="cmt"># FA2-style inner update with K_cur, V_cur</span>
+    S = Qr @ Kr_cur.T * tau
+    <span class="kw2">if</span> causal: mask(S, step)
+    (m, l, O) &larr; online_update(m, l, O, S, Vr_cur)
+
+    wait_comm()
+    Kr_cur, Vr_cur = K_next, V_next
+
+O = O / l; write(O_r)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Causal 처리 in ring</h3>
+        <div class="def"><span class="label">문제</span>
+          rank r의 Q<sub>r</sub>는 자기보다 낮은 index만 attend &rarr; step에 따라 mask 조건 다름.
+          일부 step은 <mark>full skip</mark>, 일부는 diagonal.
+        </div>
+        <ul>
+          <li>step s에서 KV는 rank r&minus;s의 것</li>
+          <li>r&minus;s &gt; r &rArr; 전부 future &rArr; skip</li>
+          <li>load imbalance 발생 &rarr; striped 배치로 완화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Comm-Compute overlap</h3>
+        <pre class="ascii">compute: |FA(step 0)|FA(step 1)|FA(step 2)|
+comm:     |send/recv→|send/recv→|send/recv→|
+          ↑ NCCL SendRecv async</pre>
+        <p class="tiny">d=128, N<sub>p</sub>=8K, P=8 → compute 시간 &gt; comm 시간이 일반.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 변형 · 확장</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>Ring Attention (Liu '23)</td><td>Q 고정, KV 순환</td></tr>
+            <tr><td>Striped Attention</td><td>causal load balance</td></tr>
+            <tr><td>Tree Attention (long-ctx)</td><td>tree-based reduce</td></tr>
+            <tr><td>Context Parallel</td><td>Megatron CP = ring variant</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        분산 맥락 상세 <span class="xref">↗ V15 §12 · §13</span>. 여기서는 kernel 관점.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 14</span></div>
+</section>
+
+<!-- ============================ PAGE 15: §14 GQA / MQA ============================ -->
+<section class="page" data-screen-label="15 GQA MQA">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(15p)</span></div><div class="chap">§14 — GQA / MQA (KV head 축 공유)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정의 ★</h3>
+        <table class="compact">
+          <thead><tr><th>이름</th><th>H<sub>kv</sub></th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>MHA</td><td class="num">H</td><td>표준 (GPT-2/3)</td></tr>
+            <tr><td><mark>MQA</mark></td><td class="num">1</td><td>cache 1/H배 (PaLM)</td></tr>
+            <tr><td><mark>GQA</mark></td><td>g (e.g. 8)</td><td>중간 (Llama-2 70B)</td></tr>
+            <tr><td>MLA</td><td>compressed</td><td>cache r/D (DeepSeek) <span class="xref">↗ V07 §15</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Group 수식</h3>
+        <div class="formula">
+          Q &isin; H heads &middot; d<br/>
+          K, V &isin; g heads &middot; d (g | H)<br/>
+          group size = H/g<br/>
+          head h &rarr; KV head &lfloor;h/(H/g)&rfloor;
+          <span class="legend">여러 Q-head가 같은 KV-head 공유</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> KV cache 크기</h3>
+        <div class="formula">
+          KV_bytes = 2&middot;N&middot;H<sub>kv</sub>&middot;d&middot;size(dtype)<br/>
+          MHA &rarr; MQA: <mark>H&times; 절감</mark><br/>
+          MHA &rarr; GQA(g=8, H=32): 4&times; 절감
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Kernel 구현 차이</h3>
+        <ul>
+          <li>MHA: 각 head 독립 attention kernel</li>
+          <li>MQA/GQA: Q를 <mark>H/g 그룹</mark>으로 묶어 한 CTA에 처리</li>
+          <li>KV는 1회 load &rarr; smem 재사용 (H/g배)</li>
+          <li>arithmetic intensity &uarr; (compute-bound 전환)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Decode AI 분석 ★</h3>
+        <div class="formula">
+          FLOP = 2&middot;N&middot;H&middot;d (Q 고정, K full)<br/>
+          KV bytes = 2&middot;N&middot;H<sub>kv</sub>&middot;d&middot;dtype<br/>
+          AI = H / (H<sub>kv</sub>&middot;dtype)
+          <span class="legend">MHA: AI=H/(H·2)=0.5 · MQA: AI=H/(1·2)=H/2</span>
+        </div>
+        <p class="tiny">decode는 memory bound &rarr; MQA/GQA로 AI 끌어올려 Tensor Core 활용.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 모델별 설정</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>H</th><th>H<sub>kv</sub></th><th>방식</th></tr></thead>
+          <tbody>
+            <tr><td>Llama-2 7B</td><td class="num">32</td><td class="num">32</td><td>MHA</td></tr>
+            <tr><td>Llama-2 70B</td><td class="num">64</td><td class="num">8</td><td>GQA</td></tr>
+            <tr><td>Llama-3 8B</td><td class="num">32</td><td class="num">8</td><td>GQA</td></tr>
+            <tr><td>Mistral 7B</td><td class="num">32</td><td class="num">8</td><td>GQA</td></tr>
+            <tr><td>PaLM</td><td class="num">&mdash;</td><td class="num">1</td><td>MQA</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> FA kernel tiling 영향</h3>
+        <pre class="ascii">MHA kernel layout:
+  grid = (N/Br, batch × H)
+  1 CTA = 1 Q-head, B_r rows
+
+GQA kernel layout:
+  grid = (N/Br, batch × H_kv)
+  1 CTA = (H/g) Q-heads group
+  Q_tile = Br × (H/g) × d   ← register ↑
+  K/V tile = Bc × d (shared)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 품질 영향</h3>
+        <ul>
+          <li>MQA: perplexity 소폭 ↑ (~0.1~0.3)</li>
+          <li>GQA g=8: MHA 대비 무의미한 차이</li>
+          <li>학습 시점 GQA 스타일로 훈련 가능 (Llama-2 paper)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> PagedAttention과의 상호작용</h3>
+        <p>block table의 H<sub>kv</sub>&middot;d per page &rArr; <mark>GQA &rarr; page 크기 축소</mark>. 같은 메모리로 더 많은 요청 수용. <span class="xref">↗ V07 §16</span></p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">g | H 제약</span>: g는 H의 약수여야 함 (보통 1, 2, 4, 8). 비정수 ratio는 구현 복잡.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 15</span></div>
+</section>
+
+<!-- ============================ PAGE 16: §15 MLA ============================ -->
+<section class="page" data-screen-label="16 MLA">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(16p)</span></div><div class="chap">§15 — MLA: Multi-head Latent Attention (DeepSeek-V2)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 아이디어 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          KV를 저차원 latent <code>c</code> (rank r &laquo; d) 로 압축. cache는 c만 저장.
+          attention 시 up-projection W<sub>UK</sub>, W<sub>UV</sub> 곱해 복원.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 수식 ★</h3>
+        <div class="formula">
+          c<sub>i</sub> = W<sub>DKV</sub>&middot;x<sub>i</sub> &isin; &#8477;<sup>r</sup><br/>
+          K<sub>i</sub> = W<sub>UK</sub>&middot;c<sub>i</sub> &isin; &#8477;<sup>H&middot;d</sup><br/>
+          V<sub>i</sub> = W<sub>UV</sub>&middot;c<sub>i</sub> &isin; &#8477;<sup>H&middot;d</sup><br/>
+          cache = {c<sub>i</sub>}, size = N&middot;r (ll N&middot;H&middot;d)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Cache 압축률</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>per-token KV bytes</th></tr></thead>
+          <tbody>
+            <tr><td>MHA (FP16)</td><td class="num">2&middot;H&middot;d&middot;2</td></tr>
+            <tr><td>GQA g=8</td><td class="num">2&middot;8&middot;d&middot;2</td></tr>
+            <tr><td><mark>MLA r=512</mark></td><td class="num">512&middot;2 + RoPE</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">DeepSeek-V2: r=512, H&middot;d=16384 &rarr; ~32&times; 절감.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Absorb trick ★</h3>
+        <div class="def"><span class="label">핵심</span>
+          attention 수식에서 W<sub>Q</sub><sup>T</sup>W<sub>UK</sub>를 미리 곱해 <mark>하나의 행렬</mark>로 변환.
+          decode 시 K<sub>i</sub> 복원 없이 c<sub>i</sub>와 직접 attention 가능.
+        </div>
+        <div class="formula">
+          S = (W<sub>Q</sub>x)&middot;(W<sub>UK</sub>c)<sup>T</sup>&middot;&tau;<br/>
+          = x<sup>T</sup>&middot;(W<sub>Q</sub><sup>T</sup>W<sub>UK</sub>)&middot;c&middot;&tau;<br/>
+          = x<sup>T</sup>&middot;W<sub>QK</sub><sup>abs</sup>&middot;c&middot;&tau;
+          <span class="legend">per-head W<sup>abs</sup> 미리 곱 · runtime GEMM 1회 감소</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> RoPE 분리 (decoupled) ★</h3>
+        <div class="def"><span class="label">이슈</span>
+          RoPE는 position에 의존하는 회전 &rarr; c &rarr; K의 linear map에 흡수 불가.
+          해법: RoPE를 <mark>별도 채널</mark>에 둠.
+        </div>
+        <ul>
+          <li>K = concat(K<sup>nope</sup> from c, K<sup>rope</sup> raw)</li>
+          <li>K<sup>rope</sup> &isin; &#8477;<sup>d<sub>r</sub></sup>에만 RoPE 적용</li>
+          <li>cache = c (absorb용) + K<sup>rope</sup> (decoupled)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Kernel 구조</h3>
+<pre class="code"><span class="cmt"># decode: 1 query token</span>
+q_nope = W_Q @ x             <span class="cmt"># (H, d)</span>
+q_rope = apply_rope(W_QR @ x)
+q_abs  = q_nope @ W_UK       <span class="cmt"># absorb</span>
+
+<span class="cmt"># attend to cached c, K_rope</span>
+<span class="kw2">for</span> page <span class="kw2">in</span> block_table:
+    c_page      = load(c[page])       <span class="cmt"># (Bp, r)</span>
+    K_rope_page = load(K_rope[page])
+    S_nope = q_abs @ c_page.T * tau
+    S_rope = q_rope @ K_rope_page.T
+    S = S_nope + S_rope
+    <span class="cmt"># online softmax</span>
+    O += softmax_update(...)
+
+<span class="cmt"># V도 c 기반 복원</span>
+O = O @ W_UV  <span class="cmt"># or absorbed</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 장단점</h3>
+        <table class="compact">
+          <thead><tr><th>장</th><th>단</th></tr></thead>
+          <tbody>
+            <tr><td>cache 32&times; 절감</td><td>구현 복잡 (RoPE 분리)</td></tr>
+            <tr><td>long context 유리</td><td>absorb trick 필요</td></tr>
+            <tr><td>품질 MHA 수준</td><td>학습부터 MLA로 해야</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">prefill vs decode</span>: prefill에서는 absorb가 오히려 불리 (K 전체 복원 후 GEMM이 Tensor Core 이용). decode에서만 absorb 경로 선택.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        MLA 3-키: <span class="key">압축·absorb·분리</span> (compress c · absorb W<sub>QK</sub> · decouple RoPE)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 16</span></div>
+</section>
+
+<!-- ============================ PAGE 17: §16 PagedAttention 자료구조 ============================ -->
+<section class="page" data-screen-label="17 PagedAttn 자료구조">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(17p)</span></div><div class="chap">§16 — PagedAttention 자료구조 (block table · logical↔physical)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 ★</h3>
+        <ul>
+          <li>seq 길이 가변 · 동시 R개 요청</li>
+          <li>contiguous KV 할당 &rarr; <span class="red">내부 단편화 60%+</span></li>
+          <li>OS virtual memory 패턴 차용</li>
+          <li>KV를 <mark>고정 크기 page</mark>로 쪼개 관리</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 수식</h3>
+        <div class="formula">
+          B<sub>p</sub> = page_size (token 수)<br/>
+          per-page bytes = B<sub>p</sub>&middot;H<sub>kv</sub>&middot;d&middot;2 (K+V)
+          <span class="legend">vLLM 기본 B<sub>p</sub> = 16</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 자료구조 시각화 ★★</h3>
+        <pre class="ascii">┌─────────────────────────────────────────────────┐
+│  physical block_pool (device HBM)               │
+│  ┌────┬────┬────┬────┬────┬────┬────┬────┐      │
+│  │ p0 │ p1 │ p2 │ p3 │ p4 │ p5 │ p6 │ p7 │ ...  │
+│  └────┴────┴────┴────┴────┴────┴────┴────┘      │
+│   각 block = B<sub>p</sub>×H<sub>kv</sub>×D×2B (K,V)                   │
+└─────────────────────────────────────────────────┘
+          ▲       ▲       ▲
+          │       │       │  (referenced by table)
+┌─────────┴───────┴───────┴────────────┐
+│  block_table[req_id]                 │
+│  req A: [p3, p1, p5,  ...]           │
+│  req B: [p3, p1, p2, p7, ...]        │
+│  req C: [p6, p4, p0,  ...]           │
+│          ↑   ↑                       │
+│          └───┴─ shared prefix pages  │
+└──────────────────────────────────────┘
+
+logical token t → page:
+  page_idx  = block_table[req][t // B<sub>p</sub>]
+  offset    = t % B<sub>p</sub>
+  K_ptr     = block_pool[page_idx][offset]</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 메타데이터 필드</h3>
+        <table class="compact">
+          <thead><tr><th>field</th><th>타입</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>block_pool</td><td>Tensor [P, B<sub>p</sub>, H<sub>kv</sub>, d, 2]</td><td>pre-allocated</td></tr>
+            <tr><td>block_table</td><td>int32 [R, L<sub>max</sub>/B<sub>p</sub>]</td><td>req → page list</td></tr>
+            <tr><td>seq_len</td><td>int32 [R]</td><td>current length</td></tr>
+            <tr><td>ref_count</td><td>int32 [P]</td><td>page refcount (CoW)</td></tr>
+            <tr><td>free_list</td><td>queue</td><td>사용 가능 page idx</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Fragmentation 비교 ★</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>internal frag</th><th>external frag</th></tr></thead>
+          <tbody>
+            <tr><td>contiguous max_len</td><td>60~80%</td><td>R↑ 시 OOM</td></tr>
+            <tr><td>contiguous actual</td><td>~0%</td><td>매 요청 alloc/free</td></tr>
+            <tr><td><mark>paged B<sub>p</sub>=16</mark></td><td>&lt;B<sub>p</sub>&middot;bytes</td><td>0 (page 풀)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">vLLM 논문: 메모리 활용률 &gt;96%.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Block size 영향</h3>
+        <table class="compact">
+          <thead><tr><th>B<sub>p</sub></th><th>장점</th><th>단점</th></tr></thead>
+          <tbody>
+            <tr><td class="num">16</td><td>frag ↓, 공유 세밀</td><td>page table ↑</td></tr>
+            <tr><td class="num">32</td><td>중간</td><td>중간</td></tr>
+            <tr><td class="num">128</td><td>HBM throughput ↑</td><td>frag ↑, 공유 거침</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Prefix sharing (CoW) ★</h3>
+        <ul>
+          <li>여러 seq가 같은 system prompt &rarr; 같은 page 가리킴</li>
+          <li>ref_count &ge; 2인 page에 write 발생 시 <mark>copy-on-write</mark></li>
+          <li>분기 시점에만 새 page alloc</li>
+          <li>4K system prompt · R=100 &rarr; 100&times; 메모리 절감</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Beam · parallel sampling</h3>
+        <ul>
+          <li>beam K개가 같은 prefix page 공유</li>
+          <li>분기 시 새 page만 alloc</li>
+          <li>fork overhead &asymp; O(1) page</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Allocator 정책</h3>
+<pre class="code">alloc_page(req):
+    <span class="kw2">if</span> free_list empty:
+        evict() or preempt()
+    p = free_list.pop()
+    ref_count[p] = <span class="num2">1</span>
+    <span class="kw2">return</span> p
+
+free_req(req):
+    <span class="kw2">for</span> p <span class="kw2">in</span> block_table[req]:
+        ref_count[p] -= <span class="num2">1</span>
+        <span class="kw2">if</span> ref_count[p] == <span class="num2">0</span>:
+            free_list.push(p)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        scheduler 자체 동작 <span class="xref">↗ V16 §5 · §6</span>. 여기서는 kernel 입력 자료구조만.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 17</span></div>
+</section>
+
+<!-- ============================ PAGE 18: §17 PagedAttention kernel ============================ -->
+<section class="page" data-screen-label="18 PagedAttn kernel">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(18p)</span></div><div class="chap">§17 — PagedAttention kernel (gather-scatter · split-K)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 변화 요지 ★</h3>
+        <ul>
+          <li>K/V가 <mark>비연속</mark> (page 단위 흩어짐)</li>
+          <li>iteration index &rarr; page lookup &rarr; gather load</li>
+          <li>TMA 2D bulk copy 유리 (per-page descriptor)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Grid / CTA (v1)</h3>
+        <pre class="ascii">grid = (R_active, H_q)
+1 CTA = 1 (request, q_head)
+1 CTA가 자기 req의 모든 page를 loop</pre>
+        <ul>
+          <li>짧은 seq에서 효율</li>
+          <li>긴 seq에서 SM 활용률 저조</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Decode 의사코드</h3>
+<pre class="code"><span class="cmt"># 1 thread block = 1 query token, 1 head</span>
+q = load(Q[req, head])          <span class="cmt"># (d,)</span>
+(m, l, O) = (-inf, <span class="num2">0</span>, <span class="num2">0</span>)
+
+<span class="kw2">for</span> t_block <span class="kw2">in</span> range(<span class="num2">0</span>, seq_len, Bp):
+    page = block_table[req][t_block // Bp]
+    K_p  = load(block_pool[page][.., K])
+    V_p  = load(block_pool[page][.., V])
+
+    s  = q @ K_p.T * tau        <span class="cmt"># (Bp,)</span>
+    <span class="kw2">if</span> causal: mask_suffix(s, t_block)
+
+    (m, l, O) = online_update(m, l, O, s, V_p)
+
+O /= l
+write(O_out[req, head], O)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> v2: Split-K ★</h3>
+        <div class="def"><span class="label">변경</span>
+          K축을 P partition으로 split &rarr; 여러 CTA가 병렬. 긴 seq에서 SM 활용 &uarr;.
+          partial (m, &ell;, O) &rarr; 2nd-stage reduce kernel.
+        </div>
+        <pre class="ascii">stage 1: grid = (R × H × P)
+   CTA p가 partition p의 page만 loop
+   → partial (m_p, l_p, O_p)
+
+stage 2: grid = (R × H)
+   online softmax merge P partials:
+     M     = max_p m_p
+     α_p   = exp(m_p − M)
+     L     = Σ_p α_p · l_p
+     O_out = Σ_p α_p · O_p / L</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Gather-scatter 패턴 ★</h3>
+<pre class="code"><span class="cmt"># page 단위 bulk load</span>
+<span class="kw2">for</span> stage <span class="kw2">in</span> stages:
+    <span class="cmt"># TMA 2D: (Bp, H_kv, d)</span>
+    tma_load(smem[stage],
+             block_pool[page_idx[stage]])
+    mbarrier.expect_tx(...)
+
+<span class="cmt"># compute consumer</span>
+<span class="kw2">for</span> stage <span class="kw2">in</span> stages:
+    mbarrier.wait(stage)
+    compute(smem[stage])</pre>
+        <p class="tiny">page_idx는 block_table에서 CTA 시작 시점에 한 번에 로드.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 성능 특성</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td>memory 활용</td><td class="num">96%+</td></tr>
+            <tr><td>decode latency</td><td>FA 대비 ~1.1&times;</td></tr>
+            <tr><td>throughput (R↑)</td><td>FA 대비 2~4&times;</td></tr>
+            <tr><td>page indirection 오버헤드</td><td>~5%</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Kwon et al. 2023 · vLLM paper Fig.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> FP8 KV cache</h3>
+        <ul>
+          <li>page 단위 per-token scale 저장</li>
+          <li>scale layout: 각 page에 appended B<sub>p</sub> scalar</li>
+          <li>load 시 dequant fuse</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> GQA / MLA와의 조합</h3>
+        <ul>
+          <li>GQA: H<sub>kv</sub>&middot;d per-page 줄어 &rarr; B<sub>p</sub> &uarr; 가능</li>
+          <li>MLA: page에 c (r-dim) + K<sup>rope</sup> 분리 저장</li>
+          <li>kernel은 per-head 대신 per-group 루프</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: kv_cache_dtype=fp8 때 page 단위 scale 저장 위치 잘못 잡으면 정확도 무너짐. stride 계산 주의.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        PagedAttn v1/v2: <span class="key">1CTA·splitK·reduce</span>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 18</span></div>
+</section>
+
+<!-- ============================ PAGE 19: §18 RadixAttention ============================ -->
+<section class="page" data-screen-label="19 RadixAttention">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(19p)</span></div><div class="chap">§18 — RadixAttention (SGLang prefix trie · LRU)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정의 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          모든 요청의 prefix를 <mark>radix trie</mark>로 관리. 새 요청은 longest-match prefix 노드 찾아 KV 재사용 &rarr; compute · memory 동시 절감.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 자료구조 ★</h3>
+        <pre class="ascii">root
+ ├─ "You are"───┬─ " a helpful..."  [req A,B,C]  ref=3
+ │              └─ " an expert..."  [req D]      ref=1
+ │
+ └─ "###user\n" ├─ "What is GPU..." [req E]      ref=1
+                └─ "How to..."      [req F,G]    ref=2
+
+각 노드 = (token seq, KV page list, ref_count, LRU timestamp)
+각 edge = token prefix (shared)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 주요 연산</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>동작</th></tr></thead>
+          <tbody>
+            <tr><td>match_prefix(tokens)</td><td>(node, matched_len)</td></tr>
+            <tr><td>insert(tokens[matched:])</td><td>새 child 추가</td></tr>
+            <tr><td>lock_ref(node)</td><td>ref_count ++</td></tr>
+            <tr><td>unlock_ref(node)</td><td>ref_count &minus;&minus;</td></tr>
+            <tr><td>evict()</td><td>LRU leaf with ref=0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Match 알고리즘</h3>
+<pre class="code">match_prefix(tokens):
+    node = root
+    matched = <span class="num2">0</span>
+    <span class="kw2">while</span> matched &lt; len(tokens):
+        child = node.find_child(tokens[matched])
+        <span class="kw2">if</span> child <span class="kw2">is</span> None: <span class="kw2">break</span>
+        k = common_prefix_len(
+              child.tokens,
+              tokens[matched:])
+        matched += k
+        <span class="kw2">if</span> k &lt; len(child.tokens):
+            <span class="kw2">break</span>          <span class="cmt"># partial match in edge</span>
+        node = child
+    <span class="kw2">return</span> (node, matched)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> LRU eviction 정책</h3>
+        <ul>
+          <li>leaf (children 없음) + ref_count = 0 대상</li>
+          <li>oldest LRU timestamp부터 evict</li>
+          <li>evict된 page &rarr; block_pool free_list 반환</li>
+          <li>non-leaf는 children 먼저 evict되어야 reachable</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Hit rate 효과</h3>
+        <table class="compact">
+          <thead><tr><th>시나리오</th><th>hit rate</th></tr></thead>
+          <tbody>
+            <tr><td>독립 질문 (cold)</td><td class="num">0~10%</td></tr>
+            <tr><td>chat (system prompt)</td><td class="num">60~80%</td></tr>
+            <tr><td>agent (tool loop)</td><td class="num">70~90%</td></tr>
+            <tr><td>few-shot batch</td><td class="num">90%+</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">SGLang 2024 보고.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> PagedAttention과의 관계</h3>
+        <ul>
+          <li>trie 노드 내부 KV = PagedAttention page 리스트</li>
+          <li>CoW trigger: 분기 시점에 새 page만 alloc</li>
+          <li>ref_count &ge; 2 edge에서 write 시 split</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Kernel 영향</h3>
+        <ul>
+          <li>prefill: matched prefix tokens의 KV 이미 존재 &rarr; <mark>compute skip</mark></li>
+          <li>새 suffix만 forward</li>
+          <li>attention kernel 자체는 동일 (paged)</li>
+          <li>변경은 scheduler + cache 관리 쪽 <span class="xref">↗ V16 §14</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Radix vs hash prefix cache</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>장</th><th>단</th></tr></thead>
+          <tbody>
+            <tr><td>trie (radix)</td><td>부분 prefix 공유</td><td>tree 관리 복잡</td></tr>
+            <tr><td>hash (vLLM prefix)</td><td>O(1) lookup</td><td>block align 필요</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">token-align</span>: radix는 edge를 token 단위 자름. B<sub>p</sub>와 불일치하면 partial page 발생. 실무에서는 B<sub>p</sub> 경계 기준으로 edge split.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 19</span></div>
+</section>
+
+<!-- ============================ PAGE 20: §19 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="20 Cheat Sheet">
+  <div class="page-header"><div class="brand">V07 Attention <span class="mono">(20p)</span></div><div class="chap">§19 — Cheat Sheet: 변종 선택 · 공식 1-liner</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 공식 1-liner 모음 ★</h3>
+        <div class="formula">
+          attention: O = softmax(QK<sup>T</sup>/&radic;d)&middot;V<br/>
+          safe sm: y<sub>i</sub> = e<sup>x<sub>i</sub>&minus;m</sup>/&ell;, m=max, &ell;=&Sigma;e<sup>x&minus;m</sup><br/>
+          online update: m'=max(m,x), &ell;'=&alpha;&ell;+e<sup>x&minus;m'</sup><br/>
+          merge: &ell;<sub>ab</sub>=&alpha;<sub>a</sub>&ell;<sub>a</sub>+&alpha;<sub>b</sub>&ell;<sub>b</sub>, &alpha;=e<sup>m&minus;m<sub>ab</sub></sup><br/>
+          LSE = m + log &ell;<br/>
+          FA HBM: &Theta;(N<sup>2</sup>d<sup>2</sup>/M) bytes<br/>
+          FA mem (act): O(N) (LSE only)<br/>
+          causal keep: ~ 1/2 of blocks<br/>
+          MQA cache: 1/H · MHA<br/>
+          MLA cache: r / (H&middot;d) &asymp; 1/32<br/>
+          Paged: logical t &rarr; (block_table[r][t/B<sub>p</sub>], t%B<sub>p</sub>)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Recompute 조건</h3>
+        <ul>
+          <li>forward activation &minus;95% (N<sup>2</sup> &rarr; N)</li>
+          <li>backward FLOP +40%</li>
+          <li>실행시간 여전히 빠름 (HBM 병목 완화)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 변종 선택 결정트리 ★★</h3>
+        <pre class="ascii">start
+ │
+ ├─ prefill or training?
+ │    ├─ sm_90+?        → FA3 (WGMMA, TMA, FP8)
+ │    ├─ sm_80?         → FA2
+ │    └─ older?         → FA1 (legacy)
+ │
+ ├─ decode (1 query token)?
+ │    ├─ R 작음 · 긴 seq? → PagedAttn v2 (split-K)
+ │    ├─ R 큼 · 짧은 seq? → PagedAttn v1
+ │    └─ prefix 공유?    → RadixAttn + Paged
+ │
+ ├─ context &gt; 100K · multi-GPU?
+ │    └─ Ring Attention (CP)
+ │
+ ├─ model cache 압박?
+ │    ├─ train부터 설계 가능? → MLA
+ │    └─ 그 외                → GQA g=8
+ │
+ └─ speculative decode 맞추기? → tree mask FA3</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 성능 bottleneck 표</h3>
+        <table class="compact">
+          <thead><tr><th>phase</th><th>bound</th><th>최적화</th></tr></thead>
+          <tbody>
+            <tr><td>prefill (긴)</td><td>compute</td><td>FA3 FP8, WGMMA</td></tr>
+            <tr><td>decode</td><td>memory</td><td>MQA/GQA/MLA</td></tr>
+            <tr><td>long-ctx</td><td>HBM + comm</td><td>Ring, Paged</td></tr>
+            <tr><td>batch 큼</td><td>SM 활용</td><td>continuous batch</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 흔한 실수 5선</h3>
+        <ol class="bullet-num">
+          <li>P&middot;V 누산을 FP16으로 (&rarr; FP32 필수)</li>
+          <li>&minus;&infin; 대신 &minus;inf float 값 쓴 채 FP16 exp</li>
+          <li>dropout 재현 위해 mask state 누락 (bwd recompute 불일치)</li>
+          <li>FA3 FP8 scale 동적 갱신 (비결정)</li>
+          <li>PagedAttn page 경계에서 stride 계산 off-by-one</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 연관 권</h3>
+        <ul>
+          <li>Online softmax 수치 <span class="xref">↗ V09 §9</span></li>
+          <li>FA3 WGMMA · TMA <span class="xref">↗ V04 §4·§7</span></li>
+          <li>FA kernel as GEMM pattern <span class="xref">↗ V06</span></li>
+          <li>Ring Attention → CP <span class="xref">↗ V15 §12</span></li>
+          <li>PagedAttn in vLLM path <span class="xref">↗ V16 §7</span></li>
+          <li>Speculative tree mask <span class="xref">↗ V08 §12·§13</span></li>
+          <li>FP8 quant <span class="xref">↗ V10 §10</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 진화 타임라인</h3>
+        <table class="compact">
+          <thead><tr><th>year</th><th>landmark</th></tr></thead>
+          <tbody>
+            <tr><td class="num">2017</td><td>Attention is all you need</td></tr>
+            <tr><td class="num">2018</td><td>Online softmax (Milakov)</td></tr>
+            <tr><td class="num">2022</td><td>FA v1, Ring Attn</td></tr>
+            <tr><td class="num">2023</td><td>FA v2, GQA, PagedAttn</td></tr>
+            <tr><td class="num">2024</td><td>FA v3, MLA, RadixAttn</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        attention 5-축: <span class="key">compute·mem·mask·cache·share</span>
+        (FA · MLA/GQA · causal · Paged · Radix)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V07 &middot; 20</span></div>
+</section>
+
+</div>
+<script src="tweaks.js"></script>
+</body>
+</html>

@@ -1,0 +1,396 @@
+<article id="ch7" class="chapter" data-part="I">
+  <header class="ch-header">
+    <p class="part-label">PART I — 증명</p>
+    <h2 class="ch-title">
+      <span class="ch-num">7</span>
+      <span class="ch-kr">재귀적 데이터 타입</span>
+      <span class="ch-en">Recursive Data Types</span>
+    </h2>
+    <p class="ch-intro">
+      "리스트는 빈 리스트이거나 (원소, 리스트)다." 단 한 줄짜리 이 문장이 사실 모든 자료구조의 어머니예요.
+      이 챕터에서는 자기 자신을 다시 부르는 방식으로 정의된 집합 — 재귀적 데이터 타입 — 을 살펴보고,
+      그 위에서 함수를 정의하고 성질을 증명하는 도구인 <em>구조적 귀납법</em>을 배웁니다.
+      자연수 위의 수학적 귀납법이 "더 일반적인 모양"으로 변신하는 순간이라고 보면 됩니다.
+    </p>
+  </header>
+
+  <section id="ch7-1" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.1</span>
+      <span class="sec-kr">재귀 정의와 구조적 귀납</span>
+      <span class="sec-en">Recursive Definitions and Structural Induction</span>
+    </h3>
+
+    <p>
+      어떤 집합을 정의할 때, 원소 하나하나를 일일이 나열하기보다 "재료 + 조립 규칙"으로 묘사하면 훨씬 깔끔합니다.
+      자연수 \( \mathbb{N} \) 을 떠올려 보세요. \( 0 \in \mathbb{N} \) 이고, \( n \in \mathbb{N} \) 이면 \( n+1 \in \mathbb{N} \) 이다.
+      이 두 줄이면 무한히 많은 자연수를 모두 길어 올릴 수 있어요. 이게 재귀 정의의 본질입니다.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.1.1 (재귀적으로 정의된 집합)</p>
+      <p>
+        집합 \( R \) 의 재귀적 정의는 두 부분으로 이루어집니다.
+      </p>
+      <p>
+        (1) <strong>기저 (base case)</strong>: \( R \) 의 어떤 원소들이 처음부터 존재한다고 선언.<br>
+        (2) <strong>구성자 (constructor)</strong>: \( R \) 의 원소로부터 새로운 원소를 만드는 규칙들.<br>
+        그리고 \( R \) 은 위 규칙으로 만들어지는 가장 작은 집합으로 정합니다.
+      </p>
+    </div>
+
+    <p>
+      "가장 작은 집합"이라는 마지막 조건이 핵심이에요. 이게 없으면 별난 원소를 끼워 넣어도 정의를 만족할 수 있거든요.
+      이 조건 덕분에 \( R \) 의 모든 원소는 기저에서 시작해서 구성자를 유한 번 적용한 결과로 얻어집니다.
+    </p>
+
+    <div class="callout thm">
+      <p class="callout-label">원리 7.1.2 (구조적 귀납법)</p>
+      <p>
+        \( R \) 이 재귀 정의된 집합이라 하자. 어떤 술어 \( P \) 에 대해
+      </p>
+      <p>
+        (i) 모든 기저 원소 \( b \in R \) 에서 \( P(b) \) 가 성립하고,<br>
+        (ii) 임의의 구성자 \( c \) 와 그 입력 \( x_1, \dots, x_k \in R \) 에 대해
+        \( P(x_1) \wedge \dots \wedge P(x_k) \implies P(c(x_1, \dots, x_k)) \)
+      </p>
+      <p>
+        가 모두 성립하면, \( \forall x \in R : P(x) \) 이다.
+      </p>
+    </div>
+
+    <p>
+      자연수의 귀납법은 기저 \( \{0\} \) 에 구성자 \( n \mapsto n+1 \) 하나뿐인 특수 사례예요.
+      구조적 귀납은 기저와 구성자가 더 풍부할 뿐, 같은 정신입니다.
+      재귀로 정의된 집합 위에서 함수를 정의할 때도 같은 틀을 씁니다 — 기저 원소에서 값을 정하고,
+      구성자에는 "입력값에서 출력값을 만드는 규칙"을 적어 두면 끝.
+    </p>
+  </section>
+
+  <section id="ch7-2" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.2</span>
+      <span class="sec-kr">균형 괄호 문자열</span>
+      <span class="sec-en">Strings of Matched Brackets</span>
+    </h3>
+
+    <p>
+      이제 구체적인 예로 들어가 봅시다. 알파벳 \( \{ \, [\,, \,] \, \} \) 위의 문자열 중에서
+      "괄호가 잘 짝지어진" 것들의 모임 \( \mathrm{RecMatch} \) 를 정의하고 싶어요.
+      직관적으로는 <code>[][[]]</code> 같은 건 OK, <code>][</code> 같은 건 NO.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.2.1 (RecMatch)</p>
+      <p>
+        집합 \( \mathrm{RecMatch} \) 를 다음과 같이 정합니다.
+      </p>
+      <p>
+        (기저) 빈 문자열 \( \lambda \in \mathrm{RecMatch} \).<br>
+        (구성자) \( s, t \in \mathrm{RecMatch} \) 이면 \( [\,s\,]\,t \in \mathrm{RecMatch} \).
+      </p>
+    </div>
+
+    <p>
+      예를 들어 \( s = t = \lambda \) 면 \( [\,]\, \lambda = [] \) 가 만들어지고,
+      거기서 다시 \( [\, []\, ] \, [] = [[]][] \) 같은 문자열이 자라납니다.
+      이 정의 한 줄로 무한히 많은 균형 문자열이 모두 나오는 게 신기해요.
+    </p>
+
+    <p>
+      그런데 같은 집합을 다르게 정의할 수도 있습니다. 다른 책에서는 다음 정의를 만나곤 해요.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.2.2 (AltMatch)</p>
+      <p>
+        (기저) \( \lambda \in \mathrm{AltMatch} \).<br>
+        (구성자 1) \( s \in \mathrm{AltMatch} \) 이면 \( [\,s\,] \in \mathrm{AltMatch} \).<br>
+        (구성자 2) \( s, t \in \mathrm{AltMatch} \) 이면 \( s\,t \in \mathrm{AltMatch} \).
+      </p>
+    </div>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 7.2.3</p>
+      <p>\( \mathrm{RecMatch} = \mathrm{AltMatch} \).</p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (스케치)</p>
+      <p>
+        양방향 포함을 각각 구조적 귀납으로 보입니다.
+        \( \mathrm{RecMatch} \subseteq \mathrm{AltMatch} \) 방향:
+        \( \lambda \in \mathrm{AltMatch} \) 는 기저로 OK. \( s, t \in \mathrm{AltMatch} \) 라 가정하면
+        구성자 1로 \( [s] \in \mathrm{AltMatch} \), 구성자 2로 \( [s]\,t \in \mathrm{AltMatch} \).
+      </p>
+      <p>
+        반대 방향도 비슷합니다. \( [s] = [s]\,\lambda \) 와 \( s\,t \) 를 RecMatch 안에서 차곡차곡 만들어 주면 됩니다 (조금 더 손이 가요).
+      </p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>
+      "정의가 다른데 같은 집합"이라는 건 모델링에서 흔히 쓰는 트릭이에요. 어떤 정의는 증명에 편하고,
+      어떤 정의는 알고리즘에 편하니까 상황에 따라 골라 쓸 수 있게 둘이 같다는 사실을 챙겨 두는 거죠.
+    </p>
+  </section>
+
+  <section id="ch7-3" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.3</span>
+      <span class="sec-kr">비음 정수 위 재귀 함수</span>
+      <span class="sec-en">Recursive Functions on Nonnegative Integers</span>
+    </h3>
+
+    <p>
+      \( \mathbb{N} \) 자체가 재귀 데이터 타입이니, 그 위에서 정의되는 함수들도 자연스레 재귀로 적습니다.
+      가장 단순한 친구는 팩토리얼.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.3.1 (팩토리얼)</p>
+      <p>
+        \( 0! = 1 \), \( (n+1)! = (n+1) \cdot n! \).
+      </p>
+    </div>
+
+    <p>
+      두 번째 줄에 우변에 \( n! \) 이 다시 등장하는 게 재귀의 핵심이에요. "다음 값"을 "이전 값"으로 표현합니다.
+      피보나치 수열은 직전 두 값을 모두 참조하는 점만 다를 뿐 같은 패턴.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.3.2 (피보나치)</p>
+      <p>
+        \( F(0) = 0,\ F(1) = 1,\ F(n+2) = F(n+1) + F(n) \).
+      </p>
+    </div>
+
+    <p>
+      여기서 한 발 더 나가면 <strong>아커만 함수</strong>가 기다립니다. 정말 묘한 친구예요.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.3.3 (아커만 함수)</p>
+      <p>
+        \[ A(0, n) = n+1, \quad A(m+1, 0) = A(m, 1), \quad A(m+1, n+1) = A(m,\, A(m+1, n)). \]
+      </p>
+    </div>
+
+    <p>
+      손으로 \( A(2, 2) \) 정도까지 펼쳐 보면 금방 \( A(2,2) = 7 \) 이 나오지만,
+      \( A(4, 2) \) 는 우주 원자 수보다 큰 값입니다. 더 무서운 건 이 함수가 "원시 재귀(primitive recursive)" 의 틀로는
+      절대 표현되지 않는다는 사실이에요. 즉, 단순 for-loop의 합성으로는 흉내 낼 수 없는, "진짜 재귀"가 필요한 함수의 대표주자입니다.
+    </p>
+
+    <div class="callout note">
+      <p class="callout-label">노트 (잘 정의됨에 대해)</p>
+      <p>
+        재귀 정의가 정말 함수 하나를 결정하려면, 모든 입력에서 종료해야 해요.
+        팩토리얼/피보나치/아커만은 둘째 인자(또는 인자 자체)가 매번 작아지는 식으로 종료가 보장됩니다.
+        \( f(n) = f(n)+1 \) 같은 정의는 절대 함수가 안 됩니다 — 자기 자신을 깎지 못하니까요.
+      </p>
+    </div>
+  </section>
+
+  <section id="ch7-4" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.4</span>
+      <span class="sec-kr">산술식</span>
+      <span class="sec-en">Arithmetic Expressions</span>
+    </h3>
+
+    <p>
+      "<code>(3 + 4) * 5</code>" 같은 산술식을 컴퓨터가 어떻게 다루는지 들여다봅시다.
+      문자열로 보면 골치 아프지만, 재귀 데이터 타입으로 보면 단정해요.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.4.1 (산술식 \( \mathrm{Aexp} \))</p>
+      <p>
+        (기저) 모든 정수 상수 \( c \) 와 변수 \( x \) 는 \( \mathrm{Aexp} \) 의 원소.<br>
+        (구성자) \( e_1, e_2 \in \mathrm{Aexp} \) 이고 \( \star \in \{+, -, \times\} \) 이면
+        \( (e_1 \star e_2) \in \mathrm{Aexp} \).
+      </p>
+    </div>
+
+    <p>
+      이 정의가 실제로 만들어내는 건 우리가 컴파일러 강의에서 보는 <strong>추상 구문 트리(AST)</strong>예요.
+      잎(leaf)은 상수와 변수, 내부 노드는 연산자.
+      식 위의 함수 \( \mathrm{eval}(e, \sigma) \) — 변수 환경 \( \sigma \) 아래에서 식의 값을 매기는 — 도 재귀로 깔끔하게 적힙니다.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.4.2 (eval)</p>
+      <p>
+        \( \mathrm{eval}(c, \sigma) = c \), \( \mathrm{eval}(x, \sigma) = \sigma(x) \),
+        \( \mathrm{eval}((e_1 \star e_2), \sigma) = \mathrm{eval}(e_1, \sigma) \star \mathrm{eval}(e_2, \sigma) \).
+      </p>
+    </div>
+
+    <p>
+      트리에 대해 자주 묻는 두 양은 <strong>깊이</strong> \( d(e) \) 와 <strong>크기</strong> \( s(e) \) 입니다.
+      각각도 재귀로:
+      \( d(c) = d(x) = 0 \), \( d((e_1 \star e_2)) = 1 + \max(d(e_1), d(e_2)) \);
+      \( s(c) = s(x) = 1 \), \( s((e_1 \star e_2)) = 1 + s(e_1) + s(e_2) \).
+    </p>
+
+    <div class="callout example">
+      <p class="callout-label">예제 7.4.3</p>
+      <p>
+        \( e = ((x + 3) \times (x - 1)) \). 그러면 \( d(e) = 2 \), \( s(e) = 5 \). \( \sigma(x) = 4 \) 라면
+        \( \mathrm{eval}(e, \sigma) = (4+3) \times (4-1) = 21 \).
+      </p>
+    </div>
+
+    <p>
+      구조적 귀납을 적용하면 "이진트리에서 \( s(e) \le 2^{d(e)+1} - 1 \)" 같은 사실을 깔끔히 증명할 수 있어요.
+      AST에서 함수형 인터프리터, 그리고 컴파일러 최적화의 정확성 증명까지 — 모두 이 작은 재귀 정의에서 출발합니다.
+    </p>
+  </section>
+
+  <section id="ch7-5" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.5</span>
+      <span class="sec-kr">재귀 데이터로 본 게임</span>
+      <span class="sec-en">Games as a Recursive Data Type</span>
+    </h3>
+
+    <p>
+      체스나 틱택토 같은 두 사람 결정 게임도 사실은 재귀 데이터 타입의 한 사례예요.
+      "게임 상태"는 곧 그 상태에서 가능한 다음 상태들의 리스트이고, 이게 끝나는 지점은 "승/패/무"가 결정된 단말 상태.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.5.1 (게임 트리)</p>
+      <p>
+        게임 트리 \( G \) 는 다음과 같이 정의된 자료입니다.
+      </p>
+      <p>
+        (기저) 단말 상태 — \( \{\text{승}, \text{패}, \text{무}\} \) 중 하나의 결과를 가짐.<br>
+        (구성자) 한 플레이어가 행동할 차례인 내부 노드는, 가능한 행동에 따른 자식 게임 트리들의 모임 \( G_1, \dots, G_k \) 로 만들어짐.
+      </p>
+    </div>
+
+    <p>
+      이 위에서 <strong>미니맥스 값</strong>이 재귀로 정의돼요. 내가 둘 차례면 자식 값들의 \( \max \), 상대가 둘 차례면 \( \min \).
+      잎에서는 결과 그 자체.
+    </p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 7.5.2 (체르멜로의 정리)</p>
+      <p>
+        유한한 두 사람 완전정보 결정 게임에서는, 둘 중 한 명에게 필승 전략이 있거나 양쪽 모두 무승부 이상을 보장하는 전략을 가집니다.
+      </p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (한 줄 스케치)</p>
+      <p>
+        게임 트리 위에서 구조적 귀납. 단말 노드는 결과가 정해져 있으니 자명. 내부 노드에서는 자식 노드들에 귀납 가정을 적용해
+        미니맥스 값을 계산하면 그게 그 노드에서의 최선의 보장값. 트리가 유한하니 절차가 끝납니다.
+      </p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>
+      이 정리 덕분에 체스도 "이론적으론 결정 게임"이라는 표현이 가능합니다. 다만 트리가 너무 커서 우리가 모를 뿐이에요.
+      재귀 정의 + 구조적 귀납이 추상적인 존재성 증명을 얼마나 가볍게 해주는지 보여주는 멋진 예입니다.
+    </p>
+  </section>
+
+  <section id="ch7-6" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.6</span>
+      <span class="sec-kr">검색 트리</span>
+      <span class="sec-en">Search Trees</span>
+    </h3>
+
+    <p>
+      자료구조 강의의 단골인 이진 검색 트리(BST)도 재귀로 정의해 두면 정리/삽입/검색 알고리즘을 매끈하게 다룰 수 있어요.
+    </p>
+
+    <div class="callout def">
+      <p class="callout-label">정의 7.6.1 (BST)</p>
+      <p>
+        (기저) 빈 트리 \( \mathrm{Nil} \) 은 BST.<br>
+        (구성자) 키 \( k \), 좌측 BST \( L \), 우측 BST \( R \) 이 있고
+        \( L \) 의 모든 키 \( < k < \) \( R \) 의 모든 키이면 \( \mathrm{Node}(k, L, R) \) 도 BST.
+      </p>
+    </div>
+
+    <p>
+      검색은 한 줄로 적힙니다.
+    </p>
+
+    <pre><code class="lang-py">def find(t, x):
+    if t is Nil: return False
+    if x &lt; t.key: return find(t.left, x)
+    if x &gt; t.key: return find(t.right, x)
+    return True</code></pre>
+
+    <p>
+      삽입도 같은 흐름. 빈 자리를 찾을 때까지 한쪽으로 내려가서 새 노드를 매답니다.
+    </p>
+
+    <div class="callout thm">
+      <p class="callout-label">정리 7.6.2 (find의 정확성)</p>
+      <p>
+        \( \mathrm{find}(t, x) \) 는 \( x \) 가 \( t \) 의 어떤 노드의 키인 경우 정확히 그 경우에만 \( \mathrm{True} \) 를 반환한다.
+      </p>
+    </div>
+
+    <div class="callout proof">
+      <p class="callout-label">증명 (스케치)</p>
+      <p>
+        BST 정의에 대한 구조적 귀납. 기저: \( t = \mathrm{Nil} \) 이면 키가 없으니 \( \mathrm{False} \) 가 맞음.
+        귀납: \( t = \mathrm{Node}(k, L, R) \) 에서 \( x &lt; k \) 면 BST 조건상 \( x \) 는 \( R \) 에 있을 수 없으므로 \( L \) 만 보면 충분.
+        반대 경우도 대칭. \( x = k \) 면 그대로 발견.
+      </p>
+      <p class="qed">∎</p>
+    </div>
+
+    <p>
+      "BST 조건"이라는 작은 불변량 하나가 알고리즘의 정확성을 통째로 보장한다는 점에 주목하세요.
+      재귀 데이터 타입의 정의 안에 알고리즘 분석의 핵심이 미리 들어가 있는 셈입니다.
+    </p>
+  </section>
+
+  <section id="ch7-7" class="sec">
+    <h3 class="sec-title">
+      <span class="sec-num">7.7</span>
+      <span class="sec-kr">컴퓨터과학에서의 귀납</span>
+      <span class="sec-en">Induction in Computer Science</span>
+    </h3>
+
+    <p>
+      마지막으로 한 발 물러서서 큰 그림을 봅시다. 알고리즘이 정확함을 증명하려고 할 때, 우리는 거의 항상 어떤 형태의 귀납을 씁니다.
+    </p>
+
+    <ul>
+      <li><strong>반복문</strong>의 정확성은 <em>루프 불변량</em>을 자연수에 대한 귀납으로 증명.</li>
+      <li><strong>재귀 함수</strong>의 정확성은 입력 크기 또는 입력의 구조에 대한 구조적 귀납으로.</li>
+      <li><strong>컴파일러/타입시스템</strong>의 안정성(soundness)은 프로그램의 추상 구문 트리에 대한 구조적 귀납으로.</li>
+      <li><strong>그래프/트리 알고리즘</strong>은 보통 깊이 또는 정점 수에 대한 (강한) 귀납으로.</li>
+    </ul>
+
+    <p>
+      한 마디로, 자료구조가 재귀로 정의되어 있다면 그 위 알고리즘의 정확성 증명은 그 정의를 그대로 따라가는 구조적 귀납이 됩니다.
+      자료구조 정의 → 함수 정의 → 정확성 증명, 이 세 단계가 같은 모양으로 펼쳐지는 거예요.
+    </p>
+
+    <div class="callout note">
+      <p class="callout-label">한 줄 정리</p>
+      <p>
+        "재귀 데이터 타입은 정의 안에 그 자신을 다루는 방법을 이미 품고 있다."
+        구성자를 따라 함수를 적고, 그 구성자를 따라 증명을 적으면 됩니다. 이게 형식 검증과 함수형 프로그래밍이 닮은 이유고,
+        앞으로의 챕터에서 그래프/상태기계/언어를 다룰 때마다 다시 마주할 패턴입니다.
+      </p>
+    </div>
+
+    <p>
+      자, 자연수의 귀납이 "더 일반적인 귀납"으로 확장되는 풍경을 한 번 봤어요.
+      다음 챕터부터는 이 도구를 들고 무한 합, 점근 분석, 그래프 같은 더 큰 무대로 나갑니다. 도구는 같으니 겁먹지 말고 가요.
+    </p>
+  </section>
+</article>

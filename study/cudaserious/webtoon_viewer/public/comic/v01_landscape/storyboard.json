@@ -1,0 +1,189 @@
+{
+  "id": "V01-landscape",
+  "title": "GPU 부서 첫 출근",
+  "subtitle": "CUDA Programming Model",
+  "format": "landscape educational manga page",
+  "panels": [
+    {
+      "index": 1,
+      "kind": "manyTasks",
+      "title": "첫 질문: 왜 GPU인가?",
+      "question": "“일감을 잘게 나누면, 정말 빨라질까?”",
+      "callouts": ["CPU는 강한 일꾼 몇 명", "GPU는 단순한 일꾼 수천~수만 명", "핵심은 ‘많이’보다 ‘정확히 나누기’"],
+      "flow": ["문제", "데이터 조각", "thread", "결과"],
+      "takeaway": "CUDA의 첫 감각: 병렬화 = 많은 실행자 + 정확한 주소 계산."
+    },
+    {
+      "index": 2,
+      "kind": "cpuGpu",
+      "title": "CPU 길 vs GPU 도시",
+      "question": "“혼자 빠른 것과, 많이 동시에 하는 것은 다르다.”",
+      "callouts": ["CPU: latency-oriented", "GPU: throughput-oriented", "독립 데이터가 많을수록 GPU에 유리"],
+      "flow": ["1개 긴 길", "많은 짧은 길", "동시 처리", "총량 승리"],
+      "takeaway": "GPU는 한 일을 빨리 끝내는 기계라기보다, 많은 일을 한꺼번에 밀어내는 기계다."
+    },
+    {
+      "index": 3,
+      "kind": "spmd",
+      "title": "SPMD: 같은 코드, 다른 데이터",
+      "question": "“모든 thread가 같은 kernel을 실행한다.”",
+      "callouts": ["Single Program", "Multiple Data", "차이는 좌표: blockIdx/threadIdx"],
+      "flow": ["kernel", "좌표 계산", "데이터 선택", "동시 실행"],
+      "takeaway": "코드는 하나지만 각 thread의 좌표가 다르기 때문에 서로 다른 원소를 처리한다."
+    },
+    {
+      "index": 4,
+      "kind": "lifecycle",
+      "title": "CUDA 프로그램 5단계",
+      "question": "“GPU에게 일을 시키려면 작전 순서가 필요하다.”",
+      "callouts": ["할당", "복사", "실행", "회수", "해제"],
+      "flow": ["cudaMalloc", "H→D", "kernel<<<>>>", "D→H", "cudaFree"],
+      "takeaway": "입문 단계에서는 API 암기보다 allocate → copy → launch → copy → free 흐름이 먼저다."
+    },
+    {
+      "index": 5,
+      "kind": "hierarchy",
+      "title": "Grid · Block · Thread",
+      "question": "“누가 어느 조각을 맡는가?”",
+      "callouts": ["grid = block들의 무대", "block = thread들의 소대", "thread = 한 데이터 조각의 실행자"],
+      "flow": ["grid", "block", "thread", "element"],
+      "takeaway": "CUDA 좌표계는 thread/block/grid 계층을 한 번에 떠올릴 때 가장 잘 보인다."
+    },
+    {
+      "index": 6,
+      "kind": "index",
+      "title": "1D Global Index",
+      "question": "“내가 처리할 배열 원소 번호는?”",
+      "callouts": ["block 앞부분", "thread의 자리", "boundary check 필요"],
+      "flow": ["blockIdx.x", "blockDim.x", "threadIdx.x", "i"],
+      "takeaway": "대부분의 CUDA 입문 버그는 index 계산과 범위 체크에서 시작한다."
+    },
+    {
+      "index": 7,
+      "kind": "warp",
+      "title": "Warp: 32명이 한 박자",
+      "question": "“thread는 혼자 뛰지만, 실행은 묶음으로 움직인다.”",
+      "callouts": ["warp = 32 threads", "같은 instruction이 빠르다", "분기하면 일부가 기다린다"],
+      "flow": ["32 lanes", "same instruction", "SIMT", "throughput"],
+      "takeaway": "성능을 볼 때 thread 하나보다 warp 하나를 상상하는 편이 정확하다."
+    },
+    {
+      "index": 8,
+      "kind": "divergence",
+      "title": "Branch Divergence",
+      "question": "“같은 warp가 if에서 갈라지면?”",
+      "callouts": ["경로 A 실행", "경로 B는 대기", "다음엔 반대로 실행"],
+      "flow": ["warp", "if split", "serialize", "reconverge"],
+      "takeaway": "warp 내부 분기는 가능한 한 같은 방향으로 맞추는 것이 좋다."
+    },
+    {
+      "index": 9,
+      "kind": "occupancy",
+      "title": "Occupancy와 지연 숨기기",
+      "question": "“메모리를 기다리는 동안 SM은 놀고 있을까?”",
+      "callouts": ["memory latency는 길다", "다른 warp를 실행해 빈 시간을 숨긴다", "register 과다 사용은 resident warp를 줄인다"],
+      "flow": ["warp waits", "scheduler swaps", "latency hidden", "higher utilization"],
+      "takeaway": "occupancy는 목표가 아니라 지연을 숨기는 수단이다."
+    },
+    {
+      "index": 10,
+      "kind": "memory",
+      "title": "Memory Hierarchy",
+      "question": "“데이터를 어디에 둘 것인가?”",
+      "callouts": ["register: 빠름/작음/개인용", "shared: block 협업 공간", "global/HBM: 큼/느림/bandwidth 중요"],
+      "flow": ["register", "shared", "L2", "HBM"],
+      "takeaway": "GPU 최적화의 절반은 데이터를 어디에 두고 얼마나 재사용하는지 결정하는 일이다."
+    },
+    {
+      "index": 11,
+      "kind": "coalescing",
+      "title": "Coalescing",
+      "question": "“같이 읽을 거면 줄 맞춰서 읽어라.”",
+      "callouts": ["연속 주소 = 적은 transaction", "흩어진 주소 = 낭비", "warp 단위 접근을 보라"],
+      "flow": ["scattered", "align", "coalesced", "bandwidth"],
+      "takeaway": "global memory 접근은 coalesced access가 기본 목표다."
+    },
+    {
+      "index": 12,
+      "kind": "tiling",
+      "title": "Shared Memory Tiling",
+      "question": "“먼 창고에서 매번 가져오지 말고, 작업대에 올려두자.”",
+      "callouts": ["global에서 tile 로드", "shared에서 여러 번 재사용", "__syncthreads로 준비 완료 맞춤"],
+      "flow": ["global", "tile load", "reuse", "write back"],
+      "takeaway": "tiling은 bandwidth를 줄이고 data reuse를 늘리는 대표 패턴이다."
+    },
+    {
+      "index": 13,
+      "kind": "bank",
+      "title": "Bank Conflict",
+      "question": "“shared memory도 창구가 몰리면 줄 선다.”",
+      "callouts": ["여러 bank로 나뉨", "같은 bank 동시 접근 = 직렬화", "padding/layout 변경으로 회피"],
+      "flow": ["same bank", "conflict", "serialize", "padding"],
+      "takeaway": "shared memory는 빠르지만, bank conflict가 생기면 빠름이 사라진다."
+    },
+    {
+      "index": 14,
+      "kind": "stencil",
+      "title": "Convolution · Stencil",
+      "question": "“한 출력은 주변 입력 여러 개를 본다.”",
+      "callouts": ["moving window", "neighbor reuse", "boundary 처리 주의"],
+      "flow": ["input grid", "window", "output", "boundary"],
+      "takeaway": "주변부를 반복해서 읽는 패턴은 shared memory tile과 잘 어울린다."
+    },
+    {
+      "index": 15,
+      "kind": "reduction",
+      "title": "Reduction",
+      "question": "“많은 값을 하나로 합친다.”",
+      "callouts": ["sum/max/min", "pairwise merge", "active thread는 단계마다 줄어든다"],
+      "flow": ["N values", "N/2", "N/4", "1 result"],
+      "takeaway": "reduction은 병렬 primitive의 기본기다."
+    },
+    {
+      "index": 16,
+      "kind": "scan",
+      "title": "Prefix Sum · Scan",
+      "question": "“내 앞에 몇 명이 있었는지 알아야 내 자리가 정해진다.”",
+      "callouts": ["순서 보존", "누적 위치 계산", "compaction/sort/offset에 등장"],
+      "flow": ["values", "partial sums", "prefix", "positions"],
+      "takeaway": "scan은 ‘누적 위치 계산’이 필요한 곳에서 반복해서 나온다."
+    },
+    {
+      "index": 17,
+      "kind": "histogram",
+      "title": "Histogram · Atomic",
+      "question": "“같은 bin에 동시에 넣으면 안전하게 세야 한다.”",
+      "callouts": ["atomic = 안전한 갱신", "contention이 많으면 느림", "block-local 후 global merge"],
+      "flow": ["tokens", "local bins", "atomic merge", "histogram"],
+      "takeaway": "atomic은 correctness 도구이지만 contention을 줄여야 성능이 산다."
+    },
+    {
+      "index": 18,
+      "kind": "summary",
+      "title": "V01 핵심 지도",
+      "question": "“CUDA는 문법보다 실행 그림이 먼저다.”",
+      "callouts": ["index", "warp", "memory", "primitive"],
+      "flow": ["좌표", "실행 묶음", "데이터 위치", "패턴"],
+      "takeaway": "입문자의 목표: index, warp, memory hierarchy를 한 장면으로 떠올리기."
+    },
+    {
+      "index": 19,
+      "kind": "next",
+      "title": "다음 문: SM 내부",
+      "question": "“좌표를 배웠다면, 이제 실행되는 장소를 봐야 한다.”",
+      "callouts": ["warp scheduler", "register file", "shared memory", "tensor core"],
+      "flow": ["V01 model", "SM", "pipeline", "V02 architecture"],
+      "takeaway": "V02에서는 GPU architecture를 정량적으로 본다."
+    },
+    {
+      "index": 20,
+      "kind": "cliff",
+      "title": "V01 END",
+      "question": "“SM은 그 많은 thread를 어떻게 먹여 살릴까?”",
+      "callouts": ["thread는 실행자", "warp는 실행 묶음", "SM은 실제 무대"],
+      "flow": ["thread", "warp", "SM", "next episode"],
+      "takeaway": "다음 에피소드: V02 GPU Architecture."
+    }
+  ]
+}
+

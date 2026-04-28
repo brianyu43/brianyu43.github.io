@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V17 Training System 단권화 — 18p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA ENGINEERING 18권 · CONTENT-FIRST · A4 LANDSCAPE · 18p</div>
+    <h1>V17 Training <span class="accent">System</span></h1>
+    <div class="subtitle">FSDP · ZeRO · Gradient Checkpointing · Comm-Compute Overlap</div>
+    <div class="meta">
+      <div><b>Volume</b> 17/18</div>
+      <div><b>Tier</b> T5 분산/서빙</div>
+      <div><b>선행</b> V01 · V15</div>
+      <div><b>용도</b> 대규모 학습 시스템 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1. 학습 메모리 구성</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2. Mixed Precision 메모리식</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">§3. ZeRO 3단계</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">§4. ZeRO-Offload / Infinity</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">§5. FSDP 아키텍처</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">§6. FSDP Fwd/Bwd 흐름</span><span class="p">p.7</span></div>
+        <div class="row"><span class="t">§7. Gradient Checkpointing</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8. Sequence Packing</span><span class="p">p.9</span></div>
+        <div class="row star"><span class="t">§9. Megatron 3D Parallelism</span><span class="p">p.10</span></div>
+        <div class="row star"><span class="t">§10. Pipeline Schedule</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11. Comm-Compute Overlap</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12. Optimizer States</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">§13. Loss Scaling · FP8</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">§14. Dataloader</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">§15. Checkpointing</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">§16. Fault Tolerance</span><span class="p">p.17</span></div>
+        <div class="row star"><span class="t">§17. Cheat Sheet (7B·70B·400B)</span><span class="p">p.18</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더·매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·흔한 실수</span></div>
+      <div class="row"><span class="sym">★</span><span>실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>다른 권 참조</span></div>
+      <div class="row"><span class="sym">∴</span><span>결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">ZeRO · FSDP · Megatron-Core · DeepSpeed · FA varlen</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 학습 메모리 구성 ============================ -->
+<section class="page" data-screen-label="02 §1 Memory Composition">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — 학습의 메모리 구성</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GPU memory 4 bucket <span class="ko">학습 시 점유 주체</span>
+          <span class="mnemonic">PGOA</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          학습 중 device memory = <mark>Param</mark> + <mark>Grad</mark> + <mark>Optimizer state</mark> + <mark>Activation</mark> + workspace.
+        </div>
+        <ul>
+          <li><span class="kw">Param</span>: forward에 필요한 weight</li>
+          <li><span class="kw">Grad</span>: backward가 채우는 ∂L/∂W</li>
+          <li><span class="kw">Opt state</span>: Adam momentum·variance 등</li>
+          <li><span class="kw">Activation</span>: backward용 중간 tensor</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Model state 정의 <span class="ko">고정 비용</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <span class="kw2">Model state</span> = Param + Grad + Optimizer state. batch size와 무관, 모델 크기 <span class="kw">P</span>에만 의존.
+        </div>
+        <ul>
+          <li>Activation은 batch·seq 따라 변동</li>
+          <li>ZeRO는 model state 만을 shard (↗ §3)</li>
+          <li>Gradient checkpointing은 activation만 감소 (↗ §7)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 단위 공식 <span class="ko">byte/param</span></h3>
+        <div class="formula">
+          M_state = P × (b_p + b_g + b_opt)<br/>
+          M_act   = B · S · H · L · c_act
+          <span class="legend">P: param count · B: batch · S: seq len · H: hidden · L: layer · c_act: activation factor (구현별 10~34·dtype)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Bucket 비율 ★ <span class="ko">Adam·FP16 mixed</span></h3>
+        <table class="compact">
+          <thead><tr><th>bucket</th><th class="num">B/param</th><th class="num">비율</th></tr></thead>
+          <tbody>
+            <tr><td>FP16 param</td><td class="num">2</td><td class="num">10.5%</td></tr>
+            <tr><td>FP16 grad</td><td class="num">2</td><td class="num">10.5%</td></tr>
+            <tr><td>FP32 master</td><td class="num">4</td><td class="num">21.1%</td></tr>
+            <tr><td>FP32 momentum</td><td class="num">4</td><td class="num">21.1%</td></tr>
+            <tr><td>FP32 variance</td><td class="num">4</td><td class="num">21.1%</td></tr>
+            <tr><td>workspace·act</td><td class="num">~3</td><td class="num">~15.7%</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">base: Rajbhandari 2020 (ZeRO) Table 1, Adam + FP16 mixed</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> ASCII bar chart ★</h3>
+        <pre class="ascii">param (FP16)  ██        2B
+grad  (FP16)  ██        2B
+master(FP32)  ████      4B
+moment(FP32)  ████      4B
+var   (FP32)  ████      4B
+         └─── model state 16B/param
+act/ws  ████ ~3B (batch·seq 의존)</pre>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">∴ 학습 메모리의 75% 이상이 model state</span> — ZeRO의 표적.
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 7B 모델 숫자 예 <span class="ko">single-GPU 기준</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>P (param)</td><td class="num">7.0 × 10⁹</td></tr>
+            <tr><td>Model state (16B/p)</td><td class="num">112 GB</td></tr>
+            <tr><td>A100 80GB 수용</td><td class="num">❌</td></tr>
+            <tr><td>H100 80GB 수용</td><td class="num">❌</td></tr>
+            <tr><td>+ activation (B=1,S=4k)</td><td class="num">+15~40 GB</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">∴ 7B조차 단일 GPU 학습 불가 → ZeRO/FSDP 필수</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Activation factor c_act</h3>
+        <table class="compact">
+          <thead><tr><th>구성</th><th class="num">c_act (B/token·layer·H)</th></tr></thead>
+          <tbody>
+            <tr><td>vanilla transformer</td><td class="num">~34</td></tr>
+            <tr><td>SP (sequence parallel)</td><td class="num">~22</td></tr>
+            <tr><td>+ selective checkpoint</td><td class="num">~10</td></tr>
+            <tr><td>full checkpoint</td><td class="num">~2 (+recompute)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Korthikanti 2022 (Reducing Activation Recomputation)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 경계선 정리 <span class="ko">out-of-scope 핑</span></h3>
+        <ul>
+          <li>수치 안정성 (loss NaN, under/overflow) <span class="xref">↗ V09 §3</span></li>
+          <li>Inference KV cache <span class="xref">↗ V16 §4</span></li>
+          <li>NCCL primitive 대역폭 식 <span class="xref">↗ V15 §2</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·2</span></div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Mixed Precision 메모리식 ============================ -->
+<section class="page" data-screen-label="03 §2 Mixed Precision">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Mixed Precision Training 메모리식</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Mixed precision 구성 <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">정의</span>
+          forward/backward는 <mark>FP16/BF16</mark>으로, optimizer step은 <mark>FP32 master</mark>로 수행하는 하이브리드. 메모리 ↓ · TC throughput ↑.
+        </div>
+        <ul>
+          <li>master copy가 있어야 누적 오차 발산 방지</li>
+          <li>BF16: exponent 8bit → loss scaling 불필요 경향</li>
+          <li>FP16: exponent 5bit → loss scaling 필요 (↗ §13)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Adam 메모리 공식 ★
+          <span class="mnemonic">2+2+4+4+4=16</span>
+        </h3>
+        <div class="formula">
+          M_Adam(P) = 2P + 2P + 4P + 4P + 4P = <span class="hl">16·P bytes</span>
+          <span class="legend">FP16 param + FP16 grad + FP32 master + FP32 m + FP32 v</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          P = 1.3B → M_Adam = 20.8 GB · P = 13B → 208 GB · P = 70B → 1,120 GB
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> FP32 baseline 비교</h3>
+        <table class="compact">
+          <thead><tr><th>모드</th><th class="num">B/param</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 only + Adam</td><td class="num">16</td><td>4+4+4+4</td></tr>
+            <tr><td>Mixed FP16 + Adam</td><td class="num">16</td><td>같음 (master 추가)</td></tr>
+            <tr><td>Mixed BF16 + Adam</td><td class="num">16</td><td>동일</td></tr>
+            <tr><td>Mixed + AdaFactor</td><td class="num">~6</td><td>m,v 축 분해</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">∴ mixed의 이점은 용량이 아니라 throughput(TC) · compute cost</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 왜 FP32 master인가 <span class="ko">수치</span></h3>
+        <ul>
+          <li>update: <code>w ← w − η·(m̂/√(v̂)+ε)</code></li>
+          <li>η·gradient는 종종 <span class="kw">|w|</span>의 10⁻⁷ scale</li>
+          <li>FP16 mantissa 10bit → round-to-zero</li>
+          <li>∴ master를 FP32로 보존 → precision 유지</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          FP16 only 학습은 <span class="red">"update가 사라짐" (stalled)</span> 현상으로 수렴 실패.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Forward/Backward bucket 흐름</h3>
+        <pre class="ascii">FP32 master ──cast──► FP16 param
+  │                      │ forward (TC)
+  │                      ▼
+  │                   activation (FP16)
+  │                      │ backward
+  │                      ▼
+  │                   FP16 grad
+  │                      │ unscale
+  ▼                      ▼
+FP32 m,v ◄──── grad (FP32) ← cast up
+  │
+update → master (in-place)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> BF16 vs FP16 <span class="ko">학습 관점</span></h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>FP16</th><th>BF16</th></tr></thead>
+          <tbody>
+            <tr><td>exponent</td><td>5</td><td>8 (FP32 동일)</td></tr>
+            <tr><td>mantissa</td><td>10</td><td>7</td></tr>
+            <tr><td>loss scale</td><td>필요</td><td>대부분 불필요</td></tr>
+            <tr><td>수렴</td><td>민감</td><td>안정</td></tr>
+            <tr><td>TC 지원</td><td>V100+</td><td>A100+</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Grad 저장 dtype 옵션</h3>
+        <table class="compact">
+          <thead><tr><th>옵션</th><th class="num">grad B/p</th><th>주의</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 grad</td><td class="num">4</td><td>allreduce 대역폭 ×2</td></tr>
+            <tr><td>FP16 grad</td><td class="num">2</td><td>loss scale 필수</td></tr>
+            <tr><td>BF16 grad</td><td class="num">2</td><td>안정·표준</td></tr>
+            <tr><td>FP8 grad</td><td class="num">1</td><td>TE·실험적</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Apex/AMP 경로 요약</h3>
+        <ul>
+          <li><code>torch.cuda.amp.autocast</code>: dtype 자동 캐스트</li>
+          <li><code>GradScaler</code>: scale / unscale / skip</li>
+          <li>O1·O2·O3 mode (Apex) 유산 — 현재는 autocast 단일화</li>
+          <li>수치 상세 <span class="xref">↗ V09 §5</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 흔한 실수 <span class="ko">주의</span></h3>
+        <ul>
+          <li><span class="red">loss.backward()</span> 전에 scale 안 걸면 grad=0</li>
+          <li>optimizer step 후 unscale 누락 → η 실효 ×scale</li>
+          <li>master copy 안 두고 FP16 파라미터 직접 업데이트 → 수렴 불가</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·3</span></div>
+</section>
+
+<!-- ============================ PAGE 4: §3 ZeRO 3단계 ============================ -->
+<section class="page" data-screen-label="04 §3 ZeRO Stages">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — ZeRO 3단계 (Optimizer / Gradient / Parameter Sharding)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> ZeRO 아이디어 ★ <span class="ko">DP 중복 제거</span>
+          <span class="mnemonic">OGP</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          DP는 model state를 N GPU에 <span class="red">전부 복제</span>. ZeRO는 이를 <span class="kw">N개로 shard</span>하여 필요한 순간에 all-gather → 사용 → 해제.
+        </div>
+        <ul>
+          <li>통신 증가 vs 메모리 절감의 trade</li>
+          <li>NCCL 식: allreduce ≡ reduce-scatter + all-gather (↗ V15)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Stage 정의 ★</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th>shard 대상</th><th>추가 통신</th></tr></thead>
+          <tbody>
+            <tr><td><mark>ZeRO-1</mark></td><td>Optimizer state</td><td>0 (step 이후 없음)</td></tr>
+            <tr><td><mark>ZeRO-2</mark></td><td>+ Gradient</td><td>RS (대체)</td></tr>
+            <tr><td><mark>ZeRO-3</mark></td><td>+ Parameter</td><td>AG fwd + AG bwd + RS</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">AG = all-gather · RS = reduce-scatter</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 절감 공식 ★★</h3>
+        <div class="formula">
+          M₀ = 2P + 2P + K·P (K=12 for Adam FP32)<br/>
+          ZeRO-1: M₁ = 2P + 2P + K·P/N<br/>
+          ZeRO-2: M₂ = 2P + (2P + K·P)/N<br/>
+          ZeRO-3: M₃ = (2P + 2P + K·P)/N = <span class="hl">16P / N</span>
+          <span class="legend">P: param, N: DP world size, K=12 = 4(master)+4(m)+4(v)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 숫자 예 ★ <span class="ko">P=7B, Adam</span></h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th class="num">N=1</th><th class="num">N=8</th><th class="num">N=64</th></tr></thead>
+          <tbody>
+            <tr><td>baseline</td><td class="num">112 GB</td><td class="num">112</td><td class="num">112</td></tr>
+            <tr><td>ZeRO-1</td><td class="num">112</td><td class="num">44.5</td><td class="num">29.3</td></tr>
+            <tr><td>ZeRO-2</td><td class="num">112</td><td class="num">30.5</td><td class="num">15.8</td></tr>
+            <tr><td>ZeRO-3</td><td class="num">112</td><td class="num">14.0</td><td class="num">1.75</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">16·P/N → N=64일 때 1.75 GB/GPU</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 통신량 per step</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th class="num">fwd</th><th class="num">bwd</th><th class="num">총 vs DP</th></tr></thead>
+          <tbody>
+            <tr><td>DP</td><td class="num">0</td><td class="num">AR 2P</td><td class="num">1.0×</td></tr>
+            <tr><td>ZeRO-1</td><td class="num">0</td><td class="num">AR 2P</td><td class="num">1.0×</td></tr>
+            <tr><td>ZeRO-2</td><td class="num">0</td><td class="num">RS 2P</td><td class="num">1.0×</td></tr>
+            <tr><td>ZeRO-3</td><td class="num">AG 2P</td><td class="num">AG 2P + RS 2P</td><td class="num">1.5×</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">AR ≡ RS+AG · 전체 bytes 기준</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Stage 선택 결정표</h3>
+        <ul>
+          <li>model ≤ 1B · NVLink: DP + ZeRO-1 충분</li>
+          <li>1B~10B: ZeRO-2 (grad shard)</li>
+          <li>10B+: ZeRO-3 (param shard) or FSDP/Megatron TP</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> ZeRO-3 life cycle <span class="ko">per layer</span></h3>
+        <pre class="ascii">[layer L]
+ ┌── all-gather param (N→full) ──┐
+ │           forward              │
+ │      free param (→1/N)         │
+ ▼                                ▼
+ ...
+ ┌── all-gather param ────────────┐
+ │         backward                │
+ │    reduce-scatter grad (→1/N)   │
+ │    free param again             │
+ ▼                                 ▼
+ step: local shard만 update</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> ZeRO ≡ FSDP</h3>
+        <div class="def"><span class="label">관계</span>
+          PyTorch <mark>FSDP</mark>는 ZeRO-3의 PyTorch-native 구현. API·구조는 다르지만 메모리·통신 동등.
+        </div>
+        <ul>
+          <li>DeepSpeed ZeRO = Microsoft 진영</li>
+          <li>FSDP = Meta/PyTorch 진영 (↗ §5)</li>
+          <li>fairseq FSDP → torch.distributed.fsdp</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> K 상수 정리 <span class="ko">optimizer별</span></h3>
+        <table class="compact">
+          <thead><tr><th>optimizer</th><th class="num">K</th><th class="num">total B/p</th></tr></thead>
+          <tbody>
+            <tr><td>SGD momentum</td><td class="num">8</td><td class="num">12</td></tr>
+            <tr><td>Adam/AdamW</td><td class="num">12</td><td class="num">16</td></tr>
+            <tr><td>AdaFactor</td><td class="num">~2</td><td class="num">~6</td></tr>
+            <tr><td>8-bit Adam</td><td class="num">3</td><td class="num">7</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·4</span></div>
+</section>
+
+<!-- ============================ PAGE 5: §4 ZeRO-Offload / Infinity ============================ -->
+<section class="page" data-screen-label="05 §4 ZeRO-Offload/Infinity">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — ZeRO-Offload · ZeRO-Infinity (CPU/NVMe)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Offload 동기 <span class="ko">GPU가 부족할 때</span></h3>
+        <div class="def"><span class="label">정의</span>
+          CPU DRAM·NVMe를 cold storage처럼 사용해 GPU에 담기 불가능한 model state를 체류시키는 계층화.
+        </div>
+        <ul>
+          <li>param/grad/opt state 중 일부를 offload</li>
+          <li>opt state는 <span class="kw">update</span>에서만 필요 → 먼 저장소 적합</li>
+          <li>param·grad은 fwd/bwd마다 접근 → swap 비쌈</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> ZeRO-Offload 구성</h3>
+        <table class="compact">
+          <thead><tr><th>대상</th><th>위치</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>FP16 param</td><td>GPU</td><td>fwd/bwd hot</td></tr>
+            <tr><td>FP16 grad</td><td>GPU → CPU</td><td>bwd 즉시 이동</td></tr>
+            <tr><td>FP32 master</td><td>CPU</td><td>update만</td></tr>
+            <tr><td>m, v</td><td>CPU</td><td>CPU-side Adam</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Ren 2021 (ZeRO-Offload)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> ZeRO-Infinity 계층</h3>
+        <pre class="ascii">GPU HBM   ← hot (param tile)
+   ↕ NVLink/PCIe
+CPU DRAM  ← warm (grad, opt state)
+   ↕ PCIe
+NVMe SSD  ← cold (huge opt state)</pre>
+        <ul>
+          <li>partitioned param prefetch</li>
+          <li>NVMe GDS (GPUDirect Storage)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Bandwidth 계산 ★</h3>
+        <div class="formula">
+          t_step ≥ max( flops/P_comp , bytes/B_link )<br/>
+          B_link: PCIe4 ≈ 32 GB/s · PCIe5 ≈ 64 · NVMe ≈ 3~7 · HBM3 ≈ 3 TB/s
+          <span class="legend">각 buffer의 bytes가 B_link보다 크면 swap이 step을 지배</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 수치 예 <span class="ko">P=13B, PCIe4</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>opt state (12B/p)</td><td class="num">156 GB</td></tr>
+            <tr><td>PCIe4 BW</td><td class="num">32 GB/s</td></tr>
+            <tr><td>Update 전송</td><td class="num">~4.9 s</td></tr>
+            <tr><td>GPU step (TC)</td><td class="num">~0.3 s</td></tr>
+            <tr><td>Ratio (offload/compute)</td><td class="num">~16×</td></tr>
+          </tbody>
+        </table>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">naive offload → PCIe-bound</span>. partition·pipeline·async 없으면 비실용.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Offload 유효성 조건</h3>
+        <ul>
+          <li>opt state ≫ param (Adam 12:4) → offload ROI ↑</li>
+          <li>step이 매우 길어 swap을 감춤 (큰 batch)</li>
+          <li>CPU-side optimizer 효율 (DeepSpeed CPU-Adam, fused kernel)</li>
+          <li>bandwidth = NVLink > NVMe+GDS > PCIe SSD</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 적합 상황 vs 부적합</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>판단</th></tr></thead>
+          <tbody>
+            <tr><td>단일 A100·10B+ 모델</td><td>Offload 유효</td></tr>
+            <tr><td>NVMe만·PCIe3</td><td>Infinity 마지막 수단</td></tr>
+            <tr><td>다수 GPU (ZeRO-3 충분)</td><td>offload 불필요</td></tr>
+            <tr><td>long seq·큰 activation</td><td>checkpoint 먼저</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> CPU-Adam fused <span class="ko">DeepSpeed</span></h3>
+        <ul>
+          <li>CPU intrinsic: AVX-512 · FMA로 32-lane</li>
+          <li>grad FP16 → FP32 unscale + update를 단일 kernel</li>
+          <li>GPU→CPU grad stream 비동기화</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 체크포인트와의 상호작용</h3>
+        <ul>
+          <li>offload 중이면 master/m/v가 CPU에 → save 시 consolidation 필요 (↗ §15)</li>
+          <li>NVMe에 체크포인트 직접 쓰기 가능</li>
+          <li>resume 시 dtype·shard map 일치해야</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·5</span></div>
+</section>
+
+<!-- ============================ PAGE 6: §5 FSDP 아키텍처 ============================ -->
+<section class="page" data-screen-label="06 §5 FSDP Architecture">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — FSDP 아키텍처 (FlatParameter · Unit Wrapping · Prefetch)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FSDP 정의 ★ <span class="ko">ZeRO-3 native</span></h3>
+        <div class="def"><span class="label">정의</span>
+          PyTorch <mark>Fully Sharded Data Parallel</mark>: 각 <span class="kw">unit</span>의 param을 N rank에 shard, 필요 시 all-gather, 사용 후 reshard.
+        </div>
+        <ul>
+          <li>unit = Transformer block 단위가 표준</li>
+          <li>FSDP1 (legacy)·FSDP2 (per-param) 두 세대</li>
+          <li>ZeRO-3와 동일 메모리식 (↗ §3)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> FlatParameter <span class="ko">FSDP1</span></h3>
+        <div class="def"><span class="label">정의</span>
+          unit 내 모든 param을 <mark>하나의 1D tensor</mark>로 평탄화 (flatten) → shard·comm 단위가 단일 tensor.
+        </div>
+        <ul>
+          <li>장점: NCCL 호출 1회/unit (묶음 통신)</li>
+          <li>단점: mixed dtype 불가·일부 hook 부적합</li>
+          <li>FSDP2: per-param sharding으로 해결</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Unit wrapping 전략</h3>
+        <table class="compact">
+          <thead><tr><th>정책</th><th>단위</th></tr></thead>
+          <tbody>
+            <tr><td>size_based</td><td>≥ threshold param</td></tr>
+            <tr><td>transformer_auto</td><td>각 block</td></tr>
+            <tr><td>manual</td><td>사용자 지정</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">transformer_auto_wrap_policy가 대부분 최적</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Sharding 전략 옵션</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>param</th><th>grad</th><th>opt</th></tr></thead>
+          <tbody>
+            <tr><td>FULL_SHARD</td><td>shard</td><td>shard</td><td>shard</td></tr>
+            <tr><td>SHARD_GRAD_OP</td><td>복제</td><td>shard</td><td>shard</td></tr>
+            <tr><td>NO_SHARD</td><td>복제</td><td>복제</td><td>복제 (DDP)</td></tr>
+            <tr><td>HYBRID_SHARD</td><td colspan="3">내부 FULL + 외부 복제 (2D)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">HYBRID: intra-node shard + inter-node replicate</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> MixedPrecision config ★</h3>
+        <pre class="code"><span class="kw2">MixedPrecision</span>(
+  param_dtype  = <span class="fn">bfloat16</span>,
+  reduce_dtype = <span class="fn">float32</span>,
+  buffer_dtype = <span class="fn">bfloat16</span>)</pre>
+        <ul>
+          <li>param_dtype: shard·compute dtype</li>
+          <li>reduce_dtype: gradient reduce 정밀도</li>
+          <li>buffer_dtype: BN running stats 등</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Prefetch 옵션 <span class="ko">통신 은폐</span></h3>
+        <table class="compact">
+          <thead><tr><th>policy</th><th>효과</th></tr></thead>
+          <tbody>
+            <tr><td>BACKWARD_PRE</td><td>다음 layer param AG 선행</td></tr>
+            <tr><td>BACKWARD_POST</td><td>현 layer 끝난 뒤 AG</td></tr>
+            <tr><td>NO_PREFETCH</td><td>stall 허용</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">BACKWARD_PRE가 보통 최적 (compute와 overlap)</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> FSDP2 per-param <span class="ko">최신</span></h3>
+        <ul>
+          <li><code>fully_shard</code> API · DTensor 기반</li>
+          <li>각 param이 독립 ShardedTensor</li>
+          <li>mixed dtype unit·expert shard 가능</li>
+          <li>hooks·LoRA 호환성 ↑</li>
+        </ul>
+        <p class="tiny">PyTorch 2.4+, torch.distributed._composable</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 메모리 구성 요소별 저장</h3>
+        <pre class="ascii">[unit i, rank r]
+  local shard: P_i / N
+  full param (AG 직후): P_i  ← temporary
+  grad shard: P_i / N
+  opt state: P_i / N
+  (AG buffer == compute buffer 재사용)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 안티패턴 <span class="ko">FSDP</span></h3>
+        <ul>
+          <li><span class="red">너무 작은 unit</span>: comm 횟수 ↑ · BW 비효율</li>
+          <li><span class="red">너무 큰 unit</span>: peak full-param GB ↑ · OOM</li>
+          <li><span class="red">root module 전체 wrap</span>: prefetch 기회 상실</li>
+          <li><span class="red">grad clip 구현 미스</span>: shard만 clip → norm 계산 틀림</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·6</span></div>
+</section>
+
+<!-- ============================ PAGE 7: §6 FSDP Fwd/Bwd ============================ -->
+<section class="page" data-screen-label="07 §6 FSDP Fwd/Bwd">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — FSDP Forward / Backward 흐름</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Forward 5단계 ★
+          <span class="mnemonic">AG·F·RE</span>
+        </h3>
+        <ol class="bullet-num">
+          <li><span class="kw">all-gather</span> unit param (shard → full)</li>
+          <li>forward compute</li>
+          <li><span class="kw">reshard</span> param (free full → keep shard)</li>
+          <li>activation은 unit 외부로 전달</li>
+          <li>다음 unit 반복</li>
+        </ol>
+        <p class="tiny">activation은 full param 보존 없음 → backward에 재-AG</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Backward 6단계 ★</h3>
+        <ol class="bullet-num">
+          <li>activation에 ∂L 도달</li>
+          <li><span class="kw">all-gather</span> param 다시 (unshard)</li>
+          <li>backward compute → grad_full</li>
+          <li><span class="kw">reduce-scatter</span> grad → grad_shard</li>
+          <li>reshard param</li>
+          <li>다음 unit (이전 layer)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Timeline ASCII</h3>
+        <pre class="ascii">fwd[L0]: AG→compute→reshard
+fwd[L1]: AG→compute→reshard
+ ...
+fwd[Ln]: loss
+bwd[Ln]: AG→bwd→RS→reshard
+bwd[Ln-1]: AG→bwd→RS→reshard
+ ...
+step: local shard update</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 통신량 공식</h3>
+        <div class="formula">
+          per step·per rank:<br/>
+          AG = 2 · P · (N−1)/N (fwd+bwd 각 1회)<br/>
+          RS = 1 · P · (N−1)/N (bwd)
+          <span class="legend">총 ≈ 3P · (N−1)/N bytes · N GPU 기준</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Compute-comm overlap <span class="ko">prefetch</span></h3>
+        <pre class="ascii">comp stream: | F(L0) | F(L1) | F(L2) |...
+comm stream: |   AG(L1) | AG(L2) |...
+
+bwd:
+comp stream: | B(Ln) | B(Ln-1) |...
+comm stream: | AG(Ln-1) | RS(Ln) + AG(Ln-2) |...</pre>
+        <ul>
+          <li>compute stream ≠ comm stream</li>
+          <li>CUDA event로 dependency</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Root unit 특수 처리</h3>
+        <ul>
+          <li>최초 forward 직전: root all-gather 누적</li>
+          <li>최후 backward 이후: root reduce-scatter 대기</li>
+          <li>root만 sharding 안 하는 경우 있음 (lazy init)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Gradient accumulation <span class="ko">no_sync</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <code>no_sync()</code> context: backward 시 <span class="kw">RS 생략</span>, 여러 micro-batch 누적 뒤 마지막에만 sync.
+        </div>
+        <ul>
+          <li>comm을 K배 절감 (K=accum steps)</li>
+          <li>단, 누적 grad는 rank-local → 마지막 step에 RS</li>
+          <li>상세 <span class="xref">↗ §11</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Freeze param (LoRA 등)</h3>
+        <ul>
+          <li>FSDP1: frozen param을 unit에 포함하면 AG·RS 낭비</li>
+          <li>해결: 별도 unit wrap, or NO_SHARD</li>
+          <li>FSDP2: per-param shard로 해결 용이</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">unit 외부에서 param 접근</span>: shard 상태라 shape 불일치</li>
+          <li><span class="red">grad clip 전 unshard 누락</span>: grad_norm 전체 합산 못함 → <code>clip_grad_norm_</code> FSDP API 사용</li>
+          <li><span class="red">optimizer에 full param 전달</span>: 실제론 shard만 존재</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·7</span></div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Gradient Checkpointing ============================ -->
+<section class="page" data-screen-label="08 §7 Gradient Checkpointing">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Gradient Checkpointing (Activation Recompute)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 <span class="ko">activation 메모리</span></h3>
+        <div class="def"><span class="label">정의</span>
+          L개 layer 중 <mark>√L</mark> 지점만 activation 저장, 나머지는 backward 중 재계산 (recompute).
+        </div>
+        <ul>
+          <li>메모리 O(L) → O(√L)</li>
+          <li>compute: +1 forward pass (≈ +33%)</li>
+          <li>Chen 2016 (Training Deep Nets with Sublinear Memory)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> √N 공식 ★</h3>
+        <div class="formula">
+          M_act(naive) = L · m_layer<br/>
+          M_act(ckpt)  = √L · m_layer + m_segment<br/>
+          optimal segment size = √L
+          <span class="legend">L: layer · m_layer: per-layer activation · m_segment: segment 내부 peak</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          L = 64 → √L = 8 → 메모리 ~1/8, 계산 ~4/3
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 적용 단위</h3>
+        <table class="compact">
+          <thead><tr><th>단위</th><th>구현</th></tr></thead>
+          <tbody>
+            <tr><td>per-layer</td><td>가장 흔함</td></tr>
+            <tr><td>per-block</td><td>transformer block</td></tr>
+            <tr><td>per-module</td><td>custom boundary</td></tr>
+            <tr><td>per-op</td><td>selective (↓)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Selective checkpoint ★</h3>
+        <div class="def"><span class="label">정의</span>
+          비싼 op (e.g. matmul·attention)는 저장, 싼 op (e.g. dropout·RMSNorm·elementwise)는 recompute. 메모리·compute 둘 다 최적화.
+        </div>
+        <pre class="ascii">layer: [QKV proj] [SDPA] [out proj] [FFN]
+store:    ✓          ✗       ✓       partial
+recomp:              ✓              FFN 하위</pre>
+        <p class="tiny">Korthikanti 2022 · Megatron selective activation recompute</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> API 형태 <span class="ko">PyTorch</span></h3>
+        <pre class="code"><span class="kw2">from</span> torch.utils.checkpoint <span class="kw2">import</span> checkpoint
+
+<span class="kw2">def</span> <span class="fn">block</span>(x):
+  <span class="kw2">return</span> layer2(layer1(x))
+
+y = <span class="fn">checkpoint</span>(block, x,
+     use_reentrant=<span class="num2">False</span>)</pre>
+        <ul>
+          <li><code>use_reentrant=False</code>: autograd 2세대, 권장</li>
+          <li>RNG state 저장·복원으로 dropout 재현</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 수치 재현성 <span class="ko">RNG</span></h3>
+        <ul>
+          <li>dropout mask가 fwd·recompute 달라지면 grad 틀림</li>
+          <li><code>preserve_rng_state=True</code> 기본값</li>
+          <li>Megatron: CUDA RNG tracker로 tensor parallel RNG 분리</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Trade-off 표</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th class="num">mem</th><th class="num">compute</th></tr></thead>
+          <tbody>
+            <tr><td>none</td><td class="num">1.0</td><td class="num">1.0</td></tr>
+            <tr><td>selective</td><td class="num">~0.4</td><td class="num">~1.08</td></tr>
+            <tr><td>full (per-block)</td><td class="num">~0.15</td><td class="num">~1.33</td></tr>
+            <tr><td>offload act</td><td class="num">~0.05</td><td class="num">+PCIe</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Offload activation</h3>
+        <ul>
+          <li>GPU → CPU pinned으로 activation 이동</li>
+          <li>backward에서 prefetch</li>
+          <li>compute·comm overlap이 되면 거의 공짜</li>
+        </ul>
+        <p class="tiny">GPU HBM 해제·CPU DRAM 사용 — PCIe BW 여유 필요</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> FA와의 상호작용</h3>
+        <ul>
+          <li>FlashAttention은 이미 O(N) activation (softmax statistics만 저장)</li>
+          <li>attention block checkpoint는 추가 recompute (↗ V07)</li>
+          <li>QKV proj·FFN block에 집중 적용이 ROI 높음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">in-place op</span> 내부에 checkpoint → recompute 후 상태 손상</li>
+          <li><span class="red">non-deterministic kernel</span> (e.g. atomicAdd) → grad mismatch</li>
+          <li><span class="red">training loop 밖 RNG 변경</span> → dropout divergence</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·8</span></div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Sequence Packing ============================ -->
+<section class="page" data-screen-label="09 §8 Sequence Packing">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Sequence Packing & Attention Masking</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 문제 상황 <span class="ko">padding 낭비</span></h3>
+        <div class="def"><span class="label">정의</span>
+          길이가 다른 sample을 batch로 묶을 때 <mark>pad token</mark>으로 max_len에 맞추면, 짧은 sample의 FLOP/BW가 낭비됨.
+        </div>
+        <ul>
+          <li>평균/최대 길이 비 ≤ 0.5 인 dataset 흔함</li>
+          <li>pad는 loss masking으로 무시되나 compute는 수행됨</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Packing 정의 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          여러 짧은 sample을 하나의 긴 sequence로 <mark>연결</mark>하고, attention에서만 sample boundary를 mask로 격리.
+        </div>
+        <pre class="ascii">raw: [s1: 123 ][s2:12][s3:1234]
+pack: [123 12 1234]  seq=9
+bdry:  0    3  5     (누적 시작)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> cu_seqlens 자료구조</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>cumulative sequence lengths</mark>: 누적 길이 벡터. packed batch의 각 sample 범위를 표현.
+        </div>
+        <pre class="code">cu_seqlens = [<span class="num2">0</span>, <span class="num2">3</span>, <span class="num2">5</span>, <span class="num2">9</span>]
+max_seqlen  = <span class="num2">4</span>
+total_tok   = <span class="num2">9</span></pre>
+        <p class="tiny">FlashAttention varlen API 입력 <span class="xref">↗ V07 §12</span></p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Attention mask 구성 ★</h3>
+        <pre class="ascii">  s1 s2 s3
+s1 ██ ░░ ░░
+s2 ░░ ██ ░░
+s3 ░░ ░░ ██   (block-diagonal)</pre>
+        <ul>
+          <li>각 block 내 causal mask 추가</li>
+          <li>dense mask(N²) 대신 cu_seqlens로 구현</li>
+          <li>FA varlen: block-level skip (↗ V07)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> FLOP 절약 공식</h3>
+        <div class="formula">
+          FLOP_pad = B · S_max² · d<br/>
+          FLOP_pack = Σᵢ sᵢ² · d<br/>
+          saving = 1 − (Σsᵢ²) / (B · S_max²)
+          <span class="legend">길이 분포가 고르면 saving = 1 − 1/B (배치 수만큼 이익)</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          B=16·S_max=4k·avg=1k → pad 대비 pack ~75% 절약
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Position ID 재설정</h3>
+        <ul>
+          <li>packed seq 전체에 0~N-1 쓰면 RoPE 엇나감</li>
+          <li>각 sample 내에서 0부터 다시 시작</li>
+          <li><code>position_ids = [0,1,2, 0,1, 0,1,2,3]</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Loss mask 주의</h3>
+        <ul>
+          <li>SFT: prompt 영역 loss=0, completion만 loss</li>
+          <li>packing 시 sample 경계에서 shift 조심</li>
+          <li>attention mask ≠ loss mask (둘 다 필요)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Curriculum & bin packing</h3>
+        <ul>
+          <li>길이 bucket → 비슷한 길이끼리 배치 (bucket batching)</li>
+          <li>greedy·first-fit decreasing으로 bin에 채움</li>
+          <li>throughput 평탄화·OOM 예방</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 구현 체크리스트</h3>
+        <table class="compact">
+          <thead><tr><th>요소</th><th>필요</th></tr></thead>
+          <tbody>
+            <tr><td>cu_seqlens</td><td>✓</td></tr>
+            <tr><td>max_seqlen</td><td>✓</td></tr>
+            <tr><td>position_ids per-sample</td><td>✓</td></tr>
+            <tr><td>label shift·ignore_index</td><td>✓</td></tr>
+            <tr><td>FA varlen flag</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">packing 시 RNG seed 동일</span> → 재배치 없음, 고정 셔플</li>
+          <li><span class="red">cross-sample leak</span>: mask 누락 → sample 간 attention 오염</li>
+          <li><span class="red">varlen + padding 혼재</span>: 한쪽 통일</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·9</span></div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Megatron 3D Parallelism ============================ -->
+<section class="page" data-screen-label="10 §9 3D Parallelism">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Megatron 3D Parallelism (TP · PP · DP)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 5 axis 정리 ★ <span class="ko">분할 대상</span>
+          <span class="mnemonic">DP·TP·PP·EP·CP</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>axis</th><th>대상</th><th>통신</th></tr></thead>
+          <tbody>
+            <tr><td>DP</td><td>batch 복제</td><td>AR grad</td></tr>
+            <tr><td>TP</td><td>hidden 분할</td><td>AR per layer</td></tr>
+            <tr><td>PP</td><td>layer 분할</td><td>P2P activation</td></tr>
+            <tr><td>EP</td><td>MoE expert</td><td>all-to-all</td></tr>
+            <tr><td>CP</td><td>sequence 분할</td><td>KV rotate</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">상세 통신식 <span class="xref">↗ V15 §3</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Megatron TP 구조</h3>
+        <pre class="ascii">FFN: y = GeLU(x·W1)·W2
+  W1 : col-parallel (split N)
+  W2 : row-parallel (split K)
+  마지막 all-reduce (sum)
+
+QKV proj: col-parallel (head 분할)
+Attn out: row-parallel + all-reduce</pre>
+        <p>1 layer당 fwd 1× AR · bwd 1× AR</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 조합 기하 ★</h3>
+        <div class="formula">
+          world_size N_total = TP · PP · DP ( · EP · CP)<br/>
+          각 rank의 3D 좌표: (t, p, d) · t∈[TP], p∈[PP], d∈[DP]
+          <span class="legend">직교 축으로 process group 생성</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 통신 패턴</h3>
+        <table class="compact">
+          <thead><tr><th>axis</th><th>bytes/step·rank</th></tr></thead>
+          <tbody>
+            <tr><td>TP</td><td>O(L · B · S · H)</td></tr>
+            <tr><td>PP</td><td>O(M · B · S · H / P)</td></tr>
+            <tr><td>DP</td><td>O(P_param/N_dp)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">B:batch, S:seq, H:hidden, L:layer, M:microbatch, P:PP stages</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> TP NVLink 제약 ★</h3>
+        <div class="warn-box"><span class="label"></span>
+          TP all-reduce는 <span class="red">매 layer 2회</span>. NVLink 없으면 느림.<br/>
+          <span class="kw">TP ≤ 8 (intra-node)</span> 권장.
+        </div>
+        <ul>
+          <li>A100·H100 single node: NVLink 8-way full mesh</li>
+          <li>cross-node TP는 InfiniBand BW 제약</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 실전 구성표 ★</h3>
+        <table class="compact">
+          <thead><tr><th>size</th><th class="num">TP</th><th class="num">PP</th><th class="num">DP</th><th class="num">total GPU</th></tr></thead>
+          <tbody>
+            <tr><td>7B</td><td class="num">1</td><td class="num">1</td><td class="num">8</td><td class="num">8</td></tr>
+            <tr><td>13B</td><td class="num">2</td><td class="num">1</td><td class="num">16</td><td class="num">32</td></tr>
+            <tr><td>30B</td><td class="num">4</td><td class="num">2</td><td class="num">16</td><td class="num">128</td></tr>
+            <tr><td>70B</td><td class="num">8</td><td class="num">4</td><td class="num">16</td><td class="num">512</td></tr>
+            <tr><td>400B</td><td class="num">8</td><td class="num">16</td><td class="num">16</td><td class="num">2048</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">TP=intra-node · PP=inter-node · DP 가장 바깥</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> SP (Sequence Parallelism)</h3>
+        <ul>
+          <li>TP 안에서 LayerNorm·Dropout의 <span class="kw">seq 축</span>을 분할</li>
+          <li>all-gather·reduce-scatter가 TP all-reduce를 대체 (동일 bytes)</li>
+          <li>activation 메모리 추가 절감</li>
+          <li>Korthikanti 2022</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 축 순서 관습</h3>
+        <pre class="ascii">inner  TP  (NVLink)
+         │
+         PP  (node-to-node P2P)
+         │
+outer  DP  (ZeRO/FSDP 가능)</pre>
+        <p class="tiny">TP는 가장 fast fabric, DP는 가장 slow에 배치</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·10</span></div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Pipeline Schedule ============================ -->
+<section class="page" data-screen-label="11 §10 Pipeline Schedule">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Pipeline Schedule (1F1B · Interleaved · Zero-Bubble)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Bubble ratio 공식 ★</h3>
+        <div class="formula">
+          bubble = (P − 1) / M<br/>
+          efficiency = M / (M + P − 1)
+          <span class="legend">P: stage 수 · M: microbatch 수</span>
+        </div>
+        <ul>
+          <li>M이 크면 bubble ↓ (파이프라인 채움)</li>
+          <li>M 제한: activation 메모리 (각 micro별)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> GPipe 기본 <span class="ko">all-fwd-then-bwd</span></h3>
+        <pre class="ascii">P=4, M=4
+t: 0 1 2 3 4 5 6 7 8 9 A B
+G0 F F F F       B B B B
+G1   F F F F   B B B B
+G2     F F F F B B B B
+G3       F F F F B B B B
+     └─fwd warm─┘└─bwd tail─┘
+bubble = 2(P-1)/M</pre>
+        <p class="tiny">∴ activation이 모든 micro 저장 → 메모리 많음</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 1F1B schedule ★ <span class="ko">Megatron</span></h3>
+        <pre class="ascii">P=4, M=8, 1F1B:
+t: 0 1 2 3 4 5 6 7 8 9 A B C D
+G0 F F F F B F B F B F B B B B
+G1   F F F B F B F B F B F B B
+G2     F F F B F B F B F B F B
+G3       F B F B F B F B F B F
+ warm-up    steady (1F1B)    drain
+bubble = (P-1)/M (GPipe의 절반)</pre>
+        <ul>
+          <li>정상 구간: 각 stage가 F,B를 교대</li>
+          <li>activation 보존 ≤ P (stage 수)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Interleaved (virtual pipeline)</h3>
+        <pre class="ascii">P=4, v=2 (virtual stages/GPU), M=8:
+G0: [s0]...[s4]  F F F F B B B B (교차)
+G1: [s1]...[s5]  ...
+bubble = (P-1) / (v·M)</pre>
+        <ul>
+          <li>각 GPU가 <span class="kw">v</span>개 stage 담당</li>
+          <li>bubble v배 ↓ · P2P 통신 v배 ↑</li>
+          <li>Narayanan 2021 (Megatron)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Zero-Bubble ★ <span class="ko">최신</span></h3>
+        <div class="def"><span class="label">정의</span>
+          backward를 <mark>B(activation grad)</mark> + <mark>W(weight grad)</mark>로 분리, W를 bubble 구간에 배치해 bubble → 0.
+        </div>
+        <pre class="ascii">1F1B-BW:
+G0 F F F F B W B W B W B W W W
+           └─ B·W 교차 ─┘
+Qi, Zero Bubble Pipeline (2023)</pre>
+        <p class="tiny">bubble → 근사 0 · 구현 복잡도 ↑</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 3종 비교표</h3>
+        <table class="compact">
+          <thead><tr><th>schedule</th><th class="num">bubble</th><th class="num">act mem</th><th>구현</th></tr></thead>
+          <tbody>
+            <tr><td>GPipe</td><td class="num">2(P−1)/M</td><td class="num">O(M)</td><td>단순</td></tr>
+            <tr><td>1F1B</td><td class="num">(P−1)/M</td><td class="num">O(P)</td><td>중간</td></tr>
+            <tr><td>Interleaved</td><td class="num">(P−1)/(v·M)</td><td class="num">O(P·v)</td><td>복잡</td></tr>
+            <tr><td>Zero-Bubble</td><td class="num">~0</td><td class="num">O(P)</td><td>매우복잡</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 선택 결정</h3>
+        <ul>
+          <li>M ≥ 4·P 가능 → 1F1B 충분</li>
+          <li>M 제약 있고 P 큼 → interleaved</li>
+          <li>극한 throughput·구현 여유 → zero-bubble</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·11</span></div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Comm-Compute Overlap ============================ -->
+<section class="page" data-screen-label="12 §11 Comm-Compute Overlap">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Comm-Compute Overlap 기법</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 원리 <span class="ko">CUDA stream</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>compute stream</mark>과 <mark>comm stream</mark>을 별도로 두고, CUDA event로 의존성만 선언. NCCL kernel과 GEMM이 동시에 실행.
+        </div>
+        <ul>
+          <li>SM 자원 분할: NCCL은 일부 SM만 사용</li>
+          <li>HBM BW 공유가 병목이 됨</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Bucketed grad reduce ★</h3>
+        <div class="def"><span class="label">정의</span>
+          backward 중 grad가 준비되는 대로 <mark>bucket</mark>(예: 25MB)에 모아 즉시 RS/AR 시작.
+        </div>
+        <pre class="ascii">bwd:  G_L1 G_L2 G_L3 G_L4 ...
+              └bkt┘└bkt┘
+              RS starts asap (overlap next B)</pre>
+        <p class="tiny">DDP·FSDP 기본 동작</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Parameter prefetch</h3>
+        <ul>
+          <li>다음 layer의 AG를 현재 compute와 겹침</li>
+          <li>FSDP: BACKWARD_PRE (↗ §5)</li>
+          <li>pipeline depth = prefetch 횟수</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> no_sync() ★</h3>
+        <div class="def"><span class="label">정의</span>
+          DDP/FSDP의 grad sync(AR/RS)를 <mark>skip</mark>하는 context manager. 누적 후 마지막 step에만 sync.
+        </div>
+        <pre class="code"><span class="kw2">for</span> i, batch <span class="kw2">in</span> <span class="fn">enumerate</span>(loader):
+  <span class="kw2">if</span> (i+<span class="num2">1</span>) % accum != <span class="num2">0</span>:
+    <span class="kw2">with</span> model.<span class="fn">no_sync</span>():
+      loss = <span class="fn">model</span>(batch)
+      loss.<span class="fn">backward</span>()
+  <span class="kw2">else</span>:
+    loss = <span class="fn">model</span>(batch)
+    loss.<span class="fn">backward</span>()  <span class="cmt"># sync</span>
+    optimizer.<span class="fn">step</span>()</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> FSDP fine-grained overlap</h3>
+        <table class="compact">
+          <thead><tr><th>phase</th><th>overlap 대상</th></tr></thead>
+          <tbody>
+            <tr><td>fwd L_i</td><td>AG L_{i+1}</td></tr>
+            <tr><td>bwd L_i</td><td>AG L_{i-1}</td></tr>
+            <tr><td>bwd L_i</td><td>RS L_{i+1}</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">3중 overlap이 가능하나 구현이 복잡</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> TP overlap <span class="ko">Megatron</span></h3>
+        <ul>
+          <li>SP all-gather를 다음 GEMM과 overlap</li>
+          <li>UserBuffers / CUDA graphs로 kernel launch 비용 감소</li>
+          <li>TE 모듈에 "ub_overlap_ag" flag</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> PP P2P overlap</h3>
+        <ul>
+          <li>P2P send/recv은 NCCL sendrecv group</li>
+          <li>compute가 길면 자연 은폐</li>
+          <li>short stage → P2P bound 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 진단 포인트</h3>
+        <table class="vs">
+          <thead><tr><th>증상</th><th>원인 후보</th></tr></thead>
+          <tbody>
+            <tr><td>NCCL stream 빈 공간</td><td>bucket 너무 큼 → 분할</td></tr>
+            <tr><td>compute stream gap</td><td>AG 대기 → prefetch 활성</td></tr>
+            <tr><td>HBM BW 포화</td><td>bucket·GEMM 충돌 → 크기 조정</td></tr>
+            <tr><td>per-step variance ↑</td><td>NCCL 순서 불안정</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Nsight Systems trace 기준 <span class="xref">↗ V18 §12</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">bucket 크기 과소</span>: NCCL 호출 횟수 ↑ · BW ↓</li>
+          <li><span class="red">single stream</span>: NCCL이 compute 차단</li>
+          <li><span class="red">event 누락</span>: grad race → NaN</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·12</span></div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Optimizer States ============================ -->
+<section class="page" data-screen-label="13 §12 Optimizer States">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Optimizer States (Adam · AdamW · Adafactor · 8-bit)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Adam 업데이트 식 <span class="ko">복습</span></h3>
+        <div class="formula">
+          m_t = β₁ m_{t-1} + (1−β₁) g_t<br/>
+          v_t = β₂ v_{t-1} + (1−β₂) g_t²<br/>
+          m̂ = m_t / (1−β₁ᵗ) · v̂ = v_t / (1−β₂ᵗ)<br/>
+          w_t = w_{t-1} − η · m̂ / (√v̂ + ε)
+          <span class="legend">m·v: 1st·2nd moment · β₁≈0.9, β₂≈0.95~0.999</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Adam vs AdamW <span class="ko">weight decay</span></h3>
+        <table class="vs">
+          <thead><tr><th>방식</th><th>decay 적용</th></tr></thead>
+          <tbody>
+            <tr><td>Adam (L2)</td><td>grad에 λw 추가 후 Adam</td></tr>
+            <tr><td>AdamW</td><td>update 후 w ← w(1−ηλ)</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>Loshchilov 2019 · LLM 사실상 표준은 AdamW</li>
+          <li>decay가 m/v 통해 왜곡되지 않음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 B/param 비교</h3>
+        <table class="compact">
+          <thead><tr><th>optimizer</th><th class="num">B/p (FP32 state)</th></tr></thead>
+          <tbody>
+            <tr><td>SGD</td><td class="num">0</td></tr>
+            <tr><td>SGD + momentum</td><td class="num">4</td></tr>
+            <tr><td>Adam/AdamW</td><td class="num">8 (m+v)</td></tr>
+            <tr><td>Adafactor</td><td class="num">~2</td></tr>
+            <tr><td>LAMB</td><td class="num">8</td></tr>
+            <tr><td>Lion</td><td class="num">4 (momentum만)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">master copy 4B/p 별도 추가</p>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Adafactor ★ <span class="ko">T5 학습</span></h3>
+        <div class="def"><span class="label">정의</span>
+          v_t를 full matrix로 저장 대신 <mark>row sum r</mark>·<mark>col sum c</mark>로 rank-1 근사: v ≈ (r · cᵀ) / (1ᵀc).
+        </div>
+        <ul>
+          <li>matrix 한 축이 크면 메모리 O(m+n) vs O(mn)</li>
+          <li>수렴 속도는 Adam 대비 약간 느릴 수 있음</li>
+          <li>Shazeer 2018</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 8-bit Adam ★ <span class="ko">bitsandbytes</span></h3>
+        <div class="def"><span class="label">정의</span>
+          m·v를 <mark>block-wise quantization</mark>으로 8-bit 저장, update 순간에만 FP32로 dequant.
+        </div>
+        <table class="compact">
+          <thead><tr><th>state</th><th class="num">baseline</th><th class="num">8-bit</th></tr></thead>
+          <tbody>
+            <tr><td>m</td><td class="num">4B</td><td class="num">1B + scale</td></tr>
+            <tr><td>v</td><td class="num">4B</td><td class="num">1B + scale</td></tr>
+            <tr><td>총 state</td><td class="num">8B</td><td class="num">~2B</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Dettmers 2022 · 수렴 품질 Adam과 동등</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Lion <span class="ko">최신 대안</span></h3>
+        <ul>
+          <li>sign-based update: w ← w − η·sign(m̃)</li>
+          <li>state: momentum만 → 4B/p</li>
+          <li>LR·WD 튜닝 민감도 높음</li>
+          <li>Chen 2023 (EvoLved Sign Momentum)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 품질-메모리 trade ★</h3>
+        <table class="compact">
+          <thead><tr><th>opt</th><th class="num">mem</th><th>품질</th><th>권장 맥락</th></tr></thead>
+          <tbody>
+            <tr><td>AdamW</td><td class="num">12B</td><td>표준</td><td>대부분</td></tr>
+            <tr><td>Adafactor</td><td class="num">6B</td><td>약간 ↓</td><td>초대형·T5</td></tr>
+            <tr><td>8-bit AdamW</td><td class="num">6B</td><td>≈ AdamW</td><td>단일 GPU</td></tr>
+            <tr><td>Lion</td><td class="num">8B</td><td>혼재</td><td>비전·실험</td></tr>
+            <tr><td>SGD-M</td><td class="num">8B</td><td>비전 OK</td><td>LLM 비권장</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">master 4B 포함 값 · LLM pretrain 기준</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Fused optimizer kernel</h3>
+        <ul>
+          <li>Apex <code>FusedAdam</code>·PyTorch <code>foreach</code>·<code>fused=True</code></li>
+          <li>element-wise update를 단일 kernel</li>
+          <li>CUDA graph 친화·launch overhead ↓</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">β₂ 기본값 0.999 고수</span>: LLM에서 0.95가 통상 안정</li>
+          <li><span class="red">ε=1e-8 FP16에서 0</span>: 1e-6 권장</li>
+          <li><span class="red">Adam + L2 대신 AdamW</span> 혼동</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·13</span></div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Loss Scaling & FP8 ============================ -->
+<section class="page" data-screen-label="14 §13 Loss Scaling FP8">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Loss Scaling & FP8 Training (Transformer Engine)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 loss scaling <span class="ko">FP16</span></h3>
+        <div class="def"><span class="label">정의</span>
+          FP16 representable 최소 ≈ 6·10⁻⁵. gradient 대부분이 이보다 작아 <mark>underflow (→ 0)</mark>. loss × S로 scale 올려 grad 보존.
+        </div>
+        <ul>
+          <li>backward 후 grad / S 로 복원 (unscale)</li>
+          <li>BF16은 range가 FP32와 같아 scaling 불필요</li>
+          <li>수치 상세 <span class="xref">↗ V09 §4</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Dynamic loss scale ★
+          <span class="mnemonic">up·skip·down</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          inf/NaN 발생 시 step skip + S ← S/2. 2000 step 안정이면 S ← S·2.
+        </div>
+        <pre class="ascii">state:
+  S (scale factor)   init ~2^16
+  growth_interval    e.g. 2000
+  n_ok               success 카운트
+
+per step:
+  if any(grad = ±inf, NaN):
+      skip step
+      S ← S / 2; n_ok ← 0
+  else:
+      apply step
+      n_ok ← n_ok + 1
+      if n_ok == growth_interval:
+          S ← S · 2; n_ok ← 0</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> GradScaler API</h3>
+        <pre class="code">scaler = <span class="kw2">GradScaler</span>()
+<span class="kw2">for</span> x,y <span class="kw2">in</span> loader:
+  <span class="kw2">with</span> autocast(dtype=FP16):
+    loss = <span class="fn">model</span>(x,y)
+  scaler.<span class="fn">scale</span>(loss).<span class="fn">backward</span>()
+  scaler.<span class="fn">unscale_</span>(opt)       <span class="cmt"># for clip</span>
+  <span class="fn">clip_grad_norm_</span>(...)
+  scaler.<span class="fn">step</span>(opt)           <span class="cmt"># skip if inf</span>
+  scaler.<span class="fn">update</span>()            <span class="cmt"># adjust S</span></pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> FP8 formats ★ <span class="ko">H100+</span></h3>
+        <table class="compact">
+          <thead><tr><th>format</th><th>E/M</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>E4M3</td><td>4/3</td><td>activation·weight</td></tr>
+            <tr><td>E5M2</td><td>5/2</td><td>gradient (range↑)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Micikevicius 2022 · IEEE binary8 candidate</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> FP8 scaling 전략</h3>
+        <ul>
+          <li>per-tensor scale factor (delayed scaling)</li>
+          <li>amax history 유지 → next-step scale 예측</li>
+          <li>TE가 amax·scale graph로 관리</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Transformer Engine path ★</h3>
+        <pre class="ascii">x (BF16) ─cast→ E4M3 ─┐
+W (BF16) ─cast→ E4M3 ─┤ WGMMA (FP8×FP8)
+                       └→ FP32 accum → BF16
+grad (BF16) ─cast→ E5M2 (더 큰 range)
+amax history → per-tensor scale</pre>
+        <ul>
+          <li>TE module이 자동 관리</li>
+          <li>수치 상세 <span class="xref">↗ V09 §6</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> FP8 safe layer 경계</h3>
+        <table class="compact">
+          <thead><tr><th>layer</th><th>FP8?</th></tr></thead>
+          <tbody>
+            <tr><td>QKV/FFN GEMM</td><td>✓</td></tr>
+            <tr><td>LayerNorm</td><td>BF16 유지</td></tr>
+            <tr><td>softmax·attention</td><td>FP16/BF16</td></tr>
+            <tr><td>logit·loss</td><td>FP32</td></tr>
+            <tr><td>embedding table</td><td>BF16 (보수적)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">unscale 전 clip</span>: norm이 S배 왜곡</li>
+          <li><span class="red">skip시 step 집계</span>: global_step 증가 금지</li>
+          <li><span class="red">FP8 amax 미동기화</span>: DP 간 scale 불일치 → NaN</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·14</span></div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Dataloader ============================ -->
+<section class="page" data-screen-label="15 §14 Dataloader">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Dataloader Design (Prefetch · Sharding · GPU Decode)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목표</h3>
+        <div class="def"><span class="label">정의</span>
+          GPU가 매 step 입력 기다리지 않도록 <mark>prefetch · parallel decode · H2D overlap</mark>. 대상은 iostream·CPU preproc·H2D의 3병목.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> PyTorch DataLoader</h3>
+        <table class="compact">
+          <thead><tr><th>param</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>num_workers</td><td>worker process 수</td></tr>
+            <tr><td>prefetch_factor</td><td>worker당 미리 버퍼링</td></tr>
+            <tr><td>pin_memory</td><td>pinned → H2D 빠름</td></tr>
+            <tr><td>persistent_workers</td><td>epoch 간 재사용</td></tr>
+            <tr><td>collate_fn</td><td>batch 조립</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Sharding <span class="ko">분산 학습</span></h3>
+        <ul>
+          <li><code>DistributedSampler</code>: rank별 index 분할</li>
+          <li>각 rank는 dataset의 1/N만 읽음</li>
+          <li>epoch마다 seed 동기화로 중복 방지</li>
+          <li>iterable dataset: webdataset·streaming</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Shuffle 전략</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>특성</th></tr></thead>
+          <tbody>
+            <tr><td>index shuffle</td><td>map-style 전용</td></tr>
+            <tr><td>buffer shuffle</td><td>iterable·window N</td></tr>
+            <tr><td>tar-shuffle</td><td>webdataset tar 단위</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">global shuffle은 많은 메모리 필요 → buffer approximation</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 저장 포맷 ★</h3>
+        <table class="compact">
+          <thead><tr><th>포맷</th><th>장점</th><th>단점</th></tr></thead>
+          <tbody>
+            <tr><td>raw image/jpg</td><td>호환성</td><td>decode CPU</td></tr>
+            <tr><td>tfrecord</td><td>seq read 빠름</td><td>검색 ↓</td></tr>
+            <tr><td>webdataset (tar)</td><td>streaming·shard</td><td>random X</td></tr>
+            <tr><td>arrow/parquet</td><td>columnar·효율</td><td>image 불리</td></tr>
+            <tr><td>mosaic (mds)</td><td>deterministic resume</td><td>tooling 의존</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> GPU-side decoding ★</h3>
+        <ul>
+          <li>NVJPEG·NVIMGCODEC: JPEG를 GPU에서 decode</li>
+          <li>DALI pipeline: decode + augmentation 모두 GPU</li>
+          <li>CPU preproc bound 모델에서 2~5× 처리량</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Text pretrain loader 특수 <span class="ko">LLM</span></h3>
+        <ul>
+          <li>token-level sharding: fixed-length chunk</li>
+          <li>index file: .bin + .idx (Megatron)</li>
+          <li>seq boundary preserve 여부 선택</li>
+          <li>packing 전제 (↗ §8)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Resumable sampler</h3>
+        <div class="def"><span class="label">정의</span>
+          state_dict에 sampler의 <mark>current index + epoch + seed</mark>를 기록. resume 시 중복/스킵 없이 재개.
+        </div>
+        <ul>
+          <li>DistributedSampler는 <code>set_epoch</code> 필수</li>
+          <li>streaming은 별도 offset tracking</li>
+          <li>↗ §15 checkpoint</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 진단 지표</h3>
+        <table class="compact">
+          <thead><tr><th>signal</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>data-wait % &gt; 5%</td><td>loader 부족</td></tr>
+            <tr><td>CPU ≈ 100%</td><td>decode bound</td></tr>
+            <tr><td>IO wait</td><td>저장매체 bound</td></tr>
+            <tr><td>variance ↑</td><td>buffer 부족</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">num_workers=0</span>: GPU 유휴</li>
+          <li><span class="red">pin_memory 미사용</span>: H2D 대역폭 절반</li>
+          <li><span class="red">augmentation CPU fork 비용</span>: 과한 worker 역효과</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·15</span></div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Checkpointing ============================ -->
+<section class="page" data-screen-label="16 §15 Checkpointing">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Distributed Checkpoint (Save · Load · Consolidate)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 저장 대상 <span class="ko">resume 정확성</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>필수</th></tr></thead>
+          <tbody>
+            <tr><td>model state_dict</td><td>✓</td></tr>
+            <tr><td>optimizer state</td><td>✓</td></tr>
+            <tr><td>lr scheduler</td><td>✓</td></tr>
+            <tr><td>grad scaler</td><td>FP16 시</td></tr>
+            <tr><td>RNG state (cpu/cuda)</td><td>✓</td></tr>
+            <tr><td>dataloader sampler</td><td>✓</td></tr>
+            <tr><td>global_step</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 저장 형태 ★</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>특성</th></tr></thead>
+          <tbody>
+            <tr><td>rank-0 consolidated</td><td>단일 파일·느림·OOM</td></tr>
+            <tr><td>sharded (per-rank)</td><td>빠름·world 의존</td></tr>
+            <tr><td>DCP (torch)</td><td>rank-independent load</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">torch.distributed.checkpoint 2.2+</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 파일 레이아웃 예</h3>
+        <pre class="ascii">ckpt-1000/
+├ model/
+│ ├ __0_0.distcp
+│ ├ __1_0.distcp
+│ └ ...
+├ optim/
+├ meta.json   (world topology)
+└ sampler_state.pt</pre>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Sharded save 장점</h3>
+        <ul>
+          <li>각 rank가 병렬로 local shard만 dump</li>
+          <li>write BW ∝ N (node 수)</li>
+          <li>rank-0 bottleneck 없음</li>
+          <li>load도 shard-aware로 수신</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Consolidation <span class="ko">배포용</span></h3>
+        <div class="def"><span class="label">정의</span>
+          학습은 sharded, <mark>배포·평가 시에만 단일 파일로 모음</mark>. DCP에는 별도 consolidate script 존재.
+        </div>
+        <ul>
+          <li>FSDP: <code>StateDictType.FULL_STATE_DICT</code></li>
+          <li>rank-0에 모여 save</li>
+          <li>메모리 여유 필요 (full param)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Reshard on load ★</h3>
+        <div class="def"><span class="label">정의</span>
+          학습 world 구성이 바뀌어도 load 가능해야 함. DCP는 topology-agnostic metadata로 자동 reshape.
+        </div>
+        <pre class="ascii">save: TP=8, PP=4, DP=16
+load: TP=4, PP=4, DP=32   ← OK
+load: TP=8, PP=4, DP=16   ← 동일
+사용: resume시 node 수 변경</pre>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Async save <span class="ko">CUDA stream</span></h3>
+        <ul>
+          <li>D2H copy를 비동기로 시작 → 학습 지속</li>
+          <li>CPU-side에서 disk write 병렬</li>
+          <li>save latency 감춤 → 빈번 저장 가능</li>
+          <li>Mosaic·DeepSpeed·Megatron 구현 존재</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Save interval heuristic</h3>
+        <table class="compact">
+          <thead><tr><th>요인</th><th>권장</th></tr></thead>
+          <tbody>
+            <tr><td>MTBF 예상</td><td>interval ≤ MTBF/2</td></tr>
+            <tr><td>save cost</td><td>≤ 1% wall-time</td></tr>
+            <tr><td>disk 용량</td><td>rotation 3~5</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">interval ↑ → 손실 확률 ↑ · IO ↓</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Resume 정확성 체크</h3>
+        <ol class="bullet-num">
+          <li>loss curve 연속성 (점프 없음)</li>
+          <li>grad norm 분포 유사</li>
+          <li>data iteration index 일치</li>
+          <li>RNG 복원으로 dropout 재현</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">10</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">sampler state 미저장</span>: resume 후 data 중복</li>
+          <li><span class="red">RNG state 누락</span>: dropout 달라짐</li>
+          <li><span class="red">rank-0 save만</span>: world 변경 불가</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·16</span></div>
+</section>
+
+<!-- ============================ PAGE 17: §16 Fault Tolerance ============================ -->
+<section class="page" data-screen-label="17 §16 Fault Tolerance">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — Fault Tolerance (Rank Failure · Elastic · Interval)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 실패 모드 <span class="ko">대규모</span></h3>
+        <table class="compact">
+          <thead><tr><th>유형</th><th>빈도</th></tr></thead>
+          <tbody>
+            <tr><td>GPU Xid error</td><td>주기적</td></tr>
+            <tr><td>NVLink/IB link down</td><td>드묾</td></tr>
+            <tr><td>host crash</td><td>드묾</td></tr>
+            <tr><td>NCCL timeout</td><td>네트워크 jitter</td></tr>
+            <tr><td>straggler (slow)</td><td>자주</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">1000 GPU·30일 학습 시 수십건 통상</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> MTBF와 interval</h3>
+        <div class="formula">
+          E[useful] = MTBF − (interval/2) − t_save − t_resume<br/>
+          optimal_interval ≈ √(2·MTBF·t_save)
+          <span class="legend">Young-Daly 근사 · save가 비쌀수록 interval 길게</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Graceful detect</h3>
+        <ul>
+          <li>NCCL async error → C10d exception</li>
+          <li>timeout 설정: <code>NCCL_TIMEOUT</code> (default 30min)</li>
+          <li>CUDA Xid log 파싱 (supervisor)</li>
+          <li>straggler detect: step time quantile</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> torchrun elastic ★</h3>
+        <div class="def"><span class="label">정의</span>
+          rendezvous 서버가 살아있는 worker 세트를 재합의 → failed rank 제거·replacement 수용. auto reshard 후 resume.
+        </div>
+        <ul>
+          <li><code>--max-restarts</code>, <code>--rdzv-backend=c10d</code></li>
+          <li>memgroup·global_step이 rdzv metadata</li>
+          <li>world size 변경 가능 (±node)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Elastic training 구성</h3>
+        <pre class="ascii">[rdzv server]
+     │
+┌────┴────┬────┬────┐
+worker  worker  ...
+  │        │
+ fail!
+     ↓
+rdzv re-bargain (N→N-1 or +spare)
+     ↓
+load last ckpt (reshard topology)
+     ↓
+resume</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Hot spare 전략</h3>
+        <ul>
+          <li>spare node 1~2대 대기</li>
+          <li>failure 시 rendezvous에 join</li>
+          <li>대규모 scheduler (SLURM/k8s) 레벨 선택</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Deterministic replay</h3>
+        <ul>
+          <li>RNG + sampler state 복원 (↗ §15)</li>
+          <li>NCCL non-determinism: <code>NCCL_ALGO=Ring</code> 고정</li>
+          <li>CuDNN deterministic flag</li>
+          <li>단, FA·reduce-scatter는 non-associative</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          완벽한 bit-exact replay는 비현실적 — <span class="red">loss curve 근접</span>을 목표.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Save interval tuning</h3>
+        <table class="compact">
+          <thead><tr><th>scale</th><th>권장 interval</th></tr></thead>
+          <tbody>
+            <tr><td>8 GPU</td><td>~1h</td></tr>
+            <tr><td>128 GPU</td><td>~30m</td></tr>
+            <tr><td>1024 GPU</td><td>~10~20m</td></tr>
+            <tr><td>10k GPU</td><td>&lt;10m (async 필수)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">∝ 1/√MTBF · 실측이 최종</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">rdzv 단일 실패점</span>: etcd/consul HA 필요</li>
+          <li><span class="red">NCCL_TIMEOUT 기본 30m</span>: 대규모에 짧음</li>
+          <li><span class="red">sampler state 없음</span>: resume 데이터 중복</li>
+          <li><span class="red">straggler 방치</span>: throughput 전체 ↓</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·17</span></div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="18 §17 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V17 Training System <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Cheat Sheet (7B · 70B · 400B 권장 구성)</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 7B 권장 ★ <span class="ko">단일 node</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td>HW</td><td>8 × A100/H100</td></tr>
+            <tr><td>Parallelism</td><td>DP=8 + FSDP(FULL_SHARD)</td></tr>
+            <tr><td>TP/PP</td><td>1/1</td></tr>
+            <tr><td>Mixed precision</td><td>BF16 / FP32 master</td></tr>
+            <tr><td>Optimizer</td><td>AdamW fused</td></tr>
+            <tr><td>Activation</td><td>selective ckpt</td></tr>
+            <tr><td>Seq packing</td><td>권장</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 70B 권장 ★ <span class="ko">중규모</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td>HW</td><td>64~512 × H100</td></tr>
+            <tr><td>TP</td><td>8 (intra-node NVLink)</td></tr>
+            <tr><td>PP</td><td>4~8</td></tr>
+            <tr><td>DP</td><td>2~16 (+ZeRO-1)</td></tr>
+            <tr><td>SP</td><td>on (activation ↓)</td></tr>
+            <tr><td>Schedule</td><td>1F1B interleaved v=2</td></tr>
+            <tr><td>Activation</td><td>full ckpt·attention만 off</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 400B 권장 ★ <span class="ko">초대형</span></h3>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>값</th></tr></thead>
+          <tbody>
+            <tr><td>HW</td><td>2k~16k × H100/B200</td></tr>
+            <tr><td>TP</td><td>8</td></tr>
+            <tr><td>PP</td><td>16 (zero-bubble)</td></tr>
+            <tr><td>DP</td><td>16~128 + ZeRO-1</td></tr>
+            <tr><td>CP</td><td>long seq 시 on</td></tr>
+            <tr><td>EP</td><td>MoE 시 8~64</td></tr>
+            <tr><td>FP8</td><td>TE path</td></tr>
+            <tr><td>Async ckpt</td><td>필수</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Decision tree</h3>
+        <pre class="ascii">start
+ └ model ≤ 10B? → FSDP (FULL_SHARD) only
+     │
+     ▽ no
+ └ intra-node NVLink? → TP=8
+     │
+     ▽ yes
+ └ model ≤ 100B? → TP8 + PP4 + DP
+     │
+     ▽ no
+ └ TP8 + PP≥8 + ZeRO-1 + CP/EP 조합</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 흔한 안티패턴</h3>
+        <ul>
+          <li>TP cross-node: NVLink 없으면 금지</li>
+          <li>PP + ZeRO-3: AG가 stage 간 얽힘 → ZeRO-1만</li>
+          <li>small DP + huge PP: DP grad AR bubble</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 메모리 diagnosis ★</h3>
+        <table class="vs">
+          <thead><tr><th>OOM 원인</th><th>조치</th></tr></thead>
+          <tbody>
+            <tr><td>model state</td><td>ZeRO stage ↑ · TP 도입</td></tr>
+            <tr><td>activation</td><td>ckpt selective → full</td></tr>
+            <tr><td>peak full param</td><td>unit wrap 작게</td></tr>
+            <tr><td>kv cache</td><td>학습엔 없음 (↗ V16)</td></tr>
+            <tr><td>optimizer state</td><td>8-bit·offload</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Throughput diagnosis</h3>
+        <table class="vs">
+          <thead><tr><th>증상</th><th>조치</th></tr></thead>
+          <tbody>
+            <tr><td>data wait</td><td>loader worker/prefetch ↑</td></tr>
+            <tr><td>comm bound</td><td>overlap·bucket tuning (↗ §11)</td></tr>
+            <tr><td>pipeline bubble</td><td>M 증가·interleaved·zero-bubble</td></tr>
+            <tr><td>HBM sat</td><td>selective ckpt·FP8</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 교차 참조 요약</h3>
+        <ul>
+          <li>NCCL primitive·대역폭 <span class="xref">↗ V15</span></li>
+          <li>KV cache·inference serving <span class="xref">↗ V16</span></li>
+          <li>FP8·loss scaling 수치 <span class="xref">↗ V09</span></li>
+          <li>FA varlen 상세 <span class="xref">↗ V07</span></li>
+          <li>Profiling·stall <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 최종 체크리스트</h3>
+        <ol class="bullet-num">
+          <li>model state 분산 전략 확정 (ZeRO/TP/PP)</li>
+          <li>activation 전략 (ckpt level·SP)</li>
+          <li>precision 경로 (BF16·FP8·loss scale)</li>
+          <li>comm-compute overlap 활성</li>
+          <li>checkpoint async·interval 설정</li>
+          <li>elastic rdzv·straggler 감시</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V17·18</span></div>
+</section>
+
+</div>
+<script src="tweaks.js"></script>
+</body>
+</html>

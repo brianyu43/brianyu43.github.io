@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14장. 희소 행렬 연산 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 14</p>
+    <h1>희소 행렬 연산</h1>
+    <p class="subtitle">0이 99% 박힌 행렬을 어떻게 보관하고 곱할 것인가</p>
+  </header>
+
+  <h2>14.1 배경: 대부분이 0인 행렬을 다루는 법</h2>
+  <p>과학 계산이나 그래프 알고리즘을 조금만 깊게 파다 보면 한 가지 사실에 부딪힌다. <strong>현실 문제의 행렬은 거의 다 희소하다</strong>는 점이다. 유한 요소법(FEM)으로 풀어낸 강성 행렬, 회로 시뮬레이션의 노드 행렬, 소셜 네트워크의 인접 행렬, 검색 엔진의 PageRank 행렬, 추천 시스템의 사용자-아이템 행렬 모두 비제로(nonzero) 비율이 1%도 채 안 되는 경우가 많다. 100만 × 100만 행렬에 비제로가 1000만 개라면 밀도(density)는 0.001%. 이걸 빽빽한 2차원 배열로 저장하면 메모리는 4 TB(8 byte 기준), 정작 의미 있는 값은 80 MB. 99.998%가 그냥 0을 들고 있는 셈이다.</p>
+  <p>희소 행렬을 다룬다는 건 두 가지를 동시에 푼다는 뜻이다. 첫째, <strong>저장 형식(format)</strong>을 어떻게 잡을지. 비제로만 챙기되 위치 정보를 어디에 어떻게 끼워 넣을지가 관건이다. 둘째, 그 형식 위에서 <strong>희소 행렬-벡터 곱(SpMV)</strong>이나 <strong>희소 행렬-행렬 곱(SpMM)</strong> 같은 연산을 어떻게 효율적으로 수행할지. 특히 SpMV는 거의 모든 반복 솔버(conjugate gradient, GMRES, BiCGStab)의 핵심 워크호스이고, 그래프 알고리즘의 한 단계이기도 해서 가장 깊게 다뤄진다.</p>
+
+  <div class="callout tip">
+    <div class="label">왜 SpMV가 어려운가</div>
+    <p>일반 GEMM(밀집 행렬 곱)은 BLAS 3 루틴이라 컴퓨트 바운드로 끌어올릴 수 있다. 하지만 SpMV는 한 비제로당 곱셈 한 번 + 덧셈 한 번뿐이라 거의 항상 <strong>메모리 바운드</strong>다. 그래서 형식을 잘 잡아 메모리 대역폭을 최대한 짜내는 게 알파이자 오메가다.</p>
+  </div>
+
+  <h2>14.2 COO 형식과 단순 SpMV 커널</h2>
+  <p>가장 직관적인 형식은 <strong>COO(Coordinate)</strong>다. 비제로 하나당 (행, 열, 값) 세 쌍을 그대로 저장한다. 세 개의 평행 배열 <code>row[]</code>, <code>col[]</code>, <code>val[]</code>를 둔다. 길이는 모두 nnz(number of non-zeros).</p>
+
+<pre><code><span class="com">// 예: 4x4 행렬, nnz = 5</span>
+<span class="com">// [ 1 0 0 0 ]</span>
+<span class="com">// [ 0 0 2 3 ]</span>
+<span class="com">// [ 0 4 0 0 ]</span>
+<span class="com">// [ 0 0 0 5 ]</span>
+
+<span class="kw">int</span>   row[<span class="num">5</span>] = {<span class="num">0</span>, <span class="num">1</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>};
+<span class="kw">int</span>   col[<span class="num">5</span>] = {<span class="num">0</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">1</span>, <span class="num">3</span>};
+<span class="kw">float</span> val[<span class="num">5</span>] = {<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>};
+</code></pre>
+
+  <p>COO의 장점은 단순함이다. 행/열을 신경 쓰지 않고 비제로만 쭉 늘어놓으니, 동적으로 비제로를 추가하거나 제거할 때 자유롭다. 그래서 행렬 어셈블리(예: FEM 요소 행렬을 합성할 때)에 자주 등장한다. 또한 다른 형식으로 변환할 때 중간 매개체로도 쓰인다.</p>
+  <p>SpMV를 짠다고 하면 자연스러운 매핑은 <strong>비제로 한 개당 스레드 한 개</strong>다. 각 스레드가 자기 비제로의 <code>val * x[col]</code>을 계산해 <code>y[row]</code>에 더한다. 그런데 같은 행을 가진 비제로는 여러 스레드가 동시에 같은 <code>y[row]</code>에 누적해야 한다. 충돌을 피하려면 <strong>atomicAdd</strong>가 필요하다.</p>
+
+<pre><code><span class="kw">__global__</span> <span class="kw">void</span> <span class="fn">spmvCOO</span>(<span class="kw">int</span> nnz,
+                         <span class="kw">const</span> <span class="kw">int</span>* row,
+                         <span class="kw">const</span> <span class="kw">int</span>* col,
+                         <span class="kw">const</span> <span class="kw">float</span>* val,
+                         <span class="kw">const</span> <span class="kw">float</span>* x,
+                         <span class="kw">float</span>* y) {
+  <span class="kw">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span class="kw">if</span> (i &gt;= nnz) <span class="kw">return</span>;
+  <span class="kw">float</span> contrib = val[i] * x[col[i]];
+  atomicAdd(&amp;y[row[i]], contrib);
+}
+</code></pre>
+
+  <p>코드는 짧고 부하 균형도 거의 완벽하다(스레드 하나당 비제로 하나, 모두 같은 일). 그러나 두 가지 비효율이 있다. 첫째, atomicAdd가 충돌이 잦은 행에서는 직렬화된다. 둘째, <code>x[col[i]]</code> 액세스가 col 패턴에 따라 무작위라 캐시 효율이 떨어진다. 그래도 매우 불규칙한 분포에서는 부하 균형 덕분에 의외로 잘 통한다.</p>
+
+  <h2>14.3 CSR 형식: 행 단위로 정리하기</h2>
+  <p><strong>CSR(Compressed Sparse Row)</strong>은 가장 널리 쓰이는 형식이다. 비제로를 행 순서로 정렬하고, 행마다 시작 위치만 따로 기록한다. 세 배열을 둔다.</p>
+  <ul>
+    <li><code>row_ptr[]</code>: 길이 (행수 + 1). i번째 행의 비제로는 <code>row_ptr[i]</code>부터 <code>row_ptr[i+1]</code>까지.</li>
+    <li><code>col[]</code>: 길이 nnz. 각 비제로의 열 인덱스.</li>
+    <li><code>val[]</code>: 길이 nnz. 각 비제로의 값.</li>
+  </ul>
+
+<pre><code><span class="com">// 위와 같은 4x4 예시</span>
+<span class="kw">int</span>   row_ptr[<span class="num">5</span>] = {<span class="num">0</span>, <span class="num">1</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>};  <span class="com">// 행0: [0,1), 행1: [1,3), ...</span>
+<span class="kw">int</span>   col[<span class="num">5</span>]     = {<span class="num">0</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">1</span>, <span class="num">3</span>};
+<span class="kw">float</span> val[<span class="num">5</span>]     = {<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>};
+</code></pre>
+
+  <p>CSR로 SpMV를 짜는 가장 단순한 방식은 <strong>행 한 개당 스레드 한 개</strong>다. 한 스레드가 한 행의 모든 비제로를 순차적으로 읽고, 부분합을 모은 뒤 <code>y[i]</code>에 한 번만 쓴다. atomic이 사라진다.</p>
+
+<pre><code><span class="kw">__global__</span> <span class="kw">void</span> <span class="fn">spmvCSR</span>(<span class="kw">int</span> M,
+                         <span class="kw">const</span> <span class="kw">int</span>* row_ptr,
+                         <span class="kw">const</span> <span class="kw">int</span>* col,
+                         <span class="kw">const</span> <span class="kw">float</span>* val,
+                         <span class="kw">const</span> <span class="kw">float</span>* x,
+                         <span class="kw">float</span>* y) {
+  <span class="kw">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span class="kw">if</span> (i &gt;= M) <span class="kw">return</span>;
+  <span class="kw">int</span> start = row_ptr[i];
+  <span class="kw">int</span> end   = row_ptr[i + <span class="num">1</span>];
+  <span class="kw">float</span> sum = <span class="num">0.0f</span>;
+  <span class="kw">for</span> (<span class="kw">int</span> j = start; j &lt; end; ++j) {
+    sum += val[j] * x[col[j]];
+  }
+  y[i] = sum;
+}
+</code></pre>
+
+  <p>대신 두 가지 새로운 문제가 나타난다.</p>
+  <ol>
+    <li><strong>제어 흐름 다이버전스(control divergence)</strong>: 같은 워프의 스레드들이 서로 다른 길이의 행을 처리하면, 가장 긴 행이 끝날 때까지 워프 전체가 기다려야 한다. 한 행이 비제로 1000개, 옆 행이 5개면, 995회는 한 스레드만 일하는 셈이다.</li>
+    <li><strong>비코얼레싱(uncoalesced) 액세스</strong>: 같은 워프의 스레드들이 각자 자기 행의 첫 비제로를 읽는데, 그 비제로들의 글로벌 메모리 위치는 행마다 다르다. 워프가 한 사이클에 32개의 흩어진 주소를 읽으니 메모리 트랜잭션이 여러 번으로 쪼개진다.</li>
+  </ol>
+  <p>이 두 문제는 행의 길이 분포에 강하게 의존한다. 길이 편차가 작으면 CSR이 쾌적하지만, 편차가 큰 그래프 인접 행렬에서는 처참할 수 있다. 해결책으로 <strong>한 행에 한 워프</strong>를 배정하는 변형(CSR-vector)이 있다. 워프 내 32 스레드가 협력해 한 행을 처리하면, 인접한 비제로를 읽으니 코얼레싱이 회복된다. 다만 행이 짧으면 워프 활용률이 떨어진다.</p>
+
+  <h2>14.4 ELL 형식: 패딩으로 격자 맞추기</h2>
+  <p><strong>ELL(ELLPACK)</strong> 형식은 CSR의 다이버전스 문제를 정공법으로 해결한다. 모든 행을 가장 긴 행 길이 K에 맞춰 0으로 채우는 것이다(0-padding). 그러면 행마다 똑같이 K개의 슬롯이 생기고, 두 개의 2차원 배열 <code>col[M][K]</code>, <code>val[M][K]</code>로 나타낼 수 있다.</p>
+
+  <div class="figure">  원본 행렬:                ELL (K=2):
+  행0: [a]                  col[0] = {0, ★}    val[0] = {a, 0}
+  행1: [.,b,c]              col[1] = {1, 2}    val[1] = {b, c}
+  행2: [d]                  col[2] = {0, ★}    val[2] = {d, 0}
+
+  ★ = 사용하지 않음(0 패딩)
+  </div>
+  <p class="figure-caption">그림 14.1 — ELL 형식. 모든 행을 K=2에 맞춘다. 짧은 행은 패딩으로 자리만 채운다.</p>
+
+  <p>여기서 한 가지 트릭이 더 있다. 메모리 레이아웃을 <strong>열-우선(column-major)</strong>으로 잡는 것이다. 즉 같은 슬롯 인덱스 k의 값이 메모리에 연속하도록 <code>val[k * M + i]</code> 같은 식으로 인덱싱한다. 그러면 행 i를 처리하는 스레드 i가 슬롯 k=0, 1, 2, ...를 차례로 읽을 때, 같은 워프의 스레드들이 인접한 i에 대해 같은 슬롯 k를 동시에 읽으니 메모리 액세스가 완벽하게 코얼레싱된다.</p>
+
+<pre><code><span class="kw">__global__</span> <span class="kw">void</span> <span class="fn">spmvELL</span>(<span class="kw">int</span> M, <span class="kw">int</span> K,
+                         <span class="kw">const</span> <span class="kw">int</span>* col,    <span class="com">// [K][M] column-major</span>
+                         <span class="kw">const</span> <span class="kw">float</span>* val,
+                         <span class="kw">const</span> <span class="kw">float</span>* x,
+                         <span class="kw">float</span>* y) {
+  <span class="kw">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span class="kw">if</span> (i &gt;= M) <span class="kw">return</span>;
+  <span class="kw">float</span> sum = <span class="num">0.0f</span>;
+  <span class="kw">for</span> (<span class="kw">int</span> k = <span class="num">0</span>; k &lt; K; ++k) {
+    <span class="kw">int</span> c = col[k * M + i];   <span class="com">// 워프 내 인접 i → coalesced</span>
+    sum += val[k * M + i] * x[c];
+  }
+  y[i] = sum;
+}
+</code></pre>
+
+  <p>ELL은 코얼레싱이 깔끔하고 다이버전스도 거의 없다. 다만 치명적인 약점이 하나 있다. <strong>K가 가장 긴 행에 의해 결정된다</strong>는 점이다. 대부분의 행이 짧고 한 두 행만 길면 메모리가 폭발한다. 평균 비제로 수가 5인데 최장 행이 1000이면 메모리는 200배가 된다. 패딩의 0을 곱셈에 끼우니 연산도 낭비된다.</p>
+
+  <h2>14.5 하이브리드 ELL-COO: 양쪽의 좋은 점만</h2>
+  <p>ELL의 약점을 무마하는 자연스러운 아이디어가 <strong>하이브리드(Hybrid, HYB)</strong> 형식이다. 행 길이의 어떤 임계값 K*를 정해 두고, 각 행에서 비제로 K* 개까지는 ELL에, 그 이상은 COO에 따로 보관한다. K*는 보통 평균 비제로 수 부근으로 잡는다(예: 행 길이의 중앙값).</p>
+
+  <div class="figure">  행 길이 분포:        ┃▆▇▇▆▅▃▂▁▁▁  ←긴 꼬리
+                       │
+                  K*===│     ELL ↑    /    COO ↓
+  </div>
+  <p class="figure-caption">그림 14.2 — 하이브리드의 분할 전략. 짧은 막대는 ELL로, 긴 꼬리는 COO로.</p>
+
+  <p>SpMV는 두 커널을 차례로 실행한다. ELL 부분으로 대부분의 트래픽을 처리하고, 짧은 COO 부분에 atomicAdd를 적용해 끝낸다. 메모리 낭비는 K*가 평균 부근일 때 거의 없고, 코얼레싱은 ELL 쪽에서 회복된다. 실험적으로 그래프 행렬 같은 편향 분포에서 단일 ELL이나 단일 CSR보다 1.5~3배 빠른 경우가 많다.</p>
+
+<pre><code><span class="com">// 호스트 측 호출</span>
+spmvELL&lt;&lt;&lt;..., ...&gt;&gt;&gt;(M, Kstar, ell_col, ell_val, x, y);
+spmvCOO&lt;&lt;&lt;..., ...&gt;&gt;&gt;(coo_nnz, coo_row, coo_col, coo_val, x, y);
+</code></pre>
+
+  <h2>14.6 JDS: 행을 정렬해서 패딩을 줄이기</h2>
+  <p>또 다른 방향은 <strong>JDS(Jagged Diagonal Storage)</strong>다. 아이디어는 단순하다. <em>행을 비제로 수 기준 내림차순으로 정렬</em>한 뒤 ELL과 비슷하게 슬롯별로 저장한다. 정렬했기 때문에 슬롯 k에서 일하는 행의 수가 점점 줄어들고, 이를 그대로 활용해서 패딩 0을 거의 없앤다.</p>
+
+  <div class="figure">  정렬 전:           정렬 후 (행 순서: 1, 2, 0, 3):
+  행0: [.,a,.,.]      행1: [.,b,c,d]    슬롯0: 4행
+  행1: [.,b,c,d]      행2: [.,e,f,.]    슬롯1: 3행
+  행2: [.,e,f,.]      행0: [.,a,.,.]    슬롯2: 2행
+  행3: [.,g,.,.]      행3: [.,g,.,.]    슬롯3: 1행
+  </div>
+  <p class="figure-caption">그림 14.3 — JDS는 행을 길이 순으로 재배열해 슬롯별로 자연스럽게 줄어드는 직사각형(jagged) 모양을 만든다.</p>
+
+  <p>JDS는 슬롯 k별로 길이가 다른 별도 배열을 둔다. 슬롯 0에는 모든 행의 첫 비제로가, 슬롯 1에는 길이 ≥ 2인 행의 두 번째 비제로만 들어간다. 메모리 낭비는 거의 사라진다. 다만 정렬을 위해 <code>perm[]</code>이라는 행 순서 배열을 함께 두어야 하고, SpMV 결과를 원래 행 순서로 되돌리려면 추가 단계가 필요하다.</p>
+
+<pre><code><span class="com">// JDS SpMV (대략적인 구조)</span>
+<span class="kw">__global__</span> <span class="kw">void</span> <span class="fn">spmvJDS</span>(<span class="kw">int</span> M, <span class="kw">int</span> maxK,
+                         <span class="kw">const</span> <span class="kw">int</span>* slot_start,  <span class="com">// 각 슬롯의 시작 오프셋</span>
+                         <span class="kw">const</span> <span class="kw">int</span>* col,
+                         <span class="kw">const</span> <span class="kw">float</span>* val,
+                         <span class="kw">const</span> <span class="kw">int</span>* perm,        <span class="com">// 정렬된 → 원래 행</span>
+                         <span class="kw">const</span> <span class="kw">float</span>* x,
+                         <span class="kw">float</span>* y) {
+  <span class="kw">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span class="kw">if</span> (i &gt;= M) <span class="kw">return</span>;
+  <span class="kw">float</span> sum = <span class="num">0.0f</span>;
+  <span class="kw">for</span> (<span class="kw">int</span> k = <span class="num">0</span>; k &lt; maxK; ++k) {
+    <span class="kw">int</span> base = slot_start[k];
+    <span class="kw">int</span> rowsInSlot = slot_start[k + <span class="num">1</span>] - base;
+    <span class="kw">if</span> (i &gt;= rowsInSlot) <span class="kw">break</span>;        <span class="com">// 짧은 행은 일찍 종료</span>
+    sum += val[base + i] * x[col[base + i]];
+  }
+  y[perm[i]] = sum;
+}
+</code></pre>
+
+  <p>JDS는 메모리 효율은 최고지만, 한 워프 안에 짧은 행과 긴 행이 섞여 있으면 다이버전스가 다시 살아난다. 워프 단위로 행 길이가 비슷하도록 인접 정렬된 상태를 유지하기에, 슬롯 끝부분에서는 일부 워프만 일하는 것은 어쩔 수 없다.</p>
+
+  <h2>14.7 형식 비교와 정리</h2>
+  <p>네 형식의 trade-off를 한눈에 보자.</p>
+
+  <table>
+    <thead>
+      <tr><th>형식</th><th>메모리 효율</th><th>코얼레싱</th><th>다이버전스</th><th>데이터 의존성</th><th>주 용도</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>COO</td><td>좋음</td><td>나쁨(x 액세스)</td><td>없음</td><td>적음</td><td>매우 불규칙, 어셈블리</td></tr>
+      <tr><td>CSR</td><td>최고</td><td>중간(워프-행 변형)</td><td>큼(행 길이 차)</td><td>중간</td><td>일반 용도, 라이브러리 기본</td></tr>
+      <tr><td>ELL</td><td>나쁨(편향 시)</td><td>최고</td><td>거의 없음</td><td>큼(K=max)</td><td>균일한 행 길이</td></tr>
+      <tr><td>Hybrid</td><td>좋음</td><td>좋음</td><td>적음</td><td>큼(K* 결정)</td><td>편향 분포 일반</td></tr>
+      <tr><td>JDS</td><td>최고</td><td>좋음</td><td>중간</td><td>매우 큼(정렬)</td><td>다양한 행 길이, 정적 행렬</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <div class="label">실전 주의</div>
+    <p>형식 변환은 공짜가 아니다. CSR↔ELL 변환에 행렬 한 번 분량의 메모리 트래픽이 든다. SpMV를 100번 반복하는 반복 솔버라면 변환 비용을 한 번만 치르면 되지만, 한 번만 곱하고 끝나는 워크로드라면 입력 형식 그대로 쓰는 게 낫다.</p>
+  </div>
+
+  <p>마지막으로, 실무에서는 cuSPARSE나 MAGMA가 위 형식들을 모두 지원한다. cuSPARSE의 경우 CSR이 기본이고, hybrid나 ELL은 deprecated 흐름이다. 대신 새로운 <strong>BSR(Block Sparse Row)</strong>이나 <strong>blocked-ELL</strong>이 도입되어 비제로가 작은 블록 단위로 모여 있는 패턴(딥러닝의 sparse attention 등)에 활용된다. 형식 선택은 결국 행렬의 통계(평균 비제로, 분산, 블록 패턴, 대칭성)에 달려 있다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>희소 행렬 저장 형식의 핵심은 비제로의 위치를 어떻게 끼워 넣을 것인가.</li>
+      <li>COO: 단순, atomicAdd 필요. 어셈블리/매우 불규칙 케이스.</li>
+      <li>CSR: 가장 많이 쓰이는 표준. 행 길이 편차에 따른 다이버전스가 약점.</li>
+      <li>ELL: 패딩으로 코얼레싱 회복. 최장 행에 종속된 메모리 낭비가 약점.</li>
+      <li>Hybrid: ELL + COO. 편향 분포에 강하다.</li>
+      <li>JDS: 행 정렬로 패딩 최소. 결과 재정렬 단계 필요.</li>
+      <li>SpMV는 거의 항상 메모리 바운드. 형식이 곧 성능이다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch13.html"><span class="dir">← 이전</span><span>13장. 정렬</span></a>
+    <a href="ch15.html" class="next"><span class="dir">다음 →</span><span>15장. 그래프 탐색</span></a>
+  </nav>
+</article>
+</body>
+</html>

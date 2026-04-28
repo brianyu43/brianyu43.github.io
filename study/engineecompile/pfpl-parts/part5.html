@@ -1,0 +1,156 @@
+<section class="chapter" data-chapter="33" data-part="XIII">
+  <h2><span class="chnum">33장</span> 동적 분류와 완전 비밀성 <span class="entitle">Dynamic Classification</span></h2>
+  <p class="lede">합 타입 (sum type)은 컴파일 시점에 어떤 변형 (variant)들이 있을지를 미리 못박는다. 하지만 보안 토큰처럼 <em>실행 중에 새로 생성되는</em> 분류자가 필요하다면 어떻게 해야 할까. 이번 장의 주제는 동적으로 만들어지는 클래스, 그리고 그것이 자연스럽게 실현하는 완전 비밀성이다.</p>
+
+  <h3>왜 정적 합 타입으로는 부족한가</h3>
+  <p>32장에서 본 심볼 (symbol)은 이름의 정체성을 동적으로 다룰 수 있게 해주었다. 이 장에서는 한 걸음 더 나아간다. <em>분류된 값</em> (classified value)은 캡슐 안에 데이터를 넣고 봉인하는데, 이 봉인을 풀 수 있는 자는 같은 클래스 키를 쥔 자뿐이다. 키는 <code>new a:τ in e</code> 식으로 새 심볼 <code>a</code>를 만들어 그 스코프 <code>e</code>에서만 유효하게 한다. 정적 합 타입과의 결정적인 차이는, 클래스의 집합이 프로그램 실행 도중 자라난다는 점이다.</p>
+
+  <h3>형식: clsfd τ와 두 연산</h3>
+  <p>핵심 타입은 <code>clsfd</code>다. 이는 “어떤 클래스 키로 봉인된, 무언가의 값” 정도를 가리키며, 키 <code>a</code>를 알아야만 의미 있는 데이터를 꺼낼 수 있다. 두 가지 기본 연산이 있다.</p>
+  <p class="display"><code>a · e</code>  — 키 <code>a</code>로 <code>e</code>를 봉인 (intro), <br><code>match e {a · x ⇒ e₁ ; _ ⇒ e₂}</code>  — 키 <code>a</code>가 맞으면 <code>x</code>로 풀고, 아니면 대안 <code>e₂</code>를 실행 (elim).</p>
+  <p>타입 규칙은 직관 그대로다. <code>a</code>가 <code>τ</code>의 클래스 키라면:</p>
+  <div class="rule">
+    <div class="prem">Γ ⊢ a : cls(τ)    Γ ⊢ e : τ</div>
+    <div class="bar"></div>
+    <div class="conc">Γ ⊢ a · e : clsfd</div>
+  </div>
+
+  <h3>완전 비밀성의 직관</h3>
+  <p>비유하자면, <code>a</code>는 자물쇠를 여는 유일한 열쇠이고 <code>clsfd</code> 값은 그 자물쇠로 잠긴 상자이다. 키 <code>a</code>의 스코프 밖으로 상자가 새어 나가도, 외부 관찰자는 상자가 열린 상태와 닫힌 상태를 구별할 방법이 없다. 이는 패턴 매칭의 “와일드카드” 분기에서 동등한 항이 들어와도, 키를 모르는 한 항상 <em>else</em> 가지로 떨어진다는 사실에서 형식적으로 따라온다.</p>
+
+  <h3>메타이론: 표현 독립성</h3>
+  <p>이 비밀성은 단순한 인상이 아니라 <em>이중 시뮬레이션</em> (logical relation)으로 증명되는 정리다. 동일한 키 아래 같은 인터페이스를 구현한 두 모듈은, 외부에서는 절대로 구별되지 않는다. 즉 데이터의 표현 (representation)을 키 안쪽에 가두면 표현 독립성이 자동으로 보장된다. 이로써 동적 분류는 추상 타입의 강력한 보안 버전을 제공한다 — “타입이 단지 시간이 흐르며 만들어진다”는 것이 곧 비밀이 된다.</p>
+</section>
+
+<section class="chapter" data-chapter="34" data-part="XIV">
+  <h2><span class="chnum">34장</span> 모더나이즈드 알골 <span class="entitle">Modernized Algol</span></h2>
+  <p class="lede">알골 60은 명령형 언어의 시조이지만, 오늘의 기준으로 보면 타입 체계와 의미론이 어색하다. 모더나이즈드 알골 (Modernized Algol, MA)은 그 정신을 살리되, 함수형의 식 (expression)과 명령형의 명령 (command)을 또렷이 분리하여 둘 사이의 거래를 명시적으로 만든 작은 칼리브레이션이다.</p>
+
+  <h3>두 세계의 분리: 식 vs. 명령</h3>
+  <p>MA의 기본 모토는 <em>이중층 구조</em> (stratification)다. 식은 <code>Γ ⊢ e : τ</code> 처럼 보통의 타입 판단을 받지만, 명령은 메모리 변화를 일으키는 행위이므로 별도의 판단 <code>Γ ⊢ m ÷ τ</code>를 둔다. 여기서 <code>÷</code>는 “명령이 끝나면 <code>τ</code>형 결과를 돌려준다”는 약속이다. 식과 명령은 같은 책상 위에 놓이지만, 종이의 색은 다르다.</p>
+  <p>두 세계를 잇는 두 다리가 있다. 첫째, <code>cmd m</code>은 명령을 식으로 캡슐화하여 1급 시민으로 만든다. 둘째, <code>do(e)</code>는 식이 지정한 명령 캡슐을 풀어 <em>실제로 실행</em>한다. 이 구분 덕분에 “계산을 만드는 일”과 “계산을 일으키는 일”이 헷갈리지 않는다.</p>
+
+  <h3>형식의 핵심 규칙</h3>
+  <div class="rule">
+    <div class="prem">Γ ⊢ m ÷ τ</div>
+    <div class="bar"></div>
+    <div class="conc">Γ ⊢ cmd m : τ cmd</div>
+  </div>
+  <div class="rule">
+    <div class="prem">Γ ⊢ e : τ cmd</div>
+    <div class="bar"></div>
+    <div class="conc">Γ ⊢ do(e) ÷ τ</div>
+  </div>
+  <p>명령에는 <code>ret(e)</code> (식의 값을 돌려줌), <code>bnd x ← m₁ ; m₂</code> (순차 실행과 결과 묶기) 같은 표준 구성이 있다. <code>bnd</code>는 모나드 결합 (bind)에 해당하지만, 여기서는 모나드라는 단어를 굳이 쓰지 않아도 형식이 자명하다.</p>
+
+  <h3>예시: 카운터를 만드는 명령</h3>
+  <p>가령 “1을 더하고 새 값을 돌려준다”는 명령 <code>m</code>은 <code>bnd n ← get ; set(n+1) ; ret(n+1)</code> 형태가 된다 (다음 장에서 정식으로 본다). 이 <code>m</code>을 <code>cmd m</code>으로 감싸면 함수에 인수로 넘기거나 자료 구조에 담을 수 있는 일급 명령이 된다. 함수가 그 캡슐을 받아 <code>do(·)</code>로 실행하기 전까지는, 부수 효과는 <em>잠자고 있을</em> 뿐이다.</p>
+
+  <h3>메타이론: 효과의 격리</h3>
+  <p>이 분리는 단순한 미관의 문제가 아니다. 식 부분만 보면 MA는 여전히 순수 함수형으로서, 베타 등치와 외연성을 유지한다. 효과는 명령으로 빠져나가 <code>cmd</code> 캡슐 안에 분리 보관되며, 식 단위의 등식 추론은 명령의 실행 순서에 영향받지 않는다. 다음 장에서 등장할 가변 참조는 이 무대 위에서 비로소 의미를 얻는다.</p>
+</section>
+
+<section class="chapter" data-chapter="35" data-part="XIV">
+  <h2><span class="chnum">35장</span> 참조 할당 <span class="entitle">Assignable References</span></h2>
+  <p class="lede">메모리 셀 — 읽고 쓸 수 있는 작은 칸 — 은 명령형 언어의 호흡이다. MA에 참조 (reference)를 얹으면 비로소 알골스러운 흐름이 산다. 그러나 참조는 단순히 “주소를 가리키는 값”이 아니라 <em>심볼로 이름 붙은 셀</em>로 보는 것이 깔끔하다.</p>
+
+  <h3>참조의 이중 본질</h3>
+  <p>두 가지 관점이 가능하다. 하나는 <em>심볼 참조</em>로, 셀의 이름을 32장의 심볼처럼 다루는 방식이다. 다른 하나는 <em>주소 참조</em>로, <code>τ ref</code>라는 일급 타입의 값으로 셀을 다루는 방식이다. MA에서는 두 관점을 분리해 두는 편이 형식이 깨끗하다. 심볼 <code>a</code>는 그 자체로 “<code>τ</code>형 셀의 이름”이고, <code>&amp;a</code>를 통해 <code>τ ref</code> 값으로 변환된다.</p>
+
+  <h3>새 셀, 읽기, 쓰기</h3>
+  <p>세 가지 명령이 핵심이다.</p>
+  <p class="display"><code>dcl a := e₀ in m</code>  — 새 셀 <code>a</code>를 <code>e₀</code>로 초기화하고 <code>m</code> 동안 사용,<br><code>get[a]</code>  — <code>a</code>의 현재 값 읽기,<br><code>set[a](e)</code>  — <code>a</code>의 값을 <code>e</code>로 갱신.</p>
+  <div class="rule">
+    <div class="prem">Σ ⊢ e₀ : τ    Σ, a : τ ⊢ m ÷ τ′</div>
+    <div class="bar"></div>
+    <div class="conc">Σ ⊢ dcl a := e₀ in m ÷ τ′</div>
+  </div>
+  <p>여기서 <code>Σ</code>는 현재까지 살아있는 셀들의 시그너처다. 동적 의미론은 메모리 (store) <code>μ</code>를 함께 운반하며, <code>μ ‖ m</code> 꼴의 상태 위에서 한 걸음씩 평가한다.</p>
+
+  <h3>예시: 비밀스런 누산기</h3>
+  <p><code>dcl a := 0 in cmd (bnd n ← get[a]; set[a](n+1); ret n)</code>은 “호출할 때마다 0,1,2,…를 차례로 내놓는” 캡슐이 된다. 셀 <code>a</code>는 <code>dcl</code>의 스코프 안에서만 살아있고 외부에서는 보이지 않는다. 이는 33장의 동적 분류와 같은 정신이다 — 이름이 캡슐 안에서 태어나 그 안에서 살아간다.</p>
+
+  <h3>메타이론: 안전성과 등식</h3>
+  <p>형식 안정성의 진술은 메모리를 명시적으로 포함한다. <code>μ : Σ</code> (메모리가 시그너처와 정합)와 <code>Σ ⊢ m ÷ τ</code>가 함께 진행 (progress)·보존 (preservation)을 만족한다. 한편 셀이 끼어들면 식 단위의 외연 등식은 더 이상 자유롭지 못하다. 흥미롭게도, 셀의 사용 영역이 <code>dcl</code>로 국소화되어 있으면 외부 관찰자에게는 <em>지역 상태</em>가 등식적으로 사라진다 — 이것이 MA의 깔끔함이 보장하는 추상화의 보상이다.</p>
+</section>
+
+<section class="chapter" data-chapter="36" data-part="XV">
+  <h2><span class="chnum">36장</span> 게으른 평가 <span class="entitle">Lazy Evaluation</span></h2>
+  <p class="lede">엄격한 (strict) 평가는 인수를 먼저 갈아 넣고 함수를 호출한다. 게으른 (lazy) 평가는 정반대로, 결과가 정말 필요할 때까지 계산을 미룬다. 그러나 이 두 풍경은 단순한 평가 전략의 차이가 아니라, <em>타입에 새겨지는</em> 의미론적 차이를 낳는다.</p>
+
+  <h3>지연 (suspension)과 강제 (force)</h3>
+  <p>핵심 타입은 <code>τ susp</code> — “언젠가 <code>τ</code>를 내놓겠다는 약속”이다. 두 연산이 짝을 이룬다.</p>
+  <p class="display"><code>susp(e) : τ susp</code> — 식 <code>e</code>를 봉투에 넣어 보관,<br><code>force(e) : τ</code>  — 봉투를 뜯어 안의 값을 강제.</p>
+  <p>실용적으로는 <em>메모이제이션</em>이 따라붙는다. 한 번 강제된 지연은 결과를 캐시해 두 번째부터는 즉시 값을 돌려준다. 이는 형식적으로 메모리 셀로 모델링되며, 35장의 참조 위에 깔끔히 얹힌다.</p>
+
+  <h3>by-name과 by-need 사이</h3>
+  <p>두 가지 변종을 구별해야 한다. <em>호출-by-name</em>은 매번 다시 평가하는 “원조 게으름”이고, <em>호출-by-need</em>는 메모이제이션을 더한 “실용적 게으름”이다. 후자는 동일 표현이 <em>몇 번 평가되는지</em>가 더 이상 관찰 가능하지 않다는 점에서 등식 추론에 친화적이다 — 단, 효과가 없을 때만 그렇다.</p>
+
+  <h3>예시: 무한 자료의 유한한 사용</h3>
+  <p>자연수의 무한 스트림 <code>nats = 0 :: map (+1) nats</code>를 정의해도, <code>take 5 nats</code>만 강제하면 앞쪽 다섯 칸만 계산된다. 이것이 게으름의 매력이다. 데이터의 모양은 무한대지만, 실제 일은 “보는 만큼”만 한다. 한편 <code>length nats</code>를 강제하면 평가는 영원히 끝나지 않는다 — 약속이 거짓말이 되는 것이 아니라, 약속을 지키는 데에 시간이 무한히 들 뿐이다.</p>
+
+  <h3>메타이론: 종료성과 효과의 위험</h3>
+  <p>게으름의 안전 정리는 “필요할 때만 진행”이라는 수정된 진행 명제로 진술된다. 그러나 효과가 있는 식을 <code>susp</code>로 가두면 <em>언제 효과가 일어나는가</em>가 관찰 시점에 좌우되어, 추론이 까다로워진다. PFPL의 입장은 분명하다. 게으름은 강력하지만, 부수 효과와 결합할 때는 비용이 따른다. 다음 장의 양극화는 이 긴장을 타입 차원에서 정리하는 한 가지 방법이다.</p>
+</section>
+
+<section class="chapter" data-chapter="37" data-part="XV">
+  <h2><span class="chnum">37장</span> 양극화 <span class="entitle">Polarization</span></h2>
+  <p class="lede">왜 어떤 타입은 “값으로 충분”하고 어떤 타입은 “계산으로만 의미가 있는가”? 양극화 (polarization)는 이 질문을 정면으로 다룬다. 타입을 양극 (positive, +)과 음극 (negative, −)으로 갈라, 데이터와 행위 사이의 평형을 형식 위에 새기는 작업이다.</p>
+
+  <h3>두 극의 직관</h3>
+  <p>양극 타입은 <em>구성된 값</em>이 곧 의미인 타입이다. 합 타입 <code>τ₁ + τ₂</code>, 곱의 양극형 <code>τ₁ ⊗ τ₂</code>, 자연수, 부울값 — 이런 타입의 값은 “이미 다 만들어져 있다”. 음극 타입은 <em>요청에 응답하는 행위</em>가 의미인 타입이다. 함수 <code>τ₁ → τ₂</code>, 음극 곱 <code>τ₁ &amp; τ₂</code> — 이들은 “무엇을 묻느냐에 따라 답이 나오는” 인터페이스다. 양극은 데이터, 음극은 코데이터 (codata)다.</p>
+
+  <h3>형식: 양극과 음극의 행렬</h3>
+  <p>각 극에는 자체적인 형성 규칙과 도입·제거 규칙이 있다. 양극 도입은 “값 만들기”, 양극 제거는 “패턴 분기”. 음극 도입은 “관찰에 답하는 추상”, 음극 제거는 “관찰을 적용하기”다. 두 극을 연결하려면 다리가 필요하다.</p>
+  <p class="display"><code>↓τ⁻</code>는 음극 타입을 양극으로 “얼리는” 지연 (thunk),<br><code>↑τ⁺</code>는 양극 값을 음극 행위로 “녹이는” 강제 (force).</p>
+  <p>이 두 시프트 연산자는 36장의 <code>susp</code>/<code>force</code>의 순수 추상이다. 게으른 평가는 사실상 <code>↓</code>가 풍부한 언어를, 엄격한 평가는 <code>↑</code> 쪽이 자연스러운 언어를 선호한다.</p>
+
+  <h3>예시: 페어를 두 가지로 보기</h3>
+  <p>곱의 양극형 <code>A ⊗ B</code>의 값은 짝 <code>(a, b)</code>이고 제거는 패턴 매칭이다 — 두 부분이 모두 미리 만들어진다. 음극형 <code>A &amp; B</code>의 “값”은 “왼쪽을 묻거나 오른쪽을 묻는다”는 두 관찰에 대한 응답이며, 묻지 않은 쪽은 평가될 필요가 없다. 같은 “페어”라는 일상어 뒤에 두 개의 형식론이 숨어 있던 셈이다.</p>
+
+  <h3>메타이론: 평가 전략의 자유</h3>
+  <p>양극화의 보상은 평가 전략의 명료성이다. 양극 값은 어디서 평가되든 같은 답을 주는 강한 정규형을 가지며, 음극 값은 관찰에 의해서만 진행된다. 결과적으로 <em>호출-by-value</em>와 <em>호출-by-name</em>은 같은 언어 안에 평화롭게 공존한다. 이는 컴파일러가 일관된 호출 규약을 결정하는 데에도, 의미론자가 등식 이론을 깔끔히 진술하는 데에도 큰 이득이다.</p>
+</section>
+
+<section class="chapter" data-chapter="38" data-part="XVI">
+  <h2><span class="chnum">38장</span> 중첩 병렬성 <span class="entitle">Nested Parallelism</span></h2>
+  <p class="lede">스레드, 락, 데드락 — 동시성의 어두운 단어들. 그러나 본질적인 병렬성은 훨씬 단정하다. 두 식이 서로의 결과에 의존하지 않는다면, 동시에 평가해도 안전하다. 중첩 병렬성 (nested parallelism)은 이 단순한 통찰을 형식의 1급 시민으로 격상시킨다.</p>
+
+  <h3>병렬 짝과 병렬 묶음</h3>
+  <p>핵심 구성은 <em>병렬 let</em>이다.</p>
+  <p class="display"><code>par x ← e₁ ‖ y ← e₂ in e</code></p>
+  <p>이는 <code>e₁</code>과 <code>e₂</code>를 병렬로 평가하고, 둘 다 끝났을 때 그 결과를 <code>x, y</code>로 묶어 <code>e</code>를 진행한다. <code>‖</code>는 “두 가지 일이 서로 모르는 채로 일어난다”는 약속이다. 분기는 다시 자신 안에서 또 분기할 수 있다 — 그래서 <em>중첩</em>이다. 결국 평가의 모양은 트리가 된다.</p>
+  <div class="rule">
+    <div class="prem">Γ ⊢ e₁ : τ₁    Γ ⊢ e₂ : τ₂    Γ, x:τ₁, y:τ₂ ⊢ e : τ</div>
+    <div class="bar"></div>
+    <div class="conc">Γ ⊢ par x ← e₁ ‖ y ← e₂ in e : τ</div>
+  </div>
+
+  <h3>두 가지 비용 모형</h3>
+  <p>중첩 병렬성의 멋진 점은 두 가지 비용을 동시에 측정한다는 것이다. <em>일</em> (work) <code>W</code>은 모든 단계의 총합 — 직렬 비용이다. <em>경로</em> (depth, span) <code>D</code>는 가장 긴 의존 사슬의 길이 — 무한 코어로 줄일 수 있는 한계이다. 병렬 짝의 <code>D</code>는 <code>max(D(e₁), D(e₂)) + D(e)</code>가 되어 두 가지 일의 길이가 합이 아니라 큰 쪽으로 잡힌다.</p>
+
+  <h3>예시: 병렬 합산</h3>
+  <p>리스트 합산을 둘로 쪼개 분할 정복하면 <code>W</code>는 여전히 선형이지만 <code>D</code>는 로그가 된다. 즉 <code>n</code> 코어를 충분히 줄 수 있다면 <code>O(log n)</code> 시간에 끝난다. 중요한 점은 <em>코드가 변하지 않는다</em>는 것 — <code>par</code>로 묶기만 하면 된다. 이 우아함이 중첩 병렬성의 마케팅 카피다.</p>
+
+  <h3>메타이론: 결정성의 보존</h3>
+  <p>병렬 평가가 직렬 평가와 같은 답을 줄 것인가? 식 부분이 순수하다면 그렇다. 병렬 의미론은 <em>합류성</em> (confluence)을 만족하며, 어떤 스케줄로 코어에 일을 배분하더라도 결과는 동일하다. 효과를 도입하면 이 보증은 깨지지만, 적어도 순수 핵심에서는 “병렬은 빠를 뿐 다르지 않다”는 정리가 성립한다. 이것이 함수형 병렬화의 정신적 지주다.</p>
+</section>
+
+<section class="chapter" data-chapter="39" data-part="XVI">
+  <h2><span class="chnum">39장</span> 퓨처와 사변 실행 <span class="entitle">Futures and Speculations</span></h2>
+  <p class="lede">중첩 병렬성이 “결과가 모두 필요하다”는 가정에 서 있다면, 퓨처 (future)와 사변 실행 (speculation)은 “필요할지도 모른다”의 세계로 한 걸음 들어선다. 미리 시작해 두고, 결과를 받아쓸 때 동기화하거나, 끝내 쓰지 않을 수도 있다.</p>
+
+  <h3>퓨처: 비동기적 약속</h3>
+  <p>퓨처는 “지금 평가를 시작했지만 값은 나중에”라는 약속이다. 두 연산이 짝을 이룬다.</p>
+  <p class="display"><code>fut(e) : τ fut</code>  — <code>e</code>의 평가를 별도 스레드에서 시작,<br><code>syn(e) : τ</code>  — 퓨처가 끝나길 기다려 값을 회수.</p>
+  <p>외형은 36장의 지연 (suspension)과 닮았지만 의미는 정반대다. 지연은 <em>필요할 때까지 미루고</em>, 퓨처는 <em>가능할 때까지 앞당긴다</em>. 컴파일러나 실행 시스템은 가용 코어가 있는 한 퓨처에 일을 분배한다.</p>
+
+  <h3>사변 실행: 쓸지 모르는 일을 미리</h3>
+  <p>사변 (speculation)은 한 발 더 나아간다. 결과가 쓰일지 미리 알 수 없는 식을 그래도 시작해 두고, 진짜로 필요해지면 결과를 회수하고, 아니면 조용히 폐기한다. 형식적으로는 “쓰지 않으면 효과도 없는 것처럼”을 보장하기 위해, 사변할 식은 순수 (pure) 핵심에 한정하는 것이 안전하다. 이는 양극화의 음극 행위와 결이 같다 — 관찰될 때만 의미를 갖는다.</p>
+
+  <h3>예시: 분기 예측의 메아리</h3>
+  <p><code>if cond then syn(fut e₁) else syn(fut e₂)</code>라고 쓰면, <code>cond</code>를 평가하는 동안 <code>e₁</code>과 <code>e₂</code>를 모두 시작해 둘 수 있다. 사용된 가지의 결과만 회수되고 다른 쪽은 버려진다. 하드웨어의 분기 예측이 형식 언어로 올라온 모양새다. 이득은 지연 시간 단축, 비용은 잠재적인 일의 증가 — 우리가 38장에서 본 <code>W</code>와 <code>D</code>의 거래가 더 미묘해진다.</p>
+
+  <h3>메타이론: 결정성과 자원성</h3>
+  <p>퓨처와 사변이 추가되어도 순수 식의 결과는 결정적 (deterministic)이다. 즉 <em>의미론적</em> 정답은 동일하고, <em>비용</em>만 달라진다. 안전성 정리는 “시작된 모든 퓨처는 동기화 시점에 형식이 보존된다”로 진술된다. 이것이 함수형 언어가 사변을 자연스럽게 환영할 수 있는 이유다 — 잘못 추측해도 답이 틀리지는 않는다. 손해는 오직 시간과 전력일 뿐, 진실 자체는 흔들리지 않는다.</p>
+</section>

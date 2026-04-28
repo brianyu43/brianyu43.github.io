@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSAPP 한글 학습 노트 — 컴퓨터 시스템: 프로그래머의 관점</title>
+<meta name="description" content="Bryant & O'Hallaron의 CSAPP를 한국어로 풀어 쓴 학습 노트. 챕터별로 골라보기.">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><a href="index.html">CS:APP <span style="color:var(--text-dim);font-weight:500;">한글 노트</span></a></div>
+  <span class="crumbs">목차</span>
+  <div class="spacer"></div>
+  <button class="theme-toggle" aria-label="테마 전환">☀️</button>
+</header>
+
+<section class="hero">
+  <h1>컴퓨터 시스템: 프로그래머의 관점</h1>
+  <p class="sub">
+    Bryant &amp; O'Hallaron의 <em>Computer Systems: A Programmer's Perspective</em>(3rd Global Edition, 2016)를
+    한국어로 다시 쓴 학습 노트. 원서의 구조를 따라가되, 표현은 가볍고 직설적으로.
+    각 챕터는 "왜 이게 중요한가"를 먼저 깔고, 그다음에 "어떻게 동작하는가"로 넘어간다.
+  </p>
+  <p class="meta">
+    <code>file://</code> 로 그냥 열어도 동작합니다. 좌우 화살표 키로 챕터 이동, 우측 상단 버튼으로 라이트/다크 토글.
+  </p>
+</section>
+
+<div class="parts">
+  <div class="part-label">PART 0 · OVERVIEW</div>
+</div>
+
+<div class="chapter-grid">
+  <a class="chapter-card" href="chapters/chapter01.html">
+    <span class="num">CHAPTER 01</span>
+    <h3>컴퓨터 시스템 둘러보기</h3>
+    <div class="en">A Tour of Computer Systems</div>
+    <p><code>hello.c</code> 한 줄짜리 프로그램이 컴파일되고, 메모리에 적재되고, CPU에서 돌아가기까지의 전 과정을 따라간다. 책 전체의 지도(地圖).</p>
+    <span class="badge">10개 절</span>
+  </a>
+</div>
+
+<div class="parts">
+  <div class="part-label">PART I · PROGRAM STRUCTURE AND EXECUTION</div>
+</div>
+
+<div class="chapter-grid">
+  <a class="chapter-card" href="chapters/chapter02.html">
+    <span class="num">CHAPTER 02</span>
+    <h3>정보의 표현과 처리</h3>
+    <div class="en">Representing and Manipulating Information</div>
+    <p>비트, 바이트, 정수, 부동소수점. 컴퓨터가 숫자를 어떻게 들고 있는지, 그리고 왜 <code>x &lt; x+1</code> 이 항상 참이 아닌지.</p>
+    <span class="badge">5개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter03.html">
+    <span class="num">CHAPTER 03</span>
+    <h3>프로그램의 기계 수준 표현</h3>
+    <div class="en">Machine-Level Representation of Programs</div>
+    <p>x86-64 어셈블리. C 코드가 어떻게 어셈블리로 풀리는지, 스택 프레임은 어떻게 쌓이는지, 버퍼 오버플로는 왜 무서운지.</p>
+    <span class="badge">12개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter04.html">
+    <span class="num">CHAPTER 04</span>
+    <h3>프로세서 구조</h3>
+    <div class="en">Processor Architecture</div>
+    <p>Y86-64라는 장난감 ISA로 프로세서를 직접 설계한다. SEQ에서 PIPE까지, 파이프라이닝의 함정과 해결책을 따라가는 여정.</p>
+    <span class="badge">6개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter05.html">
+    <span class="num">CHAPTER 05</span>
+    <h3>프로그램 성능 최적화</h3>
+    <div class="en">Optimizing Program Performance</div>
+    <p>컴파일러가 못 해주는 최적화는 사람이 해야 한다. 루프 언롤링, 다중 누산기, 분기 예측 — 현대 CPU에 맞게 코드를 쥐어짜는 기술.</p>
+    <span class="badge">15개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter06.html">
+    <span class="num">CHAPTER 06</span>
+    <h3>메모리 계층</h3>
+    <div class="en">The Memory Hierarchy</div>
+    <p>왜 행 우선 순회가 열 우선보다 빠를까? 캐시, 지역성, 메모리 마운틴. 같은 알고리즘인데 100배 차이가 나는 이유.</p>
+    <span class="badge">7개 절</span>
+  </a>
+</div>
+
+<div class="parts">
+  <div class="part-label">PART II · RUNNING PROGRAMS ON A SYSTEM</div>
+</div>
+
+<div class="chapter-grid">
+  <a class="chapter-card" href="chapters/chapter07.html">
+    <span class="num">CHAPTER 07</span>
+    <h3>링킹</h3>
+    <div class="en">Linking</div>
+    <p>오브젝트 파일이 어떻게 모여 실행 파일이 되는가. 정적 라이브러리와 동적 라이브러리, 심볼 충돌, 위치 독립 코드(PIC).</p>
+    <span class="badge">15개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter08.html">
+    <span class="num">CHAPTER 08</span>
+    <h3>예외적 제어 흐름</h3>
+    <div class="en">Exceptional Control Flow</div>
+    <p>인터럽트, 시스템 콜, 시그널, <code>fork</code>/<code>execve</code>. 프로그램이 갑자기 흐름을 바꿔야 할 때 OS와 하드웨어가 협력하는 방식.</p>
+    <span class="badge">8개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter09.html">
+    <span class="num">CHAPTER 09</span>
+    <h3>가상 메모리</h3>
+    <div class="en">Virtual Memory</div>
+    <p>각 프로세스가 자기만의 거대한 주소 공간을 갖는 마법. 페이지 테이블, TLB, malloc 구현, 가비지 컬렉터까지.</p>
+    <span class="badge">12개 절</span>
+  </a>
+</div>
+
+<div class="parts">
+  <div class="part-label">PART III · INTERACTION AND COMMUNICATION BETWEEN PROGRAMS</div>
+</div>
+
+<div class="chapter-grid">
+  <a class="chapter-card" href="chapters/chapter10.html">
+    <span class="num">CHAPTER 10</span>
+    <h3>시스템 수준 입출력</h3>
+    <div class="en">System-Level I/O</div>
+    <p>Unix I/O의 본질. 파일 디스크립터, <code>read</code>/<code>write</code>의 짧은 read 문제, RIO 패키지, 표준 I/O와의 관계.</p>
+    <span class="badge">12개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter11.html">
+    <span class="num">CHAPTER 11</span>
+    <h3>네트워크 프로그래밍</h3>
+    <div class="en">Network Programming</div>
+    <p>소켓 API. 클라이언트-서버 모델, IP/TCP 위에서 echo 서버와 mini 웹 서버를 직접 짠다.</p>
+    <span class="badge">7개 절</span>
+  </a>
+
+  <a class="chapter-card" href="chapters/chapter12.html">
+    <span class="num">CHAPTER 12</span>
+    <h3>병행 프로그래밍</h3>
+    <div class="en">Concurrent Programming</div>
+    <p>프로세스, I/O 멀티플렉싱, 스레드. 세마포어로 경쟁 조건을 길들이는 방법, 그리고 데드락이 왜 머리 아픈지.</p>
+    <span class="badge">8개 절</span>
+  </a>
+</div>
+
+<footer class="foot">
+  <p>학습용 한국어 노트 · 원서: <em>Computer Systems: A Programmer's Perspective</em>, 3rd Global Edition, Bryant &amp; O'Hallaron, Pearson 2016</p>
+  <p>이 노트는 원서의 직역이 아니라, 같은 주제를 한국어로 다시 풀어 쓴 학습 자료입니다.</p>
+</footer>
+
+</body>
+</html>

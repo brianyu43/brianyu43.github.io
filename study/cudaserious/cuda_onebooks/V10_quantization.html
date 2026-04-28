@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V10 Quantization Algorithms 단권화 — 14p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA / KERNEL / COMPILER 18VOL · CONTENT-FIRST · A4 LANDSCAPE · 14p</div>
+    <h1>Quantization Algorithms <span class="accent">단권화</span></h1>
+    <div class="subtitle">PTQ · LLM.int8() · GPTQ · AWQ · SmoothQuant · KV Quant · FP8 Delayed Scaling · Fake↔Real</div>
+    <div class="meta">
+      <div><b>Volume</b> V10 / 18</div>
+      <div><b>Tier</b> T3 수치 (bit → 양자화)</div>
+      <div><b>선행</b> V09 (Mixed Precision · dtype)</div>
+      <div><b>용도</b> quant 알고리즘 선택·비교 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">§1. Quantization 기본 (sym/asym, scale+zp)</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">§2. Dynamic Range 계산 (min-max / MSE / KL)</span><span class="p">p.3</span></div>
+        <div class="row"><span class="t">§3. PTQ vs QAT — 범위·오차·시점</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">§4. LLM.int8() — outlier-aware mixed</span><span class="p">p.5</span></div>
+        <div class="row star"><span class="t">§5. GPTQ — Hessian·OBQ block-wise update</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">§6. AWQ — activation-aware scale migration</span><span class="p">p.7</span></div>
+        <div class="row"><span class="t">§7. SmoothQuant — act→weight migration (α)</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">§8. KV Cache Quant (INT8 / INT4)</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">§9. Atom / KIVI — per-ch K + per-tok V</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">§10. FP8 Quant Flow — amax history, delayed</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">§11. Fake ↔ Real Quant 간극</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">§12. 평가 지표 — PPL / MMLU / GSM8K</span><span class="p">p.13</span></div>
+        <div class="row star"><span class="t">§13. Cheat Sheet — 방법 선택 결정 트리</span><span class="p">p.14</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (kw)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요 (kw2) / 표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수</span></div>
+      <div class="row"><span class="sym">★</span><span>시험·실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>다른 권 참조 (xref)</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유·결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">Src: GPTQ · AWQ · SmoothQuant · LLM.int8() · Atom · KIVI · TE FP8</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Quantization 기본 ============================ -->
+<section class="page" data-screen-label="02 §1 Quant 기본">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Quantization 기본: Uniform · per-tensor/ch/group · scale + zp</div>
+  </div>
+  <div class="cols">
+    <!-- COL 1 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Quantization <span class="ko">정의</span>
+          <span class="mnemonic">FP → INT + scale</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          연속 real <mark>x ∈ ℝ</mark>를 유한 정수 codebook <mark>x<sub>q</sub> ∈ ℤ<sub>b</sub></mark>로 사상
+          (<span class="kw">b</span>-bit). 복원은 affine dequant.
+        </div>
+        <ul>
+          <li>bit layout (FP8 E4M3 / E5M2 / FP4 E2M1) 상세 <span class="xref">↗ V09 §4</span></li>
+          <li>목적: memory ↓, bandwidth ↓, compute throughput ↑</li>
+          <li>대가: <span class="red">rounding error</span> + <span class="red">clipping error</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Uniform Symmetric ★</h3>
+        <div class="formula">
+          x<sub>q</sub> = clip(round(x / s), −2<sup>b−1</sup>, 2<sup>b−1</sup>−1)<br/>
+          x<sub>dq</sub> = s · x<sub>q</sub><br/>
+          s = max|x| / (2<sup>b−1</sup> − 1)
+          <span class="legend">s: scale (FP) · zero-point = 0 · <span class="hl">b</span>: bit 수 · INT8: range [−127, 127]</span>
+        </div>
+        <ul>
+          <li>장점: matmul 시 zp 보정항 없음 → kernel 단순</li>
+          <li>용도: weight (대체로 평균 0 근방 분포)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Uniform Asymmetric ★</h3>
+        <div class="formula">
+          s = (x<sub>max</sub> − x<sub>min</sub>) / (2<sup>b</sup> − 1)<br/>
+          z = round(−x<sub>min</sub> / s) &nbsp; <span class="ko">zero-point</span><br/>
+          x<sub>q</sub> = clip(round(x/s) + z, 0, 2<sup>b</sup>−1)<br/>
+          x<sub>dq</sub> = s · (x<sub>q</sub> − z)
+          <span class="legend">z ∈ ℤ · unsigned range [0, 255] at b=8 · activation 처럼 분포가 비대칭일 때</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 적용 granularity</h3>
+        <table class="compact">
+          <thead><tr><th>granularity</th><th>scale 수</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><mark>per-tensor</mark></td><td>1</td><td>가장 단순 · outlier 취약</td></tr>
+            <tr><td><mark>per-channel</mark></td><td>C<sub>out</sub></td><td>weight 표준 (row/col 별)</td></tr>
+            <tr><td><mark>per-token</mark></td><td>N<sub>tok</sub></td><td>activation (batch·seq 축)</td></tr>
+            <tr><td><mark>per-group</mark></td><td>N/G</td><td>INT4/FP4 weight · G∈{32,64,128}</td></tr>
+            <tr><td>block-scale</td><td>N/G</td><td>FP8/FP4 microscaling (MX/NV)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">group-wise는 outlier 흡수 ↔ scale 메모리 trade-off.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Sym · Asym 선택</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>Symmetric</th><th>Asymmetric</th></tr></thead>
+          <tbody>
+            <tr><td>zp</td><td>0</td><td>≠0 가능</td></tr>
+            <tr><td>range 활용</td><td>분포 대칭시 full, 비대칭시 낭비</td><td>항상 full</td></tr>
+            <tr><td>matmul 비용</td><td>낮음 (zp 항 없음)</td><td>zp cross-term 2개 추가</td></tr>
+            <tr><td>적합</td><td>weight</td><td>activation · ReLU 출력</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Asymmetric matmul 전개</h3>
+        <div class="formula">
+          y = W·x<br/>
+          = s<sub>W</sub>·s<sub>x</sub> [ W<sub>q</sub>·x<sub>q</sub> − z<sub>W</sub>·Σx<sub>q</sub> − z<sub>x</sub>·ΣW<sub>q</sub> + z<sub>W</sub>z<sub>x</sub>·K ]
+          <span class="legend">K: reduction 길이 · cross-term 3개는 precompute 가능 (x<sub>q</sub> 합, W<sub>q</sub> 합은 static weight 부분 offline)</span>
+        </div>
+        <p class="tiny">∴ weight symmetric + activation asymmetric 조합이 흔한 choice.</p>
+      </div>
+    </div>
+
+    <!-- COL 3 -->
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 오차 분해</h3>
+        <div class="formula">
+          MSE(x) = E[(x − x<sub>dq</sub>)²] = E<sub>round</sub> + E<sub>clip</sub><br/>
+          E<sub>round</sub> ≈ s² / 12 &nbsp; <span class="ko">uniform 가정</span><br/>
+          E<sub>clip</sub> = ∫<sub>|x|&gt;T</sub> (|x|−T)² p(x) dx
+          <span class="legend">T = s·(2<sup>b−1</sup>−1) · round와 clip은 s 결정에서 상충</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Signed ↔ Unsigned</h3>
+        <ul>
+          <li>INT8: signed [−128, 127] / unsigned [0, 255]</li>
+          <li>symmetric INT8은 [−127, 127] 만 사용 → −128 배제 (대칭 유지)</li>
+          <li>INT4: signed [−8, 7] / asym unsigned [0, 15]</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 양자화 대상</h3>
+        <table class="compact">
+          <thead><tr><th>대상</th><th>자주 쓰는 설정</th></tr></thead>
+          <tbody>
+            <tr><td>Weight</td><td>per-channel sym INT8 / per-group INT4</td></tr>
+            <tr><td>Activation</td><td>per-token asym INT8 / FP8 E4M3</td></tr>
+            <tr><td>KV cache</td><td>per-token (V) · per-channel (K) · INT8/INT4/FP8</td></tr>
+            <tr><td>Gradient</td><td>FP8 E5M2 (wider range)</td></tr>
+            <tr><td>Accumulator</td><td><span class="red">항상 FP32 유지</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 실수</span>: accumulator까지 low-precision으로 두면 N=수백 reduction에서 수치 붕괴.
+        TC matmul의 <code>acc</code>는 항상 FP32 이다.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 2</span>
+    <span class="tiny">sym/asym · granularity · affine dequant</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Dynamic range ============================ -->
+<section class="page" data-screen-label="03 §2 Dynamic Range">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Dynamic Range 계산: min-max / percentile / MSE-optimal / KL</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Calibration <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">정의</span>
+          대표 입력 샘플 (calibration set, 수백~수천)로 각 tensor의
+          <span class="kw">dynamic range</span> [α, β] 또는 <span class="kw">amax</span>를 추정한다.
+          이 범위에서 s, z가 결정된다.
+        </div>
+        <ul>
+          <li>weight는 static → calibration 불필요 (직접 stat)</li>
+          <li>activation은 batch마다 달라짐 → sample 기반 추정</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Min-Max ★</h3>
+        <div class="formula">
+          α = min(x), β = max(x) &nbsp; (<span class="ko">배치 평균</span>)<br/>
+          s = (β − α) / (2<sup>b</sup> − 1) &nbsp; asym<br/>
+          s = max(|α|, |β|) / (2<sup>b−1</sup> − 1) &nbsp; sym
+          <span class="legend">장: 구현 최단, 정보 손실 없음 (범위 내) · 단: 1개 outlier가 전체 s를 팽창</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Percentile</h3>
+        <div class="formula">
+          α = P<sub>q</sub>(x), β = P<sub>100−q</sub>(x) &nbsp; q ∈ {0.1, 0.01, 0.001} %<br/>
+          범위 밖 값은 clip
+          <span class="legend">outlier 몇 개를 의도적으로 clip → round error ↓ · clip error ↑ 의 균형</span>
+        </div>
+        <p class="tiny">실무: activation INT8에 q=99.9% 이 기본값.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> MSE-optimal ★
+          <span class="mnemonic">argmin‖x − x<sub>dq</sub>‖²</span>
+        </h3>
+        <div class="formula">
+          s* = argmin<sub>s</sub> Σ (x<sub>i</sub> − s · clip(round(x<sub>i</sub>/s)))²
+          <span class="legend">보통 grid search: s<sub>0</sub>·{0.5, 0.55, …, 1.2} · 수치 미분 불가 (round 때문)</span>
+        </div>
+        <ul>
+          <li>분포가 long-tail일수록 min-max보다 유리</li>
+          <li>per-channel로 독립 최적화 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> KL-divergence (TensorRT)</h3>
+        <div class="formula">
+          s* = argmin<sub>s</sub> D<sub>KL</sub>( p<sub>fp</sub> ∥ p<sub>q</sub>(s) )<br/>
+          p<sub>fp</sub>: FP 분포 히스토그램 (2048 bin)<br/>
+          p<sub>q</sub>(s): s로 양자화 후 복원된 분포
+          <span class="legend">정보이론 관점: quant 후 분포가 원본과 얼마나 다른가를 최소화</span>
+        </div>
+        <p class="tiny">TensorRT 기본 entropy calibrator의 수학적 근거.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Entropy / Percentile / MSE 비교</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th>장</th><th>단</th></tr></thead>
+          <tbody>
+            <tr><td>min-max</td><td>단순·완전 cover</td><td>outlier 민감</td></tr>
+            <tr><td>percentile</td><td>robust</td><td>q 선택 hyperparam</td></tr>
+            <tr><td>MSE</td><td>L2 최적</td><td>grid search 비용</td></tr>
+            <tr><td>KL</td><td>분포 보존</td><td>bin 수 감도</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Running estimator <span class="ko">activation</span></h3>
+        <ul>
+          <li><span class="kw">EMA</span>: amax<sub>t</sub> = β · amax<sub>t−1</sub> + (1−β) · amax<sub>batch</sub></li>
+          <li><span class="kw">delayed scaling</span>: window 내 max 사용 (FP8 TE, §10)</li>
+          <li>cold-start: 초기 N batch는 max 그대로, 이후 EMA</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Calibration pipeline</h3>
+        <pre class="ascii">for batch in calib_set:
+  y = model(batch)              # FP forward
+  for tensor t in acts:
+    hist[t].update(t.values)
+for t in tensors:
+  s[t] = argmin_KL(hist[t])     # or MSE / minmax</pre>
+        <p class="tiny">sample 수 ~512면 LLM activation 분포 근사에 충분.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 분포 주의</h3>
+        <table class="compact">
+          <thead><tr><th>tensor</th><th>분포 특성</th><th>권장</th></tr></thead>
+          <tbody>
+            <tr><td>weight</td><td>평균 0, 얇은 tail</td><td>sym · minmax·MSE</td></tr>
+            <tr><td>pre-GeLU act</td><td>mild asym</td><td>asym · percentile</td></tr>
+            <tr><td>post-LayerNorm</td><td>heavy outlier (ch별)</td><td>per-channel · SmoothQuant</td></tr>
+            <tr><td>attn logits</td><td>long tail</td><td>percentile 99.9</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: calibration set이 inference 분포와 다르면 s가 편향 →
+        out-of-dist batch에서 clipping 폭증.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 3</span>
+    <span class="tiny">min-max / percentile / MSE / KL — range estimator</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 4: §3 PTQ vs QAT ============================ -->
+<section class="page" data-screen-label="04 §3 PTQ vs QAT">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — PTQ vs QAT: 범위 · 오차 특성 · 적용 시점</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> PTQ <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">Post-Training Quantization</span>
+          학습 완료된 FP model에 calibration만으로 quant param 결정.
+          gradient 필요 없음.
+        </div>
+        <ul>
+          <li>입력: FP weight + 수백 sample</li>
+          <li>출력: quantized weight + scale/zp 테이블</li>
+          <li>소요: 분~시간 (GPTQ, AWQ는 수시간~하루)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> QAT <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">Quant-Aware Training</span>
+          FP forward 중에 fake-quant 삽입 (§11), loss에 quant error가
+          반영되도록 fine-tune. gradient는 STE로 통과.
+        </div>
+        <ul>
+          <li>straight-through estimator: ∂round/∂x ≈ 1</li>
+          <li>weight는 FP로 갱신, forward 직전 quant-dequant</li>
+          <li>상세 설계는 out-of-scope</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> PTQ vs QAT ★</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>PTQ</th><th>QAT</th></tr></thead>
+          <tbody>
+            <tr><td>데이터</td><td>calib 수백 sample</td><td>full training set</td></tr>
+            <tr><td>gradient</td><td>불필요 (GPTQ 제외)</td><td>필수</td></tr>
+            <tr><td>비용</td><td>분~시간</td><td>수일~수주</td></tr>
+            <tr><td>bit 하한</td><td>INT4 (세심히)</td><td>INT2/INT3 가능</td></tr>
+            <tr><td>accuracy</td><td>−0.1~−1 PPL</td><td>≈ FP baseline</td></tr>
+            <tr><td>LLM 적용</td><td>주류</td><td>드묾 (비용)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 오차 특성 비교</h3>
+        <div class="formula">
+          PTQ error: fixed grid에 FP 분포를 강제 매핑 → tail 손실<br/>
+          QAT error: model이 quant grid에 적합하도록 <span class="hl">weight 분포를 재조정</span>
+          <span class="legend">QAT는 "양자화하기 쉬운 표현"으로 이동 → error 자체가 감소</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 적용 시점 분류</h3>
+        <table class="compact">
+          <thead><tr><th>시점</th><th>방법</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>학습 완료 후</td><td>RTN / minmax PTQ</td><td>가장 빠름</td></tr>
+            <tr><td>+ calib 수백</td><td>percentile / KL</td><td>activation INT8</td></tr>
+            <tr><td>+ Hessian</td><td>GPTQ / AdaRound</td><td>per-layer 최적화</td></tr>
+            <tr><td>+ act 분석</td><td>AWQ / SmoothQuant</td><td>outlier 대응</td></tr>
+            <tr><td>Retrain</td><td>QAT</td><td>최종 수단</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Weight-only vs W+A</h3>
+        <table class="compact">
+          <thead><tr><th>유형</th><th>대상</th><th>대표</th></tr></thead>
+          <tbody>
+            <tr><td>W-only INT8</td><td>weight만</td><td>기본 PTQ</td></tr>
+            <tr><td>W-only INT4</td><td>weight group-q</td><td>GPTQ, AWQ</td></tr>
+            <tr><td>W8A8</td><td>weight + act INT8</td><td>SmoothQuant, LLM.int8()</td></tr>
+            <tr><td>W4A8</td><td>mixed bit</td><td>SpQR, QServe</td></tr>
+            <tr><td>W4A4</td><td>둘 다 INT4</td><td>Atom, QuaRot</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 왜 LLM은 PTQ 주류인가</h3>
+        <ol class="bullet-num">
+          <li>param ≥ 수십B → QAT compute 감당 불가</li>
+          <li>체크포인트만 공개 · 학습 데이터 부재</li>
+          <li>PTQ+clever (GPTQ/AWQ)로 INT4 달성 가능</li>
+          <li>serving 쪽 요구 (↗ <span class="xref">V16 §7</span>)가 빠른 iteration 선호</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Calibration-free</h3>
+        <ul>
+          <li><mark>RTN</mark>: round-to-nearest · weight stat만</li>
+          <li>장: 1분 내 완료 · 단: INT8 이하에서 accuracy drop</li>
+          <li>baseline으로 항상 측정 → 다른 방법이 이걸 못 이기면 의미 없음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Hybrid 흐름</h3>
+        <pre class="ascii">FP ckpt
+  │
+  ├─ RTN (baseline)
+  │
+  ├─ GPTQ      ← weight INT4
+  │
+  ├─ SmoothQ   ← act outlier migrate
+  │
+  └─ AWQ       ← scale per-channel
+  ↓
+W4A8 / W4A16 / W8A8 deploy</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">혼동 금지</span>: "calibration"과 "QAT"는 다르다. calibration은 무학습
+        range 추정, QAT는 gradient fine-tune.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 4</span>
+    <span class="tiny">PTQ · QAT · W-only · W+A · calibration-free baseline</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 5: §4 LLM.int8() ============================ -->
+<section class="page" data-screen-label="05 §4 LLM.int8">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — LLM.int8(): Outlier-aware Mixed Precision Matmul</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 문제: emergent outlier ★</h3>
+        <div class="def"><span class="label">현상</span>
+          6.7B+ LLM의 activation에는 일부 <span class="kw2">feature dimension</span>이
+          다른 ch 대비 20×~100× 큰 magnitude를 갖는다. 이 outlier가 per-tensor INT8
+          양자화를 파괴.
+        </div>
+        <ul>
+          <li>outlier ch 수 ≈ 0.1% (hidden=12288에서 약 150개)</li>
+          <li>transformer block을 타고 <span class="kw">동일 ch에서 지속</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 아이디어 ★</h3>
+        <div class="def"><span class="label">LLM.int8()</span>
+          outlier ch는 <span class="kw">FP16으로 유지</span>하고, 나머지만 INT8 vector-wise
+          양자화. 두 결과를 합산.
+        </div>
+        <pre class="ascii">X = X_reg  (대부분 ch, INT8)
+  + X_out  (~0.1% ch, FP16)
+Y = W_reg · X_reg   (INT8 GEMM)
+  + W_out · X_out   (FP16 GEMM)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Outlier detection</h3>
+        <div class="formula">
+          outlier(j) = 1  if  max<sub>batch,seq</sub> |X[:,:,j]| &gt; α<br/>
+          α = 6.0 (기본 threshold)
+          <span class="legend">ch j가 한 batch라도 6 초과 → 영구 outlier 집합에 등록</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Vector-wise INT8 식</h3>
+        <div class="formula">
+          C<sub>f16</sub> = (1/(c<sub>x</sub> ⊗ c<sub>w</sub>)) · (A<sub>q</sub> · W<sub>q</sub>)
+          <span class="legend">c<sub>x</sub>: row-wise absmax of X (per-token) · c<sub>w</sub>: col-wise absmax of W (per-channel) · 결과는 외적 (row × col scale)</span>
+        </div>
+        <ul>
+          <li>scale이 벡터이므로 per-tensor 대비 outlier-robust</li>
+          <li>matmul 후 FP16 rescale 단계가 epilogue</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Mixed decomposition</h3>
+        <div class="formula">
+          Y = <span class="hl">Dequant</span>(A<sub>q,reg</sub> · W<sub>q,reg</sub>) + A<sub>f16,out</sub> · W<sub>f16,out</sub>
+          <span class="legend">reg: |ch|≈0.999·d · out: sparse FP16 경로 · 두 결과는 hidden 축에서 합쳐짐</span>
+        </div>
+        <p class="tiny">Dettmers et al. (2022) — bitsandbytes `int8_linear`.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 속도 trade</h3>
+        <table class="compact">
+          <thead><tr><th>model</th><th>INT8 speedup</th><th>PPL Δ</th></tr></thead>
+          <tbody>
+            <tr><td>OPT-6.7B</td><td>~1.0× (offload 존재시 ↑)</td><td>≈0</td></tr>
+            <tr><td>OPT-13B</td><td>~1.2×</td><td>≈0</td></tr>
+            <tr><td>OPT-175B</td><td>~2× (fit on 1 node)</td><td>≈0</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">소형 model은 outlier 없음 → PTQ INT8 그대로 OK.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 장점</h3>
+        <ul>
+          <li>zero-shot PTQ: 학습 불필요</li>
+          <li>PPL 손실 ≈ 0 (13B+에서 검증)</li>
+          <li>기존 FP16 ckpt 즉시 변환</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 한계</h3>
+        <ul>
+          <li>두 GEMM 경로 → kernel overhead</li>
+          <li>FP16 outlier 경로가 INT8 이득 일부 상쇄</li>
+          <li>4-bit로 밀지 못함 (outlier 비중 상승)</li>
+          <li>이후 <span class="kw">AWQ/SmoothQuant</span>가 outlier를 weight로 옮겨 single-path 회복</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 개념도</h3>
+        <pre class="ascii">X (B·N·d)
+ ├── ch∈outlier ──► FP16 path
+ └── ch∈regular ──► INT8 (vec-scale)
+         │              │
+         ▼              ▼
+      W_f16·X_f16 + Dq(W_q·X_q)
+                ▼
+               Y (FP16)</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: outlier 집합은 모델별·layer별 다름 → 한 번 식별 후 고정 사용.
+        runtime 감지는 overhead 큼.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 5</span>
+    <span class="tiny">LLM.int8() — vector-wise + outlier FP16 decomposition</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 6: §5 GPTQ ============================ -->
+<section class="page" data-screen-label="06 §5 GPTQ">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — GPTQ: Hessian-aware Layer-wise OBQ</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Layer-wise objective ★</h3>
+        <div class="formula">
+          argmin<sub>W<sub>q</sub></sub> ‖ W·X − W<sub>q</sub>·X ‖<sub>F</sub>²
+          <span class="legend">X ∈ ℝ<sup>d×N</sup>: calibration activation · weight 한 layer만 독립 최적화</span>
+        </div>
+        <ul>
+          <li>full model loss 대신 <span class="kw">layer output reconstruction</span></li>
+          <li>→ layer 단위 병렬화 가능, gradient 불필요</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Hessian 정의</h3>
+        <div class="formula">
+          H = 2 X X<sup>T</sup> &nbsp; ∈ ℝ<sup>d×d</sup>
+          <span class="legend">objective의 W에 대한 Hessian · layer input의 second moment · 한번 계산해 재사용</span>
+        </div>
+        <p class="tiny">dampening: H ← H + λ·diag(H) · I, λ=1% (수치 안정).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> OBQ 기원</h3>
+        <div class="def"><span class="label">Optimal Brain Quantizer</span>
+          OBS (Optimal Brain Surgeon)의 양자화 버전. 한 weight를 quant하면 그 error를
+          나머지 weight에 Hessian 가중으로 분배하여 보상.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> OBQ single-step 수식 ★★</h3>
+        <div class="formula">
+          w<sub>F</sub><sup>*</sup> = quant(w<sub>F</sub>)<br/>
+          e = <span class="hl">(w<sub>F</sub> − w<sub>F</sub><sup>*</sup>) / [H<sup>−1</sup>]<sub>FF</sub></span><br/>
+          δW<sub>restF</sub> = − e · [H<sup>−1</sup>]<sub>restF, F</sub>
+          <span class="legend">F: 현재 양자화 중인 index · rest: 아직 남은 column · e: 보상 크기 · error를 H<sup>−1</sup> 방향으로 남은 weight에 분산</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> GPTQ block-wise ★</h3>
+        <div class="formula">
+          W<sub>:,B</sub> ← quant(W<sub>:,B</sub>)  <span class="ko">block 단위</span><br/>
+          E<sub>B</sub> = (W − W<sub>q</sub>)<sub>:,B</sub> · [H<sup>−1</sup><sub>BB</sub>]<sup>−1</sup><br/>
+          W<sub>:,rest</sub> ← W<sub>:,rest</sub> − E<sub>B</sub> · H<sup>−1</sup><sub>B, rest</sub>
+          <span class="legend">B = 128 column block · Cholesky로 H<sup>−1</sup> 미리 분해 · OBQ per-weight의 O(d<sup>4</sup>)를 O(d<sup>3</sup>)로 축소</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 알고리즘 개요</h3>
+        <pre class="ascii">1. H = 2·X X^T + λ·diag
+2. L = Cholesky(H^{-1})
+3. for block B in columns (stride 128):
+     for j in B:
+       wq[j] = quant(w[j])
+       err   = (w[j]-wq[j]) / L[j,j]
+       W[:, j+1:B_end] -= err · L[j, j+1:B_end]
+     W[:, rest] -= err_block · L[B, rest]</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 복잡도 / 비용</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>시간 (A100)</th><th>메모리</th></tr></thead>
+          <tbody>
+            <tr><td>LLaMA-7B</td><td>~1h</td><td>~25 GB</td></tr>
+            <tr><td>LLaMA-13B</td><td>~2h</td><td>~35 GB</td></tr>
+            <tr><td>LLaMA-65B</td><td>~20h</td><td>~160 GB</td></tr>
+            <tr><td>OPT-175B</td><td>~4d</td><td>multi-GPU</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">cf. RTN은 분 단위지만 INT4에서 PPL +3 이상.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 설정 grid</h3>
+        <ul>
+          <li>W4 group 128, sym · act-order: on</li>
+          <li>act-order: |X|<sup>2</sup> 큰 col부터 양자화 → error 축적 ↓</li>
+          <li>damp_percent: 0.01 (H diag에 추가)</li>
+          <li>→ W4A16 표준 (AutoGPTQ / ExLlama)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 결과 (요약)</h3>
+        <table class="compact">
+          <thead><tr><th>설정</th><th>PPL Δ (WikiText)</th></tr></thead>
+          <tbody>
+            <tr><td>LLaMA-7B FP16</td><td>base 5.68</td></tr>
+            <tr><td>W4 RTN</td><td>+0.3~+0.6</td></tr>
+            <tr><td>W4 GPTQ</td><td>+0.1~+0.2</td></tr>
+            <tr><td>W3 GPTQ</td><td>+0.4~+0.9</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Frantar et al. (2022) · 값은 논문 표 기준, 세부는 버전 의존.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: Hessian 계산용 calib set이 편향되면 error 분산이 잘못된 방향으로
+        전파 → OOD 데이터에서 성능 하락. 균형 잡힌 sample 사용.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 6</span>
+    <span class="tiny">GPTQ — H = 2XX<sup>T</sup>, Cholesky, block update</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 7: §6 AWQ ============================ -->
+<section class="page" data-screen-label="07 §6 AWQ">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — AWQ: Activation-aware Weight Quantization</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 핵심 관찰</h3>
+        <ul>
+          <li>weight 중 <span class="kw">1% salient channel</span>이 accuracy 대부분 결정</li>
+          <li>salient 기준은 <span class="kw2">activation magnitude</span>가 큰 ch (weight 자체가 아님)</li>
+          <li>→ 그 ch의 quant error만 줄이면 전체 PPL 유지</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Naive 보호의 문제</h3>
+        <div class="def"><span class="label">관찰</span>
+          salient ch만 FP16 유지, 나머지 INT4? → kernel은 mixed 경로 필요 · hardware
+          비효율. AWQ는 mixed 없이 해결.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Scale migration 아이디어 ★★
+          <span class="mnemonic">W·x = (W·s)·(x/s)</span>
+        </h3>
+        <div class="formula">
+          W · x = (W · diag(s)) · (diag(s)<sup>−1</sup> · x)<br/>
+          <span class="hl">W' = W · diag(s), &nbsp; x' = x / s</span><br/>
+          수학적으로 동치, INT4 양자화는 W'에 수행
+          <span class="legend">s ∈ ℝ<sup>d<sub>in</sub></sup> · per-input-channel scale · activation 큰 ch는 s↑ → W' 그 column 값도 커져서 round error 상대적 ↓</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Scale s 선택 ★</h3>
+        <div class="formula">
+          s<sub>j</sub> = |x<sub>j</sub>|<sub>mean</sub><sup>α</sup><br/>
+          α* = argmin<sub>α∈[0,1]</sub> ‖ W·X − Q(W·diag(s(α)))·(X/s(α)) ‖
+          <span class="legend">|x<sub>j</sub>|<sub>mean</sub>: ch j의 평균 absolute activation · α=0: scale 없음 · α=1: 과도 · 보통 α*∈[0.5, 0.7]</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Activation 흡수</h3>
+        <div class="formula">
+          x' = diag(s)<sup>−1</sup> · x &nbsp; <span class="ko">online</span><br/>
+          but: 이전 layer의 출력 (LayerNorm 등)에 s<sup>−1</sup> fuse 가능<br/>
+          → <span class="hl">runtime cost 0</span>
+          <span class="legend">attention out-proj 앞 LN scale, FFN up-proj 앞 act 등에 정적으로 흡수</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Why it works</h3>
+        <ul>
+          <li>quant error ∝ s · step · ‖x‖ → s가 salient ch 보호</li>
+          <li>non-salient ch는 s 작음 → x/s로 처리 부담 ↑지만 FP 경로 (계산량 증가 없음)</li>
+          <li>weight만 INT4, activation은 FP16 유지 가능</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> AWQ vs GPTQ</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>GPTQ</th><th>AWQ</th></tr></thead>
+          <tbody>
+            <tr><td>근거</td><td>Hessian H=2XX<sup>T</sup></td><td>activation magnitude</td></tr>
+            <tr><td>최적화</td><td>column 순 block update</td><td>per-ch scale s 탐색</td></tr>
+            <tr><td>calib 시간</td><td>시간 단위</td><td>분 단위</td></tr>
+            <tr><td>runtime fuse</td><td>불필요 (weight only)</td><td>prev-layer fuse</td></tr>
+            <tr><td>W4A16</td><td>강점</td><td>강점 (양립 가능)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 절차</h3>
+        <pre class="ascii">1. calib forward → per-ch |x|_mean
+2. α grid: {0, 0.1, …, 1.0}
+3. for each α:
+     s = |x|_mean^α / geomean
+     W' = W·diag(s)
+     loss = ‖W·X − Q(W')·(X/s)‖
+4. α* = argmin
+5. fuse s^{-1} into prev layer</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 결과 (요약)</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>W4 RTN</th><th>W4 AWQ</th></tr></thead>
+          <tbody>
+            <tr><td>LLaMA-7B</td><td>+0.6</td><td>+0.1</td></tr>
+            <tr><td>LLaMA-13B</td><td>+0.4</td><td>+0.08</td></tr>
+            <tr><td>LLaMA-65B</td><td>+0.3</td><td>+0.05</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Lin et al. (2023) · group=128, sym. vLLM 통합 <span class="xref">↗ V16 §7</span>.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: prev-layer가 LayerNorm/RMSNorm이어야 s fuse 가능. Residual
+        branch에서는 fuse 지점 선택에 주의.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 7</span>
+    <span class="tiny">AWQ — W·x = (W·s)·(x/s), salient ch 보호</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 8: §7 SmoothQuant ============================ -->
+<section class="page" data-screen-label="08 §7 SmoothQuant">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — SmoothQuant: Activation Outlier → Weight Migration</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 목표: W8A8 달성</h3>
+        <div class="def"><span class="label">문제</span>
+          activation outlier 때문에 A8 (INT8 activation) 적용이 어렵다.
+          W8는 쉽지만 A8는 per-tensor range가 outlier에 지배됨.
+        </div>
+        <ul>
+          <li>INT8 TC는 W8A8일 때만 이득 (W8A16은 GEMM dtype mix)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Migration 핵심 ★
+          <span class="mnemonic">난이도 이전</span>
+        </h3>
+        <div class="formula">
+          Y = X · W = <span class="hl">(X · diag(s)<sup>−1</sup>) · (diag(s) · W)</span><br/>
+          X' = X / s &nbsp; <span class="ko">activation 쉬움</span><br/>
+          W' = s · W &nbsp; <span class="ko">weight 어려움 ↑</span>
+          <span class="legend">per-input-ch scale s · activation에서 outlier 크기만큼 나눠서 weight로 이전 · weight는 원래 분포가 균일하므로 감당 가능</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> α 파라미터 ★</h3>
+        <div class="formula">
+          s<sub>j</sub> = max|X<sub>:,j</sub>|<sup>α</sup> / max|W<sub>j,:</sub>|<sup>1−α</sup>
+          <span class="legend">α ∈ [0, 1] · migration 강도 · α=0: 이전 없음 · α=1: 완전 이전 (weight가 못 견딤)</span>
+        </div>
+        <ul>
+          <li>OPT / BLOOM: α ≈ 0.5</li>
+          <li>LLaMA: α ≈ 0.75~0.85 (outlier 심함)</li>
+          <li>layer별 개별 튜닝 가능</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 효과 시각화</h3>
+        <pre class="ascii">before:
+ X  : ───|▇▇▇|─── (outlier ch 극단)
+ W  : ──▂▂▂▂▂──   (균일)
+
+after (s fused):
+ X' : ──▃▃▃▃▃──   (평탄화)
+ W' : ──▃▅▅▅▃──   (약간 커짐)
+ → 둘 다 INT8에 안전</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Fuse 대상</h3>
+        <table class="compact">
+          <thead><tr><th>위치</th><th>fuse 대상</th></tr></thead>
+          <tbody>
+            <tr><td>QKV proj 앞</td><td>LayerNorm γ</td></tr>
+            <tr><td>FFN up 앞</td><td>LayerNorm γ</td></tr>
+            <tr><td>Out proj 앞</td><td>별도 div op (추가)</td></tr>
+            <tr><td>FFN down 앞</td><td>element-wise scale</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">out-proj 앞은 fuse 지점이 없어 작은 runtime overhead 발생.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> AWQ와의 관계</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>SmoothQuant</th><th>AWQ</th></tr></thead>
+          <tbody>
+            <tr><td>목표</td><td>W8A8</td><td>W4A16</td></tr>
+            <tr><td>이전 방향</td><td>act → weight</td><td>weight → act (역)</td></tr>
+            <tr><td>scale 식</td><td>max|x|<sup>α</sup>/max|w|<sup>1−α</sup></td><td>|x|<sub>mean</sub><sup>α</sup></td></tr>
+            <tr><td>primary 용도</td><td>activation int8 가능화</td><td>weight int4 보호</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> PPL 결과 (요약)</h3>
+        <table class="compact">
+          <thead><tr><th>모델</th><th>W8A8 baseline</th><th>W8A8 SQ</th></tr></thead>
+          <tbody>
+            <tr><td>OPT-6.7B</td><td>+2.1</td><td>+0.1</td></tr>
+            <tr><td>OPT-66B</td><td>+12.5</td><td>+0.2</td></tr>
+            <tr><td>BLOOM-176B</td><td>+3.2</td><td>+0.1</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Xiao et al. (2022) · 대형 model에서 효과 두드러짐.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 결정 절차</h3>
+        <pre class="ascii">1. FP16 forward on calib
+2. per-ch:
+     a_max[j] = max |X[:,:,j]|
+     w_max[j] = max |W[j,:]|
+3. sweep α:
+     s(α) = a_max^α / w_max^{1-α}
+     fuse s, quant W', quant X'
+     eval loss
+4. pick α* minimizing PPL</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 한계</h3>
+        <ul>
+          <li>W4 로 내리면 weight 쪽이 못 견딤 (AWQ/GPTQ 필요)</li>
+          <li>α 튜닝은 layer 단위 sweep 필요 — 전체 calib 시간 ↑</li>
+          <li>attention softmax 출력은 별도 처리 (per-head range)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">혼동</span>: AWQ와 SmoothQuant 모두 "scale migration"을 쓰지만, 목표 (W4 vs
+        W8A8)와 scale 공식이 다르다. 같이 사용 가능 (hybrid).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 8</span>
+    <span class="tiny">SmoothQuant — α 튜닝으로 act outlier를 weight에 migrate</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 9: §8 KV Cache Quant ============================ -->
+<section class="page" data-screen-label="09 §8 KV Quant">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — KV Cache Quantization: INT8/INT4 · per-token group · asym</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> KV cache의 bandwidth 부담</h3>
+        <div class="def"><span class="label">배경</span>
+          autoregressive decode는 step당 새 토큰 1개 · <span class="kw">과거 KV 전부 재로드</span>.
+          batch·seq 증가시 HBM→TC bandwidth가 latency 지배.
+        </div>
+        <ul>
+          <li>KV 메모리 = 2·L·H·d<sub>head</sub>·seq·dtype · attention 상세 <span class="xref">↗ V07 §5</span></li>
+          <li>FP16→INT8: 2× bandwidth·capacity, INT4: 4×</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Quant 설정 패턴 ★</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>INT8</th><th>INT4</th></tr></thead>
+          <tbody>
+            <tr><td>granularity</td><td>per-token</td><td>per-token + group=128</td></tr>
+            <tr><td>sym/asym</td><td>asym</td><td>asym</td></tr>
+            <tr><td>실효 speed</td><td>~1.8×</td><td>~3.2×</td></tr>
+            <tr><td>PPL Δ</td><td>≈0</td><td>+0.1~+0.3</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">asym 선택 이유는 §4에서 설명.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Per-token scale 수식</h3>
+        <div class="formula">
+          K<sub>t</sub> ∈ ℝ<sup>H·d</sup> &nbsp; <span class="ko">token t의 key</span><br/>
+          s<sub>t</sub> = (max(K<sub>t</sub>) − min(K<sub>t</sub>)) / 255<br/>
+          z<sub>t</sub> = round(−min(K<sub>t</sub>) / s<sub>t</sub>)<br/>
+          K<sub>q,t</sub> = clip(round(K<sub>t</sub>/s<sub>t</sub>) + z<sub>t</sub>, 0, 255)
+          <span class="legend">각 new token이 생성될 때 그 token 자신의 s,z만 계산 · 과거는 cached 그대로</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> asym 선택 이유 ★</h3>
+        <ol class="bullet-num">
+          <li>K는 LayerNorm 직후 → 분포가 0 근처이지만 mild skew 있음</li>
+          <li>V는 activation (attention 가중합 입력) → 비대칭 분포</li>
+          <li>sym은 range 한쪽이 낭비 → clipping or step 팽창</li>
+          <li>per-token은 새 token마다 s,z 재계산 — cost 작음</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Attention에서의 결합</h3>
+        <div class="formula">
+          S<sub>ij</sub> = Q<sub>i</sub> · K<sub>j</sub> / √d<br/>
+          = Q<sub>i</sub> · <span class="hl">s<sub>K,j</sub> · (K<sub>q,j</sub> − z<sub>K,j</sub>)</span> / √d
+          <span class="legend">Q는 FP16 유지 · K는 on-the-fly dequant · per-token scale은 softmax 전 rescale</span>
+        </div>
+        <p class="tiny">dequant를 matmul에 fuse하면 extra load 없음 (load·dequant·mma).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> INT4 group scheme</h3>
+        <pre class="ascii">K[t, h, :] size d_head=128
+group_size = 32 → 4 group/token
+ s_K[t, h, g] × 4
+ z_K[t, h, g] × 4
+quant: K_q[t, h, g·32:(g+1)·32] ∈ [0,15]</pre>
+        <p class="tiny">group=32가 PPL-overhead 균형점 (Atom).</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Per-channel vs per-token</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>per-channel (head dim)</th><th>per-token</th></tr></thead>
+          <tbody>
+            <tr><td>scale 저장</td><td>H·d (static)</td><td>seq·H (dynamic)</td></tr>
+            <tr><td>K에 적합</td><td>○ (ch별 bias)</td><td>△</td></tr>
+            <tr><td>V에 적합</td><td>△</td><td>○ (token별 magnitude)</td></tr>
+            <tr><td>메모리</td><td>고정 overhead</td><td>seq 비례</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Paged KV 적합성</h3>
+        <ul>
+          <li>PagedAttention 블록 (16 tok) 경계에 scale block 정렬 → cache 친화</li>
+          <li>scale 자체는 FP16 그대로 (small)</li>
+          <li>vLLM의 kv-cache dtype: <code>int8_e4m3</code>, <code>fp8</code> 옵션</li>
+          <li>vLLM quant 통합은 <span class="xref">↗ V16 §7</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 주의점</h3>
+        <ul>
+          <li>prefill 단계의 KV도 함께 양자화 (불일치 시 drift)</li>
+          <li>RoPE 적용 <span class="red">전</span> 양자화는 회전 오차 유발 → 후에 양자화</li>
+          <li>speculative decoding과 조합 시 rollback token도 재dequant 필요</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: K에 per-token sym을 쓰면 channel-wise bias (head별 상수 shift)가
+        양자화 step을 팽창시킨다. per-channel 또는 asym 필요.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 9</span>
+    <span class="tiny">KV Quant — per-token asym · INT8/INT4 group=128/32</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Atom / KIVI ============================ -->
+<section class="page" data-screen-label="10 §9 Atom · KIVI">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Atom / KIVI: per-channel K + per-token V 비대칭</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> K와 V의 분포 차이 ★</h3>
+        <table class="compact">
+          <thead><tr><th>축</th><th>K (Key)</th><th>V (Value)</th></tr></thead>
+          <tbody>
+            <tr><td>출처</td><td>LN·W<sub>K</sub>·x</td><td>LN·W<sub>V</sub>·x</td></tr>
+            <tr><td>채널 bias</td><td><span class="red">큼</span> (ch별 fixed offset)</td><td>작음</td></tr>
+            <tr><td>token variance</td><td>작음</td><td><span class="red">큼</span></td></tr>
+            <tr><td>최적 scale</td><td>per-channel</td><td>per-token</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> KIVI 공식</h3>
+        <div class="def"><span class="label">KIVI</span>
+          KV Cache Quantization with <span class="kw">Mixed Granularity</span>.
+          K는 channel 축으로, V는 token 축으로 scale 부여.
+        </div>
+        <ul>
+          <li>K quant: s<sub>K</sub> ∈ ℝ<sup>d<sub>head</sub></sup></li>
+          <li>V quant: s<sub>V</sub> ∈ ℝ<sup>seq</sup></li>
+          <li>INT2/INT4 모두 가능 (논문은 INT2까지 검증)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 수식</h3>
+        <div class="formula">
+          K<sub>q</sub>[c, t] = round((K[c, t] − z<sub>K,c</sub>) / s<sub>K,c</sub>)<br/>
+          V<sub>q</sub>[t, c] = round((V[t, c] − z<sub>V,t</sub>) / s<sub>V,t</sub>)
+          <span class="legend">c: channel index · t: token index · K는 ch축으로 정렬, V는 token축으로 정렬 → 다른 layout 필요</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Atom 추가 설계 ★
+          <span class="mnemonic">W4A4 + mixed KV</span>
+        </h3>
+        <ul>
+          <li>weight/activation INT4 (W4A4) + KV INT4</li>
+          <li>activation도 outlier와 reg 분리 (LLM.int8() 계보)</li>
+          <li>group=128, fused dequant</li>
+          <li>FP16 baseline 대비 2.5~3× end-to-end</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 왜 per-channel K가 이득인가</h3>
+        <div class="formula">
+          K[c, t] = γ<sub>c</sub> · x'[c, t] + β<sub>c</sub>
+          <span class="legend">LN affine param γ,β가 ch별로 상수 offset 생성 · 같은 ch 내 값들은 비슷한 range · 다른 ch는 range 다름</span>
+        </div>
+        <p class="tiny">per-token sym은 ch shift를 scale로 흡수 못 함.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 왜 per-token V가 이득인가</h3>
+        <ul>
+          <li>V는 attention 가중합의 input → 토큰별 magnitude 차이 큼</li>
+          <li>특정 token이 informative → magnitude ↑</li>
+          <li>per-token scale이 그 가변성 흡수</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Layout 관점</h3>
+        <pre class="ascii">K tensor : [L, H, d_head, seq]
+            ↑ scale 축
+
+V tensor : [L, H, seq, d_head]
+                   ↑ scale 축
+
+→ K / V의 스토리지를 서로 다른
+  stride로 유지하면 per-axis scale이
+  coalesced load와 맞음.</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 정리 매트릭스</h3>
+        <table class="compact">
+          <thead><tr><th>scheme</th><th>K</th><th>V</th><th>bit</th></tr></thead>
+          <tbody>
+            <tr><td>naive</td><td>per-token sym</td><td>per-token sym</td><td>8</td></tr>
+            <tr><td>vLLM FP8</td><td>per-tensor</td><td>per-tensor</td><td>8 (FP8)</td></tr>
+            <tr><td>KIVI</td><td>per-ch asym</td><td>per-tok asym</td><td>4/2</td></tr>
+            <tr><td>Atom</td><td>per-ch asym</td><td>per-tok asym</td><td>4</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 결과 (요약)</h3>
+        <table class="compact">
+          <thead><tr><th>설정</th><th>PPL Δ</th></tr></thead>
+          <tbody>
+            <tr><td>LLaMA-7B KV8 per-tok sym</td><td>+0.05</td></tr>
+            <tr><td>LLaMA-7B KV4 per-tok sym</td><td>+1.1</td></tr>
+            <tr><td>LLaMA-7B KIVI INT4</td><td>+0.2</td></tr>
+            <tr><td>LLaMA-7B KIVI INT2</td><td>+0.5</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Liu et al. (2024) · WikiText-2 PPL.</p>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">구현 주의</span>: K,V를 다른 axis로 layout하면 attention kernel의 memory
+        access pattern이 달라진다. FlashAttention 변형 또는 별도 dequant pass 필요.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 10</span>
+    <span class="tiny">Atom / KIVI — per-ch K + per-tok V 비대칭</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 11: §10 FP8 flow ============================ -->
+<section class="page" data-screen-label="11 §10 FP8 flow">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — FP8 Quantization Flow: amax history · delayed scaling</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> FP8 vs INT8 차이</h3>
+        <table class="vs">
+          <thead><tr><th>축</th><th>INT8</th><th>FP8</th></tr></thead>
+          <tbody>
+            <tr><td>표현</td><td>uniform [-127, 127]</td><td>exp+mant (E4M3/E5M2)</td></tr>
+            <tr><td>dynamic range</td><td>고정 (s로 이동만)</td><td>~10<sup>7</sup> (E4M3)</td></tr>
+            <tr><td>calibration</td><td>필수</td><td>필수 (amax)</td></tr>
+            <tr><td>outlier</td><td>clip or scale</td><td>exp가 일부 흡수</td></tr>
+            <tr><td>bit layout</td><td>int</td><td><span class="xref">↗ V09 §4</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Per-tensor amax 기본 ★</h3>
+        <div class="formula">
+          amax = max |x|<br/>
+          s = amax / FP8<sub>max</sub><br/>
+          FP8<sub>max</sub> = 448 (E4M3), 57344 (E5M2)<br/>
+          x<sub>q</sub> = cast<sub>FP8</sub>(x / s) &nbsp; s는 FP32<br/>
+          x<sub>dq</sub> = x<sub>q</sub> · s
+          <span class="legend">sym · per-tensor 기준 · weight는 static amax, activation은 batch마다 갱신</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Delayed Scaling ★★
+          <span class="mnemonic">window amax</span>
+        </h3>
+        <div class="def"><span class="label">Delayed Scaling</span>
+          현재 batch의 amax를 그대로 쓰지 않고, <span class="kw2">최근 N batch</span>의 amax
+          history에서 max를 취해 다음 batch의 s로 사용.
+        </div>
+        <pre class="ascii">hist = [amax_{t-N}, …, amax_{t-1}]
+s_t  = max(hist) / FP8_max
+amax_t = measure(x_t / s_t … )  ← 기록만, 다음에 씀
+hist.shift_and_insert(amax_t)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 왜 delayed인가</h3>
+        <ol class="bullet-num">
+          <li><span class="kw">non-blocking</span>: amax 계산 결과를 기다리지 않고 다음 kernel 실행</li>
+          <li>이전 N step의 max가 현재와 비슷 → 안정성 확보</li>
+          <li>통신·scheduling 비동기화 가능</li>
+          <li>수렴 초기에는 fallback (current amax 사용)</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> TE (Transformer Engine) 흐름</h3>
+        <pre class="ascii">forward:
+ 1. load s (from prev hist)
+ 2. x_fp8 = cast(x / s)
+ 3. y = GEMM_fp8(x_fp8, w_fp8, acc=fp32)
+ 4. amax_t = max|x|      (비동기)
+ 5. hist[t] = amax_t
+ 6. s_{t+1} = max(hist) / 448
+
+backward:
+ gradient는 E5M2 (range 넓음)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> E4M3 vs E5M2 사용 방침</h3>
+        <table class="compact">
+          <thead><tr><th>대상</th><th>dtype</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>weight</td><td>E4M3</td><td>정밀 우선, range 충분</td></tr>
+            <tr><td>forward act</td><td>E4M3</td><td>정밀 우선</td></tr>
+            <tr><td>backward grad</td><td>E5M2</td><td>range 넓음</td></tr>
+            <tr><td>accumulator</td><td>FP32</td><td>누적 오차 방지</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> attention에서의 FP8</h3>
+        <ul>
+          <li>FlashAttention-3: Q/K/V → FP8, softmax는 FP32</li>
+          <li>P=softmax(S/√d) · FP8 clamp [0,1] · P·V matmul FP8</li>
+          <li>incoherent processing으로 outlier 억제 (↗ <span class="xref">V07 §8</span>)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Kernel fusion 관점</h3>
+        <pre class="ascii">load_fp16 → cast_fp8 → mma_fp8
+                              │
+  FP32 accumulator ←─────────┘
+                              │
+                     cast_fp16 or fp8 ← epilogue</pre>
+        <p class="tiny">WGMMA는 FP8 operand · FP32 acc (Hopper). 상세 <span class="xref">↗ V04 §8</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Block-scale (MX / NV FP4)</h3>
+        <div class="def"><span class="label">block-scale</span>
+          group G마다 FP8 또는 UE8M0 scale. FP8/FP4 element + tiny scale =
+          per-tensor outlier 흡수 + per-channel 메모리 효율.
+        </div>
+        <ul>
+          <li>MXFP8: G=32, scale UE8M0</li>
+          <li>NVFP4: G=16, scale FP8 E4M3</li>
+          <li>Blackwell 5th-gen TC가 group dot + scale 단일 명령</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">실수</span>: forward 중 current-batch amax를 그대로 쓰면 amax reduction이 다음
+        kernel을 block → utilization ↓. delayed가 표준.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 11</span>
+    <span class="tiny">FP8 — amax history · delayed · E4M3/E5M2 분업</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Fake ↔ Real Quant ============================ -->
+<section class="page" data-screen-label="12 §11 Fake vs Real">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Fake Quant ↔ Real Quant: simulation vs low-prec matmul</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 두 경로의 정의 ★</h3>
+        <table class="vs">
+          <thead><tr><th>경로</th><th>Fake (simulated)</th><th>Real</th></tr></thead>
+          <tbody>
+            <tr><td>dtype</td><td>FP32/FP16 내부</td><td>INT8/FP8 실제</td></tr>
+            <tr><td>연산</td><td>quant → dequant → FP matmul</td><td>low-prec matmul</td></tr>
+            <tr><td>속도</td><td>baseline과 유사</td><td>~2× / ~4×</td></tr>
+            <tr><td>용도</td><td>accuracy 평가, QAT</td><td>실제 배포</td></tr>
+            <tr><td>오차</td><td>round+clip만</td><td>+ accumulator error</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Fake quant 수식</h3>
+        <div class="formula">
+          x' = s · clip(round(x/s), q<sub>min</sub>, q<sub>max</sub>)<br/>
+          y = FP_matmul(x', w')
+          <span class="legend">quant-dequant를 in-place로 수행, matmul은 여전히 FP32 · 정확도 평가용</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Real quant 수식</h3>
+        <div class="formula">
+          x<sub>q</sub> = cast<sub>INT8</sub>(x / s<sub>x</sub>)<br/>
+          w<sub>q</sub> = cast<sub>INT8</sub>(w / s<sub>w</sub>)<br/>
+          acc<sub>INT32</sub> = Σ x<sub>q</sub> · w<sub>q</sub> &nbsp; <span class="ko">TC</span><br/>
+          y<sub>FP16</sub> = s<sub>x</sub> · s<sub>w</sub> · acc<sub>INT32</sub>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 왜 결과가 다른가 ★</h3>
+        <ol class="bullet-num">
+          <li>fake는 dequant 결과를 FP32로 곱 · round error 1회</li>
+          <li>real은 INT 곱 · accumulator 폭 제한 (INT32)</li>
+          <li>real은 dequant 시점이 matmul 이후 → scaling fusion 오차</li>
+          <li>activation의 epilogue 조합 (bias, GeLU)이 경로마다 다름</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Accumulator 폭</h3>
+        <table class="compact">
+          <thead><tr><th>연산</th><th>acc dtype</th><th>saturate?</th></tr></thead>
+          <tbody>
+            <tr><td>INT8·INT8 TC</td><td>INT32</td><td>K≤2<sup>16</sup>이면 안전</td></tr>
+            <tr><td>FP8·FP8 TC</td><td>FP32</td><td>항상 안전</td></tr>
+            <tr><td>INT4·INT4</td><td>INT32</td><td>안전</td></tr>
+            <tr><td>FP4·FP4</td><td>FP32</td><td>안전 (block-scale과 결합)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Epilogue fusion 차이</h3>
+        <pre class="ascii">fake:
+ FP(W·X) → +bias → GeLU → next quant
+
+real:
+ INT(W_q·X_q)
+    ↓ dequant (s_w·s_x)
+    ↓ +bias (FP)
+    ↓ GeLU   (FP, approximated)
+    ↓ quant (next layer)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> GeLU / SiLU 근사</h3>
+        <ul>
+          <li>fake: 정확한 tanh-based GeLU</li>
+          <li>real kernel: piecewise LUT or 근사 polynomial → 미세 오차</li>
+          <li>이 오차가 깊은 layer를 거쳐 누적될 수 있음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 검증 워크플로우</h3>
+        <ol class="bullet-num">
+          <li>fake quant로 PPL 측정 (학습·디버깅)</li>
+          <li>real kernel로 동일 batch 재측정</li>
+          <li>차이 &gt; 0.1 PPL이면 epilogue / acc 조사</li>
+          <li>주요 tensor에 FP32 tap 넣어 비교</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> STE 관점</h3>
+        <div class="formula">
+          forward:  x' = Q(x)<br/>
+          backward: ∂L/∂x ≈ ∂L/∂x' &nbsp; (pass-through)
+          <span class="legend">QAT에서 fake-quant를 미분 가능하게 만드는 트릭 · round는 원래 gradient가 0이지만 1로 근사</span>
+        </div>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: fake quant PPL이 좋다고 real kernel PPL이 그대로 나오지 않는다.
+        accumulator saturation · epilogue 근사를 반드시 별도 검증.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 12</span>
+    <span class="tiny">fake = FP(Q(x),Q(w)), real = cast(Q(x)·Q(w))·s</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 13: §12 평가 지표 ============================ -->
+<section class="page" data-screen-label="13 §12 Metrics">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — 평가 지표: PPL · MMLU · GSM8K · quant error norm</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Perplexity <span class="ko">정의</span>
+          <span class="mnemonic">exp(−log p)</span>
+        </h3>
+        <div class="formula">
+          PPL = exp( −(1/N) Σ log p(x<sub>t</sub> | x<sub>&lt;t</sub>) )
+          <span class="legend">N: 전체 token 수 · 작을수록 좋음 · WikiText-2 / C4 데이터셋 표준</span>
+        </div>
+        <ul>
+          <li>빠른 quant accuracy sanity check</li>
+          <li>소수점 단위 변화가 유의미 (FP16 base 대비 +0.1 이하 목표)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> MMLU · GSM8K</h3>
+        <table class="compact">
+          <thead><tr><th>벤치</th><th>측정</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>MMLU</td><td>다분야 지식 zero-shot accuracy</td><td>knowledge tail 민감</td></tr>
+            <tr><td>GSM8K</td><td>수학 체인오브소트</td><td>reasoning 누적 오차 반영</td></tr>
+            <tr><td>BBH / HumanEval</td><td>reasoning / code</td><td>task 세분</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">PPL은 통과하지만 MMLU·GSM8K에서 점수 drop하는 quant 흔함.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 지표별 quant 민감도</h3>
+        <ul>
+          <li>PPL: 평균적 likelihood → outlier 덜 보임</li>
+          <li>MMLU: rare knowledge · tail weight 양자화에 민감</li>
+          <li>GSM8K: 단계마다 오류 누적 · reasoning layer 민감</li>
+          <li>HumanEval: 정확 token 생성 → 한 bit 오차 치명</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Quantization error norm</h3>
+        <div class="formula">
+          ε<sub>W</sub> = ‖W − W<sub>dq</sub>‖<sub>F</sub> / ‖W‖<sub>F</sub><br/>
+          ε<sub>Y</sub> = ‖Y − Y<sub>q</sub>‖<sub>F</sub> / ‖Y‖<sub>F</sub>
+          <span class="legend">ε<sub>W</sub>: weight 내재 오차 · ε<sub>Y</sub>: layer 출력 오차 (더 중요한 지표)</span>
+        </div>
+        <p class="tiny">per-layer ε<sub>Y</sub> 를 plot하면 문제 layer가 드러남.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Cosine similarity</h3>
+        <div class="formula">
+          cos(y, y<sub>q</sub>) = y · y<sub>q</sub> / (‖y‖ · ‖y<sub>q</sub>‖)
+          <span class="legend">방향 일치도 · magnitude 불변 · layer 누적 후에도 의미 유지</span>
+        </div>
+        <p class="tiny">activation은 magnitude보다 방향이 downstream에 중요.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 벤치 selection 표</h3>
+        <table class="compact">
+          <thead><tr><th>quant 목적</th><th>필수 지표</th></tr></thead>
+          <tbody>
+            <tr><td>W8 (min loss)</td><td>PPL</td></tr>
+            <tr><td>W4 (W-only)</td><td>PPL + MMLU</td></tr>
+            <tr><td>W4A8</td><td>PPL + MMLU + GSM8K</td></tr>
+            <tr><td>W4A4</td><td>전부 + humaneval</td></tr>
+            <tr><td>KV quant</td><td>long-context PPL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Layer drop-out 진단</h3>
+        <pre class="ascii">for L in layers:
+  run with L quantized, others FP
+  measure ΔPPL
+→ sort layers by impact
+→ 최악 top-k는 FP16 유지 (mixed-bit)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Long-context 특수</h3>
+        <ul>
+          <li>KV quant는 seq↑에 따라 드리프트 누적 가능</li>
+          <li>needle-in-haystack · RULER 벤치 사용</li>
+          <li>PPL은 seq 짧을수록 underestimate</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 어떤 지표를 언제</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>지표</th></tr></thead>
+          <tbody>
+            <tr><td>sweep 중 빠른 비교</td><td>PPL (WikiText-2)</td></tr>
+            <tr><td>release gating</td><td>MMLU + GSM8K + PPL</td></tr>
+            <tr><td>per-layer debug</td><td>ε<sub>Y</sub>, cos</td></tr>
+            <tr><td>long-context</td><td>RULER / needle</td></tr>
+            <tr><td>RL·code</td><td>HumanEval / pass@k</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: PPL은 toy benchmark. 동일 PPL이어도 MMLU는 2~3pt 차이 날 수 있다.
+        release 전엔 task 벤치 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 13</span>
+    <span class="tiny">PPL · MMLU · GSM8K · ε<sub>Y</sub> · cos · RULER</span>
+  </div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="14 §13 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V10 Quantization <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — Cheat Sheet: 결정 트리 · 매트릭스 · 공식 요약</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 방법 × 대상 × 설정 매트릭스 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th>W</th><th>A</th><th>KV</th><th>bit</th><th>sym/asym</th><th>granularity</th></tr></thead>
+          <tbody>
+            <tr><td>RTN</td><td>○</td><td>×</td><td>×</td><td>8</td><td>sym</td><td>per-ch</td></tr>
+            <tr><td>LLM.int8()</td><td>○</td><td>○</td><td>×</td><td>8</td><td>sym (vec)</td><td>per-tok (A) · per-ch (W)</td></tr>
+            <tr><td>GPTQ</td><td>○</td><td>×</td><td>×</td><td>4/3</td><td>sym</td><td>per-group 128</td></tr>
+            <tr><td>AWQ</td><td>○</td><td>×</td><td>×</td><td>4</td><td>sym</td><td>per-group 128</td></tr>
+            <tr><td>SmoothQuant</td><td>○</td><td>○</td><td>×</td><td>8</td><td>sym+asym</td><td>per-ch/tok</td></tr>
+            <tr><td>FP8 (TE)</td><td>○</td><td>○</td><td>△</td><td>8 (FP)</td><td>sym</td><td>per-tensor</td></tr>
+            <tr><td>MX / NVFP4</td><td>○</td><td>○</td><td>×</td><td>4/8 (FP)</td><td>sym</td><td>block (16/32)</td></tr>
+            <tr><td>KIVI</td><td>×</td><td>×</td><td>○</td><td>4/2</td><td>asym</td><td>per-ch K + per-tok V</td></tr>
+            <tr><td>Atom</td><td>○</td><td>○</td><td>○</td><td>4</td><td>asym</td><td>group 128 + KV mixed</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 수식 재정리</h3>
+        <div class="formula">
+          <b>Sym</b>: x<sub>q</sub>=clip(round(x/s)), s=max|x|/(2<sup>b−1</sup>−1)<br/>
+          <b>Asym</b>: s=(x<sub>max</sub>−x<sub>min</sub>)/(2<sup>b</sup>−1), z=round(−x<sub>min</sub>/s)<br/>
+          <b>GPTQ</b>: e=(w−w<sub>q</sub>)/[H<sup>−1</sup>]<sub>FF</sub>, W<sub>rest</sub>−=e·H<sup>−1</sup><br/>
+          <b>AWQ</b>: W·x=(W·s)·(x/s), s=|x|<sub>mean</sub><sup>α</sup><br/>
+          <b>SQ</b>: s<sub>j</sub>=max|X<sub>:,j</sub>|<sup>α</sup>/max|W<sub>j,:</sub>|<sup>1−α</sup><br/>
+          <b>FP8</b>: s=amax/FP8<sub>max</sub>, delayed: s<sub>t</sub>=max(hist)/FP8<sub>max</sub>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 선택 결정 트리 ★</h3>
+        <pre class="ascii">Q: accuracy 예산 ΔPPL?
+ ├─ ≤0.05 ──► FP16 유지 (no quant)
+ ├─ ≤0.2  ──► W8 RTN / FP8 (E4M3)
+ │            └ A8도 원함 → SmoothQuant
+ ├─ ≤0.5  ──► W4 AWQ or GPTQ (g=128)
+ │            └ KV도 줄임 → +KIVI INT4
+ └─ ≤1.0  ──► W4A4 Atom / MXFP4
+              └ 학습 가능? → QAT</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 하드웨어 매핑</h3>
+        <table class="compact">
+          <thead><tr><th>GPU</th><th>지원 low-prec TC</th></tr></thead>
+          <tbody>
+            <tr><td>A100 (Ampere)</td><td>INT8 / INT4 / BF16</td></tr>
+            <tr><td>H100 (Hopper)</td><td>+ FP8 E4M3/E5M2 + TE</td></tr>
+            <tr><td>B200 (Blackwell)</td><td>+ FP4 / MX / NVFP4 block-scale</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">arch 상세 <span class="xref">↗ V02 §7</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 모델 크기 × latency 축</h3>
+        <table class="vs">
+          <thead><tr><th>모델</th><th>latency 중요</th><th>throughput 중요</th></tr></thead>
+          <tbody>
+            <tr><td>&lt;3B</td><td>W8 / FP8</td><td>FP16 batch ↑</td></tr>
+            <tr><td>7–13B</td><td>W4 AWQ + KV8</td><td>W4A8 SmoothQuant</td></tr>
+            <tr><td>30–70B</td><td>W4 AWQ + KV4 KIVI</td><td>W4A4 Atom / MXFP4</td></tr>
+            <tr><td>175B+</td><td>W4 GPTQ + FP8 + TP</td><td>동일 + EP</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Do / Don't ★</h3>
+        <table class="compact">
+          <thead><tr><th>Do</th><th>Don't</th></tr></thead>
+          <tbody>
+            <tr><td>weight: per-ch sym</td><td>per-tensor sym on large LLM</td></tr>
+            <tr><td>act: per-tok asym (or SQ)</td><td>per-tensor act without smoothing</td></tr>
+            <tr><td>accumulator FP32</td><td>low-prec accumulator</td></tr>
+            <tr><td>RTN baseline 측정 선행</td><td>RTN 건너뛰고 GPTQ</td></tr>
+            <tr><td>MMLU·GSM8K 최종 검증</td><td>PPL만 믿기</td></tr>
+            <tr><td>FP8 delayed scaling</td><td>current-batch amax block</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 흔한 실수 5선
+          <span class="mnemonic">(!) acc·RoPE·soft·cal·fake</span>
+        </h3>
+        <ol class="bullet-num">
+          <li>accumulator까지 low-prec → reduction 붕괴</li>
+          <li>RoPE 적용 전 K 양자화 → 회전 오차</li>
+          <li>softmax 출력을 INT로 → dynamic range 부족</li>
+          <li>calibration 분포가 serving과 다름</li>
+          <li>fake quant PPL만 보고 deploy</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 1-liner 요약</h3>
+        <ul>
+          <li><b>RTN</b>: round, 끝</li>
+          <li><b>LLM.int8()</b>: outlier ch FP16, 나머지 INT8</li>
+          <li><b>GPTQ</b>: H<sup>−1</sup>로 error 분산</li>
+          <li><b>AWQ</b>: W·s, x/s로 salient 보호</li>
+          <li><b>SmoothQuant</b>: outlier act→weight 이전</li>
+          <li><b>KIVI</b>: K per-ch + V per-tok</li>
+          <li><b>FP8</b>: amax history·delayed·E4M3/E5M2</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 연결 지도</h3>
+        <ul>
+          <li>dtype 비트 layout → <span class="xref">↗ V09 §4</span></li>
+          <li>KV 구조·attention → <span class="xref">↗ V07 §5</span></li>
+          <li>vLLM quant 통합 → <span class="xref">↗ V16 §7</span></li>
+          <li>Tensor Core dtype 지원 → <span class="xref">↗ V02 §7</span></li>
+          <li>FA3 FP8 schedule → <span class="xref">↗ V07 §8</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span class="mono">V10 · 14</span>
+    <span class="tiny">Cheat Sheet — 매트릭스·결정 트리·핵심 수식 재정리</span>
+  </div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대규모 병렬 프로세서 프로그래밍 — 한국어 학습판</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="home">
+  <h1>대규모 병렬 프로세서 프로그래밍</h1>
+  <p class="lede">
+    GPU와 CUDA로 시작해서, 병렬 알고리즘 패턴, 성능 최적화, 그리고 클러스터 스케일까지.
+    23개 챕터를 따라가면 SM, 워프, 코얼레싱 같은 단어가 더 이상 외계어로 들리지 않게 됩니다.
+  </p>
+
+  <div class="meta">
+    <div class="card"><div class="k">총 챕터</div><div class="v">23 챕터</div></div>
+    <div class="card"><div class="k">언어</div><div class="v">한국어 + CUDA C/C++</div></div>
+    <div class="card"><div class="k">선수 지식</div><div class="v">C/C++ 기본기</div></div>
+    <div class="card"><div class="k">실행 환경</div><div class="v">정적 HTML, 서버 불필요</div></div>
+  </div>
+
+  <h2 style="font-size:20px;margin-top:36px;">읽는 순서 안내</h2>
+  <p>
+    왼쪽 사이드바에서 챕터를 클릭하세요. 키보드 <code>↑/↓</code> 또는 <code>j/k</code>로도 이동할 수 있어요.
+    네 파트로 나뉘어 있고, 처음 읽는 분이라면 1→6번까지 순서대로 보시는 걸 추천드려요.
+  </p>
+
+  <h3>Part I — 기초 (1~6장)</h3>
+  <p>
+    왜 병렬이어야 하는지부터, CUDA C로 첫 커널을 띄우고, GPU 안에서 스레드가 어떻게 줄지어 일하는지,
+    메모리 계층을 어떻게 활용해 성능을 끌어올리는지까지. 가장 중요한 토대.
+  </p>
+
+  <h3>Part II — 병렬 패턴 (7~12장)</h3>
+  <p>
+    컨볼루션, 스텐실, 히스토그램, 리덕션, 스캔, 머지. 이 여섯 가지는 거의 모든 병렬 알고리즘의 골격이에요.
+    하나씩 익히면 새로운 문제도 패턴 조합으로 보이기 시작합니다.
+  </p>
+
+  <h3>Part III — 고급 패턴과 응용 (13~19장)</h3>
+  <p>
+    정렬, 희소 행렬, 그래프 탐색, 딥러닝, 의료 영상, 분자 시뮬레이션. 진짜 문제에서 패턴들이
+    어떻게 합쳐지는지 보고, 마지막엔 “컴퓨테이셔널 씽킹” 자체를 정리.
+  </p>
+
+  <h3>Part IV — 고급 실전 (20~23장)</h3>
+  <p>
+    여러 GPU/노드로 확장하는 MPI+CUDA, 커널이 커널을 부르는 동적 병렬성, 통합 메모리 같은 최신 기능,
+    그리고 마무리.
+  </p>
+
+  <div class="callout tip" style="max-width:760px;">
+    <div class="label">읽는 팁</div>
+    <p style="margin:0;">
+      코드는 가능한 한 노트북·콜랩 같은 곳에 옮겨서 직접 돌려보세요.
+      한 번 nvprof/Nsight로 들여다본 커널은 평생 안 잊혀집니다.
+    </p>
+  </div>
+
+  <p style="color:var(--fg-mute);font-size:13px;margin-top:48px;">
+    ※ 본 자료는 교육 목적으로 작성된 원본 한국어 학습 노트입니다.
+    표준 GPU/병렬 컴퓨팅 커리큘럼의 토픽을 따라가지만 모든 설명·예제·비유는 저자(어시스턴트) 본인이 새로 쓴 것입니다.
+  </p>
+</div>
+</body>
+</html>

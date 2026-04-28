@@ -1,0 +1,94 @@
+<article class="chapter" data-chapter="23" id="ch-23">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 23</span>
+    <h2 class="chapter-title">확률적 계산과 BPP</h2>
+    <p class="chapter-subtitle">동전을 굴려 답하기, 그리고 그 답을 신뢰하기</p>
+  </header>
+
+  <section>
+    <h3>1. 결정성을 포기한 대가</h3>
+    <p>지금까지 우리가 다룬 모든 모델은, 비결정성을 포함하더라도, "옳은 답"이라는 단일 진리치에 매달려 있었다. 이번 강의에서는 그 진리치를 살짝 흔든다. 알고리즘에게 동전을 쥐여 주고, 답이 틀릴 가능성을 작게나마 허용하자. 놀랍게도 이 사소해 보이는 양보가 그래프, 정수론, 행렬, 부울 함수 등 많은 영역에서 결정적 알고리즘으로는 흉내 내기 어려운 효율을 가져온다.</p>
+
+    <div class="definition">
+      <strong>정의 23.1 (확률적 TM).</strong> <strong>확률적 튜링 기계(probabilistic TM, PTM)</strong>는 두 개의 전이 함수 δ<sub>0</sub>, δ<sub>1</sub>을 가지며 각 단계에서 공정한 동전을 던져 어느 함수를 적용할지 정한다. 입력 x에 대한 수락 확률은 동전 시퀀스에 대한 균등 분포 아래에서 기계가 수락 상태로 끝날 확률 Pr[M(x) accepts]이다.
+    </div>
+
+    <p>같은 입력에 대해 같은 기계가 시도 때마다 다른 답을 줄 수 있다는 것이 핵심이다. 그러므로 우리가 해야 할 일은 이 변덕을 제어하는 정의를 세우는 것이다. 가장 자연스러운 후보는 다음의 양면 오류(two-sided error) 모델이다.</p>
+
+    <h3>2. BPP의 정의</h3>
+    <div class="definition">
+      <strong>정의 23.2.</strong> 언어 L이 <strong>BPP</strong> (Bounded-error Probabilistic Polynomial time)에 속한다는 것은, 다항 시간에 동작하는 PTM M이 존재해 다음을 만족함을 뜻한다.
+      <ul>
+        <li>x ∈ L ⇒ Pr[M(x) accepts] ≥ 2/3.</li>
+        <li>x ∉ L ⇒ Pr[M(x) accepts] ≤ 1/3.</li>
+      </ul>
+    </div>
+
+    <p>2/3과 1/3 사이의 간격은 신중하게 설정된 신호대잡음비(signal-to-noise ratio)다. 만약 두 임계값이 1/2의 양옆이 아니라 1/2 위아래로 임의로 가까우면, 다수결 증폭을 통한 신뢰도 향상이 망가진다. 그러나 일단 1/3 만큼이라도 떨어져 있으면, 우리는 이 간격을 천문학적으로 벌릴 수 있다.</p>
+
+    <h3>3. 오차 증폭과 체르노프 한계</h3>
+    <p>같은 PTM M을 독립적으로 k번 실행해 다수결을 취하자. 각 실행은 정답에 한 표를 던지는 베르누이 변수와 같다. 정답률이 2/3이면 평균은 2k/3, 거짓 답을 다수결이 채택하려면 평균에서 k/6만큼 어긋나야 한다. <strong>체르노프 한계(Chernoff bound)</strong>는 이런 큰 일탈의 확률이 지수적으로 작음을 보장한다.</p>
+
+    <div class="theorem">
+      <strong>정리 23.3 (BPP 증폭).</strong> L ∈ BPP이고 다항식 p(n)이 주어지면, 어느 다항식 q(n)에 대해서도 오류 확률을 2<sup>−q(n)</sup> 이하로 만드는 다항 시간 PTM M'가 존재한다. 구체적으로 M을 k = Θ(q(n)) 번 독립 시행 후 다수결.
+    </div>
+
+    <div class="proof">
+      <strong>증명 스케치.</strong> 각 실행이 옳을 확률을 p ≥ 2/3로 두고 X<sub>i</sub>를 i번째 시행의 지표 변수, X = ∑X<sub>i</sub>라 하자. E[X] ≥ 2k/3. 다수결이 틀리려면 X ≤ k/2, 즉 평균에서 적어도 k/6만큼 어긋나야 한다. 체르노프 한계는 Pr[X − E[X] ≤ −εk] ≤ exp(−2ε²k)를 주므로 ε = 1/6, k = 18 q(n)이면 오류 확률이 e<sup>−q(n)/2</sup> ≤ 2<sup>−q(n)</sup>이 된다.
+    </div>
+
+    <p>다시 말해 BPP의 정의에서 "2/3"이 별것 아니다. 1/2 + 1/poly(n)부터 1 − 2<sup>−n</sup>까지 상수나 다항 만큼 오차 한계를 다양하게 잡아도 같은 클래스다. 무작위 알고리즘의 신뢰도는 무한히 살 수 있는 상품이다.</p>
+
+    <h3>4. 일면 오류와 영면 오류: RP, coRP, ZPP</h3>
+    <p>오차의 종류에 따라 BPP를 더 엄격하게 좁힐 수 있다.</p>
+
+    <div class="definition">
+      <strong>정의 23.4.</strong>
+      <ul>
+        <li><strong>RP</strong>: 다항 시간 PTM M이 존재해 x ∈ L ⇒ Pr[수락] ≥ 1/2, x ∉ L ⇒ Pr[수락] = 0. (거짓 양성 없음.)</li>
+        <li><strong>coRP</strong>: RP의 보집합 — 거짓 음성 없음.</li>
+        <li><strong>ZPP</strong> (Zero-error Probabilistic Polynomial time): 기댓값 다항 시간에 항상 정답을 내는 PTM이 존재. 시간이 변할 뿐 답은 결정적.</li>
+      </ul>
+    </div>
+
+    <div class="theorem">
+      <strong>정리 23.5.</strong> ZPP = RP ∩ coRP.
+    </div>
+
+    <p>관용적 직관: RP의 기계와 coRP의 기계를 동시에 돌리고, 둘의 답이 일치할 때까지 다시 시도한다. 두 답이 결정적 진실을 끼고 있을 때 일치할 확률은 적어도 1/2이므로 평균 두 번 시행이면 충분하다. 어떤 답이 나오든 그 답은 무조건 옳다.</p>
+
+    <h3>5. BPP는 어디에 있는가?</h3>
+    <p>BPP를 결정적 클래스로 시뮬레이션하려면 모든 동전 시퀀스를 차례로 시도해 보면 된다. 다항 시간 PTM은 다항 길이의 동전 시퀀스를 사용하므로, 그 모두에 대해 수락/거절을 카운트하면 된다.</p>
+
+    <div class="theorem">
+      <strong>정리 23.6.</strong> BPP ⊆ PSPACE.
+    </div>
+
+    <div class="proof">
+      <strong>증명 스케치.</strong> L ∈ BPP의 PTM M이 입력 x에 대해 t(n) ≤ p(n)개의 동전을 사용한다고 하자. 결정적 기계 M'는 0<sup>t(n)</sup>부터 1<sup>t(n)</sup>까지 모든 길이 t(n) 비트열 r을 차례로 만들고, M(x; r)을 시뮬레이션한 결과를 카운터에 누적한다. 카운트가 2<sup>t(n)</sup>의 1/2을 넘으면 수락. 동전 시퀀스 하나를 시뮬레이션하는 데 다항 공간이면 충분하고, 카운터도 t(n) ≤ p(n) 비트면 된다.
+    </div>
+
+    <p>역방향 포함 PSPACE ⊆ BPP에 대해서는 아무도 모른다. P ⊆ BPP ⊆ PSPACE라는 거대한 띠 안에서 BPP의 정확한 위치는 미해결 문제다.</p>
+
+    <h3>6. Schwartz–Zippel과 다항식 동등성 검사</h3>
+    <p>BPP의 위력을 가장 우아하게 보여 주는 예가 다항식 동등성(polynomial identity testing, PIT)이다. 두 다항식이 같은지 묻는 문제는 — 식이 산술 회로로 압축되어 주어지면 — 결정적으로 폭발할 수 있다. 그러나 Schwartz–Zippel 보조정리는 단숨에 우리를 구한다.</p>
+
+    <div class="lemma">
+      <strong>보조정리 23.7 (Schwartz–Zippel).</strong> p(x<sub>1</sub>, …, x<sub>n</sub>)이 영이 아닌 전차수 d 다항식이고 S ⊆ 𝔽가 유한 부분집합이면, S<sup>n</sup>에서 균등하게 뽑은 점 (a<sub>1</sub>, …, a<sub>n</sub>)에 대해 Pr[p(a<sub>1</sub>, …, a<sub>n</sub>) = 0] ≤ d / |S|.
+    </div>
+
+    <div class="example">
+      <strong>예제.</strong> 두 회로 C<sub>1</sub>, C<sub>2</sub>가 같은 다항식을 계산하는지 묻기. p = C<sub>1</sub> − C<sub>2</sub>를 |S| ≥ 2d인 S에서 무작위로 평가한다. p ≡ 0이면 항상 0, 아니면 적어도 1/2 확률로 0이 아니다. 이 알고리즘은 거짓 양성(같지 않은데 같다고 보고)이 있을 수 있고 거짓 음성은 없으므로 PIT ∈ coRP. 결정적 다항 시간 알고리즘은 — 회로 모델에서는 — 알려져 있지 않다.
+    </div>
+
+    <h3>7. Miller–Rabin과 PRIMES</h3>
+    <p>현실 세계에서 BPP의 가장 빛나는 사례는 소수 판별이었다. Miller–Rabin 검사는 페르마 소정리와 비자명 제곱근의 부재를 무작위로 검증해, 합성수를 확률 1/4 이상으로 잡아낸다. k번 반복하면 거짓 양성 확률이 4<sup>−k</sup>로 떨어진다. 이는 PRIMES ∈ coRP를 보장한다.</p>
+
+    <div class="aside">
+      그런데 2002년 Agrawal–Kayal–Saxena가 결정적 다항 시간 알고리즘 AKS로 PRIMES ∈ P를 증명했다. 이 사건은 BPP에 대한 우리의 시야를 넓혔다 — 어쩌면 모든 BPP 문제가 결국 P 안에 있을지도 모른다는 추측, 즉 P = BPP가 더 그럴듯해 보이게 만든 사건이었다. 다음 강의에서 이 추측의 토대를 살펴본다.
+    </div>
+
+    <h3>8. 정리</h3>
+    <p>이번 강의에서 우리는 동전을 손에 쥔 알고리즘을 형식화하고, 그 신뢰도를 무한히 끌어올릴 수 있음을 체르노프 한계로 확인했다. RP, coRP, ZPP가 BPP 안에 박혀 있고, 모두 PSPACE 아래에 있다. PIT와 PRIMES는 무작위성이 결정성보다 본질적으로 더 강한지, 아니면 단지 우리의 분석이 미흡한지에 대한 질문을 우리에게 던진다. 이 질문이 다음 강의의 출발점이다.</p>
+  </section>
+</article>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9장. 히스토그램: 원자 연산과 사유화 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 9</p>
+    <h1>히스토그램: 원자 연산과 사유화</h1>
+    <p class="subtitle">출력이 충돌할 때 우리가 꺼내드는 도구들</p>
+  </header>
+
+  <h2>9.1 배경: 출력이 겹치는 첫 패턴</h2>
+  <p>지금까지 다룬 패턴들은 대부분 입력이 어디서 오든 출력은 한 명의 스레드만 쓰는 구조였다. 행렬 곱이든, 컨볼루션이든, 스텐실이든 — 한 출력 셀에 한 명의 owner가 있었다. 그래서 race condition을 걱정할 필요가 없었다. 이 규칙을 우리는 흔히 <b>owner-computes</b>라고 부른다. 그런데 세상에는 입력이 자기가 어디로 갈지 미리 알지 못하는 패턴이 의외로 많다. 히스토그램(histogram)이 그 첫 사례다.</p>
+  <p>히스토그램은 입력 값들의 분포를 빈(bin) 단위로 카운트한 것이다. 픽셀의 밝기 값이 0~255라고 하자. 이미지 한 장을 죽 훑으면서 각 빈에 픽셀 수를 세면 256개짜리 정수 배열이 나오고, 이게 곧 그 이미지의 밝기 히스토그램이다. 이미지 처리에서는 평활화(equalization), 음성 처리에서는 스펙트럼 누적, 네트워크 이상 탐지에서는 패킷 길이 분포, 머신러닝에서는 그레이디언트 부스팅 트리의 학습 — 셀 수 없이 많은 곳에 등장한다.</p>
+  <p>문제는 입력이 어떤 빈에 들어갈지가 데이터에 의존한다는 점이다. 픽셀 값을 보기 전에는 어느 카운터를 증가시켜야 할지 모른다. 여러 스레드가 동시에 같은 빈을 건드릴 수 있고, 이걸 우리는 <b>출력 간섭(output interference)</b>이라 부른다. 이 챕터의 모든 이야기는 이 간섭을 어떻게 다스리느냐로 흘러간다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>한 콘서트장 입구에 256개의 클리커를 놓아두고, 관객 1만 명이 자기 좌석 등급에 맞는 클리커를 한 번씩 누르도록 한다고 상상해 보자. 두 사람이 동시에 같은 클리커를 누르면 한 번만 세질지, 두 번이 세질지 클리커가 보장해 줘야 한다. GPU에서 이 보장을 해 주는 장치가 바로 원자 연산이다.</p>
+  </div>
+
+  <h2>9.2 원자 연산과 기본 히스토그램 커널</h2>
+  <p>먼저 race condition이 왜 무서운지 보자. 다음과 같은 잘못된 코드를 작성한다고 하자. 단순히 카운터를 1 증가시키는 일이다.</p>
+  <pre><code>// 위험한 버전 — race condition 발생
+__global__ void histo_naive_BROKEN(const unsigned char* in, int N,
+                                    unsigned int* histo) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i &lt; N) {
+        unsigned int b = in[i];           // 어느 빈인지
+        histo[b] = histo[b] + 1;          // read-modify-write — 비원자
+    }
+}</code></pre>
+  <p>이 코드는 이미지가 아주 균일하면 운 좋게 결과가 비슷해 보일 수도 있다. 하지만 동일 빈에 두 스레드가 동시에 도달하면, 둘 다 값을 읽고(say, 100) 둘 다 1을 더해(101) 둘 다 같은 자리에 쓴다. 결과는 102가 아니라 101이다. 한 번의 카운트가 사라진 것이다. 픽셀 1만 개에 빈이 256개라면 충돌 확률이 어느 정도일지 어림셈을 해 보면 절대 무시할 수 없는 수준이다.</p>
+  <p>해법은 read-modify-write을 한 묶음의 트랜잭션으로 만드는 것이다. CUDA는 이를 위해 <code>atomicAdd</code>를 비롯한 일군의 원자 연산을 제공한다.</p>
+  <pre><code>// 정상 동작 — 원자 연산 사용
+__global__ void histo_atomic(const unsigned char* in, int N,
+                              unsigned int* histo) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i &lt; N) {
+        unsigned int b = in[i];
+        atomicAdd(&amp;histo[b], 1u);     // 한 입에 read-modify-write
+    }
+}</code></pre>
+  <p>이 한 줄로 정합성은 확보된다. 그런데 이 커널을 실제로 돌려 보면, 데이터가 한쪽 빈에 몰릴수록 처참하게 느려진다. 왜 그런지 다음 절에서 따져 보자.</p>
+
+  <h2>9.3 원자 연산의 latency vs throughput</h2>
+  <p>원자 연산의 본질은 "같은 주소에 대한 update를 직렬화"하는 것이다. 이걸 GPU에서는 어디서 직렬화하느냐가 성능을 결정한다. 글로벌 메모리에 놓인 카운터에 대한 atomicAdd는 보통 L2 캐시의 원자 유닛에서 처리된다. 한 번의 atomic update가 메모리 시스템을 왕복하는 데 걸리는 시간이 곧 latency다. 이 latency가 예컨대 400 cycle이라면, 같은 빈에 동시에 몰린 atomic 요청들은 400 cycle 간격으로 한 개씩만 처리된다.</p>
+  <p>이를 식으로 정리하면 깔끔하다. 동일 위치에 대한 원자 처리량은 다음과 같다.</p>
+  <pre><code>throughput_same_addr = 1 / latency_atomic</code></pre>
+  <p>예를 들어 L2 atomic latency가 400 cycle이고 GPU 클럭이 1.5 GHz라면, 같은 위치에 대한 update는 초당 약 3.75M회밖에 처리되지 못한다. 메모리 시스템이 초당 수 GB의 대역폭을 자랑해도, 충돌이 한 점으로 모이면 그 점에서의 처리량은 단일 채널의 RTT에 묶이는 것이다.</p>
+  <p>해결의 첫 단추는 "직렬화가 일어나는 위치를 더 빠른 메모리로 옮기는 것"이다. 글로벌 메모리(L2)의 atomic latency가 수백 cycle이라면, shared memory의 atomic은 수십 cycle 안쪽이다. 원리적으로 한 자리수 정도의 throughput 향상이 가능하다. 이 통찰이 곧 다음 절의 사유화 기법으로 이어진다.</p>
+
+  <div class="callout warn">
+    <div class="label">성능 함정</div>
+    <p>입력 분포가 한쪽으로 치우치면 atomic은 빠르게 핫스팟이 된다. 균등 분포에서 256-bin 히스토그램이 100ms 걸렸다면, 같은 데이터가 한 빈에 90% 몰릴 때는 1초가 넘게 걸리는 일이 흔하다. 워크로드의 통계적 성질이 곧 커널의 성능 모델이 되는 드문 경우다.</p>
+  </div>
+
+  <h2>9.4 사유화(privatization)</h2>
+  <p>원자 연산의 비용은 "충돌하는 자들의 수"와 "직렬화 지점의 latency"의 곱이라고 봐도 좋다. 그러면 두 변수 중 어느 쪽이든 줄이면 이긴다. 사유화는 둘 다 줄이는 영리한 기법이다.</p>
+  <p>아이디어는 이렇다. 블록마다 자기만의 histogram 사본을 shared memory에 둔다. 블록 내부 스레드들은 이 private 사본에 atomicAdd를 친다 — 하지만 atomic이 shared memory에 있으니 latency가 작다. 게다가 충돌 인구도 한 블록(예: 256 스레드)으로 줄어든다. 블록이 끝날 때, 각 블록의 private 사본을 글로벌 histogram에 한 번씩만 합쳐 주면 된다.</p>
+  <pre><code>#define BINS 256
+
+__global__ void histo_private(const unsigned char* in, int N,
+                               unsigned int* histo) {
+    __shared__ unsigned int s_hist[BINS];
+
+    // 1) shared private histogram을 0으로 초기화
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x)
+        s_hist[b] = 0;
+    __syncthreads();
+
+    // 2) 자기 입력에 대해 atomic add (shared memory)
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    for (int p = i; p &lt; N; p += stride) {
+        atomicAdd(&amp;s_hist[in[p]], 1u);
+    }
+    __syncthreads();
+
+    // 3) 끝에서 글로벌 histogram에 합치기 (atomic)
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x)
+        atomicAdd(&amp;histo[b], s_hist[b]);
+}</code></pre>
+  <p>contention이 어떻게 떨어지는지 어림 계산을 해 보자. 입력 N=10M, 블록 256개, 빈 256개라고 하자. 단순 글로벌 atomic 커널은 한 빈에 평균 N/256 ≈ 39K개의 요청이 글로벌 atomic 유닛에 직렬로 줄을 선다. private 버전에서 한 블록은 입력의 ~9.7K개씩 처리하니까, 한 빈에 모이는 요청도 평균 ~38회. 게다가 그 38회가 shared memory에서 처리된다. 끝의 머지 단계는 글로벌 atomic이지만 BINS×block 수만큼만 발생하니, 총 atomic 요청량 자체가 수십~수백 배 줄어든다.</p>
+
+  <div class="figure">
+<pre>
+글로벌만 사용:
+  Block0  Block1  Block2  Block3  ...
+    \\       |       /        |
+     \\      |      /        /
+      \\     |     /        /
+       v    v    v       v
+   [전역 histo[k]]   <-- 모든 블록의 atomic이 한 점에 줄을 선다 (L2)
+
+
+사유화:
+  Block0           Block1           Block2
+  s_hist[]         s_hist[]         s_hist[]
+   ^|               ^|               ^|
+   ||  shared       ||               ||
+   ||  atomic       ||               ||
+   thr0..255        thr0..255        thr0..255
+
+  --- __syncthreads ---
+
+  Block0->histo[k]  Block1->histo[k]  Block2->histo[k]
+        \\                 |                /
+                v   v   v
+            [전역 histo[k]]   <-- 블록 수만큼만 글로벌 atomic
+</pre>
+  </div>
+  <p class="figure-caption">그림 9.1 — 사유화 전후의 atomic 트래픽 변화. 충돌 인구도 줄고, 직렬화 지점도 빠른 곳으로 옮겨간다.</p>
+
+  <h2>9.5 코어스닝과 인터리브드 파티셔닝</h2>
+  <p>여기서 한 발 더 나간다. 한 스레드가 입력을 하나만 처리하는 건 사실 비효율이다. 스레드 시작 비용, 인덱스 계산 비용, 분기 비용 — 모두 고정 오버헤드인데 일은 하나뿐이라면 비율이 나쁘다. 한 스레드가 여러 입력을 처리하도록 만들면, 이 고정비를 입력당 평균비로 분산할 수 있다. 이게 <b>코어스닝(coarsening)</b>이다.</p>
+  <p>그런데 한 스레드가 여러 입력을 어떻게 가져갈지가 또 한 번의 결정이다. 두 가지 선택지가 있다.</p>
+  <ul>
+    <li><b>연속 분할(contiguous partitioning)</b>: 스레드 t가 입력의 [t·k, (t+1)·k) 구간을 본다. 직관적이지만 같은 워프의 32 스레드가 서로 멀리 떨어진 주소를 동시에 읽게 되어 코얼레싱(coalescing)이 깨진다.</li>
+    <li><b>인터리브드 분할(interleaved partitioning)</b>: 스레드 t가 t, t+stride, t+2·stride, …를 본다. 한 워프가 한 사이클에 보는 32개 주소가 인접하므로 한 트랜잭션으로 합쳐진다. 코얼레싱 보존.</li>
+  </ul>
+  <pre><code>// 코어스닝 + 인터리브드 파티셔닝
+__global__ void histo_coarsened(const unsigned char* in, int N,
+                                 unsigned int* histo, int items_per_thread) {
+    __shared__ unsigned int s_hist[BINS];
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x) s_hist[b] = 0;
+    __syncthreads();
+
+    int tid    = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;     // 인터리브드 보폭
+
+    // 한 스레드가 items_per_thread개의 입력을 stride로 떨어져 가져간다
+    for (int k = 0; k &lt; items_per_thread; ++k) {
+        int p = tid + k * stride;
+        if (p &lt; N) atomicAdd(&amp;s_hist[in[p]], 1u);
+    }
+    __syncthreads();
+
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x)
+        atomicAdd(&amp;histo[b], s_hist[b]);
+}</code></pre>
+  <p>이 작은 변경이 코얼레싱과 코어스닝의 이점을 동시에 얻게 해 준다. 보통 이 단계까지 도달하면 단순 글로벌 atomic 대비 10~30배의 속도 향상을 얻는 경우가 흔하다.</p>
+
+  <h2>9.6 어그리게이션(aggregation): 빈도 사전에 누적</h2>
+  <p>이미지 같은 자연 데이터는 자주 같은 값이 연속해서 등장한다. 푸른 하늘을 죽 찍으면 비슷한 픽셀 값이 수백 픽셀 이어지는 식이다. 이런 입력에 대해서는 한 번에 하나씩 atomicAdd를 치는 것조차 낭비다. 같은 빈에 연속 누적되는 입력을 스레드 로컬 레지스터에 모아 뒀다가, 빈이 바뀌는 순간에만 atomic을 한 번 치면 된다. 이게 어그리게이션(aggregation)이다.</p>
+  <pre><code>// 같은 빈이 연속해 들어올 때 atomic 횟수를 줄인다
+__global__ void histo_aggregated(const unsigned char* in, int N,
+                                  unsigned int* histo) {
+    __shared__ unsigned int s_hist[BINS];
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x) s_hist[b] = 0;
+    __syncthreads();
+
+    int tid    = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+
+    int prev_bin = -1;       // 직전에 본 빈
+    unsigned int run = 0;    // 그 빈으로 누적된 카운트
+
+    for (int p = tid; p &lt; N; p += stride) {
+        unsigned int b = in[p];
+        if ((int)b == prev_bin) {
+            ++run;                              // 같은 빈이면 그냥 늘리기
+        } else {
+            if (prev_bin &gt;= 0)
+                atomicAdd(&amp;s_hist[prev_bin], run); // 빈이 바뀔 때 한 번에 flush
+            prev_bin = (int)b;
+            run = 1;
+        }
+    }
+    if (prev_bin &gt;= 0) atomicAdd(&amp;s_hist[prev_bin], run);  // tail flush
+    __syncthreads();
+
+    for (int b = threadIdx.x; b &lt; BINS; b += blockDim.x)
+        atomicAdd(&amp;histo[b], s_hist[b]);
+}</code></pre>
+  <p>입력이 sparse·blocky할수록 효과가 극대화된다. 한 픽셀당 한 번의 atomic이 한 런(run)당 한 번의 atomic으로 바뀌니, 1000픽셀 길이 런에서는 1000배의 atomic 절감이다. 일반 분포 데이터에서는 큰 이득이 없을 수 있지만, 어그리게이션 자체의 추가 비용은 작아서 손해는 거의 없다.</p>
+
+  <div class="callout good">
+    <div class="label">조합의 미학</div>
+    <p>사유화 + 인터리브드 코어스닝 + 어그리게이션 — 이 세 기법은 서로 직교한다. 모두 적용해도 충돌이 없다. 실제 프로덕션의 빠른 히스토그램 커널은 이 셋의 조합으로 시작해 데이터 특성에 맞춰 튜닝한다.</p>
+  </div>
+
+  <h2>9.7 정리</h2>
+  <p>히스토그램은 출력 간섭이라는 새로운 차원을 우리에게 보여 준 첫 패턴이었다. 정합성을 위해 atomic을 쓰면 직렬화 지점이 생기고, 그 지점이 어디 있느냐가 throughput을 좌우한다. 사유화로 직렬화 지점을 shared memory로 옮기고, 코어스닝으로 고정비를 분산하고, 인터리브드 파티셔닝으로 코얼레싱을 살리고, 어그리게이션으로 atomic 자체의 빈도를 줄인다. 모두가 "충돌의 인구를 줄이거나, 충돌의 단가를 깎거나"의 변주다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>히스토그램은 owner-computes 규칙이 깨지는 첫 패턴이고, 그 결과 출력 간섭이 발생한다.</li>
+      <li>같은 위치에 대한 atomic 처리량은 1/latency로 묶인다 — 이게 글로벌 atomic의 핵심 한계다.</li>
+      <li>사유화는 충돌 인구를 줄이고, 직렬화 지점을 shared memory(빠른 곳)로 옮긴다.</li>
+      <li>인터리브드 파티셔닝은 코얼레싱을 살리고, 코어스닝은 고정 오버헤드를 입력당 평균비로 줄인다.</li>
+      <li>어그리게이션은 입력의 통계 구조(연속된 같은 값)를 이용해 atomic 횟수를 절감한다.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch08.html"><span class="dir">← 이전</span><span>스텐실</span></a>
+    <a href="ch10.html" class="next"><span class="dir">다음 →</span><span>리덕션</span></a>
+  </nav>
+</article>
+</body>
+</html>

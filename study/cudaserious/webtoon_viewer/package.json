@@ -1,0 +1,23 @@
+{
+  "name": "cuda-onebooks-webtoon-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "capture": "node scripts/capture.mjs",
+    "capture:changed": "node scripts/capture.mjs --changed",
+    "compose:v01-landscape": "node scripts/compose-v01-landscape.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1",
+    "sharp": "^0.34.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  }
+}

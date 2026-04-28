@@ -1,0 +1,121 @@
+<article class="chapter" data-chapter="18" id="ch-18">
+  <header class="chapter-header">
+    <span class="chapter-number">강의 18</span>
+    <h2 class="chapter-title">PSPACE-완전성</h2>
+    <p class="chapter-subtitle">다항 공간의 가장 어려운 문제들, 그리고 TQBF가 그 자리에 앉는 이유</p>
+  </header>
+
+  <section>
+    <h3>1. 한 클래스의 "최악"을 잡는 법</h3>
+    <p>NP에서 SAT가 차지했던 위치를 떠올려 보자. SAT 하나만 잘 풀면 NP 전체가 무너지는, 그런 압도적 위치 말이다. PSPACE에서도 똑같은 그림을 그릴 수 있다. 다만 자원이 시간이 아니라 <strong>공간</strong>이라는 점만 다를 뿐이다. 이번 강의의 주연은 <strong>TQBF</strong>(True Quantified Boolean Formula, 참인 양화 부울식)이고, 조연은 Savitch 정리에서 이미 한 번 만난 재귀적 분할이다.</p>
+
+    <div class="definition">
+      <strong>정의 18.1 (PSPACE-hard, PSPACE-complete).</strong> 언어 <em>B</em>가 <strong>PSPACE-hard</strong>라 함은, 임의의 <em>A</em> ∈ PSPACE에 대해 <em>A</em> ≤<sub>p</sub> <em>B</em>가 성립한다는 뜻이다. 여기서 ≤<sub>p</sub>는 다항 시간 매핑 환원이다. 만약 추가로 <em>B</em> ∈ PSPACE이면 <em>B</em>를 <strong>PSPACE-complete</strong>(PSPACE-완전)이라 한다.
+    </div>
+
+    <p>왜 환원의 척도로 "다항 <em>시간</em>"을 쓰는가? PSPACE라는 더 큰 그릇 안에서 의미 있는 비교를 하려면, 환원 자체는 비교 대상보다 훨씬 약한 자원으로 묶어 두어야 한다. 시간 다항이면 공간도 다항이므로, 다항 시간 환원은 PSPACE 내부의 구조를 충분히 보존한다.</p>
+
+    <div class="theorem">
+      <strong>정리 18.2.</strong> <em>B</em>가 PSPACE-완전이고 <em>B</em> ∈ P이면, P = PSPACE이다.
+    </div>
+
+    <div class="proof">
+      <strong>증명.</strong> 임의의 <em>A</em> ∈ PSPACE를 잡자. 정의에 의해 <em>A</em> ≤<sub>p</sub> <em>B</em>인 다항 시간 환원 <em>f</em>가 존재한다. <em>B</em>가 P에 속한다는 가정에서 결정자 <em>M</em><sub>B</sub>가 다항 시간에 동작한다. 그러면 입력 <em>w</em>에 대해 <em>f</em>(<em>w</em>)를 계산한 뒤 <em>M</em><sub>B</sub>(<em>f</em>(<em>w</em>))를 돌리면 된다. 이 합성도 다항 시간이므로 <em>A</em> ∈ P이다. <em>A</em>가 임의였으니 PSPACE ⊆ P이고, 반대 포함은 자명하므로 P = PSPACE. □
+    </div>
+
+    <p>다시 말해, PSPACE-완전 문제 한 마리만 효율적으로 잡아도 다항 시간으로 다항 공간 전체를 정복하는 셈이다. 그래서 PSPACE-완전성은 단순히 어렵다는 라벨이 아니라, "이 한 점이 무너지면 클래스 전체가 무너진다"는 절단점의 의미를 갖는다.</p>
+  </section>
+
+  <section>
+    <h3>2. TQBF: 양화의 풀스택</h3>
+
+    <div class="definition">
+      <strong>정의 18.3 (TQBF).</strong> <strong>양화 부울식</strong>(quantified Boolean formula, QBF)이란 모든 변수가 ∃ 또는 ∀로 양화된, 자유변수 없는 부울식 φ를 말한다. 표준형(prenex form)은
+      <br><br>
+      φ = Q<sub>1</sub>x<sub>1</sub> Q<sub>2</sub>x<sub>2</sub> … Q<sub>n</sub>x<sub>n</sub> ψ(x<sub>1</sub>, …, x<sub>n</sub>),  Q<sub>i</sub> ∈ {∃, ∀}
+      <br><br>
+      이며 ψ는 양화 없는 명제 논리식이다. 언어 TQBF는 이런 형태의 식 중 참인 것들의 집합이다.
+    </div>
+
+    <p>SAT가 ∃만 쓰는 양화식의 진리 판정이라면, TQBF는 ∃와 ∀가 자유롭게 교차한다. 양화자가 한 번 더 끼어들 때마다 "결정 한 단계"가 더해지고, 게임으로 치면 수가 한 번 더 두어지는 셈이다.</p>
+
+    <div class="theorem">
+      <strong>정리 18.4 (Stockmeyer–Meyer).</strong> TQBF는 PSPACE-완전이다.
+    </div>
+
+    <p>증명은 두 부분으로 나뉜다. 한 쪽은 쉬운 멤버십, 다른 한 쪽은 핵심 어려움이다.</p>
+
+    <h3>3. TQBF ∈ PSPACE</h3>
+
+    <p>먼저 멤버십. 입력 φ = Q<sub>1</sub>x<sub>1</sub> … Q<sub>n</sub>x<sub>n</sub> ψ를 받았다고 하자. 재귀적으로 평가한다. φ의 가장 바깥 양화자가 ∃x<sub>1</sub>이면 x<sub>1</sub> = 0과 x<sub>1</sub> = 1을 차례로 시도해 둘 중 하나라도 참이면 참을 반환한다. ∀x<sub>1</sub>이면 둘 다 참이어야 참을 반환한다. 양화자가 모두 사라지면 ψ를 직접 계산한다.</p>
+
+    <p>재귀 깊이는 양화자의 개수 <em>n</em>이고, 각 단계에서 부분 식의 사본 대신 변수 할당만 기억하면 된다. 따라서 공간 사용량은 O(<em>n</em> + |φ|), 즉 <em>n</em>의 다항이다. 이 단순한 깊이 우선 평가만으로 TQBF ∈ PSPACE.</p>
+
+    <h3>4. PSPACE-경도: 식이 너무 커지면 안 된다</h3>
+
+    <p>이제 어려운 방향이다. 임의의 <em>A</em> ∈ PSPACE를 받아, <em>A</em> ≤<sub>p</sub> TQBF임을 보여야 한다. PSPACE TM <em>M</em>이 입력 <em>w</em>에서 공간 <em>s</em> = <em>n</em><sup>k</sup>를 쓴다고 하자(여기서 <em>n</em> = |<em>w</em>|). 우리의 임무는 다항 시간에 양화 부울식 φ<sub><em>M</em>,<em>w</em></sub>를 구성해 다음을 만족시키는 것이다.</p>
+
+    <p style="margin-left: 2em;">φ<sub><em>M</em>,<em>w</em></sub>가 참 ⇔ <em>M</em>이 <em>w</em>를 받아들임.</p>
+
+    <h4>자연스러운 시도, 그리고 그 좌절</h4>
+
+    <p><em>M</em>의 형태(configuration)는 길이 O(<em>s</em>) = O(<em>n</em><sup>k</sup>) 비트로 인코딩된다. Cook–Levin 식 발상으로, 시작 형태 <em>c</em><sub>start</sub>에서 받아들임 형태 <em>c</em><sub>accept</sub>까지의 형태 수열을 통째로 변수화하면? <em>M</em>의 실행 시간은 최대 2<sup>O(<em>s</em>)</sup>이다(공간 한계 TM의 정지성을 위해). 형태 수열은 그러므로 길이 2<sup>O(<em>s</em>)</sup>, 변수 개수도 2<sup>O(<em>s</em>)</sup>. 식 크기가 지수가 되어 다항 시간 환원이 깨진다. 단순 인코딩은 실패한다.</p>
+
+    <h4>Savitch 스타일 재귀적 분할</h4>
+
+    <p>해법은 시간이 아니라 <strong>중간점</strong>을 양화로 잡아내는 것이다. 두 형태 <em>c</em><sub>1</sub>, <em>c</em><sub>2</sub>와 단계 수 <em>t</em>에 대해, "<em>c</em><sub>1</sub>에서 <em>c</em><sub>2</sub>로 ≤ <em>t</em> 단계에 갈 수 있다"를 표현하는 식 φ<sub><em>c</em><sub>1</sub>,<em>c</em><sub>2</sub>,<em>t</em></sub>를 재귀적으로 만든다.</p>
+
+    <p>기저 <em>t</em> = 1: φ<sub><em>c</em><sub>1</sub>,<em>c</em><sub>2</sub>,1</sub>은 <em>c</em><sub>1</sub> = <em>c</em><sub>2</sub>이거나 <em>c</em><sub>1</sub>이 한 단계로 <em>c</em><sub>2</sub>에 가는지 확인하는, Cook–Levin식 국소 검증 식. 크기는 O(<em>s</em>).</p>
+
+    <p>재귀 단계: 직관적으로는</p>
+    <p style="margin-left: 2em;">∃<em>m</em> [ φ<sub><em>c</em><sub>1</sub>,<em>m</em>,<em>t</em>/2</sub> ∧ φ<sub><em>m</em>,<em>c</em><sub>2</sub>,<em>t</em>/2</sub> ]</p>
+    <p>이라고 쓰고 싶지만, 이 형태는 재귀가 한 단계 내려갈 때마다 식이 두 배가 된다. 깊이 log <em>T</em> = O(<em>s</em>)이므로 결국 다시 지수 폭발이다.</p>
+
+    <p>핵심 트릭은 <strong>∀를 이용해 두 부분 식을 같은 식 하나로 합치는</strong> 것이다.</p>
+
+    <p style="margin-left: 2em;">φ<sub><em>c</em><sub>1</sub>,<em>c</em><sub>2</sub>,<em>t</em></sub> ≡ ∃<em>m</em>  ∀(<em>a</em>,<em>b</em>) ∈ {(<em>c</em><sub>1</sub>,<em>m</em>), (<em>m</em>,<em>c</em><sub>2</sub>)}  φ<sub><em>a</em>,<em>b</em>,<em>t</em>/2</sub>.</p>
+
+    <p>여기서 ∀(<em>a</em>,<em>b</em>) ∈ {…}는 두 가지 형태 쌍에 대한 양화이며, 새 변수 (<em>a</em>,<em>b</em>)를 도입한 뒤 "(<em>a</em>,<em>b</em>)가 (<em>c</em><sub>1</sub>,<em>m</em>) 또는 (<em>m</em>,<em>c</em><sub>2</sub>)이면 φ<sub><em>a</em>,<em>b</em>,<em>t</em>/2</sub>가 성립" 같은 함의로 풀어 쓴다. 이렇게 하면 재귀 호출이 식 안에 두 번 등장하는 대신 <strong>한 번만</strong> 등장한다.</p>
+
+    <h4>크기 분석</h4>
+
+    <p>각 재귀 단계에서 식 크기는 다음 점화식을 만족한다.</p>
+    <p style="margin-left: 2em;"><em>L</em>(<em>t</em>) = <em>L</em>(<em>t</em>/2) + O(<em>s</em>),  <em>L</em>(1) = O(<em>s</em>).</p>
+
+    <p>풀면 <em>L</em>(<em>T</em>) = O(<em>s</em> · log <em>T</em>) = O(<em>s</em><sup>2</sup>). 다항이다. 양화자의 깊이도 log <em>T</em> = O(<em>s</em>) = O(<em>n</em><sup>k</sup>)로 다항이다. 마지막으로</p>
+
+    <p style="margin-left: 2em;">φ<sub><em>M</em>,<em>w</em></sub> ≡ φ<sub><em>c</em><sub>start</sub>, <em>c</em><sub>accept</sub>, <em>T</em></sub></p>
+
+    <p>로 두면 φ<sub><em>M</em>,<em>w</em></sub>가 참 ⇔ <em>M</em>이 <em>w</em>를 받아들임. 환원 자체는 형태 인코딩과 재귀적 식 생성이 전부이므로 다항 시간에 끝난다. 따라서 TQBF는 PSPACE-완전이다. □</p>
+
+    <div class="aside">
+      <strong>여담.</strong> Savitch 정리에서는 ∃<em>m</em>으로 중간점을 추측하고, 두 부분 호출을 시간 순서로 직렬화해 공간을 재사용했다. 여기서는 같은 중간점을 ∃로 추측한 뒤 ∀로 두 부분을 "한 번에" 표현한다. 시간 자원이 식 크기로, 공간 재사용이 양화 재사용으로 번역된다. 같은 트릭이 자원만 갈아끼우며 다시 쓰이는 모습을 보면, 계산이론이 사실은 한두 가지 아이디어를 끝없이 변주하고 있다는 인상을 받게 된다.
+    </div>
+  </section>
+
+  <section>
+    <h3>5. 클래스 사이의 풍경</h3>
+
+    <p>이쯤에서 그림을 정리하자. 다음 포함 관계는 모두 알려진 사실이다.</p>
+
+    <p style="margin-left: 2em;">P ⊆ NP ⊆ PSPACE = NPSPACE ⊆ EXPTIME ⊆ EXPSPACE.</p>
+
+    <p>등호는 Savitch 정리, NPSPACE ⊆ EXPTIME은 형태 그래프 크기가 2<sup>poly</sup>임에서 곧바로 따른다. 이 사슬에서 어느 두 인접 클래스가 진짜로 같은지 다른지는 대부분 미해결이지만, 다음 강의에서 공부할 <strong>위계 정리</strong>는 P ⊊ EXPTIME과 PSPACE ⊊ EXPSPACE를 확정해 준다. 따라서 위 사슬에서 적어도 한 곳은 진짜 ⊊이다. 단지 어디인지를 모를 뿐.</p>
+
+    <div class="example">
+      <strong>예 18.5.</strong> TQBF는 PSPACE-완전이므로 NP에도 coNP에도 들어 있을 가능성이 매우 낮다. 만약 TQBF ∈ NP라면 PSPACE ⊆ NP가 따를 것이고, 결국 NP = PSPACE라는 강한 등식을 얻는다. 가능한 일이지만 누구도 그렇게 믿지 않는다.
+    </div>
+  </section>
+
+  <section>
+    <h3>6. 양화 게임으로서의 TQBF</h3>
+
+    <p>마지막으로, TQBF를 게임이라는 다른 렌즈로 보자. φ = ∃x<sub>1</sub> ∀x<sub>2</sub> ∃x<sub>3</sub> … ψ를 두 플레이어의 대국으로 읽자. ∃ 차례에는 플레이어 E가 변수를 0/1로 둔다. ∀ 차례에는 플레이어 A가 둔다. 모든 변수가 결정되면 ψ를 평가한다. ψ가 참이면 E의 승리, 거짓이면 A의 승리.</p>
+
+    <p>그러면 φ가 참이라는 것은 정확히 <strong>E가 승리 전략을 갖는다</strong>는 뜻이다. 게임 트리의 minimax 평가가 곧 양화식의 재귀적 평가다. ∃는 max, ∀는 min, 잎은 ψ의 진리값. 다항 깊이의 minimax 트리 위에서 누가 이기는가 — 이 질문이 PSPACE의 가장 어려운 문제와 같은 난도라는 사실은, 다음 강의에서 일반화 지오그래피와 보드게임으로 곧장 이어진다.</p>
+
+    <div class="note">
+      <strong>다음 강의 다리.</strong> "양화 → 게임"이라는 번역을 한 단계 더 밀어 보자. 식 변수 대신 그래프의 정점을 따라 두 플레이어가 번갈아 이동한다면? 그렇게 만들어진 일반화 지오그래피가 또 한 번 PSPACE-완전이 된다. 보드게임의 결정 문제 일반론이 그 그림자 안에 있다.
+    </div>
+  </section>
+</article>

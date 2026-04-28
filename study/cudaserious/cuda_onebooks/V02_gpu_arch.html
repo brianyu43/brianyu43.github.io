@@ -1,0 +1,2172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V02 GPU Architecture Quantitative 단권화 — 20p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL SERIES · T1 HW &amp; ISA · A4 LANDSCAPE · 20p</div>
+    <h1>GPU Architecture <span class="accent">Quantitative</span></h1>
+    <div class="subtitle">SM Internals · Memory Subsystem · Ampere(GA100) · Hopper(GH100) · Blackwell(GB100/202)</div>
+    <div class="meta">
+      <div><b>Volume</b> 02/18</div>
+      <div><b>Tier</b> T1 HW &amp; ISA</div>
+      <div><b>선행</b> V01</div>
+      <div><b>용도</b> HW 정량 지도 (체화 트리거)</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">1. SM 내부 회로도</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">2. Register File · Operand Collector</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">3. Shared Mem / L1 통합</span><span class="p">p.4</span></div>
+        <div class="row"><span class="t">4. L2 Cache · Persistence</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">5. HBM · Memory Controller</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">6. Tensor Core 세대 진화</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">7. Ampere (GA100) 요약</span><span class="p">p.8</span></div>
+        <div class="row star"><span class="t">8. Hopper (GH100) 요약</span><span class="p">p.9</span></div>
+        <div class="row star"><span class="t">9. Hopper 신기능 5</span><span class="p">p.10</span></div>
+        <div class="row star"><span class="t">10. Blackwell (GB100) 요약</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Warp Scheduler 상세</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. Instruction Pipeline</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. Memory Consistency</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. Latency 세대 비교</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">15. Bandwidth 실효/이론</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">16. Power · Thermal</span><span class="p">p.17</span></div>
+        <div class="row"><span class="t">17. RTX / DC 분화</span><span class="p">p.18</span></div>
+        <div class="row"><span class="t">18. MIG (Multi-Instance GPU)</span><span class="p">p.19</span></div>
+        <div class="row star"><span class="t">19. Cheat Sheet + 계보도</span><span class="p">p.20</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노란 배경)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더 / 매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의 · 공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시 · 워크드 박스</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의 · 실수하기 쉬움</span></div>
+      <div class="row"><span class="sym">★</span><span>시험 · 실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (첫글자 암기)</span></div>
+      <div class="row"><span class="sym">↗</span><span>권 간 cross-reference</span></div>
+      <div class="row"><span class="sym">→</span><span>인과 · 흐름</span></div>
+      <div class="row"><span class="sym">∵∴</span><span>이유 · 결론</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">NVIDIA GA100 WP v1.0 · GH100 WP v1.04 · GB200 NVL72 WP · CUDA C PG 12.x App. H</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 SM 내부 회로도 ============================ -->
+<section class="page" data-screen-label="02 SM 내부">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — SM 내부 회로도 (dual-issue · partition)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> SM = 4 processing partition <span class="ko">Ampere/Hopper 공통</span>
+          <span class="mnemonic">4 quad</span>
+        </h3>
+        <div class="def"><span class="label">구조</span>
+          하나의 <mark>Streaming Multiprocessor (SM)</mark>는 4개의 <span class="kw">processing partition</span>(=processing block)으로 쪼개짐. 각 partition은 독립 warp scheduler·dispatch·register file 서브뱅크·execution unit 한 세트를 보유.
+        </div>
+        <ul>
+          <li>partition당 warp ≤ 16 (GA100: 64 warp/SM · 16×4)</li>
+          <li>partition 내 warp scheduler = 1 cycle · 1 warp 발행</li>
+          <li>partition 간 공유: L1/Smem, TC, instruction cache, constant cache</li>
+        </ul>
+        <p class="tiny">출처 NVIDIA GA100 WP v1.0 Fig.5 / GH100 WP v1.04 Fig.7</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Partition 내부 unit</h3>
+        <table class="compact">
+          <thead><tr><th>unit</th><th>역할</th><th>개수/partition</th></tr></thead>
+          <tbody>
+            <tr><td><mark>SP/FP32</mark></td><td>FP32 FFMA</td><td class="num">16 (A100) · 32 (H100)</td></tr>
+            <tr><td>INT32</td><td>정수 IMAD</td><td class="num">16</td></tr>
+            <tr><td>FP64</td><td>FFMA.F64</td><td class="num">8 (A100) · 16 (H100)</td></tr>
+            <tr><td>Tensor Core</td><td>MMA/WGMMA</td><td class="num">1 (3rd/4th gen)</td></tr>
+            <tr><td>LSU</td><td>Load/Store</td><td class="num">8</td></tr>
+            <tr><td>SFU</td><td>transcendental</td><td class="num">4</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GA100 WP Fig.6 · GH100 WP §3.1</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> SM 블록도 <span class="ko">ASCII</span></h3>
+<pre class="ascii">┌──────────────── SM ────────────────┐
+│ L1 I-Cache · const cache (shared)  │
+├────┬────┬────┬────┐                │
+│ P0 │ P1 │ P2 │ P3 │   4 partitions │
+│ ┌──┴──┐ ...                         │
+│ │warp │ scheduler · dispatch        │
+│ │sched│ 1 warp/cyc                  │
+│ └──┬──┘                             │
+│ ┌──┴──┐                             │
+│ │ RF  │ 16K × 32b (partition)       │
+│ └──┬──┘                             │
+│ ┌──┴──┐                             │
+│ │ OC  │ operand collector            │
+│ └──┬──┘                             │
+│ ┌──┴──────────────────┐              │
+│ │FP32·INT·FP64·SFU·LSU│              │
+│ │ Tensor Core (4th)   │              │
+│ └──┬──────────────────┘              │
+├────┴──────── L1/Smem 228 KB ───────┤
+│ Tex unit · RT Core (GA10x/AD10x)   │
+└────────────────────────────────────┘</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Dual-issue 조건 <span class="ko">partition 1 cyc 2 이슈</span></h3>
+        <ul>
+          <li>한 warp는 <span class="kw">1 instruction/cyc</span> 만 dispatch</li>
+          <li>partition 단위로 서로 다른 pipe에 나눠 이슈 가능 (FP32 + LSU 등)</li>
+          <li>compute capability 8.0+: dependency/throughput 조건 충족 시 inst pair</li>
+        </ul>
+        <p class="tiny">출처 CUDA C PG 12.6 App. H "Compute Capability 8.0/9.0"</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Instruction / Constant Cache</h3>
+        <table class="compact">
+          <thead><tr><th>cache</th><th>용량</th><th>scope</th></tr></thead>
+          <tbody>
+            <tr><td>L0 I-cache</td><td class="num">partition 전용</td><td>1 warp scheduler</td></tr>
+            <tr><td>L1 I-cache</td><td class="num">~32 KB</td><td>SM 전체</td></tr>
+            <tr><td>constant $</td><td class="num">8 KB / partition</td><td><code>__constant__</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">GA100/GH100 동일 계층. 수치는 CUDA C PG App.H 추정 상한.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> RT Core <span class="ko">참고 (DC용 GA100/GH100에는 없음)</span></h3>
+        <ul>
+          <li>BVH traversal + triangle-ray intersect HW</li>
+          <li>Ada(RTX 40): 3rd-gen RT, opacity micromap</li>
+          <li>DC 카드(A100·H100)에는 없음 <span class="xref">↗ V02 §17</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 핵심 공식: dispatch 상한</h3>
+        <div class="formula">
+          peak_warp_inst/SM/cyc = partitions × 1<br/>
+          = 4 inst/cyc/SM<span class="legend">partition당 1 scheduler, 1 warp 발행</span>
+        </div>
+        <div class="warn-box"><span class="label"></span>
+          eligible warp 부족하면 실제 ≪ peak. <span class="xref">↗ V02 §11</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Register File & Operand Collector ============================ -->
+<section class="page" data-screen-label="03 RF·OC">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Register File &amp; Operand Collector</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Register File 용량 ★
+          <span class="mnemonic">65536 × 4B</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>reg/SM</th><th>byte/SM</th><th>max reg/thread</th></tr></thead>
+          <tbody>
+            <tr><td>Ampere sm_80</td><td class="num">65,536</td><td class="num">256 KB</td><td class="num">255</td></tr>
+            <tr><td>Hopper sm_90</td><td class="num">65,536</td><td class="num">256 KB</td><td class="num">255</td></tr>
+            <tr><td>Blackwell sm_100</td><td class="num">65,536</td><td class="num">256 KB</td><td class="num">255</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 CUDA C PG 12.6 Table 21 "Technical Specifications per Compute Capability"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Partition 내 sub-bank</h3>
+        <ul>
+          <li>256 KB RF = 4 partition × <span class="kw">64 KB</span> × (multiple bank)</li>
+          <li>register 분할: sub-bank에 RR(round-robin) 배치</li>
+          <li>동일 cycle 에 같은 bank 복수 read → <span class="red">bank conflict</span></li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          HW가 bank를 노출하지 않으므로 직접 제어 불가. compiler <code>ptxas</code>가 allocation 담당.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Operand Collector <span class="ko">정의</span></h3>
+        <div class="def"><span class="label">OC</span>
+          <mark>Operand Collector</mark>는 issue된 instruction의 source operand를 여러 cycle에 걸쳐 RF에서 수집해 ALU port로 정렬 송출하는 staging buffer. bank conflict 를 파이프라인화해 숨김.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> FFMA 3-operand 수집 흐름</h3>
+<pre class="ascii">cycle t:    FFMA r0, r1, r2, r3
+             │
+  ┌──────────┴──────────┐
+  │   Operand Collector │
+  │   slot: A B C accum │
+  │   ↑ ↑ ↑             │
+  └───┬──┬──┬──┬────────┘
+      │  │  │  │
+     RF RF RF RF  (bank select cycle-staggered)
+      │  │  │  │
+      └──┴──┴──┴─→ ALU FP32 FMA</pre>
+        <p class="tiny">개념도 · 출처: Greg Smith GTC 2010 "Fermi SM" · Volta 이후 구조 동일.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Register Spill 비용 ★</h3>
+        <div class="def"><span class="label">spill</span>
+          thread가 요구하는 live register &gt; max 할당량 → compiler가 <mark>local memory</mark>(=thread-private global)로 내보냄. HW reg 이탈.
+        </div>
+        <table class="compact">
+          <thead><tr><th>storage</th><th>latency</th><th>BW</th></tr></thead>
+          <tbody>
+            <tr><td>register</td><td class="num">~1 cyc</td><td class="num">full</td></tr>
+            <tr><td>local (L1 hit)</td><td class="num">~30 cyc</td><td class="num">SM L1 BW</td></tr>
+            <tr><td>local (HBM)</td><td class="num">~400 cyc</td><td class="num">HBM BW</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 CUDA C PG App.H "Local Memory" + 표준 micro-benchmark 권장값.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Occupancy 제약 공식</h3>
+        <div class="formula">
+          warp/SM ≤ floor(65536 / (reg/thread × 32))<br/>
+          warp/SM ≤ floor(smem_cap / smem/block) × block_warps<br/>
+          warp/SM ≤ max_warp (A100 64 · H100 64)
+          <span class="legend">세 제약 중 min이 실제 occupancy</span>
+        </div>
+        <p class="tiny">출처 CUDA Occupancy Calculator (deprecated) 동일 식 · PG Table 21.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Hopper <code>setmaxnreg</code> ★</h3>
+        <ul>
+          <li>warpgroup 내 warp별 register budget 동적 재분배</li>
+          <li><code>setmaxnreg.inc.sync.aligned 232</code>: consumer warp이 큰 reg</li>
+          <li><code>setmaxnreg.dec.sync.aligned 40</code>: producer warp은 최소</li>
+        </ul>
+        <div class="ex"><span class="label"></span>
+          Warp Specialization GEMM: producer 40 reg, consumer 232 reg → SM당 동일 thread 수에서 accumulator tile ↑. <span class="xref">↗ V04 §10</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 실무 가이드</h3>
+        <ol class="bullet-num">
+          <li><code>-maxrregcount</code> or <code>__launch_bounds__</code>로 상한 지정</li>
+          <li><code>-Xptxas -v</code>로 spill 확인 (stack frame bytes)</li>
+          <li>spill ≠ 항상 나쁨. occupancy 회복이 더 이익이면 ok</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 3 -</div>
+</section>
+
+<!-- ============================ PAGE 4: §3 Shared Mem / L1 ============================ -->
+<section class="page" data-screen-label="04 Smem·L1">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — Shared Memory / L1 통합 · DSM</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> L1/Smem 통합 ★
+          <span class="mnemonic">unified SRAM</span>
+        </h3>
+        <div class="def"><span class="label">통합</span>
+          Volta 이후 L1 data cache와 shared memory는 <mark>같은 SRAM 블록</mark>을 partition 수준에서 나눠 씀. carve-out은 <span class="kw">per-kernel</span> runtime 설정.
+        </div>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>L1+Smem 총량/SM</th><th>Smem 최대/block</th></tr></thead>
+          <tbody>
+            <tr><td>Volta (GV100)</td><td class="num">128 KB</td><td class="num">96 KB</td></tr>
+            <tr><td>Ampere (GA100)</td><td class="num">192 KB</td><td class="num">164 KB</td></tr>
+            <tr><td>Ada (AD102)</td><td class="num">128 KB</td><td class="num">100 KB</td></tr>
+            <tr><td>Hopper (GH100)</td><td class="num">256 KB</td><td class="num">228 KB</td></tr>
+            <tr><td>Blackwell (GB100)</td><td class="num">256 KB</td><td class="num">228 KB</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GA100 WP Table 2 · GH100 WP §3.2 · GB100 WP v1.0 §3.1</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Carve-out 옵션 (GA100)</h3>
+        <ul>
+          <li>0 / 8 / 16 / 32 / 64 / 100 / 132 / 164 KB smem</li>
+          <li>나머지가 L1 data cache</li>
+          <li><code>cudaFuncSetAttribute(..., cudaFuncAttributePreferredSharedMemoryCarveout, %)</code></li>
+        </ul>
+        <p class="tiny">출처 CUDA C PG 12.6 §3.2.5 / GA100 WP Table 3</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Smem Bank 구조 ★</h3>
+        <div class="def"><span class="label">bank</span>
+          smem = <mark>32 bank</mark> × 4 byte/cycle (8.0+도 동일). 32 lane이 서로 다른 bank에 access → 1 cycle. 같은 bank → 순차화.
+        </div>
+        <ul>
+          <li>32-bit mode: word = 4B, bank = (addr/4) mod 32</li>
+          <li>64-bit mode: double 용. <code>cudaDeviceSetSharedMemConfig</code></li>
+          <li>broadcast: 동일 주소 read는 1 cycle에 모두 제공</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          stride-2 FP32 access → 2-way conflict. <b>stride 33</b> padding으로 분산.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Hopper swizzle <span class="ko">WGMMA 용</span></h3>
+        <ul>
+          <li>TMA load 시 128B / 64B / 32B swizzle mode 선택</li>
+          <li>WGMMA matrix descriptor에 swizzle 종류 포함</li>
+          <li>bank conflict-free access 를 HW 가 보증</li>
+        </ul>
+        <p class="tiny">상세 PTX는 <span class="xref">↗ V04 §4·§7</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Distributed Shared Memory ★
+          <span class="mnemonic">DSM = cluster smem</span>
+        </h3>
+        <div class="def"><span class="label">DSM</span>
+          Hopper의 <mark>Thread Block Cluster</mark> 내 block 들이 서로의 smem 을 직접 읽고 쓸 수 있음. cluster 내 최대 16 block 의 smem 이 하나의 가상 주소공간을 형성.
+        </div>
+<pre class="ascii">cluster (1..16 CTA, default ≤8)
+ ├── CTA0.smem 228 KB ─┐
+ ├── CTA1.smem 228 KB ─┤  unified
+ ├── CTA2.smem 228 KB ─┼── logical
+ └── CTA3.smem 228 KB ─┘  space
+addr = (rank, offset)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> DSM access 경로</h3>
+        <ul>
+          <li><code>cluster.map_shared_rank</code> (PTX) → remote ptr</li>
+          <li>SM-to-SM network (GPC 내부) 로 이동</li>
+          <li>read latency ≫ local smem, but ≪ L2</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §3.3 "Thread Block Cluster" · PTX ISA 8.x §9.7.12</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Smem 사용 정석 3종</h3>
+        <ol class="bullet-num">
+          <li>tile buffer (GEMM/conv) — V01 §7, V06</li>
+          <li>reduction scratchpad — V01 §11</li>
+          <li>producer/consumer ring — <span class="xref">↗ V04 §9</span></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 4 -</div>
+</section>
+
+<!-- ============================ PAGE 5: §4 L2 Cache & Persistence ============================ -->
+<section class="page" data-screen-label="05 L2·Persistence">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — L2 Cache · Persistence · Compression</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> L2 용량 · 분할 ★</h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>L2 total</th><th>구조</th></tr></thead>
+          <tbody>
+            <tr><td>Volta GV100</td><td class="num">6 MB</td><td>unified</td></tr>
+            <tr><td>Ampere GA100</td><td class="num">40 MB</td><td>2 partition × 20 MB</td></tr>
+            <tr><td>Ada AD102</td><td class="num">96 MB</td><td>unified</td></tr>
+            <tr><td>Hopper GH100</td><td class="num">50 MB</td><td>2 partition × 25 MB</td></tr>
+            <tr><td>Blackwell GB100 die</td><td class="num">~60 MB / die</td><td>dual-die via NV-HBI</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GA100 WP Table 2 · GH100 WP §3.4 · GB200 WP §2.1 (die partitioned)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> L2 partition 구조 ★
+          <span class="mnemonic">NUMA-like</span>
+        </h3>
+        <div class="def"><span class="label">partition</span>
+          Ampere/Hopper의 L2는 <mark>2개의 물리 partition</mark> 으로 나뉨. SM 에서 원격 partition 접근은 추가 latency + 감소 BW. NUMA-like.
+        </div>
+        <ul>
+          <li>GH100: partition A ↔ B link BW ≈ L2 BW 의 부분값</li>
+          <li>Blackwell: chiplet 2 die 간 NV-HBI 10 TB/s (공식)</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP Fig.10 · GB200 WP "NV-HBI" 항목</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> L2 Persistence Window ★</h3>
+        <div class="def"><span class="label">기능</span>
+          특정 global 영역을 L2 에 <mark>우선 상주</mark> 시키는 <span class="kw">access policy window</span>. 리커런트 access 많은 lookup 테이블/KV cache 에 유용.
+        </div>
+<pre class="code"><span class="cmt">// host</span>
+cudaStreamAttrValue attr = {};
+attr.accessPolicyWindow.base_ptr = p;
+attr.accessPolicyWindow.num_bytes = N;
+attr.accessPolicyWindow.hitRatio = <span class="num2">1.0f</span>;
+attr.accessPolicyWindow.hitProp =
+  cudaAccessPropertyPersisting;
+attr.accessPolicyWindow.missProp =
+  cudaAccessPropertyStreaming;
+cudaStreamSetAttribute(s,
+  cudaStreamAttributeAccessPolicyWindow,&amp;attr);</pre>
+        <p class="tiny">출처 CUDA C PG 12.6 §5.2.6 "L2 Cache Set-Aside"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> set-aside 카빙</h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>L2 set-aside 최대</th></tr></thead>
+          <tbody>
+            <tr><td>GA100</td><td class="num">30 MB (40 MB 중)</td></tr>
+            <tr><td>GH100</td><td class="num">≤ 75%</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny"><code>cudaDeviceGetLimit(cudaLimitPersistingL2CacheSize)</code></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Compression <span class="ko">무손실</span>
+          <span class="mnemonic">CCS</span>
+        </h3>
+        <ul>
+          <li>GA100+: L2 내 <mark>compressible sector</mark> HW 압축</li>
+          <li>동일 byte 패턴·제로런 중심 → 효과는 데이터 의존</li>
+          <li>사용자 투명. PTX 에 별도 지시 없음</li>
+        </ul>
+        <div class="warn-box"><span class="label"></span>
+          공식 numeric ratio 는 whitepaper 미공개. 데이터에 따라 0~수 %로만 명시.
+        </div>
+        <p class="tiny">출처 GA100 WP §2.4 "Compute Data Compression"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> L2 위치가 중요한 이유</h3>
+        <div class="formula">
+          HBM_req_rate = (1 − hit_L2) × access_rate<br/>
+          sustained_BW ≈ min(L2_BW, HBM_BW / (1 − hit_L2))
+          <span class="legend">hit_L2 ↑ → HBM 대역 여유</span>
+        </div>
+        <ul>
+          <li>GEMM: reuse → L2 hit ≈ tile 크기 의존</li>
+          <li>attention KV cache: 크기가 L2 &gt; 이면 miss</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 흔한 실수</h3>
+        <ul>
+          <li><span class="red">persistence window</span> 가 커널 종료 후에도 남는 것 잊음 → clear 필요</li>
+          <li>window 범위를 L2 용량보다 크게 설정 → <code>hitRatio</code> 낮춰도 효과 반감</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 5 -</div>
+</section>
+
+<!-- ============================ PAGE 6: §5 HBM & Memory Controller ============================ -->
+<section class="page" data-screen-label="06 HBM·MC">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — HBM · Memory Controller · ECC</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> HBM 세대 비교 ★
+          <span class="mnemonic">2e→3→3e</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>spec</th><th>HBM2e</th><th>HBM3</th><th>HBM3e</th></tr></thead>
+          <tbody>
+            <tr><td>stack 높이</td><td class="num">8-hi</td><td class="num">8/12-hi</td><td class="num">8/12-hi</td></tr>
+            <tr><td>stack 용량</td><td class="num">16 GB</td><td class="num">16/24 GB</td><td class="num">24/36 GB</td></tr>
+            <tr><td>ch/stack</td><td class="num">8</td><td class="num">16</td><td class="num">16</td></tr>
+            <tr><td>pin/ch</td><td class="num">16-bit</td><td class="num">16-bit</td><td class="num">16-bit</td></tr>
+            <tr><td>data rate</td><td class="num">3.2 Gb/s</td><td class="num">6.4 Gb/s</td><td class="num">8~9.2 Gb/s</td></tr>
+            <tr><td>BW/stack</td><td class="num">~410 GB/s</td><td class="num">~820 GB/s</td><td class="num">~1.2 TB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 JEDEC JESD238A (HBM3) · NVIDIA GH100/GB200 WP 공식 수치</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> GPU별 HBM 구성</h3>
+        <table class="compact">
+          <thead><tr><th>GPU</th><th>stack 수</th><th>용량</th><th>peak BW</th></tr></thead>
+          <tbody>
+            <tr><td>A100 SXM4 80GB</td><td class="num">5(=6 중 1 disabled)</td><td class="num">80 GB HBM2e</td><td class="num">2.039 TB/s</td></tr>
+            <tr><td>H100 SXM5 80GB</td><td class="num">5(=6 중 1)</td><td class="num">80 GB HBM3</td><td class="num">3.35 TB/s</td></tr>
+            <tr><td>H200 SXM</td><td class="num">6</td><td class="num">141 GB HBM3e</td><td class="num">4.8 TB/s</td></tr>
+            <tr><td>B200 (GB100)</td><td class="num">8 (2 die × 4)</td><td class="num">192 GB HBM3e</td><td class="num">8.0 TB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA A100 WP Table 2 · H100 WP Table 2 · H200 datasheet · B200 GTC'24 spec</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Memory Controller 계층</h3>
+<pre class="ascii">SM → L2 slice → MC → HBM stack
+                   ↑
+              per-stack controller
+                   ↑
+              channel pseudo-channel
+                   ↑
+              bank group · bank · row</pre>
+        <ul>
+          <li>GH100: 12 × 512-bit HBM3 MC (총 6144-bit)</li>
+          <li>MC 단위로 <span class="kw">access coalesce</span> 및 row-open 관리</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §3.4 "Memory Subsystem"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Coalescing 조건 복습</h3>
+        <div class="def"><span class="label">조건</span>
+          warp 내 32 thread 의 global load/store 주소가 <mark>128-byte segment</mark> 에 정렬·연속 → 1 transaction. 흩어지면 N transaction.
+        </div>
+        <ul>
+          <li>sector = 32 byte (L2 ↔ HBM 최소 단위)</li>
+          <li>128 B = 4 sector = warp FP32 load 크기</li>
+        </ul>
+        <p class="tiny">PG §5.3.2 "Device Memory Access"</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> ECC Overhead ★</h3>
+        <div class="def"><span class="label">ECC</span>
+          HBM2/3 는 <mark>in-band</mark> ECC 지원. 데이터 비트당 패리티 비트로 SECDED. A100/H100 는 자동 on.
+        </div>
+        <table class="compact">
+          <thead><tr><th>항목</th><th>영향</th></tr></thead>
+          <tbody>
+            <tr><td>용량</td><td>user-visible 크기 이미 ECC 감안 (명시된 80 GB)</td></tr>
+            <tr><td>BW</td><td>공식 peak 는 ECC on 기준</td></tr>
+            <tr><td>off 옵션</td><td>A100+ 는 <code>nvidia-smi -e 0</code> 지원 (DC only)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA HBM ECC 기술문서 · <code>nvidia-smi</code> man.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> GPU Memory Partition <span class="ko">=GPC · uGPU</span></h3>
+        <ul>
+          <li>GA100: 8 GPC × (2 TPC × SM + L2 slice)</li>
+          <li>GH100: 8 GPC (enabled 7 on H100 SXM5 : 132 SM)</li>
+          <li>MIG 는 GPC + L2 slice + HBM ch 묶음으로 자른다 <span class="xref">↗ V02 §18</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> PCIe / NVLink 외부 링크</h3>
+        <table class="compact">
+          <thead><tr><th>link</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>NVLink</td><td class="num">600 GB/s (3rd)</td><td class="num">900 GB/s (4th)</td><td class="num">1800 GB/s (5th)</td></tr>
+            <tr><td>PCIe</td><td class="num">Gen4 x16 64 GB/s</td><td class="num">Gen5 x16 128 GB/s</td><td class="num">Gen5 x16 128 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 A100/H100 WP · GB200 GTC'24 session</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 6 -</div>
+</section>
+
+<!-- ============================ PAGE 7: §6 Tensor Core Generations ============================ -->
+<section class="page" data-screen-label="07 TC 진화">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — Tensor Core 세대별 진화 (★ Must-have)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 세대 개요</h3>
+        <table class="compact">
+          <thead><tr><th>gen</th><th>arch</th><th>CC</th><th>대표 shape</th></tr></thead>
+          <tbody>
+            <tr><td>1st</td><td>Volta GV100</td><td class="num">7.0</td><td>m8n8k4 FP16→FP32</td></tr>
+            <tr><td>2nd</td><td>Turing TU102</td><td class="num">7.5</td><td>+ INT8/INT4</td></tr>
+            <tr><td>3rd</td><td>Ampere GA100</td><td class="num">8.0</td><td>m16n8k16 + TF32/BF16/FP64</td></tr>
+            <tr><td>4th</td><td>Hopper GH100</td><td class="num">9.0</td><td>wgmma m64nNk16 + FP8</td></tr>
+            <tr><td>5th</td><td>Blackwell GB100</td><td class="num">10.0</td><td>+ FP4/FP6 (micro-scale)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA 공식 세대 표기 (각 arch WP).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> dtype 지원 매트릭스 ★★
+          <span class="mnemonic">16→BF→TF→8→4</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th>V100</th><th>T4</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>FP64 TC</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>TF32</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>FP16</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>BF16</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>INT8</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>INT4</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td><td class="center">(dep)</td><td class="center">—</td></tr>
+            <tr><td>FP8 E4M3/E5M2</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td><td class="center">✓</td></tr>
+            <tr><td>FP6 E3M2/E2M3</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+            <tr><td>FP4 E2M1</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GV100/GA100/GH100/GB200 WP + PTX ISA 8.x "mma" 허용 dtype 목록</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Dense TC peak (SXM / W=TDP)
+          <span class="mnemonic">16·19·31</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>TF @ dtype</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>FP64 TC</td><td class="num">19.5</td><td class="num">67</td><td class="num">40</td></tr>
+            <tr><td>TF32</td><td class="num">156</td><td class="num">495</td><td class="num">1100</td></tr>
+            <tr><td>FP16/BF16</td><td class="num">312</td><td class="num">989</td><td class="num">2250</td></tr>
+            <tr><td>FP8</td><td class="num">—</td><td class="num">1979</td><td class="num">4500</td></tr>
+            <tr><td>FP4</td><td class="num">—</td><td class="num">—</td><td class="num">9000</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">단위 TF/s · dense (2:4 sparsity 아님) · 출처 A100/H100 WP Table 2 · B200 GTC'24 keynote 공식 슬라이드</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 2:4 Sparsity</h3>
+        <div class="def"><span class="label">2:4</span>
+          4 원소 중 2 개가 0 인 <mark>structured sparsity</mark>. A100+ TC 가 HW 적으로 ×2 가속. compile-time layout 필요.
+        </div>
+        <ul>
+          <li>A100·H100·B200 지원</li>
+          <li>FP8/FP16 모두 적용 가능 (Hopper+)</li>
+          <li>실측 ×1.3~1.5 (×2 이론 상한)</li>
+        </ul>
+        <p class="tiny">출처 GA100 WP §2.3 "Sparsity"</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 세대별 의미론 변화</h3>
+        <table class="vs">
+          <thead><tr><th>gen</th><th>변경점</th><th>소프트웨어 영향</th></tr></thead>
+          <tbody>
+            <tr><td>1st(V100)</td><td>warp-level WMMA</td><td>C++ API 만</td></tr>
+            <tr><td>3rd(A100)</td><td>PTX <code>mma.sync</code></td><td>thread fragment 직접</td></tr>
+            <tr><td>3rd+cp.async</td><td>A100 G→Smem 직결</td><td>double buffer 단순화</td></tr>
+            <tr><td>4th(H100)</td><td><code>wgmma</code> async + smem operand</td><td>warp-group 프로그래밍</td></tr>
+            <tr><td>5th(B200)</td><td>micro-scale + per-block scale</td><td>dtype 선언에 scale block 포함</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> accumulator 규칙</h3>
+        <ul>
+          <li>FP16/BF16/FP8 → accum <span class="kw">FP32</span></li>
+          <li>FP16 × FP16 → <span class="red">FP16 accum</span> 도 있음 (정확도 ↓)</li>
+          <li>TF32 → FP32 accum (항상)</li>
+          <li>FP64 TC → FP64 accum</li>
+        </ul>
+        <p class="tiny">PTX ISA 8.x §9.7.13 "Matrix multiply-accumulate"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 쉐이프·피연산자 배치</h3>
+        <ul>
+          <li>Ampere mma: A·B·C·D 모두 register fragment</li>
+          <li>Hopper wgmma: A=reg or smem, <b>B 항상 smem</b>, D=reg</li>
+          <li>자세한 layout <span class="xref">↗ V03 §7 · V04 §7</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 7 -</div>
+</section>
+
+<!-- ============================ PAGE 8: §7 Ampere GA100 ============================ -->
+<section class="page" data-screen-label="08 GA100">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — Ampere (GA100) 정량 요약</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Die 구성 ★</h3>
+        <table class="compact">
+          <thead><tr><th>spec</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>프로세스</td><td class="num">TSMC N7 (7 nm)</td></tr>
+            <tr><td>die 크기</td><td class="num">826 mm²</td></tr>
+            <tr><td>트랜지스터</td><td class="num">54.2 B</td></tr>
+            <tr><td>GPC / TPC / SM (full)</td><td class="num">8 / 64 / 128</td></tr>
+            <tr><td>A100 enabled SM</td><td class="num">108 (SXM4)</td></tr>
+            <tr><td>FP32 core / SM</td><td class="num">64</td></tr>
+            <tr><td>TC / SM</td><td class="num">4 (3rd gen)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA GA100 WP v1.0 §2.1 / Table 2</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 총 연산 자원 (A100 SXM4)</h3>
+        <table class="compact">
+          <thead><tr><th>자원</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 core</td><td class="num">6,912</td></tr>
+            <tr><td>FP64 core</td><td class="num">3,456</td></tr>
+            <tr><td>Tensor Core</td><td class="num">432</td></tr>
+            <tr><td>base clock</td><td class="num">1095 MHz</td></tr>
+            <tr><td>boost clock</td><td class="num">1410 MHz</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 계층 요약</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>cap</th><th>BW/latency</th></tr></thead>
+          <tbody>
+            <tr><td>Reg/SM</td><td class="num">256 KB</td><td class="num">~1 cyc</td></tr>
+            <tr><td>L1+Smem/SM</td><td class="num">192 KB</td><td class="num">~20 cyc</td></tr>
+            <tr><td>L2</td><td class="num">40 MB</td><td class="num">~200 cyc</td></tr>
+            <tr><td>HBM2e</td><td class="num">40/80 GB</td><td class="num">1.555 / 2.039 TB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GA100 WP Table 2 · latency는 public micro-benchmark 권장값 <span class="xref">↗ V02 §14</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Ampere 신기능 ★</h3>
+        <ul>
+          <li><mark>cp.async</mark> — G→Smem 직결, reg 경유 제거</li>
+          <li><mark>3rd-gen TC</mark>: TF32/BF16/FP64/INT8</li>
+          <li><mark>2:4 Sparsity</mark> — ×2 가속</li>
+          <li><mark>MIG</mark> — 최대 7 instance</li>
+          <li><mark>Async copy barrier</mark> (<code>mbarrier</code> 초기 버전)</li>
+          <li>3rd-gen NVLink 600 GB/s</li>
+        </ul>
+        <p class="tiny">출처 GA100 WP §2</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 연산 peak 요약 (SXM4)</h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th class="num">dense TF</th><th class="num">2:4 TF</th></tr></thead>
+          <tbody>
+            <tr><td>FP64</td><td class="num">9.7</td><td class="num">—</td></tr>
+            <tr><td>FP64 TC</td><td class="num">19.5</td><td class="num">—</td></tr>
+            <tr><td>FP32</td><td class="num">19.5</td><td class="num">—</td></tr>
+            <tr><td>TF32 TC</td><td class="num">156</td><td class="num">312</td></tr>
+            <tr><td>FP16/BF16 TC</td><td class="num">312</td><td class="num">624</td></tr>
+            <tr><td>INT8 TC</td><td class="num">624 TOPS</td><td class="num">1248 TOPS</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 A100 WP Table 2 · boost clock 기준</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> A100 variant</h3>
+        <table class="compact">
+          <thead><tr><th>model</th><th>mem</th><th>TDP</th><th>form</th></tr></thead>
+          <tbody>
+            <tr><td>A100 SXM4 40</td><td class="num">40 GB</td><td class="num">400 W</td><td>SXM4</td></tr>
+            <tr><td>A100 SXM4 80</td><td class="num">80 GB</td><td class="num">400 W</td><td>SXM4</td></tr>
+            <tr><td>A100 PCIe 40</td><td class="num">40 GB</td><td class="num">250 W</td><td>PCIe Gen4</td></tr>
+            <tr><td>A100 PCIe 80</td><td class="num">80 GB</td><td class="num">300 W</td><td>PCIe Gen4</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVIDIA A100 Datasheet (2021)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> GA100 vs GA10x</h3>
+        <ul>
+          <li>GA100: FP64 1:2 of FP32, Smem 164 KB, NVLink</li>
+          <li>GA102 (RTX 3090): FP64 1:64, 128 KB L1+Smem, RT Core</li>
+          <li>자세한 분화 <span class="xref">↗ V02 §17</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 8 -</div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Hopper GH100 ============================ -->
+<section class="page" data-screen-label="09 GH100">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Hopper (GH100) 정량 요약</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Die 구성 ★</h3>
+        <table class="compact">
+          <thead><tr><th>spec</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>프로세스</td><td class="num">TSMC 4N</td></tr>
+            <tr><td>die 크기</td><td class="num">814 mm²</td></tr>
+            <tr><td>트랜지스터</td><td class="num">80 B</td></tr>
+            <tr><td>GPC / TPC / SM (full)</td><td class="num">8 / 72 / 144</td></tr>
+            <tr><td>H100 SXM5 enabled SM</td><td class="num">132</td></tr>
+            <tr><td>FP32 core / SM</td><td class="num">128</td></tr>
+            <tr><td>TC / SM</td><td class="num">4 (4th gen)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA GH100 WP v1.04 §2.1 / Table 2</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 총 연산 자원 (H100 SXM5)</h3>
+        <table class="compact">
+          <thead><tr><th>자원</th><th class="num">값</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 core</td><td class="num">16,896</td></tr>
+            <tr><td>FP64 core</td><td class="num">8,448</td></tr>
+            <tr><td>Tensor Core</td><td class="num">528</td></tr>
+            <tr><td>base clock</td><td class="num">1590 MHz</td></tr>
+            <tr><td>boost clock</td><td class="num">1980 MHz</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 메모리 계층 요약</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>cap</th><th>BW/latency</th></tr></thead>
+          <tbody>
+            <tr><td>Reg/SM</td><td class="num">256 KB</td><td class="num">~1 cyc</td></tr>
+            <tr><td>L1+Smem/SM</td><td class="num">256 KB</td><td class="num">~23 cyc</td></tr>
+            <tr><td>L2</td><td class="num">50 MB (2×25)</td><td class="num">~260 cyc</td></tr>
+            <tr><td>HBM3</td><td class="num">80 GB</td><td class="num">3.35 TB/s</td></tr>
+            <tr><td>NVLink 4.0</td><td class="num">18 link</td><td class="num">900 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GH100 WP Table 2 · latency는 NVIDIA H100 micro-benchmark (nvidia GTC'22)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Hopper 신기능 5 ★★
+          <span class="mnemonic">TWCDM</span>
+        </h3>
+        <ul>
+          <li><mark>TMA</mark>: Tensor Memory Accelerator</li>
+          <li><mark>WGMMA</mark>: warp-group async MMA</li>
+          <li><mark>Cluster</mark>: Thread Block Cluster</li>
+          <li><mark>DSM</mark>: Distributed Shared Memory</li>
+          <li><mark>TE</mark>: Transformer Engine (FP8)</li>
+        </ul>
+        <p class="tiny">상세 <span class="xref">↗ V02 §9 · V04 §1–§7</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 연산 peak (H100 SXM5)</h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th class="num">dense TF</th><th class="num">2:4 TF</th></tr></thead>
+          <tbody>
+            <tr><td>FP64</td><td class="num">34</td><td class="num">—</td></tr>
+            <tr><td>FP64 TC</td><td class="num">67</td><td class="num">—</td></tr>
+            <tr><td>FP32</td><td class="num">67</td><td class="num">—</td></tr>
+            <tr><td>TF32 TC</td><td class="num">495</td><td class="num">989</td></tr>
+            <tr><td>FP16/BF16 TC</td><td class="num">989</td><td class="num">1979</td></tr>
+            <tr><td>FP8 TC</td><td class="num">1979</td><td class="num">3958</td></tr>
+            <tr><td>INT8 TC</td><td class="num">1979 TOPS</td><td class="num">3958 TOPS</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 H100 WP Table 2 · SXM5 / boost clock</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> H100 variant</h3>
+        <table class="compact">
+          <thead><tr><th>model</th><th>mem</th><th>TDP</th></tr></thead>
+          <tbody>
+            <tr><td>H100 SXM5</td><td class="num">80 GB HBM3</td><td class="num">700 W</td></tr>
+            <tr><td>H100 PCIe</td><td class="num">80 GB HBM2e</td><td class="num">350 W</td></tr>
+            <tr><td>H100 NVL</td><td class="num">94 GB HBM3</td><td class="num">400 W</td></tr>
+            <tr><td>H200 SXM</td><td class="num">141 GB HBM3e</td><td class="num">700 W</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">H100 datasheet / H200 datasheet (2024)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> DPX instruction <span class="ko">Dynamic Programming eXt</span></h3>
+        <ul>
+          <li><code>vimax3</code>·<code>vimin3</code>: 3-input SIMD max/min + relu</li>
+          <li>Smith-Waterman/Needleman-Wunsch 가속 (유전체)</li>
+          <li>compare-and-add 결합 감축 1 cycle</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §2.6 "DPX"</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 9 -</div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Hopper 신기능 5 ============================ -->
+<section class="page" data-screen-label="10 Hopper 신기능">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Hopper 신기능 5: TMA · WGMMA · Cluster · DSM · TE (★ Must-have)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> TMA — Tensor Memory Accelerator ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>전용 HW copy engine</mark>. global↔smem 간 다차원 tile 을 <span class="kw">1 thread 발행</span>으로 이동. 좌표·stride·OOB 처리 자동.
+        </div>
+        <ul>
+          <li>descriptor: <code>cuTensorMapEncodeTiled</code> host 생성</li>
+          <li>PTX: <code>cp.async.bulk.tensor</code></li>
+          <li>mode: tile / im2col</li>
+          <li>OOB 정책: zero / clamp / NaN</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §2.4 · PTX 8.x §9.7.8 · 상세 <span class="xref">↗ V04 §4·§5</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 왜 TMA 가 필요한가</h3>
+        <table class="vs">
+          <thead><tr><th>issue</th><th>sm_80 cp.async</th><th>sm_90 TMA</th></tr></thead>
+          <tbody>
+            <tr><td>발행</td><td>32 thread 협력</td><td><mark>1 thread</mark></td></tr>
+            <tr><td>주소 계산</td><td>SW</td><td>HW (descriptor)</td></tr>
+            <tr><td>OOB</td><td>branch</td><td>HW fill</td></tr>
+            <tr><td>multi-D</td><td>manual</td><td>native</td></tr>
+            <tr><td>multicast</td><td>—</td><td>cluster-wide</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> WGMMA — Warpgroup MMA ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>warpgroup = 4 warp = 128 thread</mark> 단위의 async Tensor Core 명령. 발행 즉시 다음 instruction, 완료는 fence/wait.
+        </div>
+        <ul>
+          <li>shape: m64nNk16 (FP16/BF16), m64nNk32 (FP8), N ∈ {8,16,…,256}</li>
+          <li>A: register or smem / <b>B: smem 필수</b> / D: register</li>
+          <li>operand: 64-bit matrix descriptor (smem base+stride+swizzle)</li>
+          <li>throughput: H100 1 WGMMA/cyc/SM (FP16 m64n256k16)</li>
+        </ul>
+        <p class="tiny">출처 PTX ISA 8.x §9.7.13.2 "wgmma" · CUTLASS 3.x Hopper kernel</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Cluster — Thread Block Cluster ★</h3>
+        <div class="def"><span class="label">정의</span>
+          새 스코프: grid &gt; <mark>cluster</mark> &gt; block &gt; warp &gt; thread. 같은 GPC 내 SM 들의 block 이 하나의 unit 으로 동기화·통신.
+        </div>
+        <ul>
+          <li>portable 최대 8 block/cluster (opt-in 16)</li>
+          <li><code>__cluster_dims__(x,y,z)</code> 또는 launch attribute</li>
+          <li><code>cluster.sync</code> / <code>cluster.arrive</code></li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §3.3 · CUDA C PG §7.27</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> DSM — Distributed Shared Memory ★</h3>
+        <div class="def"><span class="label">정의</span>
+          cluster 내 block 간 <mark>remote smem access</mark>. cluster 전체 smem 이 단일 가상 주소공간. SM-to-SM network 경유.
+        </div>
+        <ul>
+          <li>PTX: <code>st.shared::cluster</code>, <code>ld.shared::cluster</code></li>
+          <li>atomic: <code>atom.shared::cluster</code></li>
+          <li>8 block cluster: 228×8 = <b>~1.78 MB</b> 공유 가능</li>
+        </ul>
+        <p class="tiny">출처 PTX ISA 8.x §9.7.12 · GH100 WP §3.3</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> TE — Transformer Engine ★</h3>
+        <div class="def"><span class="label">정의</span>
+          FP8 동적 scaling SW+HW stack. layer별 scale history 를 유지하고 E4M3/E5M2 중 적절 dtype 을 자동 선택.
+        </div>
+        <ul>
+          <li>E4M3: weight/activation (dynamic range ↓, 정밀 ↑)</li>
+          <li>E5M2: gradient (range ↑, 정밀 ↓)</li>
+          <li>amax history 로 scale 업데이트</li>
+          <li>PyTorch/JAX 통합 라이브러리 제공</li>
+        </ul>
+        <p class="tiny">출처 GH100 WP §2.3 "Transformer Engine" · NVIDIA TE github docs</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 5 기능 상호관계</h3>
+<pre class="ascii">TMA  ─────┐         ┌─── smem ─── WGMMA
+          ├─(mbar)──┤
+producer  │         │   consumer
+warps     ↓         ↓   (warp-specialized)
+Cluster + DSM: 여러 CTA 간 smem 공유
+TE: FP8 layer 주변 wrapper</pre>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 10 -</div>
+</section>
+
+<!-- ============================ PAGE 11: §10 Blackwell GB100 ============================ -->
+<section class="page" data-screen-label="11 Blackwell">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — Blackwell (GB100/GB202) 정량 요약</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Die 구성 ★</h3>
+        <table class="compact">
+          <thead><tr><th>spec</th><th class="num">B200 (GB100 dual-die)</th></tr></thead>
+          <tbody>
+            <tr><td>프로세스</td><td class="num">TSMC 4NP</td></tr>
+            <tr><td>die 크기</td><td class="num">2 × 800 mm² (reticle limit)</td></tr>
+            <tr><td>트랜지스터</td><td class="num">208 B (total)</td></tr>
+            <tr><td>die 간 link</td><td class="num">NV-HBI 10 TB/s</td></tr>
+            <tr><td>SM (enabled)</td><td class="num">2 × 80 = 160</td></tr>
+            <tr><td>FP32 core / SM</td><td class="num">128</td></tr>
+            <tr><td>TC / SM</td><td class="num">4 (5th gen)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA GB200 NVL72 WP · GTC'24 Keynote spec slide</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 메모리</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>Reg/SM</td><td class="num">256 KB</td></tr>
+            <tr><td>L1+Smem/SM</td><td class="num">256 KB</td></tr>
+            <tr><td>L2/die</td><td class="num">~60 MB</td></tr>
+            <tr><td>HBM3e</td><td class="num">192 GB (8 stack)</td></tr>
+            <tr><td>HBM BW</td><td class="num">8.0 TB/s</td></tr>
+            <tr><td>NVLink 5.0</td><td class="num">1800 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GB200 WP §2 · B200 공식 데이터시트 (2024)</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 신기능 ★
+          <span class="mnemonic">FP4·NV-HBI·TE2</span>
+        </h3>
+        <ul>
+          <li><mark>5th-gen TC</mark>: FP4 E2M1 · FP6 E3M2/E2M3</li>
+          <li><mark>Micro-scale block FP</mark>: per-block scale factor HW 지원</li>
+          <li><mark>2nd-gen Transformer Engine</mark>: FP4/FP6 자동 선택</li>
+          <li>NV-HBI 10 TB/s dual-die fusion</li>
+          <li>NVLink 5 1800 GB/s / GPU</li>
+          <li>5th-gen RAS: Dedicated RAS engine</li>
+        </ul>
+        <p class="tiny">출처 GB200 NVL72 WP §2.2 · GTC'24</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 연산 peak (B200 공식)</h3>
+        <table class="compact">
+          <thead><tr><th>dtype</th><th class="num">dense PF</th><th class="num">2:4 PF</th></tr></thead>
+          <tbody>
+            <tr><td>FP64 TC</td><td class="num">0.04</td><td class="num">—</td></tr>
+            <tr><td>TF32</td><td class="num">1.1</td><td class="num">2.2</td></tr>
+            <tr><td>FP16/BF16</td><td class="num">2.25</td><td class="num">4.5</td></tr>
+            <tr><td>FP8</td><td class="num">4.5</td><td class="num">9</td></tr>
+            <tr><td>FP6</td><td class="num">4.5</td><td class="num">9</td></tr>
+            <tr><td>FP4</td><td class="num">9</td><td class="num">18</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">단위 PF/s (PetaFLOP/s) · 출처 NVIDIA B200 공식 spec sheet · dense = non-sparsity</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 3세대 비교 종합표 ★★
+          <span class="mnemonic">SM·HBM·NVL·TC</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>metric</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>process</td><td>N7</td><td>4N</td><td>4NP</td></tr>
+            <tr><td>transistor</td><td class="num">54 B</td><td class="num">80 B</td><td class="num">208 B</td></tr>
+            <tr><td>SM</td><td class="num">108</td><td class="num">132</td><td class="num">160</td></tr>
+            <tr><td>FP32 core</td><td class="num">6912</td><td class="num">16896</td><td class="num">20480</td></tr>
+            <tr><td>TC gen</td><td class="num">3rd</td><td class="num">4th</td><td class="num">5th</td></tr>
+            <tr><td>Reg/SM</td><td class="num">256K</td><td class="num">256K</td><td class="num">256K</td></tr>
+            <tr><td>Smem/SM</td><td class="num">164K</td><td class="num">228K</td><td class="num">228K</td></tr>
+            <tr><td>L2</td><td class="num">40 MB</td><td class="num">50 MB</td><td class="num">~120 MB</td></tr>
+            <tr><td>HBM</td><td class="num">80 HBM2e</td><td class="num">80 HBM3</td><td class="num">192 HBM3e</td></tr>
+            <tr><td>BW</td><td class="num">2.04 TB/s</td><td class="num">3.35 TB/s</td><td class="num">8.0 TB/s</td></tr>
+            <tr><td>NVLink</td><td class="num">600 GB/s</td><td class="num">900 GB/s</td><td class="num">1800 GB/s</td></tr>
+            <tr><td>TDP (SXM)</td><td class="num">400 W</td><td class="num">700 W</td><td class="num">1000 W</td></tr>
+            <tr><td>FP16 TC</td><td class="num">312 TF</td><td class="num">989 TF</td><td class="num">2250 TF</td></tr>
+            <tr><td>FP8 TC</td><td>—</td><td class="num">1979 TF</td><td class="num">4500 TF</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 A100/H100/GB200 공식 WP · SXM form · boost clock · dense</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 11 -</div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Warp Scheduler ============================ -->
+<section class="page" data-screen-label="12 Warp Sched">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Warp Scheduler 상세 · Stall Reasons</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 스케줄러 기본 동작
+          <span class="mnemonic">select → issue</span>
+        </h3>
+        <div class="def"><span class="label">역할</span>
+          partition 내 resident warp 중 <mark>eligible</mark> 하나를 골라 1 cycle 에 1 instruction dispatch. eligible = dependency 해결 + function unit free + resource OK.
+        </div>
+        <ul>
+          <li>GV100 이후 warp pool: partition 당 최대 16</li>
+          <li>선택 정책: NVIDIA 비공개 (근사 GTO / LRR heuristic)</li>
+          <li>queue empty ≠ 항상 bad: bubble 이 다른 warp 으로 메꿔짐</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> eligible 조건</h3>
+        <ol class="bullet-num">
+          <li>PC 의 instruction fetched</li>
+          <li>source operand 준비 (scoreboard clear)</li>
+          <li>destination reg slot free</li>
+          <li>functional unit 사용 가능</li>
+          <li>barrier/mbar 없음</li>
+        </ol>
+        <div class="warn-box"><span class="label"></span>
+          하나라도 실패 → warp stall, 다른 warp 이 이슈
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Stall Reason 분류 ★
+          <span class="mnemonic">L·S·W·D·MIO·T·B</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>reason</th><th>원인</th></tr></thead>
+          <tbody>
+            <tr><td><mark>Long Scoreboard</mark></td><td>global / local / surface load 대기</td></tr>
+            <tr><td><mark>Short Scoreboard</mark></td><td>smem / TC pipeline 대기</td></tr>
+            <tr><td>Wait</td><td>fixed-latency inst 완료 대기</td></tr>
+            <tr><td>Drain</td><td>exit 경로 동기화</td></tr>
+            <tr><td>MIO Throttle</td><td>LSU/atomic/mem queue 포화</td></tr>
+            <tr><td>Tex Throttle</td><td>Tex unit 대기</td></tr>
+            <tr><td>Barrier</td><td><code>__syncthreads</code>·mbarrier 대기</td></tr>
+            <tr><td>Dispatch Stall</td><td>issue slot 경쟁</td></tr>
+            <tr><td>No Instruction</td><td>I-cache miss</td></tr>
+            <tr><td>Not Selected</td><td>eligible 이나 선택 안 됨</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 Nsight Compute "Warp State Statistics" 섹션 · 상세 실측 해석 <span class="xref">↗ V18 §6</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 대표 원인 → 대처 매핑</h3>
+        <ul>
+          <li>Long Scoreboard ↑ → coalesce · tiling · cp.async/TMA</li>
+          <li>Short Scoreboard ↑ → smem bank · TC fragment 재사용</li>
+          <li>Barrier ↑ → block size ↓ / pipeline 깊게</li>
+          <li>Not Selected ↑ → 이미 occupancy 充分 (딴 bottleneck 탐색)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Latency Hiding 공식</h3>
+        <div class="formula">
+          warps_needed = ⌈L × R / N⌉<br/>
+          <span class="legend">L : latency (cyc), R : instruction throughput/SM/cyc, N : instruction 당 warp 수 (=1 for standard)</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          HBM load L=400 cyc, SM LSU issue R=4/cyc → 필요 warp ≈ 1600 / 32 (thread) 단위? 근사: 12 warp 만으로도 충분 (32 B/load, ILP 2).
+        </div>
+        <p class="tiny">출처 Little's law 적용. NVIDIA GTC'16 "GPU Performance Analysis" 참고.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Issue Slot 수식</h3>
+        <div class="formula">
+          peak_IPC/SM = partitions × 1 = 4<br/>
+          utilization = issued / (4 × active_cycle)
+        </div>
+        <ul>
+          <li>Nsight Compute: <code>sm__inst_issued</code> section</li>
+          <li>FMA FP32 peak: partitions × (FP32_core / 16 lane / cyc) = 동일 식</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Hopper 개선</h3>
+        <ul>
+          <li>async instruction (WGMMA/TMA): issue 후 바로 다음</li>
+          <li>scoreboard 수 증가로 ILP 확장</li>
+          <li>warp specialization 으로 stall domain 분리</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 12 -</div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Instruction Pipeline ============================ -->
+<section class="page" data-screen-label="13 Inst Pipeline">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Instruction Pipeline · Hazard</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 5 단계 abstract pipeline
+          <span class="mnemonic">F·D·OC·EX·WB</span>
+        </h3>
+        <pre class="ascii">[F]  fetch         I-cache → IB
+[D]  decode        opcode + operand spec
+[OC] operand coll. RF bank read staging
+[EX] execute       ALU / LSU / TC / SFU
+[WB] write-back    RF write</pre>
+        <ul>
+          <li>각 단계는 여러 cycle 일 수 있음 (HW 세부 비공개)</li>
+          <li>pipeline 깊이는 public parameter 아님. 여기는 논리 모델.</li>
+        </ul>
+        <p class="tiny">출처 Greg Smith "Fermi SM" GTC'10 · Volta/Turing 백서 종합.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 실행 파이프 분류</h3>
+        <table class="compact">
+          <thead><tr><th>pipe</th><th>예 instruction</th><th>latency (cyc, A100)</th></tr></thead>
+          <tbody>
+            <tr><td>FP32 FMA</td><td>FFMA</td><td class="num">4</td></tr>
+            <tr><td>INT IMAD</td><td>IMAD</td><td class="num">4</td></tr>
+            <tr><td>SFU</td><td>RCP·RSQ·EX2</td><td class="num">16~32</td></tr>
+            <tr><td>TC MMA</td><td>HMMA</td><td class="num">16~32</td></tr>
+            <tr><td>LSU smem</td><td>LDS</td><td class="num">~20</td></tr>
+            <tr><td>LSU L2</td><td>LDG.L2</td><td class="num">~200</td></tr>
+            <tr><td>LSU HBM</td><td>LDG</td><td class="num">~400</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">latency 는 NVIDIA micro-benchmark (Jia et al. 2019 / 2021) 통계 권장값 · 세대별 변동 <span class="xref">↗ V02 §14</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Hazard 종류</h3>
+        <ul>
+          <li><mark>RAW</mark> (read-after-write): 이전 write 결과를 read. scoreboard 로 stall.</li>
+          <li><mark>WAW</mark>: same reg 에 연속 write. HW in-order 로 해소.</li>
+          <li><mark>WAR</mark>: write 이전에 old read. in-order 로 해소.</li>
+          <li><mark>Structural</mark>: 같은 unit 동시 요청. dispatch 막힘.</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Scoreboard <span class="ko">HW 의존성 추적</span></h3>
+        <div class="def"><span class="label">scoreboard</span>
+          warp 당 pending instruction 의 read/write reg 를 bit mask 로 관리. dependency 해결 시 eligible bit set.
+        </div>
+        <ul>
+          <li>short (fixed-latency) vs long (variable-latency) 스코어보드 분리</li>
+          <li>SASS control code 에 scoreboard alloc/wait 인코딩</li>
+        </ul>
+        <p class="tiny">SASS 관련 <span class="xref">↗ V04 §14·§15</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Bypass / Forwarding</h3>
+        <ul>
+          <li>EX → EX direct forwarding: register write 전에 다음 instruction 에 값 전달</li>
+          <li>FMA chain: back-to-back FFMA 사이 bypass 로 dependent-step latency ↓</li>
+          <li>HW 구현 세부는 비공개. 공식 모델은 <span class="kw">4-cycle FMA</span> 을 기본 가정.</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> In-order Issue · Dual Issue</h3>
+        <div class="def"><span class="label">in-order</span>
+          같은 warp 내 instruction 은 program order 로 이슈. but 다른 warp 과 interleave 는 가능.
+        </div>
+        <ul>
+          <li>dual-issue: partition 내 다른 pipe 에 동시 dispatch 조건 만족 시</li>
+          <li>compiler (ptxas) 가 pair 가 될 수 있게 스케줄</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Async pipeline (Hopper)</h3>
+        <ul>
+          <li>WGMMA / TMA / <code>cp.async</code> 는 issue 후 즉시 retire queue 로</li>
+          <li>완료는 <code>mbarrier</code> 또는 <code>wgmma.wait_group</code></li>
+          <li>pipeline 상에서 별도 async proxy 경유 → generic proxy 와 fence 필요</li>
+        </ul>
+        <p class="tiny">Async proxy 상세 <span class="xref">↗ V04 §10</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 13 -</div>
+</section>
+
+<!-- ============================ PAGE 14: §13 Memory Consistency ============================ -->
+<section class="page" data-screen-label="14 Memory Consistency">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — CUDA Memory Consistency Model</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 기본 모델
+          <span class="mnemonic">relaxed + scope</span>
+        </h3>
+        <div class="def"><span class="label">모델</span>
+          CUDA 는 <mark>weakly-ordered (relaxed)</mark>. 하드웨어는 program order 재배열 허용. ordering 은 명시적 <span class="kw">fence</span>/<span class="kw">acquire·release</span> 로 제어.
+        </div>
+        <ul>
+          <li>sm_70+ 부터 scoped atomic / fence 명시</li>
+          <li>CUDA Memory Model은 PTX ISA 에 공식화됨 (§8)</li>
+        </ul>
+        <p class="tiny">출처 PTX ISA 8.x §8 "Memory Consistency Model" (2021~)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Scope 계층 ★
+          <span class="mnemonic">cta·cluster·gpu·sys</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>scope</th><th>범위</th></tr></thead>
+          <tbody>
+            <tr><td><code>.cta</code></td><td>block 내 thread</td></tr>
+            <tr><td><code>.cluster</code></td><td>Hopper cluster 내 block</td></tr>
+            <tr><td><code>.gpu</code></td><td>전체 device</td></tr>
+            <tr><td><code>.sys</code></td><td>host + 여러 device (UM)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">scope 은 작은 → 큰. <code>.sys</code> 는 가장 비싸며 UM/peer 동기화에서 필요.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Ordering qualifier</h3>
+        <table class="compact">
+          <thead><tr><th>qualifier</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>.relaxed</code></td><td>atomicity 만, ordering 없음</td></tr>
+            <tr><td><code>.acquire</code></td><td>후속 memory op 재배열 금지 (read 쪽)</td></tr>
+            <tr><td><code>.release</code></td><td>선행 memory op 재배열 금지 (write 쪽)</td></tr>
+            <tr><td><code>.acq_rel</code></td><td>둘 다</td></tr>
+            <tr><td><code>.sc</code></td><td>sequential consistency (acq_rel + total order)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">PTX ISA 8.x §8.4 "Memory Operation Ordering"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Acquire·Release 패턴</h3>
+<pre class="code"><span class="cmt">// producer</span>
+st.global         data, %v;
+st.release.gpu    flag, <span class="num2">1</span>;
+
+<span class="cmt">// consumer</span>
+ld.acquire.gpu    %f, flag;
+<span class="kw2">@p</span> bra spin_if_zero;
+ld.global         %r, data; <span class="cmt">// see v</span></pre>
+        <div class="warn-box"><span class="label"></span>
+          scope 안 맞추면 다른 SM 의 consumer 가 stale data 보게 될 수 있음. 같은 GPU 면 <code>.gpu</code>, peer/host 통신이면 <code>.sys</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Fence 명령</h3>
+        <table class="compact">
+          <thead><tr><th>명령</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>fence.acq_rel.cta</code></td><td>block 내 ordering</td></tr>
+            <tr><td><code>fence.acq_rel.gpu</code></td><td>device 전체</td></tr>
+            <tr><td><code>fence.sc.gpu</code></td><td>SC + device</td></tr>
+            <tr><td><code>fence.proxy.async</code></td><td>generic ↔ async proxy</td></tr>
+            <tr><td><code>membar.gl</code></td><td>legacy global fence</td></tr>
+            <tr><td><code>__threadfence_block</code>/<code>system</code></td><td>C runtime wrapper</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Proxy 구분 (Hopper)</h3>
+        <div class="def"><span class="label">proxy</span>
+          <mark>generic proxy</mark> = 일반 load/store. <mark>async proxy</mark> = TMA/WGMMA 등 HW 비동기 unit. 같은 주소를 두 proxy 로 건드리면 <code>fence.proxy.async</code> 로 순서 확보 필요.
+        </div>
+        <ul>
+          <li>TMA load 후 일반 ld 로 읽기 전에 fence</li>
+          <li>WGMMA 결과를 store 하기 전에 fence</li>
+        </ul>
+        <p class="tiny">PTX ISA 8.x §9.7.13.3 "async proxy fence"</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Atomic 종류</h3>
+        <ul>
+          <li><code>atom.global.add.s32</code> · ·<code>.min</code>·<code>.max</code>·<code>.and</code>·<code>.or</code>·<code>.xor</code>·<code>.exch</code>·<code>.cas</code></li>
+          <li>scope: <code>.cta</code>/<code>.gpu</code>/<code>.sys</code></li>
+          <li>float atomic: <code>atom.add.f32</code> · sm_60+ <code>f64</code></li>
+        </ul>
+        <p class="tiny">상세 PTX atomic <span class="xref">↗ V03 §11</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 14 -</div>
+</section>
+
+<!-- ============================ PAGE 15: §14 Latency table ============================ -->
+<section class="page" data-screen-label="15 Latency 세대">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — Latency 세대 비교표</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 연산 latency (cyc)
+          <span class="mnemonic">4·20·200·400</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>V100</th><th>A100</th><th>H100</th></tr></thead>
+          <tbody>
+            <tr><td>FFMA (FP32)</td><td class="num">4</td><td class="num">4</td><td class="num">4</td></tr>
+            <tr><td>IMAD</td><td class="num">4</td><td class="num">4</td><td class="num">4</td></tr>
+            <tr><td>FP64 FMA</td><td class="num">8</td><td class="num">8</td><td class="num">8</td></tr>
+            <tr><td>SFU RCP</td><td class="num">~18</td><td class="num">~16</td><td class="num">~16</td></tr>
+            <tr><td>HMMA (FP16)</td><td class="num">~22</td><td class="num">~16</td><td class="num">~16</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 Jia et al. "Dissecting GPU Architectures" (2019, 2021) · 권장값. HW 세부는 NVIDIA 미공개.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 메모리 access latency (cyc)</h3>
+        <table class="compact">
+          <thead><tr><th>access</th><th>V100</th><th>A100</th><th>H100</th></tr></thead>
+          <tbody>
+            <tr><td>LDS (smem)</td><td class="num">~23</td><td class="num">~22</td><td class="num">~23</td></tr>
+            <tr><td>LDG L1 hit</td><td class="num">~28</td><td class="num">~30</td><td class="num">~33</td></tr>
+            <tr><td>LDG L2 hit</td><td class="num">~193</td><td class="num">~200</td><td class="num">~260</td></tr>
+            <tr><td>LDG L2 miss (HBM)</td><td class="num">~400</td><td class="num">~450</td><td class="num">~490</td></tr>
+            <tr><td>Atomic L2</td><td class="num">~270</td><td class="num">~260</td><td class="num">~300</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 Jia 2019/2021 · NVIDIA GTC'22 micro-benchmark 슬라이드. clock cycle 단위.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> HBM latency 의 의미</h3>
+        <div class="formula">
+          time_HBM = cyc_HBM / f_clock<br/>
+          A100: 450 / 1.41 GHz ≈ 320 ns<br/>
+          H100: 490 / 1.98 GHz ≈ 247 ns
+          <span class="legend">clock 이 빨라져도 절대 시간은 유사</span>
+        </div>
+        <ul>
+          <li>HBM 물리 access ~100 ns + NoC + L2 + MC overhead</li>
+          <li>cycle 수 ≠ 절대 시간 (clock 세대마다 다름)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Warp 단위 hiding 예</h3>
+        <div class="ex"><span class="label"></span>
+          A100 HBM ~450 cyc, LSU issue 1/cyc/partition → 필요 warp ≈ 450 / 4 partitions × 1 = <b>~112 warp</b>. ILP 2·벡터 load → ~12 warp 로 축소.
+        </div>
+        <p class="tiny">Little's law · 공식 논문 Volkov 2010</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> TC async 명령 (Hopper)</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>H100 cyc</th></tr></thead>
+          <tbody>
+            <tr><td><code>wgmma.mma_async m64n256k16</code></td><td class="num">~32 (issue+retire)</td></tr>
+            <tr><td><code>cp.async.bulk.tensor</code> 128B</td><td class="num">~100+</td></tr>
+            <tr><td><code>mbarrier.try_wait</code></td><td class="num">~1 (polling)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 CUTLASS 3.x Hopper kernel timing · NVIDIA GTC'22</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Rule of Thumb</h3>
+        <ul>
+          <li>smem ≈ <span class="kw">20 cyc</span></li>
+          <li>L2 ≈ <span class="kw">200~260 cyc</span></li>
+          <li>HBM ≈ <span class="kw">400~500 cyc</span></li>
+          <li>FFMA ≈ <span class="kw">4 cyc</span></li>
+          <li>HMMA ≈ <span class="kw">16 cyc</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 주의</h3>
+        <div class="warn-box"><span class="label"></span>
+          위 모든 수치는 <span class="red">공표된 HW 스펙이 아닌</span> micro-benchmark 추정치. 실측 해석은 <span class="xref">↗ V18 §6</span>. 커널 튜닝에서 cycle 단위 1:1 결정은 금물.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 15 -</div>
+</section>
+
+<!-- ============================ PAGE 16: §15 Bandwidth ============================ -->
+<section class="page" data-screen-label="16 Bandwidth">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — Bandwidth 실효값 vs 이론값</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 계층별 이론 BW ★</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>Reg/SM</td><td class="num">~14 TB/s</td><td class="num">~31 TB/s</td><td class="num">~36 TB/s</td></tr>
+            <tr><td>Smem/SM</td><td class="num">~19 TB/s</td><td class="num">~33 TB/s</td><td class="num">~33 TB/s</td></tr>
+            <tr><td>L2 total</td><td class="num">~4 TB/s</td><td class="num">~5.5 TB/s</td><td class="num">~13 TB/s</td></tr>
+            <tr><td>HBM</td><td class="num">2.04 TB/s</td><td class="num">3.35 TB/s</td><td class="num">8.0 TB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 A100/H100/GB200 WP + GTC'22, GTC'24 공식 슬라이드. SM 내부 BW 는 per-SM × SM 수 합산.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Peak vs Sustained</h3>
+        <div class="def"><span class="label">sustained</span>
+          <mark>실효 BW</mark> = 연속 커널로 측정한 평균. peak 대비 70~90% 수준이 일반적. ECC·row-open·coalescing·L2 hit 에 영향.
+        </div>
+        <ul>
+          <li>완전 coalesced, 대용량 stream 에서 HBM peak 의 80~90% 달성</li>
+          <li>random access, stride ≠ 1 면 절반 이하로 추락</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Intra-SM 대역 계산</h3>
+        <div class="formula">
+          Smem_BW/SM = 32 bank × 4 B × clock<br/>
+          A100: 32·4·1.41e9 ≈ 180 GB/s/SM<br/>
+          total: 180·108 ≈ 19 TB/s
+          <span class="legend">partition별 32-lane shmem access 가정</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Roofline 입력
+          <span class="mnemonic">FLOP/Byte</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>GPU</th><th>peak FP16 TC</th><th>HBM</th><th>ridge (FLOP/B)</th></tr></thead>
+          <tbody>
+            <tr><td>A100</td><td class="num">312 TF</td><td class="num">2.04 TB/s</td><td class="num">153</td></tr>
+            <tr><td>H100</td><td class="num">989 TF</td><td class="num">3.35 TB/s</td><td class="num">295</td></tr>
+            <tr><td>H100 FP8</td><td class="num">1979 TF</td><td class="num">3.35 TB/s</td><td class="num">591</td></tr>
+            <tr><td>B200 FP8</td><td class="num">4500 TF</td><td class="num">8.0 TB/s</td><td class="num">562</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">ridge = 모든 workload 가 compute-bound 이기 위한 최소 AI · <span class="xref">↗ V18 §2</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> PCIe Gen4 vs Gen5</h3>
+        <table class="compact">
+          <thead><tr><th>gen</th><th>x16 per-dir</th><th>GPU</th></tr></thead>
+          <tbody>
+            <tr><td>Gen4</td><td class="num">32 GB/s</td><td>A100 PCIe</td></tr>
+            <tr><td>Gen5</td><td class="num">64 GB/s</td><td>H100/B200 PCIe</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">64 GB/s per direction = 128 GB/s bidirectional aggregate (표기 관행 차이)</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> NVLink 세대 요약</h3>
+        <table class="compact">
+          <thead><tr><th>gen</th><th>link 수</th><th>총 BW</th></tr></thead>
+          <tbody>
+            <tr><td>NVLink 3 (A100)</td><td class="num">12</td><td class="num">600 GB/s</td></tr>
+            <tr><td>NVLink 4 (H100)</td><td class="num">18</td><td class="num">900 GB/s</td></tr>
+            <tr><td>NVLink 5 (B200)</td><td class="num">18</td><td class="num">1800 GB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">NVSwitch 와 NVL 위상 <span class="xref">↗ V15 §3</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 실효 ↓ 주 원인</h3>
+        <ul>
+          <li>stride access → sector 낭비</li>
+          <li>partial warp load → merge 없음</li>
+          <li>row thrashing → HBM row-open/close</li>
+          <li>ECC off 가 가능하더라도 권장 X</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 16 -</div>
+</section>
+
+<!-- ============================ PAGE 17: §16 Power & Thermal ============================ -->
+<section class="page" data-screen-label="17 Power·Thermal">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — Power · Thermal · DVFS</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> TDP 세대</h3>
+        <table class="compact">
+          <thead><tr><th>GPU</th><th>form</th><th>TDP</th></tr></thead>
+          <tbody>
+            <tr><td>V100 SXM2</td><td>SXM2</td><td class="num">300 W</td></tr>
+            <tr><td>A100 SXM4</td><td>SXM4</td><td class="num">400 W</td></tr>
+            <tr><td>A100 PCIe</td><td>PCIe</td><td class="num">250~300 W</td></tr>
+            <tr><td>H100 SXM5</td><td>SXM5</td><td class="num">700 W</td></tr>
+            <tr><td>H100 PCIe</td><td>PCIe</td><td class="num">350 W</td></tr>
+            <tr><td>H200 SXM</td><td>SXM5</td><td class="num">700 W</td></tr>
+            <tr><td>B200 SXM</td><td>SXM6</td><td class="num">1000 W</td></tr>
+            <tr><td>GB200 Superchip</td><td>liquid</td><td class="num">2700 W (GPU+CPU)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 각 세대 datasheet · GB200 NVL72 WP §3.1</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> DVFS <span class="ko">동적 주파수·전압</span></h3>
+        <div class="def"><span class="label">DVFS</span>
+          power 상한·온도·load 에 따라 <mark>clock/voltage 자동 조절</mark>. Nsight 에 SM clock 지표로 노출.
+        </div>
+        <ul>
+          <li>boost clock 은 ideal case 상한</li>
+          <li>지속 100% load 에서 base clock 근처로 수렴</li>
+          <li><code>nvidia-smi -lgc</code> 로 clock 고정 가능 (DC)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Thermal Throttling</h3>
+        <table class="compact">
+          <thead><tr><th>상태</th><th>trigger</th><th>반응</th></tr></thead>
+          <tbody>
+            <tr><td>T&lt;T_slowdown</td><td>—</td><td>boost 유지</td></tr>
+            <tr><td>T≥T_slowdown</td><td>HW sensor</td><td>clock 단계적 ↓</td></tr>
+            <tr><td>T≥T_shutdown</td><td>critical</td><td>drop 또는 halt</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li>T_slowdown (A100/H100 ≈ 88~90°C)</li>
+          <li>liquid-cooled GB200 은 50~55°C 수준 유지 목표</li>
+        </ul>
+        <p class="tiny">출처 NVIDIA DCGM user guide · datasheet thermal spec</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Power Instrument</h3>
+        <ul>
+          <li><code>nvidia-smi --query-gpu=power.draw,power.limit</code></li>
+          <li>NVML API: <code>nvmlDeviceGetPowerUsage</code></li>
+          <li>sampling rate 수 Hz (ms 단위 이벤트 불가)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Power efficiency 지표</h3>
+        <div class="formula">
+          GFLOP/W = FLOPs_produced / Joule<br/>
+          H100 FP16 peak: 989 TF / 700 W ≈ <b>1.41 TFLOP/W</b><br/>
+          B200 FP4 peak: 9000 TF / 1000 W ≈ <b>9 TFLOP/W</b>
+          <span class="legend">dense · vendor 공시</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Clock Gating</h3>
+        <ul>
+          <li>idle pipe 의 clock 자동 중단 → 누수전력 ↓</li>
+          <li>특정 warp 가 SFU 만 쓰면 FP64 pipe 비활성</li>
+          <li>SW 수준에서 조작 불가, HW 자동</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 프로파일링 상 의미</h3>
+        <ul>
+          <li>power 포화 = <span class="kw">DVFS throttling 가능성</span> → 커널별 clock 차이 발생</li>
+          <li>짧은 burst kernel 은 boost 유지, long-running 은 base 근처</li>
+          <li>커널 단독 profile 과 실제 cluster run 에서 clock 이 다를 수 있음</li>
+        </ul>
+        <p class="tiny">실측 해석/Nsight <span class="xref">↗ V18 §7</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 17 -</div>
+</section>
+
+<!-- ============================ PAGE 18: §17 RTX vs DC ============================ -->
+<section class="page" data-screen-label="18 RTX·DC">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — RTX / 데이터센터 분화</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GA100 vs GA102 ★</h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>GA100 (A100)</th><th>GA102 (RTX 3090)</th></tr></thead>
+          <tbody>
+            <tr><td>대상</td><td>DC / HPC / AI</td><td>Gaming / Workstation</td></tr>
+            <tr><td>프로세스</td><td>N7</td><td>Samsung 8N</td></tr>
+            <tr><td>SM</td><td class="num">108</td><td class="num">82</td></tr>
+            <tr><td>FP32/SM</td><td class="num">64</td><td class="num">128</td></tr>
+            <tr><td>FP64 ratio</td><td class="num">1:2</td><td class="num">1:64</td></tr>
+            <tr><td>Smem/SM max</td><td class="num">164 KB</td><td class="num">100 KB</td></tr>
+            <tr><td>L2</td><td class="num">40 MB</td><td class="num">6 MB</td></tr>
+            <tr><td>NVLink</td><td class="num">600 GB/s</td><td class="num">없음 (3090 개인은 제한)</td></tr>
+            <tr><td>RT Core</td><td>—</td><td class="num">2nd gen</td></tr>
+            <tr><td>ECC HBM</td><td>✓</td><td>—</td></tr>
+            <tr><td>MIG</td><td>✓</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 GA100 WP · GA102 WP (2020)</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> H100 vs L40 (Ada DC)</h3>
+        <table class="vs">
+          <thead><tr><th>항목</th><th>H100 SXM</th><th>L40S</th></tr></thead>
+          <tbody>
+            <tr><td>arch</td><td>Hopper GH100</td><td>Ada AD102</td></tr>
+            <tr><td>SM</td><td class="num">132</td><td class="num">142</td></tr>
+            <tr><td>FP64 TC</td><td class="num">67 TF</td><td class="num">1.4 TF</td></tr>
+            <tr><td>FP16 TC</td><td class="num">989 TF</td><td class="num">362 TF</td></tr>
+            <tr><td>FP8 TC</td><td class="num">1979 TF</td><td class="num">733 TF</td></tr>
+            <tr><td>Memory</td><td>80 GB HBM3</td><td>48 GB GDDR6</td></tr>
+            <tr><td>BW</td><td>3.35 TB/s</td><td>864 GB/s</td></tr>
+            <tr><td>NVLink</td><td class="num">900 GB/s</td><td>—</td></tr>
+            <tr><td>RT Core</td><td>—</td><td class="num">3rd</td></tr>
+            <tr><td>TDP</td><td class="num">700 W</td><td class="num">350 W</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 H100/L40S 공식 datasheet</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 왜 DC 는 FP64·NVLink 특화 ★</h3>
+        <ul>
+          <li>HPC (CFD/기후/원자) 는 <span class="kw">FP64</span> 요구</li>
+          <li>대형 모델/분산 학습 은 <span class="kw">NVLink·NVSwitch</span> BW 가 병목</li>
+          <li>RTX 카드에서 FP64 는 시장 구분선</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 주요 lineage</h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>DC chip</th><th>RTX chip</th></tr></thead>
+          <tbody>
+            <tr><td>Pascal</td><td>GP100</td><td>GP102</td></tr>
+            <tr><td>Volta</td><td>GV100</td><td>— (Turing 분리)</td></tr>
+            <tr><td>Turing</td><td>T4 (TU104)</td><td>TU102</td></tr>
+            <tr><td>Ampere</td><td>GA100</td><td>GA102</td></tr>
+            <tr><td>Ada</td><td>AD102 (L40)</td><td>AD102 (RTX 40)</td></tr>
+            <tr><td>Hopper</td><td>GH100</td><td>— (DC only)</td></tr>
+            <tr><td>Blackwell</td><td>GB100/GB200</td><td>GB202 (RTX 50)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">arch 명은 same·chip(die)만 다름. PMPP 4e App.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> DC / RTX 공통</h3>
+        <ul>
+          <li>PTX ISA / CUDA API 거의 동일</li>
+          <li>compute capability 로 기능 분기</li>
+          <li>RTX 도 TC 탑재 (같은 세대)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 실무 주의</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">EULA 경고</span>: GeForce 드라이버는 DC 환경에서 라이선스 제한. 실제 배포 시 Tesla/H100 등 DC 카드 필수.
+        </div>
+        <ul>
+          <li>개발 PC 에서 RTX 로 prototype → DC 로 배포</li>
+          <li>sm_86 (Ampere RTX) vs sm_80 (A100) PTX 호환되나 최적 수치 다름</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 18 -</div>
+</section>
+
+<!-- ============================ PAGE 19: §18 MIG ============================ -->
+<section class="page" data-screen-label="19 MIG">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(19p)</span></div>
+    <div class="chap">§18 — MIG (Multi-Instance GPU)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> MIG 정의
+          <span class="mnemonic">slice = GPC + L2 + HBM</span>
+        </h3>
+        <div class="def"><span class="label">MIG</span>
+          <mark>하나의 물리 GPU 를 최대 7 개의 독립 인스턴스로 HW 분할</mark>. 각 인스턴스는 자체 SM/L2 slice/HBM 영역/엔진을 가지며 완전히 격리된다.
+        </div>
+        <ul>
+          <li>A100: 최대 7 slice · H100: 최대 7 slice</li>
+          <li>H100 PCIe / H200 / A100 에서 지원. RTX 불가.</li>
+        </ul>
+        <p class="tiny">출처 NVIDIA MIG User Guide (2023) · A100/H100 WP "MIG" 섹션</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> GPU Instance (GI) 프로파일 (A100 80GB)</h3>
+        <table class="compact">
+          <thead><tr><th>profile</th><th>SM</th><th>mem</th><th>slot</th></tr></thead>
+          <tbody>
+            <tr><td>MIG 1g.10gb</td><td class="num">14</td><td class="num">10 GB</td><td class="num">1</td></tr>
+            <tr><td>MIG 2g.20gb</td><td class="num">28</td><td class="num">20 GB</td><td class="num">2</td></tr>
+            <tr><td>MIG 3g.40gb</td><td class="num">42</td><td class="num">40 GB</td><td class="num">3</td></tr>
+            <tr><td>MIG 4g.40gb</td><td class="num">56</td><td class="num">40 GB</td><td class="num">4</td></tr>
+            <tr><td>MIG 7g.80gb</td><td class="num">98</td><td class="num">80 GB</td><td class="num">7</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA A100 MIG User Guide Table 2</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> H100 MIG 프로파일</h3>
+        <table class="compact">
+          <thead><tr><th>profile</th><th>SM</th><th>mem (80GB)</th></tr></thead>
+          <tbody>
+            <tr><td>1g.10gb</td><td class="num">16</td><td class="num">10 GB</td></tr>
+            <tr><td>1g.20gb</td><td class="num">16</td><td class="num">20 GB</td></tr>
+            <tr><td>2g.20gb</td><td class="num">32</td><td class="num">20 GB</td></tr>
+            <tr><td>3g.40gb</td><td class="num">60</td><td class="num">40 GB</td></tr>
+            <tr><td>4g.40gb</td><td class="num">60</td><td class="num">40 GB</td></tr>
+            <tr><td>7g.80gb</td><td class="num">132</td><td class="num">80 GB</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA H100 MIG User Guide · 2024</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Compute Instance (CI)</h3>
+        <div class="def"><span class="label">CI</span>
+          GI 안에서 <mark>compute 단위를 더 나눌 수</mark> 있는 sub-partition. GI 7g 안에 CI 1c+1c+… 분할.
+        </div>
+        <ul>
+          <li>GI = memory 격리 · CI = SM 그룹 분할</li>
+          <li>같은 GI 내 CI 는 L2/HBM 공유</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 격리 수준 ★</h3>
+        <ul>
+          <li>SM 자체 분리: 다른 MIG 가 stall 시켜도 영향 X</li>
+          <li>L2 slice 분리: cache pollution 차단</li>
+          <li>HBM 주소 분리: memory BW 분할</li>
+          <li>QoS: <mark>bandwidth 보장</mark></li>
+          <li>단, NVLink/NVDEC 등 일부 자원은 공유 가능</li>
+        </ul>
+        <p class="tiny">출처 A100 MIG User Guide §2.3</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 사용 시나리오</h3>
+        <table class="compact">
+          <thead><tr><th>시나리오</th><th>이점</th></tr></thead>
+          <tbody>
+            <tr><td>serving multi-tenant</td><td>QoS · 격리</td></tr>
+            <tr><td>small batch infer</td><td>GPU 활용률 ↑</td></tr>
+            <tr><td>Dev + Prod 분리</td><td>안전</td></tr>
+            <tr><td>CI/CD 테스트</td><td>병렬 queue</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 한계</h3>
+        <div class="warn-box"><span class="label"></span>
+          <span class="red">MIG 에서는 cluster/DSM 사용 제약</span> — cluster 는 같은 GPC 에 제한되므로 MIG slice 를 가로지르는 cluster 는 불가.
+        </div>
+        <ul>
+          <li>재구성은 kernel 실행 중 불가 (nvidia-smi MIG idle 상태에서만)</li>
+          <li>slice 내 peak FLOPS = 전체 × (SM fraction) 근사</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 19 -</div>
+</section>
+
+<!-- ============================ PAGE 20: §19 Cheat Sheet + 계보도 ============================ -->
+<section class="page" data-screen-label="20 Cheat+계보">
+  <div class="page-header">
+    <div class="brand">V02 GPU Arch <span class="mono">(20p)</span></div>
+    <div class="chap">§19 — Cheat Sheet &amp; GPU 계보도</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GPU arch 계보 ★
+          <span class="mnemonic">K·M·P·V·T·A·Ada·H·B</span>
+        </h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>연도</th><th>CC</th><th>대표칩</th></tr></thead>
+          <tbody>
+            <tr><td>Kepler</td><td class="num">2012</td><td class="num">3.x</td><td>K20·K80</td></tr>
+            <tr><td>Maxwell</td><td class="num">2014</td><td class="num">5.x</td><td>M40</td></tr>
+            <tr><td>Pascal</td><td class="num">2016</td><td class="num">6.x</td><td>P100 (GP100)</td></tr>
+            <tr><td>Volta</td><td class="num">2017</td><td class="num">7.0</td><td>V100 (GV100)</td></tr>
+            <tr><td>Turing</td><td class="num">2018</td><td class="num">7.5</td><td>T4 · RTX 20</td></tr>
+            <tr><td>Ampere</td><td class="num">2020</td><td class="num">8.0/8.6</td><td>A100 · RTX 30</td></tr>
+            <tr><td>Ada</td><td class="num">2022</td><td class="num">8.9</td><td>L40 · RTX 40</td></tr>
+            <tr><td>Hopper</td><td class="num">2022</td><td class="num">9.0</td><td>H100 · H200</td></tr>
+            <tr><td>Blackwell</td><td class="num">2024</td><td class="num">10.0</td><td>B200 · GB200 · RTX 50</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처 NVIDIA CUDA C PG App. H 세대 표 · 각 WP 출시 연도</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 세대별 "한 줄" 특징</h3>
+        <ul>
+          <li><b>Volta</b>: 1st Tensor Core, NVLink 2</li>
+          <li><b>Turing</b>: INT TC + RT Core</li>
+          <li><b>Ampere</b>: 3rd TC, TF32, MIG, cp.async</li>
+          <li><b>Ada</b>: RTX 전용 (DC=L40), shader execution reorder</li>
+          <li><b>Hopper</b>: TMA·WGMMA·Cluster·FP8·TE</li>
+          <li><b>Blackwell</b>: FP4/FP6·dual-die·NVLink 5</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Memory 한눈에</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>cap</th><th>lat</th><th>BW</th></tr></thead>
+          <tbody>
+            <tr><td>Reg</td><td class="num">256 KB/SM</td><td class="num">~1</td><td class="num">full</td></tr>
+            <tr><td>Smem</td><td class="num">164/228 KB</td><td class="num">~20</td><td class="num">~19/33 TB/s</td></tr>
+            <tr><td>L1</td><td class="num">shared w/ smem</td><td class="num">~30</td><td class="num">—</td></tr>
+            <tr><td>L2</td><td class="num">40/50 MB</td><td class="num">~200</td><td class="num">~4/5.5 TB/s</td></tr>
+            <tr><td>HBM</td><td class="num">80/192 GB</td><td class="num">~400</td><td class="num">2/3.35/8 TB/s</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">A100 / H100 / B200 순 · 단위 cycle 또는 TB/s</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Hopper 니모닉</h3>
+        <div class="mnem">
+          <span class="label"></span>
+          Hopper 5 기능: <span class="key">TWCDT</span>
+          (TMA · WGMMA · Cluster · DSM · Transformer Engine)
+        </div>
+        <div class="mnem">
+          <span class="label"></span>
+          Stall 7 대표: <span class="key">LSWDMBN</span>
+          (Long · Short · Wait · Drain · MIO · Barrier · NoInst)
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> compute capability 퀵 룩업</h3>
+        <table class="compact">
+          <thead><tr><th>arch</th><th>-arch string</th></tr></thead>
+          <tbody>
+            <tr><td>Ampere A100</td><td><code>sm_80</code></td></tr>
+            <tr><td>Ampere RTX 30</td><td><code>sm_86</code></td></tr>
+            <tr><td>Ada L40/RTX 40</td><td><code>sm_89</code></td></tr>
+            <tr><td>Hopper H100</td><td><code>sm_90</code> / <code>sm_90a</code></td></tr>
+            <tr><td>Blackwell B200</td><td><code>sm_100</code> / <code>sm_100a</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">TMA/WGMMA는 <span class="red">sm_90a</span> 필수 (아키별 특수). 상세 <span class="xref">↗ V04 §1</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 3세대 종합 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>row</th><th>A100</th><th>H100</th><th>B200</th></tr></thead>
+          <tbody>
+            <tr><td>SM</td><td class="num">108</td><td class="num">132</td><td class="num">160</td></tr>
+            <tr><td>TC gen</td><td class="num">3rd</td><td class="num">4th</td><td class="num">5th</td></tr>
+            <tr><td>HBM</td><td class="num">80 2e</td><td class="num">80 3</td><td class="num">192 3e</td></tr>
+            <tr><td>BW TB/s</td><td class="num">2.0</td><td class="num">3.35</td><td class="num">8.0</td></tr>
+            <tr><td>NVLink</td><td class="num">600</td><td class="num">900</td><td class="num">1800</td></tr>
+            <tr><td>FP16 TC</td><td class="num">312</td><td class="num">989</td><td class="num">2250</td></tr>
+            <tr><td>FP8 TC</td><td>—</td><td class="num">1979</td><td class="num">4500</td></tr>
+            <tr><td>FP4 TC</td><td>—</td><td>—</td><td class="num">9000</td></tr>
+            <tr><td>TDP W</td><td class="num">400</td><td class="num">700</td><td class="num">1000</td></tr>
+            <tr><td>Process</td><td>N7</td><td>4N</td><td>4NP</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 실수 방지 10선</h3>
+        <ol>
+          <li>sm_90 만으로는 TMA/WGMMA 불가 → <span class="red">sm_90a</span></li>
+          <li>reg 256 KB/SM 이지만 1 thread 상한 255</li>
+          <li>smem 동기화는 <code>__syncthreads</code>, TMA 는 <code>mbarrier</code></li>
+          <li>cluster ≤ 8 block portable / 16 opt-in</li>
+          <li>DSM 은 같은 cluster 내 에서만</li>
+          <li>L2 persistence window 는 stream 수명 따라감</li>
+          <li>MIG 는 NVLink 일부 공유 · cluster 제약</li>
+          <li>ECC on 기준 peak BW 가 공식값</li>
+          <li>FP16 accum FP16 ≠ FP32 (정확도 차이)</li>
+          <li>Cycle 추정은 micro-benchmark, 절대 시간 아님</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 학습 경로</h3>
+        <ul>
+          <li>다음: PTX ISA <span class="xref">↗ V03</span></li>
+          <li>Hopper 심화: <span class="xref">↗ V04</span></li>
+          <li>SM 수치 → 커널 설계: <span class="xref">↗ V01 §4·V06</span></li>
+          <li>측정·검증: <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 20 -</div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

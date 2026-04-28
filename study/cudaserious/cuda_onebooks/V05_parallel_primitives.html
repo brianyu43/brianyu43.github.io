@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V05 — 병렬 Primitive 고급 단권화 — 15p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL · T2 KERNEL · CONTENT-FIRST · A4 LANDSCAPE · 15p</div>
+    <h1>병렬 Primitive 고급 <span class="accent">단권화</span></h1>
+    <div class="subtitle">Warp Intrinsics · Cooperative Groups · Reduction/Scan Variants · Split-K · Stream-K</div>
+    <div class="meta">
+      <div><b>Volume</b> V05 / 18</div>
+      <div><b>Tier</b> T2 Kernel 패턴</div>
+      <div><b>선행</b> V01 (PMPP Core)</div>
+      <div><b>용도</b> 패턴 인출 · 알고리즘 선택 지도</div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row star"><span class="t">1. Warp Intrinsic 전체 계보 — shfl · ballot · match</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">2. Cooperative Groups API — thread_block · tile · grid</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">3. Reduction 7단계 진화 — naive → CUB</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">4. Scan 전체 계보 — Hillis · Kogge · Brent · Sklansky</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">5. Histogram 고급 — privatization · aggregation</span><span class="p">p.6</span></div>
+        <div class="row"><span class="t">6. Top-K selection — bitonic · radix · CUB</span><span class="p">p.7</span></div>
+        <div class="row star"><span class="t">7. Split-K 전략 — atomic vs buffer+reduce</span><span class="p">p.8</span></div>
+        <div class="row star"><span class="t">8. Stream-K 전략 — work partitioning · fixup</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">9. Persistent Kernel Pattern</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. Producer-Consumer (single-GPU ring)</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Sorting 상세 — bitonic · merge-path · radix</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. Sparse kernel — SpMV · SpMM · SDDMM</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. CUB &amp; Thrust API 맵</span><span class="p">p.14</span></div>
+        <div class="row star"><span class="t">14. Cheat Sheet — complexity · decision tree</span><span class="p">p.15</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>매우 중요·표 헤더</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·수식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시</span></div>
+      <div class="row"><span class="sym" style="color:#c62828">빨강</span><span>주의·실수 지점</span></div>
+      <div class="row"><span class="sym">★</span><span>Must-have 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉</span></div>
+      <div class="row"><span class="sym">W</span><span>work complexity</span></div>
+      <div class="row"><span class="sym">D</span><span>depth / step complexity</span></div>
+      <div class="row"><span class="sym">↗</span><span>타 권 교차참조</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>Out of Scope</b> CUTLASS 내부 구현 <span class="xref">↗ V06</span> · attention kernel <span class="xref">↗ V07</span></div>
+    <div class="mono">PMPP Ch10-14 · CUB docs · CUDA CPG · Stream-K (Osama 2023)</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: Warp Intrinsics ============================ -->
+<section class="page" data-screen-label="02 Warp Intrinsic 계보">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(2p)</span></div><div class="chap">§1 — Warp Intrinsic 전체 계보</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> warp-level 동기화 모델 ★</h3>
+        <div class="def"><span class="label">모델</span>
+          warp = 32 thread, lockstep 아닌 <span class="kw">independent thread scheduling</span> (Volta+).
+          모든 warp intrinsic은 <mark>_sync</mark> 접미사로 active mask 명시.
+        </div>
+        <div class="formula">
+          mask: <span class="hl">uint32_t</span>, bit i = lane i 참여 여부<br/>
+          0xffffffff = 32 lane 전원<br/>
+          <span class="legend">divergent branch 내부에서는 부분 mask 필수</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> shfl 4-variant ★</h3>
+        <table class="compact">
+          <thead><tr><th>intrinsic</th><th>src lane</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>__shfl_sync</code></td><td>임의 idx</td><td>broadcast</td></tr>
+            <tr><td><code>__shfl_up_sync</code></td><td>lane − d</td><td>prefix scan</td></tr>
+            <tr><td><code>__shfl_down_sync</code></td><td>lane + d</td><td>reduction</td></tr>
+            <tr><td><code>__shfl_xor_sync</code></td><td>lane ^ d</td><td>butterfly</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">각 intrinsic: <code>(mask, val, delta, width=32)</code>. width는 logical warp 크기 <span class="ko">32 나누기</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> shfl_xor butterfly <span class="ko">reduce·all-reduce</span></h3>
+<pre class="code"><span class="cmt">// warp 32-wide sum, result lane0..31 동일</span>
+<span class="kw2">for</span>(<span class="ty">int</span> d=<span class="num2">16</span>; d&gt;<span class="num2">0</span>; d&gt;&gt;=<span class="num2">1</span>)
+  v += <span class="fn">__shfl_xor_sync</span>(<span class="num2">0xffffffff</span>, v, d);</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> vote intrinsic ★</h3>
+        <table class="compact">
+          <thead><tr><th>함수</th><th>반환</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>__all_sync</code></td><td><code>int</code> 0/1</td><td>전원이 pred true</td></tr>
+            <tr><td><code>__any_sync</code></td><td><code>int</code> 0/1</td><td>하나라도 true</td></tr>
+            <tr><td><code>__ballot_sync</code></td><td><code>uint32</code></td><td>lane별 pred를 bit로</td></tr>
+          </tbody>
+        </table>
+        <div class="ex"><span class="label"></span>
+          <code>mask = __ballot_sync(0xffffffff, x &gt; 0)</code> → <code>__popc(mask)</code> = positive 개수.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> match intrinsic <span class="ko">sm_70+</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <code>__match_any_sync(mask, val)</code> → 같은 <code>val</code> 가진 lane의 bitmask.<br/>
+          <code>__match_all_sync(mask, val, *pred)</code> → 전원 동일하면 mask, 아니면 0.
+        </div>
+        <ul>
+          <li>atomic 대신 <mark>peer-group aggregation</mark>에 사용</li>
+          <li>histogram conflict-free 업데이트 패턴의 핵심</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> activemask / sync_warp</h3>
+        <ul>
+          <li><code>__activemask()</code>: 현재 convergent lane bitmask 조회</li>
+          <li><code>__syncwarp(mask)</code>: warp 내부 barrier</li>
+          <li>Volta ITS 이후 <span class="red">__syncwarp 필수</span> — lockstep 가정 금지</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> mask 생성 규칙 ★</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>mask 생성</th></tr></thead>
+          <tbody>
+            <tr><td>warp 전체</td><td><code>0xffffffff</code></td></tr>
+            <tr><td>divergent if</td><td><code>__ballot_sync(0xff..ff, cond)</code></td></tr>
+            <tr><td>활성만</td><td><code>__activemask()</code></td></tr>
+            <tr><td>sub-warp 16</td><td><code>0x0000ffff</code> 등</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> warp reduce → broadcast</h3>
+<pre class="code"><span class="ty">float</span> <span class="fn">warp_sum</span>(<span class="ty">float</span> v){
+  <span class="kw2">for</span>(<span class="ty">int</span> d=<span class="num2">16</span>; d&gt;<span class="num2">0</span>; d&gt;&gt;=<span class="num2">1</span>)
+    v += <span class="fn">__shfl_down_sync</span>(<span class="num2">0xff..ff</span>, v, d);
+  <span class="kw2">return</span> <span class="fn">__shfl_sync</span>(<span class="num2">0xff..ff</span>, v, <span class="num2">0</span>); <span class="cmt">// bcast</span>
+}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> PTX 대응 <span class="ko">↗ V03 §9</span></h3>
+        <ul>
+          <li><code>shfl.sync.{idx,up,down,bfly}.b32</code></li>
+          <li><code>vote.sync.{all,any,ballot}.pred</code></li>
+          <li><code>match.any.sync.b{32,64}</code></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: mask에 포함된 lane이 intrinsic 호출 누락 → UB. divergent path 양쪽 모두 호출하거나 <code>__ballot_sync</code>로 실제 active만 전달.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 2 -</div>
+</section>
+
+<!-- ============================ PAGE 3: Cooperative Groups ============================ -->
+<section class="page" data-screen-label="03 Cooperative Groups">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(3p)</span></div><div class="chap">§2 — Cooperative Groups API</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 계층 객체 ★</h3>
+        <table class="compact">
+          <thead><tr><th>타입</th><th>크기</th><th>sync 범위</th></tr></thead>
+          <tbody>
+            <tr><td><code>thread_block</code></td><td>≤1024</td><td><code>__syncthreads</code></td></tr>
+            <tr><td><code>thread_block_tile&lt;N&gt;</code></td><td>N ∈ {2,4,8,16,32}</td><td>warp-local</td></tr>
+            <tr><td><code>coalesced_group</code></td><td>변동</td><td>active lane</td></tr>
+            <tr><td><code>cluster_group</code></td><td>≤16 block</td><td>cluster.sync (sm_90)</td></tr>
+            <tr><td><code>grid_group</code></td><td>전체 grid</td><td>cooperative launch</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">헤더: <code>&lt;cooperative_groups.h&gt;</code>, namespace <code>cg = cooperative_groups</code>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 기본 패턴</h3>
+<pre class="code"><span class="kw2">namespace</span> cg = cooperative_groups;
+<span class="ty">auto</span> block = cg::<span class="fn">this_thread_block</span>();
+<span class="ty">auto</span> warp  = cg::<span class="fn">tiled_partition</span>&lt;<span class="num2">32</span>&gt;(block);
+<span class="ty">auto</span> quad  = cg::<span class="fn">tiled_partition</span>&lt;<span class="num2">4</span>&gt;(warp);
+
+block.<span class="fn">sync</span>();        <span class="cmt">// == __syncthreads</span>
+warp.<span class="fn">thread_rank</span>();  <span class="cmt">// 0..31</span>
+warp.<span class="fn">size</span>();         <span class="cmt">// 32</span></pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> tiled_partition 계층</h3>
+        <div class="def"><span class="label">규칙</span>
+          tile size는 <mark>2의 거듭제곱</mark>, 상위 group의 sub-divide.
+          tile &gt; 32은 block 내부만, tile &lt;= 32은 warp 내부.
+        </div>
+        <div class="formula">
+          tile.<span class="hl">meta_group_rank</span>() = 이 tile이 parent의 몇 번째<br/>
+          tile.<span class="hl">meta_group_size</span>() = parent 안의 tile 개수
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> collective 연산 ★</h3>
+        <table class="compact">
+          <thead><tr><th>함수</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td><code>cg::reduce(t, v, op)</code></td><td>tile 내 reduction</td></tr>
+            <tr><td><code>cg::exclusive_scan</code></td><td>exclusive scan</td></tr>
+            <tr><td><code>cg::inclusive_scan</code></td><td>inclusive scan</td></tr>
+            <tr><td><code>t.ballot(pred)</code></td><td>bitmask 반환</td></tr>
+            <tr><td><code>t.shfl(v, src)</code></td><td>tile-local shfl</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> coalesced_group</h3>
+        <ul>
+          <li>divergent branch 내부의 active lane만 모음</li>
+          <li><code>cg::coalesced_threads()</code>로 생성</li>
+          <li>atomic 대체 aggregation에 사용</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> grid_group <span class="ko">grid-level sync</span></h3>
+        <div class="def"><span class="label">요건</span>
+          <mark>cooperative launch</mark> 필요: <code>cudaLaunchCooperativeKernel</code>.<br/>
+          grid size ≤ GPU의 concurrent block 한도. SM 수 × block/SM.
+        </div>
+<pre class="code"><span class="ty">auto</span> grid = cg::<span class="fn">this_grid</span>();
+grid.<span class="fn">sync</span>();   <span class="cmt">// 모든 block 대기</span></pre>
+        <p class="tiny">persistent kernel · multi-pass reduction을 1-kernel로 구현 가능. <span class="xref">↗ §9</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> cluster_group <span class="ko">Hopper 전용</span></h3>
+        <ul>
+          <li><code>__cluster_dims__(x,y,z)</code> 또는 launch API</li>
+          <li>DSMEM 접근 <span class="xref">↗ V04 §3</span></li>
+          <li><code>cluster.sync()</code> = cluster 내 block 전체 barrier</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> labeled_partition</h3>
+        <div class="def"><span class="label">정의</span>
+          label 값이 같은 thread끼리 동적 group 생성.<br/>
+          <code>cg::labeled_partition(warp, key)</code> → match_any 기반.
+        </div>
+        <p class="tiny">histogram privatization, sort-within-warp 등에 활용.</p>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        CG 계층: <span class="key">쓰타워블그크</span>
+        (<b>thread</b> · <b>tile</b> · <b>warp</b> · <b>block</b> · <b>grid</b> · <b>cluster</b>)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 3 -</div>
+</section>
+
+<!-- ============================ PAGE 4: Reduction 7단계 ============================ -->
+<section class="page" data-screen-label="04 Reduction 7단계">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(4p)</span></div><div class="chap">§3 — Reduction 7가지 진화 (전체판) ★</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 7단계 요약표 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>#</th><th>기법</th><th>핵심 1-liner</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Naive interleaved</td><td><code>if(tid%(2*s)==0) s[tid]+=s[tid+s]</code></td></tr>
+            <tr><td>2</td><td>Interleaved fix</td><td><code>i = 2*s*tid; s[i]+=s[i+s]</code></td></tr>
+            <tr><td>3</td><td>Sequential addr</td><td><code>if(tid&lt;s) s[tid]+=s[tid+s]</code></td></tr>
+            <tr><td>4</td><td>First-add on load</td><td><code>s[tid]=g[i]+g[i+BS]</code></td></tr>
+            <tr><td>5</td><td>Unroll last warp</td><td>tid&lt;32 구간 volatile unroll</td></tr>
+            <tr><td>6</td><td>Warp shuffle</td><td><code>v+=__shfl_down_sync(m,v,d)</code></td></tr>
+            <tr><td>7</td><td>Multi-block + CUB</td><td><code>cub::DeviceReduce::Sum</code></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">PMPP Ch10 / Harris reduction talk 기반. 단계 번호는 관례적 표기.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> 1. Naive (divergent)</h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> s=<span class="num2">1</span>; s&lt;BS; s*=<span class="num2">2</span>){
+  <span class="kw2">if</span>(tid % (<span class="num2">2</span>*s) == <span class="num2">0</span>)
+    sd[tid] += sd[tid+s];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <p class="tiny"><span class="red">warp 내 절반 꺼짐</span> → SIMT divergence.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 2. Interleaved (no mod)</h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> s=<span class="num2">1</span>; s&lt;BS; s*=<span class="num2">2</span>){
+  <span class="ty">int</span> i = <span class="num2">2</span>*s*tid;
+  <span class="kw2">if</span>(i &lt; BS) sd[i] += sd[i+s];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <p class="tiny">divergence ↓ but <span class="red">bank conflict</span> (stride 2,4,8…).</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 3. Sequential addressing ★</h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> s=BS/<span class="num2">2</span>; s&gt;<span class="num2">0</span>; s&gt;&gt;=<span class="num2">1</span>){
+  <span class="kw2">if</span>(tid &lt; s)
+    sd[tid] += sd[tid+s];
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <p class="tiny">conflict ↓ · divergence ↓. warp 앞쪽이 활성.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 4. First-add during load</h3>
+<pre class="code"><span class="ty">int</span> i = blockIdx.x*(<span class="num2">2</span>*BS) + tid;
+sd[tid] = g[i] + g[i+BS];   <span class="cmt">// ½ grid</span>
+<span class="fn">__syncthreads</span>();</pre>
+        <p class="tiny">global load 효율 2×, grid ½.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 5. Unroll last warp</h3>
+<pre class="code"><span class="kw2">if</span>(tid &lt; <span class="num2">32</span>){
+  <span class="kw2">volatile</span> <span class="ty">float</span>* v = sd;
+  v[tid]+=v[tid+<span class="num2">32</span>]; v[tid]+=v[tid+<span class="num2">16</span>];
+  v[tid]+=v[tid+<span class="num2">8</span>];  v[tid]+=v[tid+<span class="num2">4</span>];
+  v[tid]+=v[tid+<span class="num2">2</span>];  v[tid]+=v[tid+<span class="num2">1</span>];
+}</pre>
+        <p class="tiny">warp 내부 <code>__syncthreads</code> 제거. volatile 필수 <span class="ko">캐시 우회</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 6. Warp shuffle ★</h3>
+<pre class="code"><span class="ty">float</span> v = sd[tid];
+<span class="kw2">for</span>(<span class="ty">int</span> d=<span class="num2">16</span>; d&gt;<span class="num2">0</span>; d&gt;&gt;=<span class="num2">1</span>)
+  v += <span class="fn">__shfl_down_sync</span>(<span class="num2">0xff..ff</span>, v, d);
+<span class="kw2">if</span>(tid==<span class="num2">0</span>) out[blockIdx.x] = v;</pre>
+        <p class="tiny">smem 경유 제거 · register only · Kepler+.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 7. Multi-block + CUB</h3>
+        <ul>
+          <li>2단계: block partial → grid reduce</li>
+          <li>또는 <code>atomicAdd</code>로 최종 합산</li>
+          <li>또는 <code>grid.sync()</code>로 1-kernel</li>
+          <li>실전: <code>cub::DeviceReduce::Sum</code> · <code>thrust::reduce</code></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">수치 재현성</span>: FP 합은 비결합 → block 수 / scheduling 달라지면 값 미세 변화.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 4 -</div>
+</section>
+
+<!-- ============================ PAGE 5: Scan 전체 계보 ============================ -->
+<section class="page" data-screen-label="05 Scan 전체 계보">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(5p)</span></div><div class="chap">§4 — Scan 전체 계보 ★</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Scan 정의 <span class="ko">↗ V01 §12</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>Inclusive</mark>: y[i] = x[0]⊕…⊕x[i]<br/>
+          <mark>Exclusive</mark>: y[i] = x[0]⊕…⊕x[i−1], y[0] = id
+        </div>
+        <div class="formula">
+          ⊕ 는 <span class="hl">결합법칙</span> 성립 연산자 (+, max, min, ·)
+          <span class="legend">교환법칙은 불필요</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 복잡도 비교표 ★★</h3>
+        <table class="compact">
+          <thead><tr><th>알고리즘</th><th>work W</th><th>step D</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>Sequential</td><td class="num">O(N)</td><td class="num">O(N)</td><td>기준</td></tr>
+            <tr><td>Hillis-Steele</td><td class="num">O(N log N)</td><td class="num">O(log N)</td><td>warp scan</td></tr>
+            <tr><td><b>Kogge-Stone</b></td><td class="num">O(N log N)</td><td class="num">O(log N)</td><td>regular</td></tr>
+            <tr><td><b>Brent-Kung</b></td><td class="num">O(N)</td><td class="num">O(2 log N)</td><td>work-eff ★</td></tr>
+            <tr><td>Sklansky</td><td class="num">O(N log N)</td><td class="num">O(log N)</td><td>divide·conq</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Hillis-Steele은 Kogge-Stone의 상위 계열 <span class="ko">구조 동일</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Kogge-Stone <span class="ko">regular 구조</span></h3>
+<pre class="code"><span class="kw2">for</span>(<span class="ty">int</span> o=<span class="num2">1</span>; o&lt;BS; o*=<span class="num2">2</span>){
+  <span class="ty">float</span> v=<span class="num2">0</span>;
+  <span class="kw2">if</span>(tid&gt;=o) v = sd[tid-o];
+  <span class="fn">__syncthreads</span>();
+  <span class="kw2">if</span>(tid&gt;=o) sd[tid] += v;
+  <span class="fn">__syncthreads</span>();
+}</pre>
+        <p class="tiny">W = N log N · D = log N · 모든 단계 all-active.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Brent-Kung up·down ★</h3>
+        <ol class="bullet-num">
+          <li><b>Up-sweep</b>: reduction tree 올리기 <span class="ko">N 비용</span></li>
+          <li>Root = identity로 초기화</li>
+          <li><b>Down-sweep</b>: 좌측 자식으로 부모를, 우측으로 (부모 ⊕ 좌측 기존값)</li>
+        </ol>
+        <div class="formula">
+          W ≈ 2N, D = 2·log N<br/>
+          <span class="legend">work-optimal · step 두 배</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Sklansky <span class="ko">divide-and-conquer</span></h3>
+        <pre class="ascii">[ L ][ R ] → scan(L), scan(R)
+                 → R += last(L)</pre>
+        <p class="tiny">step = log N · 동일 level 모두 독립 → <span class="red">bank conflict 주의</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Warp scan (shfl_up) ★</h3>
+<pre class="code"><span class="ty">float</span> v = x;
+<span class="kw2">for</span>(<span class="ty">int</span> d=<span class="num2">1</span>; d&lt;<span class="num2">32</span>; d*=<span class="num2">2</span>){
+  <span class="ty">float</span> u = <span class="fn">__shfl_up_sync</span>(<span class="num2">0xff..ff</span>, v, d);
+  <span class="kw2">if</span>(lane &gt;= d) v += u;
+}</pre>
+        <p class="tiny">inclusive warp scan · 32-wide · 5-step.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 3-phase hierarchical ★</h3>
+        <ol class="bullet-num">
+          <li>block 내 local scan (warp → block)</li>
+          <li>block 총합 수집 → aux[ ]</li>
+          <li>aux 자체를 scan</li>
+          <li>block i 원소에 aux[i−1] 가산</li>
+        </ol>
+        <pre class="ascii">blk0    blk1    blk2
+ ↓        ↓        ↓
+local   local   local
+  Σ0     Σ1     Σ2
+  └─ scan aux ──┘
+  +0     +Σ0    +Σ0+Σ1</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Segmented scan</h3>
+        <div class="def"><span class="label">정의</span>
+          head-flag 배열 H로 segment 경계 표시. flag=1인 곳에서 scan 초기화.<br/>
+          결합연산: (v_a, h_a) ⊕ (v_b, h_b) = (h_b ? v_b : v_a⊕v_b, h_a|h_b)
+        </div>
+        <p class="tiny">응용: SpMV reduce, RLE, 계층적 reduction.</p>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        Scan 4종: <span class="key">힐코브스</span>
+        (<b>H</b>illis · <b>K</b>ogge · <b>B</b>rent · <b>S</b>klansky)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 5 -</div>
+</section>
+
+<!-- ============================ PAGE 6: Histogram 고급 ============================ -->
+<section class="page" data-screen-label="06 Histogram 고급">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(6p)</span></div><div class="chap">§5 — Histogram 고급</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Histogram 문제</h3>
+        <div class="def"><span class="label">정의</span>
+          입력 N개 → bin K개에 count. 본질은 <mark>atomic RMW</mark>.
+        </div>
+        <div class="formula">
+          naive: <span class="hl">atomicAdd(&amp;hist[bin(x)], 1)</span><br/>
+          <span class="legend">contention × K·BS·… 따라 수십 배 차이</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> privatization 4-level ★</h3>
+        <table class="compact">
+          <thead><tr><th>level</th><th>저장소</th><th>복사본</th></tr></thead>
+          <tbody>
+            <tr><td>L0</td><td>global</td><td>1</td></tr>
+            <tr><td>L1</td><td>shared</td><td>per block</td></tr>
+            <tr><td>L2</td><td>register</td><td>per thread</td></tr>
+            <tr><td>L3</td><td>hybrid</td><td>hot bin reg + cold smem</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> shared privatization</h3>
+<pre class="code"><span class="kw2">__shared__</span> <span class="ty">int</span> sh[K];
+<span class="cmt">// init</span>
+<span class="kw2">for</span>(...) <span class="fn">atomicAdd</span>(&amp;sh[b], <span class="num2">1</span>);
+<span class="fn">__syncthreads</span>();
+<span class="cmt">// flush</span>
+<span class="kw2">if</span>(tid&lt;K) <span class="fn">atomicAdd</span>(&amp;hist[tid], sh[tid]);</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> aggregation ★</h3>
+        <div class="def"><span class="label">아이디어</span>
+          warp 내 동일 bin 쓰는 lane을 <mark>match_any</mark>로 묶어 1 atomic으로 합침.
+        </div>
+<pre class="code"><span class="ty">int</span> b = <span class="fn">bin</span>(x);
+<span class="ty">int</span> peers = <span class="fn">__match_any_sync</span>(<span class="num2">0xff..ff</span>, b);
+<span class="ty">int</span> cnt = <span class="fn">__popc</span>(peers);
+<span class="ty">int</span> leader = <span class="fn">__ffs</span>(peers)-<span class="num2">1</span>;
+<span class="kw2">if</span>(lane == leader)
+  <span class="fn">atomicAdd</span>(&amp;sh[b], cnt);</pre>
+        <p class="tiny">contention K → contention warp 수준으로 축소.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> thread-coarsening</h3>
+        <ul>
+          <li>thread 하나가 C 개 원소 처리</li>
+          <li>block 수 ↓ · smem init/flush overhead 분산</li>
+          <li>register pressure 와 trade</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> sort-then-reduce</h3>
+        <ol>
+          <li>입력을 bin id로 radix sort</li>
+          <li>segmented reduce로 count</li>
+          <li>K 크거나 분포 skewed 시 atomic보다 유리</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 기법 선택 결정표 ★</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>권장</th></tr></thead>
+          <tbody>
+            <tr><td>K 작음 (≤256)</td><td>shared privat.</td></tr>
+            <tr><td>K 큼 (≫smem)</td><td>global + aggregation</td></tr>
+            <tr><td>skew 심함</td><td>sort-then-reduce</td></tr>
+            <tr><td>N 큼·K 중간</td><td>hybrid (hot reg)</td></tr>
+            <tr><td>library</td><td><code>cub::DeviceHistogram</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 다차원 히스토그램</h3>
+        <ul>
+          <li>bin 공간 = 차원들의 카르테시안 곱</li>
+          <li>선형화 후 동일 pattern</li>
+          <li>2D 이미지 hist: tile 분할 후 shared privat</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> CUB API <span class="xref">↗ §13</span></h3>
+        <ul>
+          <li><code>cub::DeviceHistogram::HistogramEven</code></li>
+          <li><code>cub::DeviceHistogram::HistogramRange</code></li>
+          <li><code>cub::DeviceHistogram::MultiHistogramEven</code> (channel)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">atomic contention</span>은 lane 수, bin 분포, HW arch 세 요인. skew 있는 자연 데이터는 privatization만으로 부족.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 6 -</div>
+</section>
+
+<!-- ============================ PAGE 7: Top-K ============================ -->
+<section class="page" data-screen-label="07 Top-K selection">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(7p)</span></div><div class="chap">§6 — Top-K Selection</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 문제 정의</h3>
+        <div class="def"><span class="label">Top-K</span>
+          N개 중 상위 K개 선택. sampling, beam search, attention sparsity 등.
+        </div>
+        <div class="formula">
+          full sort: O(N log N)<br/>
+          selection: O(N log K) or O(N) 기대
+          <span class="legend">K ≪ N일 때 큰 차이</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 접근 3분류 ★</h3>
+        <table class="compact">
+          <thead><tr><th>방법</th><th>복잡도</th><th>특징</th></tr></thead>
+          <tbody>
+            <tr><td>bitonic</td><td>O(N·K)</td><td>small K 고속</td></tr>
+            <tr><td>radix</td><td>O(N·b)</td><td>K 중간·float</td></tr>
+            <tr><td>full sort + slice</td><td>O(N log N)</td><td>K 큼·여러 Top</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Bitonic Top-K</h3>
+        <ol>
+          <li>각 block이 local bitonic sort</li>
+          <li>상위 K만 global heap/buffer에 push</li>
+          <li>두 번째 pass로 K·B → K 축소</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Radix Top-K ★</h3>
+        <ol class="bullet-num">
+          <li>최상위 b-bit로 bucket 분류</li>
+          <li>bucket count 누적 → K 들어가는 경계 bucket 결정</li>
+          <li>경계 bucket만 다시 b-bit 재귀</li>
+          <li>나머지 bit 확정까지 반복</li>
+        </ol>
+        <p class="tiny">b = 4 or 8. float은 IEEE monotone reorder 필요 <span class="ko">부호·지수 처리</span>.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Float bit reorder</h3>
+        <div class="formula">
+          x ≥ 0 : <span class="hl">y = bits(x) ^ 0x80000000</span><br/>
+          x &lt; 0 : <span class="hl">y = ~bits(x)</span>
+          <span class="legend">unsigned로 해석하면 실수 대소 유지</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> warp-level top-K</h3>
+        <ul>
+          <li>warp 내 32 lane이 자기 값 보유</li>
+          <li>shfl_xor butterfly sort</li>
+          <li>K ≤ 32이면 1-warp로 종결</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> CUB · lib 활용</h3>
+        <table class="compact">
+          <thead><tr><th>요구</th><th>API</th></tr></thead>
+          <tbody>
+            <tr><td>정확한 Top-K</td><td><code>cub::DeviceRadixSort::SortKeys</code> + slice</td></tr>
+            <tr><td>K작음·fast</td><td><code>cub::BlockRadixSort</code></td></tr>
+            <tr><td>approx·sampling</td><td>Gumbel top-K · categorical</td></tr>
+            <tr><td>Thrust</td><td><code>thrust::sort</code> + <code>copy_n</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 적용 맥락</h3>
+        <ul>
+          <li>LLM sampling top-k <span class="xref">↗ V08 §10</span></li>
+          <li>MoE router top-k <span class="xref">↗ V08 §1</span></li>
+          <li>sparse attention indexing</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">tie-break</span>: 동점 처리 규칙이 kernel별로 다름. 결정론 필요 시 (value, index) 쌍으로 비교.
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 결정 트리</h3>
+        <pre class="ascii">K ≤ 32 ──► warp bitonic
+K ≤ 256 ─► block bitonic
+K 중간 ──► radix select
+K 큼 ───► full sort</pre>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 7 -</div>
+</section>
+
+<!-- ============================ PAGE 8: Split-K ============================ -->
+<section class="page" data-screen-label="08 Split-K 전략">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(8p)</span></div><div class="chap">§7 — Split-K 전략 (GEMM)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 왜 Split-K인가 ★</h3>
+        <div class="def"><span class="label">맥락</span>
+          GEMM tile partition = (M/BM) × (N/BN) CTA. M, N이 작고 K가 크면 <mark>CTA 수 &lt; SM</mark> → occupancy 부족.
+        </div>
+        <div class="formula">
+          #CTA(standard) = ⌈M/BM⌉ · ⌈N/BN⌉<br/>
+          <span class="legend">M=N=128, BM=BN=128 → CTA 1개. SM 132개 유휴.</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Split-K 아이디어</h3>
+        <div class="def"><span class="label">정의</span>
+          K 차원을 S 조각으로 분할: 각 조각이 독립 부분곱을 계산, 끝에서 합산.
+        </div>
+        <div class="formula">
+          C = Σ<sub>s=0..S-1</sub> A[:, s·k:(s+1)·k] · B[s·k:(s+1)·k, :]<br/>
+          <span class="legend">#CTA × S 만큼 증가</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 합산 방식 2종 ★</h3>
+        <table class="compact">
+          <thead><tr><th>방식</th><th>writeback</th><th>비용</th></tr></thead>
+          <tbody>
+            <tr><td>A. atomic</td><td><code>atomicAdd(C)</code></td><td>contention</td></tr>
+            <tr><td>B. buffer + reduce</td><td>C_part[S] → 별도 reduce kernel</td><td>mem 2× · 정확</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Atomic variant 의사코드</h3>
+<pre class="code"><span class="cmt">// slice s, tile (m,n)</span>
+accum = <span class="num2">0</span>;
+<span class="kw2">for</span>(k=s·kseg; k&lt;(s+<span class="num2">1</span>)·kseg; k+=BK)
+  accum += A[m,k:k+BK] · B[k:k+BK,n];
+<span class="fn">atomicAdd</span>(&amp;C[m,n], accum);</pre>
+        <p class="tiny">tile 단위 하나의 atomic. FP32면 hardware atomic 가능.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Buffer + Reduce variant</h3>
+<pre class="code"><span class="cmt">// stage 1: partial</span>
+<span class="kw2">for</span>(s, m, n) C_part[s,m,n] = A_s · B_s;
+
+<span class="cmt">// stage 2: reduce</span>
+C[m,n] = Σ_s C_part[s,m,n];</pre>
+        <p class="tiny">stage 2는 O(S·M·N) reduce kernel. FP 합 순서 deterministic.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> S (split 수) 선택</h3>
+        <ul>
+          <li>목표: <code>#CTA · S ≳ #SM · 2</code></li>
+          <li>S 과대: K 조각당 K_seg가 너무 작아져 <span class="red">MMA latency 은폐 실패</span></li>
+          <li>실전 S ∈ {2, 4, 8, 16}</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Atomic vs Buffer 선택표 ★</h3>
+        <table class="vs">
+          <thead><tr><th>요인</th><th>권장</th></tr></thead>
+          <tbody>
+            <tr><td>FP32·tile 큼</td><td>atomic</td></tr>
+            <tr><td>FP16·FP8 accum</td><td>buffer (HW atomic 제한)</td></tr>
+            <tr><td>결정론 요구</td><td>buffer</td></tr>
+            <tr><td>메모리 tight</td><td>atomic</td></tr>
+            <tr><td>S 작음(2-4)</td><td>atomic</td></tr>
+            <tr><td>S 큼(≥8)</td><td>buffer+tree reduce</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Split-K의 한계</h3>
+        <ul>
+          <li>각 CTA에 동일 K_seg → <mark>work balance 정적</mark></li>
+          <li>M,N이 BM·BN과 정합 안 되면 tile 경계 낭비</li>
+          <li>이 문제를 해결하는 게 <b>Stream-K</b> <span class="xref">↗ §8</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> CUTLASS 제공 <span class="xref">↗ V06</span></h3>
+        <ul>
+          <li><code>SplitKSerial</code> (buffer+reduce)</li>
+          <li><code>SplitKParallel</code> (atomic)</li>
+          <li>epilogue reduce kernel 자동 생성</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">FP atomic 비결정성</span>: atomic 순서 불확정 → 결과 미세 차이. reproducibility test 주의.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 8 -</div>
+</section>
+
+<!-- ============================ PAGE 9: Stream-K ============================ -->
+<section class="page" data-screen-label="09 Stream-K 전략">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(9p)</span></div><div class="chap">§8 — Stream-K 전략</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 ★</h3>
+        <div class="def"><span class="label">문제</span>
+          Split-K는 S를 고정 → (M,N,K)와 SM 수의 <mark>나머지</mark>에서 waste.
+          Stream-K: work를 균일하게 분할.
+        </div>
+        <div class="formula">
+          total_iter = ⌈M/BM⌉·⌈N/BN⌉·⌈K/BK⌉<br/>
+          per_SM = ⌈total_iter / #SM⌉
+          <span class="legend">각 CTA가 연속 iter 슬라이스 담당</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 핵심 아이디어</h3>
+        <ul>
+          <li>CTA = SM 수와 동일 (persistent)</li>
+          <li>각 CTA가 <mark>MMA iteration의 flat range</mark>를 담당</li>
+          <li>tile 경계에 걸리면 <mark>부분 accumulator</mark> 저장</li>
+          <li>fixup kernel이 조각을 합산</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> work 분할</h3>
+        <pre class="ascii">iter: 0 1 2 3 4 5 6 7 8 9 ...
+CTA0: [ 0 .. 3 ]
+CTA1:         [ 4 .. 6 ]
+CTA2:                 [ 7 .. 9 ]
+                       ↑ tile 경계에서 split</pre>
+        <p class="tiny">Osama et al. 2023 Stream-K. CUTLASS 3.x에 정식 통합.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 3 variant</h3>
+        <table class="compact">
+          <thead><tr><th>모드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>Data-parallel</td><td>기존 tile-per-CTA (M·N 병렬)</td></tr>
+            <tr><td>Split-K</td><td>K 분할 S-way</td></tr>
+            <tr><td><b>Stream-K</b></td><td>iter flat 분할 · hybrid</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">Stream-K는 실제로 DP 블록 + Stream-K 블록을 혼합 운용하기도 한다.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Fixup kernel</h3>
+        <div class="def"><span class="label">역할</span>
+          tile 경계를 넘은 부분 accumulator들을 대상 tile의 최종 C에 합산.
+        </div>
+<pre class="code"><span class="cmt">// per partial slab</span>
+<span class="kw2">for</span>(tile) C[tile] = Σ partials[tile][*];</pre>
+        <p class="tiny">partial은 on-chip 또는 global workspace에 저장. semaphore/flag로 dependency.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Semaphore 패턴</h3>
+        <ul>
+          <li>tile-owner CTA만 최종 write</li>
+          <li>보조 CTA는 partial + flag set</li>
+          <li>owner가 flag poll → 합산 → C 기록</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Split-K vs Stream-K 결정표 ★★</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>선택</th></tr></thead>
+          <tbody>
+            <tr><td>M·N ≫ SM, K 보통</td><td>Data-parallel</td></tr>
+            <tr><td>M·N 작고 K 큼</td><td>Split-K</td></tr>
+            <tr><td>(M·N·K) % SM 크게 안 맞음</td><td><b>Stream-K</b></td></tr>
+            <tr><td>tail wave 긴 경우</td><td>Stream-K</td></tr>
+            <tr><td>결정론 + 간단</td><td>Split-K buffer</td></tr>
+            <tr><td>generic dispatch</td><td>Stream-K (CUTLASS 3.x)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 핵심 수식</h3>
+        <div class="formula">
+          tail_ratio = (wave_count − ⌊wave_count⌋)<br/>
+          Stream-K 이득 ≈ tail_ratio · SM_util<br/>
+          <span class="legend">tail이 짧으면 이득도 작음</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> CUTLASS 구현 개요 <span class="xref">↗ V06 §13</span></h3>
+        <ul>
+          <li><code>TileScheduler</code> 추상</li>
+          <li><code>StreamKScheduler</code> dispatch policy</li>
+          <li>fixup은 별도 kernel or fused epilogue</li>
+          <li>workspace = (#SM · BM · BN) partial buffer</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">debug 난이도</span>: partial·flag·owner 관계가 복잡 → 라이브러리 사용 권장, 직접 작성은 V06 숙지 후.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 9 -</div>
+</section>
+
+<!-- ============================ PAGE 10: Persistent Kernel ============================ -->
+<section class="page" data-screen-label="10 Persistent Kernel">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(10p)</span></div><div class="chap">§9 — Persistent Kernel Pattern</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 정의 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          grid size = #SM (또는 #SM × k)로 고정. CTA가 장수하며 <mark>work queue</mark>를 drain.
+        </div>
+        <div class="formula">
+          grid = (#SM, 1, 1) · block = (BS, 1, 1)<br/>
+          각 CTA가 atomic counter로 work item 획득
+          <span class="legend">launch overhead 1회만</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 왜 쓰는가</h3>
+        <ul>
+          <li>uneven work (tile별 iter 수 변동)</li>
+          <li>launch overhead 누적 회피</li>
+          <li>grid-level sync 필요 시 (cooperative)</li>
+          <li>Stream-K의 기반 <span class="xref">↗ §8</span></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 기본 스켈레톤</h3>
+<pre class="code"><span class="kw2">__global__</span> <span class="ty">void</span> <span class="fn">persist</span>(..., <span class="ty">int</span>* ctr){
+  <span class="kw2">while</span>(<span class="num2">1</span>){
+    <span class="ty">int</span> id = (tid==<span class="num2">0</span>) ?
+      <span class="fn">atomicAdd</span>(ctr, <span class="num2">1</span>) : <span class="num2">0</span>;
+    id = <span class="fn">__shfl_sync</span>(<span class="num2">0xff..ff</span>, id, <span class="num2">0</span>);
+    <span class="kw2">if</span>(id &gt;= N_WORK) <span class="kw2">break</span>;
+    <span class="fn">process_work</span>(id);
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> work scheduling 3 패턴</h3>
+        <table class="compact">
+          <thead><tr><th>패턴</th><th>description</th></tr></thead>
+          <tbody>
+            <tr><td>Dynamic</td><td>atomic counter로 pull</td></tr>
+            <tr><td>Static block</td><td>id = bid·stride + i</td></tr>
+            <tr><td>Hybrid</td><td>large chunk static + tail dynamic</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> grid size 선택 ★</h3>
+        <div class="formula">
+          grid = #SM · <span class="hl">CTA_per_SM</span><br/>
+          CTA_per_SM = min(reg, smem, warp 제약 하 max)
+          <span class="legend">occupancy 극대 grid = SM · max CTA</span>
+        </div>
+        <p class="tiny">cooperative launch 시: grid ≤ GPU가 동시에 launch 가능한 상한.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> grid.sync() 활용</h3>
+        <ul>
+          <li>multi-pass reduction을 1-kernel로</li>
+          <li>partial → sync → final</li>
+          <li>launch overhead × pass 회피</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> 사용 상황 표</h3>
+        <table class="vs">
+          <thead><tr><th>상황</th><th>적합?</th></tr></thead>
+          <tbody>
+            <tr><td>work uniform + 다수 tile</td><td>DP 권장</td></tr>
+            <tr><td>work uneven</td><td><b>persistent</b></td></tr>
+            <tr><td>tail wave 문제</td><td><b>persistent</b></td></tr>
+            <tr><td>launch 수 과다 batch</td><td><b>persistent</b></td></tr>
+            <tr><td>decoding long loop</td><td><b>persistent</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 주의 사항</h3>
+        <ul>
+          <li><span class="red">debug 어려움</span>: grid-level race</li>
+          <li>atomic counter는 <code>cudaMemsetAsync</code>로 매 invocation 초기화</li>
+          <li>early-exit CTA가 있으면 cooperative sync 막힘</li>
+          <li>register pressure ↑ (loop body 길어짐)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 활용 예</h3>
+        <ul>
+          <li>FA forward persistent <span class="xref">↗ V07</span></li>
+          <li>Stream-K GEMM</li>
+          <li>graph BFS frontier expand</li>
+          <li>inference decoder loop</li>
+        </ul>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        Persistent 체크: <span class="key">SM카운드싱</span>
+        (grid = <b>SM</b> · <b>카운</b>터 · <b>드</b>레인 · grid.<b>싱</b>크)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 10 -</div>
+</section>
+
+<!-- ============================ PAGE 11: Producer-Consumer ============================ -->
+<section class="page" data-screen-label="11 Producer-Consumer ring">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(11p)</span></div><div class="chap">§10 — Producer-Consumer (single-GPU)</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 패턴 개요 ★</h3>
+        <div class="def"><span class="label">구성</span>
+          일부 warp/CTA가 load(producer), 다른 일부가 compute(consumer). 중간 <mark>ring buffer</mark>를 shared 또는 global에 둔다.
+        </div>
+        <ul>
+          <li>Hopper WGMMA warp specialization <span class="xref">↗ V04 §9</span></li>
+          <li>CUTLASS cooperative / pingpong</li>
+          <li>single-GPU에선 shared ring 중심</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Ring buffer 자료구조</h3>
+        <div class="formula">
+          size = N_STAGE (2, 3, 4 …)<br/>
+          head · tail ∈ [0, N_STAGE)<br/>
+          empty: head == tail<br/>
+          full : (head+1) % N == tail
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> stage 수 선택</h3>
+        <table class="compact">
+          <thead><tr><th>stage</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>2</td><td>double buffer</td></tr>
+            <tr><td>3-4</td><td>표준 pipelined GEMM</td></tr>
+            <tr><td>≥5</td><td>HBM latency 큼·Hopper TMA</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">stage↑ → smem ↑ → occupancy ↓ trade.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Sync mechanism 3종</h3>
+        <table class="vs">
+          <thead><tr><th>방식</th><th>arch</th></tr></thead>
+          <tbody>
+            <tr><td><code>__syncthreads</code></td><td>모든 arch</td></tr>
+            <tr><td><code>cp.async.commit/wait</code></td><td>Ampere+</td></tr>
+            <tr><td><code>mbarrier</code> async</td><td>Hopper <span class="xref">↗ V04 §6</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Lock-free ring 의사코드</h3>
+<pre class="code"><span class="cmt">// producer (warp P)</span>
+<span class="kw2">while</span>((head+<span class="num2">1</span>)%N == tail) ;
+buf[head] = <span class="fn">load_tile</span>();
+<span class="fn">__threadfence_block</span>();
+head = (head+<span class="num2">1</span>)%N;
+
+<span class="cmt">// consumer (warp C)</span>
+<span class="kw2">while</span>(head == tail) ;
+t = buf[tail];
+<span class="fn">compute</span>(t);
+tail = (tail+<span class="num2">1</span>)%N;</pre>
+        <p class="tiny">head/tail은 shared, 각각 전담 warp만 write. memory fence로 ordering.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> mbarrier phase 기반 <span class="ko">Hopper</span></h3>
+        <ul>
+          <li>각 stage에 full-bar · empty-bar</li>
+          <li>producer: arrive(full), wait(empty)</li>
+          <li>consumer: wait(full), arrive(empty)</li>
+          <li>phase bit 토글로 2-stage 라운드트립</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> warp specialization</h3>
+        <pre class="ascii">warp 0-3   : producer (TMA load)
+warp 4-7   : consumer A (WGMMA)
+warp 8-11  : consumer B (WGMMA)  pingpong</pre>
+        <p class="tiny">Hopper setmaxnreg로 producer ↓ reg / consumer ↑ reg 재분배.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 성능 이득 요인</h3>
+        <ul>
+          <li>compute ↔ load <mark>완전 중첩</mark></li>
+          <li>register file 효율 재분배</li>
+          <li>instruction issue port 분산</li>
+          <li>global load latency 은폐</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> 단점·함정</h3>
+        <ul>
+          <li><span class="red">deadlock</span>: arrive/wait 짝 안 맞으면 영구 정지</li>
+          <li>stage 수 잘못 잡으면 stall</li>
+          <li>smem 사용량 stage·tile 크기 곱으로 팽창</li>
+          <li>debug 비용 ↑ <span class="ko">코드보다 설계</span></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">single-GPU ring</span>과 <span class="red">multi-GPU ring</span>은 다름. 후자는 NCCL ring-allreduce <span class="xref">↗ V15 §2</span>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 11 -</div>
+</section>
+
+<!-- ============================ PAGE 12: Sorting ============================ -->
+<section class="page" data-screen-label="12 Sorting 상세">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(12p)</span></div><div class="chap">§11 — Sorting 상세</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> GPU 정렬 3-family ★</h3>
+        <table class="compact">
+          <thead><tr><th>family</th><th>복잡도</th><th>GPU 적합</th></tr></thead>
+          <tbody>
+            <tr><td>Bitonic</td><td>O(N log²N)</td><td>regular pattern ○</td></tr>
+            <tr><td>Merge (path)</td><td>O(N log N)</td><td>balanced ○</td></tr>
+            <tr><td>Radix</td><td>O(N·b)</td><td>int/float best ★</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Bitonic Sort 개념</h3>
+        <div class="def"><span class="label">정의</span>
+          bitonic sequence(오름→내림 혹은 반대)를 재귀적으로 merge. 비교 네트워크가 입력 independent.
+        </div>
+        <pre class="ascii">stage k (k=1..log N):
+  substage j (j=k..1):
+    compare-swap (i, i ^ (1&lt;&lt;(j-1)))</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Bitonic 코드</h3>
+<pre class="code"><span class="kw2">for</span>(k=<span class="num2">2</span>; k&lt;=N; k*=<span class="num2">2</span>)
+  <span class="kw2">for</span>(j=k/<span class="num2">2</span>; j&gt;<span class="num2">0</span>; j&gt;&gt;=<span class="num2">1</span>){
+    p = tid ^ j;
+    <span class="kw2">if</span>(p &gt; tid){
+      up = ((tid &amp; k) == <span class="num2">0</span>);
+      <span class="kw2">if</span>((a[tid]&gt;a[p])==up) <span class="fn">swap</span>(a[tid],a[p]);
+    }
+    <span class="fn">__syncthreads</span>();
+  }</pre>
+        <p class="tiny">data-independent → warp divergence ↓. power-of-2 크기.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Merge Path ★</h3>
+        <div class="def"><span class="label">정의</span>
+          두 정렬 배열 A·B를 merge할 때, 각 thread가 결과의 한 chunk를 <mark>co-rank</mark>로 찾아 독립 수행.
+        </div>
+        <div class="formula">
+          co-rank: (i, j) s.t. i+j = k ∧ A[i-1] ≤ B[j] ∧ B[j-1] ≤ A[i]<br/>
+          <span class="legend">binary search on diagonal</span>
+        </div>
+        <p class="tiny"><span class="xref">↗ V01 §13</span> PMPP Ch12 co-rank 함수 정의.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Radix Sort 개요 ★</h3>
+        <ol class="bullet-num">
+          <li>b-bit씩 digit 추출 (LSB → MSB)</li>
+          <li>각 digit에 대해 counting sort (stable)</li>
+          <li>counting sort 내부 = histogram + scan + scatter</li>
+          <li>b=4 (16 bucket) 또는 b=8 (256) 일반적</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Radix 한 iteration</h3>
+        <pre class="ascii">input → digit(input) → local hist
+      → scan hist → global hist
+      → scan global → offsets
+      → scatter to output</pre>
+        <p class="tiny">Scan · Histogram 재사용 <span class="xref">↗ §4, §5</span>.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">7</span> Float 정렬 bit trick</h3>
+        <div class="formula">
+          f ≥ 0: <span class="hl">u = bits(f) ^ 0x80000000</span><br/>
+          f &lt; 0: <span class="hl">u = ~bits(f)</span>
+          <span class="legend">IEEE 754 monotone mapping</span>
+        </div>
+        <p class="tiny">radix sort를 float·double에 적용하는 표준 전처리.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> Merge vs Radix 선택</h3>
+        <table class="vs">
+          <thead><tr><th>요인</th><th>선택</th></tr></thead>
+          <tbody>
+            <tr><td>int·float key</td><td>Radix ★</td></tr>
+            <tr><td>key 복잡 struct</td><td>Merge</td></tr>
+            <tr><td>안정성 요구</td><td>둘 다 stable 가능</td></tr>
+            <tr><td>key 길이 ≫ 64b</td><td>Merge 유리</td></tr>
+            <tr><td>GPU 표준</td><td>CUB Radix</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Segmented sort</h3>
+        <ul>
+          <li>여러 작은 정렬을 동시에</li>
+          <li>각 segment 독립 key·value</li>
+          <li><code>cub::DeviceSegmentedRadixSort</code></li>
+          <li>MoE · grouped GEMM 전처리 <span class="xref">↗ V08</span></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">직접 구현 금물</span>: 정렬은 라이브러리가 거의 항상 이김. 단권화에 자료구조는 담되 실전은 <code>cub::Device*Sort</code>.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 12 -</div>
+</section>
+
+<!-- ============================ PAGE 13: Sparse kernels ============================ -->
+<section class="page" data-screen-label="13 Sparse 연산 kernel">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(13p)</span></div><div class="chap">§12 — Sparse 연산 kernel</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 연산 3종 ★</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>수식</th><th>출력</th></tr></thead>
+          <tbody>
+            <tr><td>SpMV</td><td>y = A·x</td><td>dense vector</td></tr>
+            <tr><td>SpMM</td><td>Y = A·B</td><td>dense matrix</td></tr>
+            <tr><td>SDDMM</td><td>C = (A·B) ⊙ M</td><td>mask된 dense</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">A: sparse · B,x,Y: dense · M: sparsity mask.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Storage 포맷 <span class="xref">↗ V01 §14</span></h3>
+        <table class="compact">
+          <thead><tr><th>포맷</th><th>구성</th><th>특성</th></tr></thead>
+          <tbody>
+            <tr><td>COO</td><td>(row, col, val)</td><td>random 순</td></tr>
+            <tr><td><b>CSR</b></td><td>row_ptr, col_idx, val</td><td>row 연속 ★</td></tr>
+            <tr><td>CSC</td><td>col_ptr, row_idx, val</td><td>col 연속</td></tr>
+            <tr><td>ELL</td><td>padded fixed row</td><td>regular row</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> SpMV 전략 3종 ★</h3>
+        <table class="vs">
+          <thead><tr><th>전략</th><th>단위</th><th>적합</th></tr></thead>
+          <tbody>
+            <tr><td>scalar</td><td>1 thread / row</td><td>row 짧음</td></tr>
+            <tr><td>vector</td><td>1 warp / row</td><td>row 중간</td></tr>
+            <tr><td>CSR-stream</td><td>block stride</td><td>uniform 분포</td></tr>
+            <tr><td>merge-based</td><td>nnz 균등 split</td><td>skew 심함 ★</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Vector SpMV 의사코드</h3>
+<pre class="code"><span class="cmt">// warp = 32 thread / row</span>
+r = blockIdx.x;
+<span class="ty">float</span> s = <span class="num2">0</span>;
+<span class="kw2">for</span>(j=row_ptr[r]+lane; j&lt;row_ptr[r+<span class="num2">1</span>]; j+=<span class="num2">32</span>)
+  s += val[j] * x[col_idx[j]];
+<span class="cmt">// warp reduce</span>
+<span class="kw2">for</span>(d=<span class="num2">16</span>; d&gt;<span class="num2">0</span>; d&gt;&gt;=<span class="num2">1</span>)
+  s += <span class="fn">__shfl_down_sync</span>(<span class="num2">0xff..ff</span>, s, d);
+<span class="kw2">if</span>(lane==<span class="num2">0</span>) y[r] = s;</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Merge-based SpMV</h3>
+        <div class="def"><span class="label">핵심</span>
+          <mark>nnz 축</mark>을 균등 분할 → 각 thread가 동일 work. merge path로 (row, nnz) 좌표 찾기.
+        </div>
+        <p class="tiny">Merrill &amp; Garland 2016. skew 심한 그래프에 강함.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> SpMM 전략</h3>
+        <ul>
+          <li>출력 열을 여러 묶음으로 tiling</li>
+          <li>각 tile에 대해 A의 row 순회</li>
+          <li>B의 해당 row를 dense로 load</li>
+          <li>accumulate</li>
+        </ul>
+        <p class="tiny">row-by-row × B-column-tile = 일반적 패턴. cuSPARSE 기본 경로.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> SDDMM 특성</h3>
+        <div class="def"><span class="label">구조</span>
+          C의 비영 위치는 M으로 주어짐. 그 위치 (i,j)에 대해서만 A[i,:]·B[:,j] 계산.
+        </div>
+        <ul>
+          <li>nnz(M) 만큼만 inner product</li>
+          <li>Graph attention, GNN에 핵심</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 2:4 structured sparsity</h3>
+        <div class="formula">
+          4원소 그룹마다 2원소만 비영<br/>
+          Ampere Tensor Core <span class="hl">2× throughput</span>
+          <span class="legend">sparse MMA <span class="xref">↗ V03 §8</span></span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">9</span> Library 맵</h3>
+        <ul>
+          <li><code>cuSPARSE</code>: CSR/COO SpMV/SpMM</li>
+          <li><code>cuSPARSELt</code>: 2:4 structured</li>
+          <li><code>CUB</code>: primitive block</li>
+          <li><code>DGL·PyG</code>: graph frontend</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">load imbalance</span>가 sparse kernel의 본질적 어려움. row 분포 histogram으로 strategy 선택.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 13 -</div>
+</section>
+
+<!-- ============================ PAGE 14: CUB & Thrust ============================ -->
+<section class="page" data-screen-label="14 CUB Thrust API">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(14p)</span></div><div class="chap">§13 — CUB &amp; Thrust API 맵</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> CUB 계층 ★</h3>
+        <table class="compact">
+          <thead><tr><th>scope</th><th>prefix</th><th>사용</th></tr></thead>
+          <tbody>
+            <tr><td>Device</td><td><code>cub::Device*</code></td><td>full array</td></tr>
+            <tr><td>Block</td><td><code>cub::Block*</code></td><td>CTA 협력</td></tr>
+            <tr><td>Warp</td><td><code>cub::Warp*</code></td><td>warp 협력</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">CUB = "CUDA UnBound". NVIDIA/cub on GitHub.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Device API 핵심</h3>
+        <table class="compact">
+          <thead><tr><th>op</th><th>API</th></tr></thead>
+          <tbody>
+            <tr><td>reduce</td><td><code>DeviceReduce::{Sum,Min,Max,Reduce}</code></td></tr>
+            <tr><td>scan</td><td><code>DeviceScan::{Inclusive,Exclusive}Sum</code></td></tr>
+            <tr><td>sort</td><td><code>DeviceRadixSort::Sort{Keys,Pairs}</code></td></tr>
+            <tr><td>seg reduce</td><td><code>DeviceSegmentedReduce::Sum</code></td></tr>
+            <tr><td>select</td><td><code>DeviceSelect::{If,Unique,Flagged}</code></td></tr>
+            <tr><td>histogram</td><td><code>DeviceHistogram::Histogram{Even,Range}</code></td></tr>
+            <tr><td>run-length</td><td><code>DeviceRunLengthEncode::Encode</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> CUB 2-call pattern ★</h3>
+<pre class="code"><span class="ty">void</span>* d_temp = <span class="kw2">nullptr</span>;
+<span class="ty">size_t</span> temp_bytes = <span class="num2">0</span>;
+cub::DeviceReduce::<span class="fn">Sum</span>(
+  d_temp, temp_bytes, d_in, d_out, N);
+<span class="fn">cudaMalloc</span>(&amp;d_temp, temp_bytes);
+cub::DeviceReduce::<span class="fn">Sum</span>(
+  d_temp, temp_bytes, d_in, d_out, N);</pre>
+        <p class="tiny">1회차: 필요한 temp 크기 조회. 2회차: 실제 실행.</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Block primitive</h3>
+        <table class="compact">
+          <thead><tr><th>class</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><code>BlockReduce&lt;T,BS&gt;</code></td><td>block sum/min/max</td></tr>
+            <tr><td><code>BlockScan&lt;T,BS&gt;</code></td><td>in/exclusive scan</td></tr>
+            <tr><td><code>BlockRadixSort</code></td><td>block-local sort</td></tr>
+            <tr><td><code>BlockLoad/Store</code></td><td>coalesced transfer</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Warp primitive</h3>
+        <ul>
+          <li><code>WarpReduce&lt;T&gt;</code></li>
+          <li><code>WarpScan&lt;T&gt;</code></li>
+          <li>shfl 기반 내부 구현</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Thrust 대응 맵 ★</h3>
+        <table class="vs">
+          <thead><tr><th>Thrust</th><th>CUB</th></tr></thead>
+          <tbody>
+            <tr><td><code>thrust::reduce</code></td><td>DeviceReduce::Sum</td></tr>
+            <tr><td><code>thrust::inclusive_scan</code></td><td>DeviceScan::InclusiveSum</td></tr>
+            <tr><td><code>thrust::sort</code></td><td>DeviceRadixSort</td></tr>
+            <tr><td><code>thrust::copy_if</code></td><td>DeviceSelect::If</td></tr>
+            <tr><td><code>thrust::unique</code></td><td>DeviceSelect::Unique</td></tr>
+            <tr><td><code>thrust::transform</code></td><td>kernel (no CUB)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 선택 기준</h3>
+        <ul>
+          <li><b>Thrust</b>: STL-like, prototyping 빠름, iterator 추상</li>
+          <li><b>CUB</b>: lower level, custom kernel 내부에서 block/warp collective</li>
+          <li>Thrust는 내부적으로 CUB 호출</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 기타 library</h3>
+        <table class="compact">
+          <thead><tr><th>lib</th><th>강점</th></tr></thead>
+          <tbody>
+            <tr><td>cuBLAS</td><td>dense GEMM ↗ V06</td></tr>
+            <tr><td>cuSPARSE</td><td>sparse ↗ §12</td></tr>
+            <tr><td>cuRAND</td><td>PRNG</td></tr>
+            <tr><td>cuDNN</td><td>DL primitive</td></tr>
+            <tr><td>cuSOLVER</td><td>dense solve</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">직접 Reduction·Scan 작성 금지</span>가 실전 원칙. 학습은 1회, 운영은 CUB/Thrust.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 14 -</div>
+</section>
+
+<!-- ============================ PAGE 15: Cheat Sheet ============================ -->
+<section class="page" data-screen-label="15 Cheat Sheet">
+  <div class="page-header"><div class="brand">V05 병렬 Primitive <span class="mono">(15p)</span></div><div class="chap">§14 — Cheat Sheet</div></div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Primitive complexity ★</h3>
+        <table class="compact">
+          <thead><tr><th>primitive</th><th>work</th><th>depth</th></tr></thead>
+          <tbody>
+            <tr><td>Reduction</td><td class="num">O(N)</td><td class="num">O(log N)</td></tr>
+            <tr><td>Scan (BK)</td><td class="num">O(N)</td><td class="num">O(log N)</td></tr>
+            <tr><td>Scan (KS)</td><td class="num">O(N log N)</td><td class="num">O(log N)</td></tr>
+            <tr><td>Radix sort</td><td class="num">O(N·b)</td><td class="num">O(b)</td></tr>
+            <tr><td>Bitonic sort</td><td class="num">O(N log²N)</td><td class="num">O(log²N)</td></tr>
+            <tr><td>Merge path</td><td class="num">O(N+M)</td><td class="num">O(log N)</td></tr>
+            <tr><td>Histogram</td><td class="num">O(N)</td><td class="num">O(log N)</td></tr>
+            <tr><td>SpMV</td><td class="num">O(nnz)</td><td class="num">O(log(row))</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Warp intrinsic 표</h3>
+        <table class="compact">
+          <thead><tr><th>intrinsic</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td>shfl_down</td><td>reduce</td></tr>
+            <tr><td>shfl_up</td><td>scan</td></tr>
+            <tr><td>shfl_xor</td><td>butterfly</td></tr>
+            <tr><td>ballot</td><td>mask 수집</td></tr>
+            <tr><td>match_any</td><td>peer group</td></tr>
+            <tr><td>popc(mask)</td><td>count bit</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Reduction 단계 1-liner</h3>
+        <ol class="bullet-num">
+          <li>naive mod</li>
+          <li>interleaved index</li>
+          <li>sequential addr</li>
+          <li>first-add load</li>
+          <li>unroll last warp</li>
+          <li>shfl_down warp</li>
+          <li>multi-block/CUB</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Scan 4종 (W / D)</h3>
+        <table class="vs">
+          <thead><tr><th>algo</th><th>W</th><th>D</th></tr></thead>
+          <tbody>
+            <tr><td>Hillis-Steele</td><td>N log N</td><td>log N</td></tr>
+            <tr><td>Kogge-Stone</td><td>N log N</td><td>log N</td></tr>
+            <tr><td>Brent-Kung</td><td>2N</td><td>2 log N</td></tr>
+            <tr><td>Sklansky</td><td>N log N</td><td>log N</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> GEMM 분할 선택 ★</h3>
+        <table class="compact">
+          <thead><tr><th>shape</th><th>전략</th></tr></thead>
+          <tbody>
+            <tr><td>M,N 큼</td><td>Data-parallel</td></tr>
+            <tr><td>K 큼·M,N 작음</td><td>Split-K</td></tr>
+            <tr><td>tail imbalance</td><td>Stream-K</td></tr>
+            <tr><td>batched 다수</td><td>Grouped</td></tr>
+            <tr><td>uneven tile</td><td>Persistent</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 결정 트리 (primitive)</h3>
+        <pre class="ascii">Task ?
+├ scalar out ──► Reduction
+├ per-elem out ──► Scan
+├ bin count ───► Histogram
+├ sorted perm ─► Radix sort
+├ k largest ───► Top-K (radix)
+├ y = A·x ────► SpMV (merge)
+└ mask sel ───► Compact (scan)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 구현 단계 원칙</h3>
+        <ol>
+          <li>라이브러리(CUB/Thrust) 우선</li>
+          <li>안 맞으면 block primitive + custom kernel</li>
+          <li>hot path만 warp shuffle로 최적화</li>
+          <li>결정론 · 수치 오차 검증</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 출처</h3>
+        <ul class="tiny">
+          <li>PMPP 4e Ch 10–14</li>
+          <li>CUDA CPG §7 warp-level</li>
+          <li>Cooperative Groups guide (CUDA 11+)</li>
+          <li>CUB docs · Thrust docs</li>
+          <li>Stream-K: Osama et al. 2023</li>
+          <li>Merge-based SpMV: Merrill &amp; Garland 2016</li>
+          <li>Harris: Optimizing Parallel Reduction (NVIDIA)</li>
+        </ul>
+      </div>
+
+      <div class="mnem">
+        <span class="label"></span>
+        V05 총정리: <span class="key">WP워라</span>
+        (<b>W</b>ork · <b>D</b>epth · <b>W</b>arp primitive · <b>라</b>이브러리 우선)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">- 15 -</div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

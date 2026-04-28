@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V16 Inference Serving 단권화 — 22p</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Noto+Serif+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light" data-tint="default" data-density="normal" data-cols="3">
+
+<div class="sheet-stack">
+
+<!-- ============================ PAGE 1: COVER ============================ -->
+<section class="page cover" data-screen-label="01 Cover">
+  <div class="cover-hero">
+    <div class="eyebrow">CUDA 18VOL · TIER 5 DISTRIBUTED/SERVING · A4 LANDSCAPE · 22p</div>
+    <h1>V16 Inference Serving <span class="accent">단권화</span></h1>
+    <div class="subtitle">vLLM · SGLang · TensorRT-LLM engine internals — Scheduler · BlockManager · Continuous Batching</div>
+    <div class="meta">
+      <div><b>Volume</b> 16 / 18</div>
+      <div><b>Tier</b> T5 Distributed &amp; Serving</div>
+      <div><b>선행</b> V07(attention) · V08(LLM kernels) · V15(distributed)</div>
+      <div><b>용도</b> engine path 전체 지도 — kernel 호출 궤적 <span class="ko">추적</span></div>
+    </div>
+  </div>
+  <div class="cover-grid">
+    <div class="toc-box">
+      <h4>목차</h4>
+      <div class="toc">
+        <div class="row"><span class="t">1. Inference workload 특성</span><span class="p">p.2</span></div>
+        <div class="row"><span class="t">2. Static batching 한계</span><span class="p">p.3</span></div>
+        <div class="row star"><span class="t">3. Continuous batching (Orca)</span><span class="p">p.4</span></div>
+        <div class="row star"><span class="t">4. vLLM 전체 아키텍처</span><span class="p">p.5</span></div>
+        <div class="row"><span class="t">5. vLLM Scheduler</span><span class="p">p.6</span></div>
+        <div class="row star"><span class="t">6. BlockManager</span><span class="p">p.7</span></div>
+        <div class="row"><span class="t">7. PagedAttention 통합</span><span class="p">p.8</span></div>
+        <div class="row"><span class="t">8. Chunked Prefill</span><span class="p">p.9</span></div>
+        <div class="row"><span class="t">9. Prefix Caching</span><span class="p">p.10</span></div>
+        <div class="row"><span class="t">10. CUDA Graph 통합</span><span class="p">p.11</span></div>
+        <div class="row"><span class="t">11. Speculative decoding 통합</span><span class="p">p.12</span></div>
+        <div class="row"><span class="t">12. Quantization 통합</span><span class="p">p.13</span></div>
+        <div class="row"><span class="t">13. 분산 추론 (TP+PP)</span><span class="p">p.14</span></div>
+        <div class="row"><span class="t">14. SGLang RadixAttention</span><span class="p">p.15</span></div>
+        <div class="row"><span class="t">15. SGLang Frontend</span><span class="p">p.16</span></div>
+        <div class="row"><span class="t">16. TensorRT-LLM 아키텍처</span><span class="p">p.17</span></div>
+        <div class="row star"><span class="t">17. Engine 비교 매트릭스</span><span class="p">p.18</span></div>
+        <div class="row"><span class="t">18. API 서빙 레이어</span><span class="p">p.19</span></div>
+        <div class="row"><span class="t">19. Latency breakdown (TTFT/TPOT)</span><span class="p">p.20</span></div>
+        <div class="row"><span class="t">20. Throughput vs Latency trade</span><span class="p">p.21</span></div>
+        <div class="row"><span class="t">21. Cheat Sheet</span><span class="p">p.22</span></div>
+      </div>
+    </div>
+    <div class="cover-legend">
+      <h4>범례</h4>
+      <div class="row"><span class="swatch" style="background:#fff59d"></span><span>핵심 용어 (노랑)</span></div>
+      <div class="row"><span class="swatch" style="background:#ffcdd2"></span><span>표 헤더 / 매우 중요</span></div>
+      <div class="row"><span class="swatch" style="background:#bbdefb"></span><span>정의·공식 박스</span></div>
+      <div class="row"><span class="swatch" style="background:#c8e6c9"></span><span>예시·워크드 박스</span></div>
+      <div class="row"><span class="sym">★</span><span>시험·실무 핵심</span></div>
+      <div class="row"><span class="sym">(!)</span><span>니모닉 (권당 ≤5)</span></div>
+      <div class="row"><span class="sym">↗</span><span>다른 권 참조 (xref)</span></div>
+      <div class="row"><span class="sym">→</span><span>인과·흐름</span></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div><b>인쇄</b> A4 가로 / 여백 없음 / 배경 그래픽 포함 · Ctrl(⌘)+P</div>
+    <div class="mono">vLLM · SGLang · TRT-LLM · Orca · PagedAttention · RadixAttention</div>
+  </div>
+</section>
+
+<!-- ============================ PAGE 2: §1 Workload 특성 ============================ -->
+<section class="page" data-screen-label="02 Workload">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(2p)</span></div>
+    <div class="chap">§1 — Inference workload 특성</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Autoregressive 2-phase <span class="ko">prefill · decode</span></h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>prefill</mark>: prompt N<sub>p</sub> token 1-shot forward → O(N<sub>p</sub>²) attention · FLOPs-bound.
+          <mark>decode</mark>: 1 token/step autoregressive · O(N<sub>p</sub>+t) attention · memory-bound.
+        </div>
+        <ul>
+          <li>prefill = parallel over seq, decode = sequential over time</li>
+          <li>한 request가 두 phase를 <b>직렬</b> 통과 <span class="arrow">→</span> 스케줄러가 phase별 분기 필요</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Arithmetic intensity 비대칭</h3>
+        <table class="compact">
+          <thead><tr><th>phase</th><th>op</th><th>AI (FLOP/B)</th><th>bound</th></tr></thead>
+          <tbody>
+            <tr><td>prefill</td><td>GEMM(QKV)</td><td class="num">~200</td><td>FLOPs</td></tr>
+            <tr><td>prefill</td><td>FA forward</td><td class="num">~N<sub>p</sub>·d</td><td>FLOPs</td></tr>
+            <tr><td>decode</td><td>GEMM(proj)</td><td class="num">~2·B</td><td>HBM BW</td></tr>
+            <tr><td>decode</td><td>attn w/ KV</td><td class="num">~1</td><td>HBM BW</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">B = batch size. decode AI ≈ batch ↗로만 끌어올림 <span class="xref">↗ V18</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Sequence 길이 분산 ★</h3>
+        <ul>
+          <li>production trace: input 길이 log-normal · output 길이 geometric · <b>상호 무관</b></li>
+          <li>long-tail: p50 ≪ p99 (e.g. 200 vs 4K token)</li>
+          <li>request 간 <mark>이질성</mark>이 serving의 핵심 난제</li>
+        </ul>
+        <pre class="ascii">dist hist (실제 트래픽 모양)
+ input ▁▂▅█▇▄▂▁▁▁ ... (skew)
+ output▂▄█▅▃▂▁▁▁▁ ... (short)
+ p50 128    p99 4096</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Batch 내 이질성 <span class="ko">mixed phase</span></h3>
+        <div class="ex"><span class="label"></span>
+          같은 step에 R<sub>1</sub>(prefill 2000 tok), R<sub>2</sub>(decode 1 tok), R<sub>3</sub>(decode 1 tok) 공존.
+          총 token = 2002, GPU에는 "flat token" 2002개만 보임 <span class="arrow">→</span>
+          스케줄러가 2D 구조(batch×seq)를 <b>1D packed</b>로 평탄화.
+        </div>
+        <ul>
+          <li><code>cu_seqlens = [0, 2000, 2001, 2002]</code> varlen FA 사용 <span class="xref">↗ V07 §4</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> KV cache 성장</h3>
+        <div class="formula">
+          KV<sub>bytes</sub>(req) = 2·L·H<sub>kv</sub>·D·T·dtype<br/>
+          total = Σ<sub>r</sub> KV<sub>bytes</sub>(r)
+          <span class="legend">L layer · H<sub>kv</sub> KV head · D head dim · T 현재 seq 길이 · 2 = K+V</span>
+        </div>
+        <p class="tiny">Llama-3-70B FP16: L=80, H<sub>kv</sub>=8, D=128, T=1 <span class="arrow">→</span> 320 KB/token·req</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> SLO 이원화</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>정의</th><th>지배 phase</th></tr></thead>
+          <tbody>
+            <tr><td>TTFT</td><td>첫 token 나올 때까지</td><td>prefill</td></tr>
+            <tr><td>TPOT</td><td>tok/토큰 평균 간격</td><td>decode</td></tr>
+            <tr><td>e2e</td><td>TTFT + (N<sub>o</sub>−1)·TPOT</td><td>둘 다</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">상세 분해는 <span class="xref">↗ §19 p.20</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Out-of-scope 재확인</h3>
+        <ul>
+          <li>attention kernel 자체 <span class="xref">↗ V07</span></li>
+          <li>분산 collective 내부 <span class="xref">↗ V15</span></li>
+          <li>quant 알고리즘 <span class="xref">↗ V10</span></li>
+          <li>일반 scheduler 알고리즘론 (CPU 이론) — 제외</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 02</span></div>
+</section>
+
+<!-- ============================ PAGE 3: §2 Static batching 한계 ============================ -->
+<section class="page" data-screen-label="03 Static batching">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(3p)</span></div>
+    <div class="chap">§2 — Static batching 한계</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Static batching 정의 <span class="ko">request-level</span></h3>
+        <div class="def"><span class="label">정의</span>
+          batch를 <b>request 단위</b>로 잠그고, 해당 batch 전체가 끝날 때까지 step을 반복.
+          새 request는 이전 batch 종료 후에만 합류.
+        </div>
+        <pre class="ascii">t0: B = {A, B, C}   (lock)
+ step: forward(pad_to(max_len(B)))
+ step: ...
+tN: A,B,C 모두 EOS → B = {}
+tN+1: new batch {D, E, F}</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Head-of-Line blocking ★</h3>
+        <ul>
+          <li>batch 내 <b>최장</b> seq가 종료 지점을 결정</li>
+          <li>짧은 req (output 10 tok) 도 긴 req (output 2000 tok) 끝까지 대기</li>
+          <li>p99 latency = longest + queue wait</li>
+        </ul>
+        <pre class="ascii">A (out=10)   ████▫▫▫▫▫▫▫▫▫▫▫▫▫▫▫▫
+B (out=2000) ██████████████████████
+C (out=50)   █████▫▫▫▫▫▫▫▫▫▫▫▫▫▫▫▫
+             ↑ A,C 끝나도 GPU idle</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Padding waste</h3>
+        <div class="formula">
+          waste = 1 − Σ N<sub>i</sub> / (B · max<sub>i</sub> N<sub>i</sub>)
+          <span class="legend">N<sub>i</sub> : 실제 길이. 길이 분산 ↑일수록 waste ↑</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          B=4, lengths=[100, 2000, 200, 50] <span class="arrow">→</span>
+          waste = 1 − 2350 / 8000 = <b>70.6%</b>. padding 토큰이 FLOP을 낭비.
+        </div>
+        <p class="tiny">varlen kernel이면 waste=0 가능하지만, static batching은 <b>step 단위 동기화</b>가 핵심 문제</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> 자원 점유 <span class="ko">KV 슬롯</span></h3>
+        <ul>
+          <li>batch 고정 <span class="arrow">→</span> KV 슬롯 B개 <b>pre-allocate</b></li>
+          <li>짧은 req가 끝나도 슬롯 해제 불가 (다음 batch까지 잠김)</li>
+          <li>GPU 메모리는 항상 max batch 기준</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Dynamic batching <span class="ko">중간 단계</span></h3>
+        <div class="def"><span class="label">정의</span>
+          Triton/TF-Serving 계열. <mark>queue timeout</mark>까지 request를 모아 batch 구성.
+          한 batch 시작 후에는 여전히 static.
+        </div>
+        <ul>
+          <li>queue wait ↓하지만 HoL blocking 잔존</li>
+          <li>LLM 같이 output 길이가 가변이면 효과 제한</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Static의 처방 공간</h3>
+        <table class="compact">
+          <thead><tr><th>문제</th><th>static 처방</th><th>잔존</th></tr></thead>
+          <tbody>
+            <tr><td>padding waste</td><td>length bucket</td><td>bucket 경계 낭비</td></tr>
+            <tr><td>HoL blocking</td><td>early eviction</td><td>throughput ↓</td></tr>
+            <tr><td>KV fragmentation</td><td>max_len 축소</td><td>잘림 위험</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">결론</span>: LLM serving은 <b>iteration-level scheduling</b> 필요 <span class="arrow">→</span> §3 Orca.
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 용어 정리</h3>
+        <ul>
+          <li><code>step</code> = 한 번의 forward pass</li>
+          <li><code>iteration</code> = decode 1 token (= 1 step)</li>
+          <li><code>batch</code> = 같은 step에 묶인 request 집합</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 03</span></div>
+</section>
+
+<!-- ============================ PAGE 4: §3 Continuous batching (Orca) ============================ -->
+<section class="page" data-screen-label="04 Continuous batching">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(4p)</span></div>
+    <div class="chap">§3 — Continuous batching (Orca)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Iteration-level scheduling ★
+          <span class="mnemonic">step마다 재편성</span>
+        </h3>
+        <div class="def"><span class="label">정의</span>
+          Orca (OSDI'22): <mark>매 iteration</mark>마다 running set을 재구성.
+          EOS 난 req는 즉시 빠지고, 새 req는 다음 step에 합류.
+        </div>
+        <ul>
+          <li>unit of scheduling = <b>iteration</b>, not request</li>
+          <li>padding 제거: packed 1D token stream + <code>cu_seqlens</code></li>
+          <li>짧은 req wait ≈ 0, long req가 short req를 block하지 않음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Selective batching</h3>
+        <ul>
+          <li>token-wise op (GEMM, norm, MLP) → <b>packed</b> batch 가능</li>
+          <li>sequence-wise op (attention) → <b>per-seq</b> 실행 필요 (varlen FA)</li>
+          <li>layer 내부에서 두 모드 전환</li>
+        </ul>
+        <div class="formula">
+          token-wise : X[T<sub>total</sub>, d] @ W<br/>
+          seq-wise   : attn(Q<sub>i</sub>, K<sub>i</sub>, V<sub>i</sub>) ∀ i
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Core loop 의사코드 ★</h3>
+<pre class="code"><span class="cmt"># Continuous batching main loop (Orca-style)</span>
+<span class="kw2">def</span> <span class="fn">engine_loop</span>():
+  <span class="kw2">while</span> <span class="fn">has_requests</span>(waiting | running):
+    <span class="cmt"># 1. schedule a batch for THIS iteration</span>
+    batch, budget = <span class="fn">scheduler</span>.<span class="fn">schedule</span>(
+      waiting, running, swapped,
+      <span class="hl">max_num_batched_tokens</span>,
+      <span class="hl">max_num_seqs</span>)
+
+    <span class="cmt"># 2. prepare packed inputs</span>
+    input_ids, cu_seqlens, block_tables = \
+      <span class="fn">prepare_inputs</span>(batch)
+
+    <span class="cmt"># 3. one forward step (prefill+decode 섞임)</span>
+    logits = <span class="fn">model</span>.<span class="fn">forward</span>(
+      input_ids, cu_seqlens, block_tables)
+
+    <span class="cmt"># 4. sample next tokens per seq</span>
+    next_tokens = <span class="fn">sampler</span>(logits, batch.params)
+
+    <span class="cmt"># 5. update each seq &amp; KV cache</span>
+    <span class="kw2">for</span> seq, tok <span class="kw2">in</span> <span class="fn">zip</span>(batch.seqs, next_tokens):
+      seq.<span class="fn">append</span>(tok)
+      <span class="kw2">if</span> <span class="fn">is_finish</span>(seq, tok): <span class="fn">finish</span>(seq)
+      <span class="kw2">else</span>: <span class="fn">return_to_running</span>(seq)
+
+    <span class="cmt"># 6. stream partial outputs to clients</span>
+    <span class="fn">emit_stream_events</span>(batch)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> 효과 정량 <span class="ko">개념적</span></h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>static</th><th>continuous</th></tr></thead>
+          <tbody>
+            <tr><td>padding waste</td><td class="num">30–70%</td><td class="num">~0%</td></tr>
+            <tr><td>HoL wait p99</td><td>longest req</td><td>batch 내 최단</td></tr>
+            <tr><td>GPU util</td><td class="num">50–70%</td><td class="num">80–95%</td></tr>
+            <tr><td>effective batch</td><td>고정 B</td><td>가변 1..B<sub>max</sub></td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">원문: Yu et al. Orca, OSDI'22. 수치는 논문 정성 요약</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 전제 조건</h3>
+        <ol>
+          <li>varlen attention kernel 지원 (FA varlen <span class="xref">↗ V07 §4</span>)</li>
+          <li>KV cache가 seq 단위로 <b>독립 할당·해제</b> 가능 — PagedAttention 동기</li>
+          <li>sampler/decode logic이 per-seq parameter 지원</li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        새 req가 prefill 진입 시 CUDA Graph 재캡처가 필요할 수 있음 <span class="arrow">→</span> §10 p.11에서 해결.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        continuous batching 3요소: <span class="key">ITER·PACK·PAGE</span>
+        (iteration 단위 · packed 입력 · paged KV)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 04</span></div>
+</section>
+
+<!-- ============================ PAGE 5: §4 vLLM Architecture ============================ -->
+<section class="page" data-screen-label="05 vLLM Architecture">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(5p)</span></div>
+    <div class="chap">§4 — vLLM 전체 아키텍처</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 6-Layer 구성 ★</h3>
+        <pre class="ascii">┌────────────────────────────────────┐
+│ API Server (OpenAI-compat, async)  │  Uvicorn/FastAPI
+├─────────────▼──────────────────────┤
+│ AsyncLLMEngine (event loop)        │  req ingest
+├─────────────▼──────────────────────┤
+│ LLMEngine                          │  step() driver
+│  ├─ Scheduler  (queues, budget)    │  §5
+│  ├─ BlockMgr   (KV allocator)      │  §6
+│  └─ SequenceGroup pool             │
+├─────────────▼──────────────────────┤
+│ Executor (MP / Ray)                │  multi-GPU
+├─────────────▼──────────────────────┤
+│ Worker × N  (1 per GPU)            │
+│  └─ ModelRunner                    │
+│      ├─ sampler                    │
+│      └─ Attention Backend          │  §7
+│          (FA2/FA3/FlashInfer/XFM)  │
+├─────────────▼──────────────────────┤
+│ CUDA kernels + NCCL (TP/PP)        │  <span class="xref">↗ V07/V15</span>
+└────────────────────────────────────┘</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">2</span> Step 데이터 흐름 <span class="ko">1 iteration</span></h3>
+        <pre class="ascii">1. API → AsyncEngine.add_request()
+2. AsyncEngine.step() → LLMEngine.step()
+3. Scheduler.schedule()
+    → SchedulerOutput{batched_seqs,
+                      blocks_to_swap_in,
+                      blocks_to_swap_out,
+                      blocks_to_copy}
+4. Executor.execute_model(SchedOut)
+    → broadcast to Workers (TP)
+5. Worker.ModelRunner.execute_model()
+    a. prepare_inputs (gather tok,
+       positions, block_tables)
+    b. model.forward()        ← graph?
+    c. sampler → next_tokens
+    d. return SamplerOutput
+6. LLMEngine.process_outputs()
+    → update SequenceGroup
+    → BlockMgr.free / alloc
+7. AsyncEngine yields stream chunks</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> 핵심 객체</h3>
+        <table class="compact">
+          <thead><tr><th>객체</th><th>소유</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td><code>Sequence</code></td><td>token ids</td><td>1 개별 생성</td></tr>
+            <tr><td><code>SequenceGroup</code></td><td>sampling params</td><td>beam · parallel n</td></tr>
+            <tr><td><code>BlockTable</code></td><td>logical→phys</td><td>per Sequence</td></tr>
+            <tr><td><code>SchedulerOutput</code></td><td>batch plan</td><td>step 입력</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Attention Backend 추상 <span class="ko">plug-in</span></h3>
+        <ul>
+          <li><code>FlashAttention</code> (FA2/FA3) · <code>FlashInfer</code> · <code>xFormers</code> · <code>TorchSDPA</code></li>
+          <li>Backend 공통 interface: <code>forward(q, kv_cache, block_tables, metadata)</code></li>
+          <li>metadata에 prefill/decode mask, varlen cumsum, causal 플래그 전달</li>
+          <li>hardware/dtype/head-dim별 <b>auto-select</b></li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Executor 모드</h3>
+        <table class="compact">
+          <thead><tr><th>mode</th><th>특징</th><th>when</th></tr></thead>
+          <tbody>
+            <tr><td><code>UniprocExec</code></td><td>single GPU</td><td>TP=PP=1</td></tr>
+            <tr><td><code>MPExec</code></td><td>torchrun, fork</td><td>single node TP</td></tr>
+            <tr><td><code>RayExec</code></td><td>remote actor</td><td>multi-node</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> V1 엔진 <span class="ko">재설계</span></h3>
+        <ul>
+          <li>V1 (2024+): 단일 스케줄러, prefill/decode 통합, async output proc</li>
+          <li>Python overhead ↓: C++ core 부분 확장</li>
+          <li>structured output · multi-modal 1급 지원</li>
+        </ul>
+        <p class="tiny">vLLM V1 design doc, 2024-09</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 05</span></div>
+</section>
+
+<!-- ============================ PAGE 6: §5 vLLM Scheduler ============================ -->
+<section class="page" data-screen-label="06 Scheduler">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(6p)</span></div>
+    <div class="chap">§5 — vLLM Scheduler</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 3-Queue 모델 ★</h3>
+        <pre class="ascii">┌─waiting──┐  new req, prefill 미시작
+│ seq, seq │
+└──┬───────┘
+   │ can_allocate? budget?
+   ▼
+┌─running──┐  매 step forward
+│ seq, seq │
+└──┬───────┘
+   │ OOM / preempt-swap
+   ▼
+┌─swapped──┐  KV를 CPU로 off
+│ seq, seq │
+└──────────┘
+ 상승 복귀: swap-in 후 running으로</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Transition 조건</h3>
+        <table class="compact">
+          <thead><tr><th>from</th><th>to</th><th>조건</th></tr></thead>
+          <tbody>
+            <tr><td>waiting</td><td>running</td><td>block 할당 가능 + budget</td></tr>
+            <tr><td>running</td><td>swapped</td><td>OOM 발생 + swap 정책</td></tr>
+            <tr><td>running</td><td>waiting</td><td>preempt-recompute 정책</td></tr>
+            <tr><td>swapped</td><td>running</td><td>swap-in 가능</td></tr>
+            <tr><td>running</td><td>finished</td><td>EOS or max_tok</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Budget 2축 <span class="ko">token · seq</span></h3>
+        <div class="formula">
+          batch 진입 조건 s:<br/>
+          &nbsp;Σ tok(s) ≤ max_num_batched_tokens<br/>
+          &nbsp;|batch| ≤ max_num_seqs<br/>
+          &nbsp;free_blocks ≥ required(s)
+          <span class="legend">prefill seq는 tok = prompt_len, decode seq는 tok = 1</span>
+        </div>
+        <ul>
+          <li><b>token budget</b> — compute 상한 (one step 시간)</li>
+          <li><b>seq budget</b> — sampler/dispatch overhead 상한</li>
+          <li><b>block budget</b> — KV OOM 방지</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Preemption 2가지 ★</h3>
+        <table class="vs">
+          <thead><tr><th></th><th>swap</th><th>recompute</th></tr></thead>
+          <tbody>
+            <tr><td>동작</td><td>KV → CPU/pinned</td><td>KV 버림, prefill 재실행</td></tr>
+            <tr><td>비용</td><td>PCIe 전송</td><td>prefill FLOPs</td></tr>
+            <tr><td>적합</td><td>생성된 토큰 多</td><td>prompt 짧고 decode 적음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> FCFS + priority</h3>
+        <ul>
+          <li>기본: first-come-first-serve (arrival time)</li>
+          <li>priority 지원 시 heap으로 순서 결정</li>
+          <li>starvation 방지: aging은 현재 명시적 미지원 (policy 책임)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Schedule 의사코드</h3>
+<pre class="code"><span class="kw2">def</span> <span class="fn">schedule</span>():
+  budget = <span class="fn">Budget</span>(max_tok, max_seq)
+  out = []
+  <span class="cmt"># 1. running 먼저 (decode 연속성)</span>
+  <span class="kw2">for</span> s <span class="kw2">in</span> running:
+    <span class="kw2">if</span> <span class="kw2">not</span> budget.<span class="fn">can_add</span>(s):
+      <span class="fn">preempt</span>(s); <span class="kw2">continue</span>
+    out.<span class="fn">append</span>(s)
+  <span class="cmt"># 2. swapped 복귀</span>
+  <span class="kw2">for</span> s <span class="kw2">in</span> swapped:
+    <span class="kw2">if</span> <span class="fn">can_swap_in</span>(s) <span class="kw2">and</span> budget.<span class="fn">ok</span>():
+      <span class="fn">swap_in</span>(s); out.<span class="fn">append</span>(s)
+  <span class="cmt"># 3. waiting 신규 prefill</span>
+  <span class="kw2">for</span> s <span class="kw2">in</span> waiting:
+    <span class="kw2">if</span> <span class="fn">can_alloc</span>(s) <span class="kw2">and</span> budget.<span class="fn">ok</span>(s):
+      <span class="fn">alloc</span>(s); out.<span class="fn">append</span>(s)
+  <span class="kw2">return</span> out</pre>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">미묘함</span>: chunked prefill 켜면 한 step 내 prefill·decode가 섞여 budget 계산이 token 단위로 통일됨 (§8 p.9).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 06</span></div>
+</section>
+
+<!-- ============================ PAGE 7: §6 BlockManager ============================ -->
+<section class="page" data-screen-label="07 BlockManager">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(7p)</span></div>
+    <div class="chap">§6 — BlockManager (KV allocator)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Logical vs Physical ★</h3>
+        <div class="def"><span class="label">정의</span>
+          <mark>logical block</mark>: seq 관점의 연속 토큰 창 (0, 1, 2, ...).<br/>
+          <mark>physical block</mark>: GPU HBM에 실제 할당된 page frame.<br/>
+          <mark>block table</mark>: logical idx → physical idx.
+        </div>
+        <pre class="ascii">seq A logical: [0][1][2][3]
+          ↓
+block_table_A: [12, 07, 03, 21]  (frame ids)
+
+HBM pool:
+ frame 03 ████   ← A.logical[2]
+ frame 07 ████   ← A.logical[1]
+ frame 12 ████   ← A.logical[0]
+ frame 21 ████   ← A.logical[3]</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Block size B<sub>p</sub></h3>
+        <table class="compact">
+          <thead><tr><th>B<sub>p</sub></th><th>장점</th><th>단점</th></tr></thead>
+          <tbody>
+            <tr><td>16</td><td>공유 세밀, 내부단편화 ↓</td><td>table 크기 ↑</td></tr>
+            <tr><td>32</td><td>중간 (default 다수)</td><td>—</td></tr>
+            <tr><td>128</td><td>HBM burst ↑</td><td>공유 거침</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Block 크기 바이트 공식</h3>
+        <div class="formula">
+          block_bytes = B<sub>p</sub> · H<sub>kv</sub> · D · 2 · sizeof(dtype)
+          <span class="legend">B<sub>p</sub> token/block · 2 = K and V · per-layer 별도 pool</span>
+        </div>
+        <div class="ex"><span class="label"></span>
+          Llama-3-70B: H<sub>kv</sub>=8, D=128, B<sub>p</sub>=16, FP16 <span class="arrow">→</span>
+          block = 16·8·128·2·2 = <b>64 KiB</b> per layer. 80 layer × 64 KiB = 5.12 MiB per block group.
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Ref count &amp; Copy-on-Write ★</h3>
+        <pre class="ascii">shared prefix (system prompt)
+ block_P: refcount = 3  ← A, B, C 공유
+
+A가 prefix 끝에서 분기 (write)
+  1. alloc new block_P'
+  2. copy block_P → block_P'
+  3. A.table[i] = P'; P.refcount-=1
+"blocks_to_copy" in SchedulerOutput</pre>
+        <ul>
+          <li>beam search · parallel sampling · prefix cache에서 활용</li>
+          <li>CoW는 <b>마지막 block</b>에서만 발생 (완성된 block은 immutable)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 메모리 프로파일링 <span class="ko">기동시</span></h3>
+        <div class="formula">
+          gpu_mem_total − model_weight − activation<br/>
+          &nbsp;&nbsp;− workspace − safety = kv_pool<br/>
+          n_blocks = kv_pool / (L · block_bytes)
+          <span class="legend">activation은 dummy forward로 측정. safety = <code>gpu_memory_utilization</code></span>
+        </div>
+        <p class="tiny">vLLM <code>determine_num_available_blocks()</code></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Fragmentation 분석</h3>
+        <table class="compact">
+          <thead><tr><th>종류</th><th>기존</th><th>paged</th></tr></thead>
+          <tbody>
+            <tr><td>internal</td><td>max_len 예약 → 큼</td><td>≤ B<sub>p</sub>-1 토큰 · 마지막 block만</td></tr>
+            <tr><td>external</td><td>연속 공간 요구</td><td>frame 단위 <span class="arrow">→</span> 0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Allocator API <span class="ko">요약</span></h3>
+        <ul>
+          <li><code>allocate(seq, num_blocks)</code> · <code>free(seq)</code></li>
+          <li><code>append_slot(seq)</code> — decode 1 tok당 호출, block 경계 넘으면 new block</li>
+          <li><code>swap_in/out(blocks)</code> — CPU pool 이동</li>
+          <li><code>fork(parent, child)</code> — refcount++, share table</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        CoW trigger를 놓치면 prefix 공유 seq끼리 <b>서로의 KV를 덮어씀</b>. 정확성 치명적.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 07</span></div>
+</section>
+
+<!-- ============================ PAGE 8: §7 PagedAttention 통합 ============================ -->
+<section class="page" data-screen-label="08 PagedAttn path">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(8p)</span></div>
+    <div class="chap">§7 — PagedAttention 통합 흐름</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Kernel 입력 구조</h3>
+        <ul>
+          <li>kernel 자체의 수식·내부 tiling은 <span class="xref">↗ V07 §16–17</span></li>
+          <li>engine이 kernel에 넘기는 것:
+            <ol>
+              <li><code>q</code> — 현재 step query (packed)</li>
+              <li><code>kv_cache</code> — 전역 pool tensor</li>
+              <li><code>block_tables</code> — [B, max_blocks] int32</li>
+              <li><code>context_lens</code> — 각 seq의 T</li>
+              <li><code>cu_seqlens_q</code> — prefill varlen 경계</li>
+            </ol>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Gather pattern <span class="ko">decode</span></h3>
+<pre class="code"><span class="cmt"># per (seq_id, head, tok_idx)</span>
+<span class="ty">phys</span> = block_tables[seq_id,
+                     tok_idx // B_p]
+<span class="ty">off</span>  = tok_idx % B_p
+<span class="ty">k</span> = kv_cache[layer, 0,
+              phys, off, head, :]
+<span class="ty">v</span> = kv_cache[layer, 1,
+              phys, off, head, :]</pre>
+        <p class="tiny">vLLM kv_cache shape: [L, 2, n_blocks, B<sub>p</sub>, H<sub>kv</sub>, D]</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Prefill vs Decode path 분기</h3>
+        <table class="compact">
+          <thead><tr><th></th><th>prefill</th><th>decode</th></tr></thead>
+          <tbody>
+            <tr><td>Q tokens</td><td>N<sub>p</sub> per seq</td><td>1 per seq</td></tr>
+            <tr><td>K/V source</td><td>현재 tok (new)</td><td>cache (old) + 현재</td></tr>
+            <tr><td>kernel</td><td>FA varlen</td><td>paged kernel</td></tr>
+            <tr><td>parallel 축</td><td>seq 내부</td><td>seq 간</td></tr>
+            <tr><td>AI</td><td>high (FLOPs)</td><td>low (BW)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> v1 vs v2 선택 <span class="ko">split-K</span></h3>
+        <ul>
+          <li><b>v1</b>: 1 CTA = (seq, head) · 짧은 T 효율</li>
+          <li><b>v2</b>: K축 P partitions · 긴 T에서 SM 포화 ↑</li>
+          <li>threshold는 <code>max_context_len</code>과 B에 의존, backend가 결정</li>
+        </ul>
+        <p class="tiny">자세한 split-K 수식 <span class="xref">↗ V07 §17</span></p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Prefix cache hit path ★</h3>
+        <pre class="ascii">req 진입:
+  1. scheduler: hash(prompt_prefix)
+       → hit 노드 N 탐색
+  2. N.block_ids 를 seq.block_table에
+       prepend (refcount++)
+  3. Q kernel은 "cached" span을
+       skip — 실제 compute는 새 tok만
+  4. 이 단계에서 TTFT ↓ (prefill 단축)</pre>
+        <p class="tiny">더 상세 → §9 prefix caching p.10</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> KV write path <span class="ko">per step</span></h3>
+        <ol>
+          <li>model.forward가 현재 step의 new K, V 계산</li>
+          <li>attention backend가 <code>reshape_and_cache</code> kernel 호출</li>
+          <li>block_tables의 "현재 slot"에 write (scatter)</li>
+          <li>attention 자체는 그 다음 kernel 호출에서 paged read</li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        write → read 의존성 동일 kernel 내부 처리 시 race 가능. vLLM은 <b>scatter cache</b>와 <b>paged attn</b>을 분리한 2-kernel 패턴 사용.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 08</span></div>
+</section>
+
+<!-- ============================ PAGE 9: §8 Chunked Prefill ============================ -->
+<section class="page" data-screen-label="09 Chunked Prefill">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(9p)</span></div>
+    <div class="chap">§8 — Chunked Prefill</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 <span class="ko">왜 쪼개는가</span></h3>
+        <ul>
+          <li>긴 prompt (16K~128K) 1-shot prefill <span class="arrow">→</span> 그 step 전체를 독점 <span class="arrow">→</span> <b>decode 요청 멈춤</b></li>
+          <li>TTFT는 개선되어도 <b>다른 req의 TPOT가 spike</b></li>
+          <li>해결: prefill을 C token chunk로 분할, decode 요청과 한 step에 mix</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Token 예산 통일 공식</h3>
+        <div class="formula">
+          chunk_size(req) = min(<br/>
+          &nbsp;&nbsp;remaining_prefill(req),<br/>
+          &nbsp;&nbsp;max_num_batched_tokens − Σ decode_tok<br/>
+          )
+          <span class="legend">decode는 req당 1 tok이므로 남은 예산이 prefill chunk 한도</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> Step mix 예시</h3>
+<pre class="ascii">max_batched_tok = 512
+req A: decode (1 tok)
+req B: decode (1 tok)
+req C: prefill 2000 tok (진행중 800/2000)
+→ 이번 step tok = [1, 1, 510]
+   chunk = 510  (512 − 2)
+→ 다음 step: req C chunk 510 ...
+최종 step에서 C prefill 완료 → decode 합류</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Attention 처리 <span class="ko">부분 prefill</span></h3>
+        <ul>
+          <li>chunk N<sub>c</sub> token의 Q가 이전 chunk의 KV를 attend</li>
+          <li>현재 chunk 내부 causal + 이전 chunk full attend</li>
+          <li>kernel은 prefill varlen + paged cache 동시 — FA2 varlen이 이를 지원</li>
+        </ul>
+        <pre class="ascii">Q: [chunk_k]
+K,V: cache[0:chunk_k_start]
+     + (chunk_k own K,V)
+mask: causal within chunk_k
+      full on prior cached</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> 효과 정량</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>no chunk</th><th>chunk</th></tr></thead>
+          <tbody>
+            <tr><td>TPOT p99 spike</td><td>크다</td><td>작다</td></tr>
+            <tr><td>TTFT</td><td>짧다</td><td>약간 ↑ (overhead)</td></tr>
+            <tr><td>throughput</td><td>prefill 시 idle</td><td>decode 병행 ↑</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">overhead 원천: chunk 경계마다 attention kernel re-launch</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> Scheduler와 상호작용</h3>
+        <ul>
+          <li>prefill seq는 여러 step에 걸쳐 <b>running</b>에 머묾</li>
+          <li>step마다 <code>num_computed_tokens</code> 갱신</li>
+          <li><code>num_computed_tokens == prompt_len</code> 시 decode 단계로 전환</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Piggyback &amp; Sarathi</h3>
+        <div class="def"><span class="label">정의</span>
+          Sarathi-Serve (2024): decode step에 prefill chunk를 "piggyback"하여
+          decode의 메모리 bound 여유분 FLOPs를 prefill이 채움.
+        </div>
+        <ul>
+          <li>메모리 bound decode + FLOP bound prefill = 상보적</li>
+          <li>roofline 관점: 두 op AI가 다르므로 동시에 섞으면 효용 ↑ <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        chunked prefill 3키: <span class="key">CHUNK·MIX·PIGGY</span>
+        (prefill 분할 · decode와 혼합 · bound 상보)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 09</span></div>
+</section>
+
+<!-- ============================ PAGE 10: §9 Prefix Caching ============================ -->
+<section class="page" data-screen-label="10 Prefix Caching">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(10p)</span></div>
+    <div class="chap">§9 — Prefix Caching</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기</h3>
+        <ul>
+          <li>system prompt · few-shot · agent history — 요청 간 <b>공통 prefix</b></li>
+          <li>prefix를 재연산하지 않고 기존 KV block 재사용</li>
+          <li>TTFT ↓, HBM 점유 ↓</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Hash 체계 ★</h3>
+        <div class="formula">
+          h(block_k) = H(h(block_{k−1}) ∥ tokens_k)
+          <span class="legend">chained hash — token 수열이 동일하면 동일 block hash. block 단위(B<sub>p</sub> 고정)로 경계 맞춤</span>
+        </div>
+        <pre class="ascii">tok: [t0..t15][t16..t31][t32..t47]...
+hash:   h0      h1        h2
+table:  h0→blk_A  h1→blk_B ...</pre>
+        <p class="tiny">block 경계 토큰 수 불일치 시 hit 불가 — B<sub>p</sub> 선택 중요</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Lookup path</h3>
+        <ol>
+          <li>새 req prompt를 B<sub>p</sub>-block으로 분할</li>
+          <li>앞에서부터 chained hash 계산 · table lookup</li>
+          <li>최장 연속 hit span 결정 (첫 miss에서 break)</li>
+          <li>hit block의 refcount++, req.block_table에 삽입</li>
+          <li>miss span만 prefill 실행</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Eviction 정책</h3>
+        <table class="compact">
+          <thead><tr><th>정책</th><th>동작</th><th>trade</th></tr></thead>
+          <tbody>
+            <tr><td>LRU on leaves</td><td>refcount=0 leaf 제거</td><td>공정 · 표준</td></tr>
+            <tr><td>LFU</td><td>hit 횟수 기반</td><td>hot prompt 유지</td></tr>
+            <tr><td>TTL</td><td>시간 만료</td><td>stale 방지</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">vLLM 기본: LRU · refcount 0인 block만 free 대상</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Hit rate 감각</h3>
+        <ul>
+          <li>chat: system prompt 동일 <span class="arrow">→</span> 60–90% prefix 비율</li>
+          <li>agent/tool use: multi-turn history 공유 <span class="arrow">→</span> 매우 높음</li>
+          <li>RAG: context 매번 다름 <span class="arrow">→</span> 낮음</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 정확성 조건</h3>
+        <div class="warn-box"><span class="label"></span>
+          tokenizer·model·dtype·quant 설정이 동일해야 hit 가능. sampling seed 바뀌어도 OK (KV는 deterministic).
+        </div>
+        <ul>
+          <li>prefix hash에 <code>model_id</code>, <code>kv_dtype</code>, <code>lora_id</code> 포함</li>
+          <li>multi-tenant 시 tenant namespace 분리</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> RadixAttention과 관계</h3>
+        <ul>
+          <li>vLLM prefix cache: <b>flat hash map</b></li>
+          <li>SGLang RadixAttention: <b>trie</b> 기반 (§14 p.15)</li>
+          <li>trie는 중간 분기 공유 가능, hash map은 block-aligned prefix만</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 10</span></div>
+</section>
+
+<!-- ============================ PAGE 11: §10 CUDA Graph ============================ -->
+<section class="page" data-screen-label="11 CUDA Graph">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(11p)</span></div>
+    <div class="chap">§10 — CUDA Graph 통합</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 동기 <span class="ko">launch overhead</span></h3>
+        <ul>
+          <li>decode step = 70B 모델이면 layer × (qkv, attn, o-proj, norm, mlp) = 수백 kernel</li>
+          <li>각 launch ~5–10 μs · 누적 수 ms</li>
+          <li>decode 자체는 1 tok · step 내 ms 단위 <span class="arrow">→</span> launch가 병목</li>
+          <li>CUDA Graph로 하나의 <b>캡처된 DAG</b>를 통째 launch</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Capture 조건</h3>
+        <ol>
+          <li>모든 tensor shape·dtype·stride <b>고정</b></li>
+          <li>모든 주소 <b>고정</b> (포인터 변하면 재캡처)</li>
+          <li>제어 흐름 데이터에 의존 금지 (static if only)</li>
+          <li>한 stream 안에서 실행 (cross-stream은 sync node 필요)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Graph pool <span class="ko">batch size bucketing</span></h3>
+        <pre class="ascii">capture once per batch size:
+  G[1], G[2], G[4], G[8], G[16], G[32]
+       ...각각 입력 tensor 고정
+실행:
+  B_actual = current batch size
+  B_padded = next_pow2_or_bucket(B_actual)
+  copy inputs into G[B_padded].buffers
+  G[B_padded].launch()
+  slice outputs[:B_actual]</pre>
+        <p class="tiny">padding dummy seq가 KV에 쓰지 않도록 mask 필요</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Dynamic shape 회피</h3>
+        <table class="compact">
+          <thead><tr><th>변수</th><th>처리</th></tr></thead>
+          <tbody>
+            <tr><td>batch size</td><td>bucketed graph pool</td></tr>
+            <tr><td>seq len (cached)</td><td>상수 tensor에 넣고 kernel args로</td></tr>
+            <tr><td>block_tables</td><td>max_blocks 고정, 나머지 -1</td></tr>
+            <tr><td>prefill</td><td>graph 미사용 (eager) · varlen</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> 적용 범위</h3>
+        <ul>
+          <li>decode <b>only</b>에 주로 적용 (prefill은 shape 변동 大)</li>
+          <li>chunked prefill mode는 eager 경로로 fallback하기도</li>
+          <li>spec decoding의 verify step도 graph 가능</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> 비용</h3>
+        <ul>
+          <li>각 graph는 자체 workspace · 메모리 ↑</li>
+          <li>bucket 개수 × model size = 무시 못함</li>
+          <li>capture 시간이 warmup에 추가됨 (수 초~수십 초)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        cudnn/cublas heuristic이 첫 호출에서 분기하면 그대로 박제됨. warmup을 충분히 돌려야 best kernel이 잡힘.
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 관련 설정</h3>
+        <ul>
+          <li>vLLM: <code>enforce_eager=False</code>, <code>cudagraph_capture_sizes</code></li>
+          <li>TRT-LLM: engine build 자체가 static graph</li>
+          <li>SGLang: <code>--disable-cuda-graph</code>로 끌 수 있음</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 11</span></div>
+</section>
+
+<!-- ============================ PAGE 12: §11 Speculative decoding 통합 ============================ -->
+<section class="page" data-screen-label="12 Spec Decoding">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(12p)</span></div>
+    <div class="chap">§11 — Speculative decoding 통합</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 알고리즘 리마인드</h3>
+        <ul>
+          <li>수식·rejection sampling 증명 <span class="xref">↗ V08 §12–13</span></li>
+          <li>여기서는 engine path에 <b>어떻게 꽂히는가</b>만</li>
+        </ul>
+        <div class="formula">
+          expected_tok/step = (1 − α<sup>γ+1</sup>) / (1 − α)
+          <span class="legend">α accept prob · γ draft length. α=0.7, γ=4 → ~2.5× throughput</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Engine 경로 변화</h3>
+        <pre class="ascii">기본 decode step:
+  target.forward(1 tok) → 1 new tok
+
+Spec decode step:
+  1. draft.forward(γ tok) → γ drafts
+  2. target.forward(γ+1 tok) → γ+1 logits
+  3. verify(drafts, target_logits)
+     → accepted n ∈ [1, γ+1] tok
+  4. seq.append(accepted)
+  5. KV cache: accepted n만 commit
+     rejected tail은 discard (잘라냄)</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Worker 구성</h3>
+        <table class="compact">
+          <thead><tr><th>component</th><th>역할</th></tr></thead>
+          <tbody>
+            <tr><td>DraftWorker</td><td>draft 모델 forward (작은 LM)</td></tr>
+            <tr><td>TargetWorker</td><td>target 모델 forward (γ+1 tok at once)</td></tr>
+            <tr><td>Scorer</td><td>rejection sampling · accept idx</td></tr>
+            <tr><td>KVManager</td><td>target cache commit/rollback</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> KV rollback ★</h3>
+        <ul>
+          <li>target이 γ+1 tok의 KV를 미리 cache에 씀</li>
+          <li>verify 후 accepted n만 유지, (γ+1−n) tok의 KV는 <b>revoke</b></li>
+          <li>paged 구조상 "마지막 n slot만 유효" 마크 — refcount에 영향 없음</li>
+          <li>다음 step에 draft가 다시 이어감</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Variant × engine</h3>
+        <table class="compact">
+          <thead><tr><th>variant</th><th>draft 출처</th><th>engine 비용</th></tr></thead>
+          <tbody>
+            <tr><td>Vanilla</td><td>외부 작은 모델</td><td>+1 worker</td></tr>
+            <tr><td>Medusa</td><td>target의 extra head</td><td>weight 공유</td></tr>
+            <tr><td>EAGLE</td><td>hidden-state feature</td><td>small auxiliary net</td></tr>
+            <tr><td>n-gram</td><td>prompt match</td><td>GPU 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Tree attention path</h3>
+        <ul>
+          <li>draft가 여러 branch <span class="arrow">→</span> 동시 검증</li>
+          <li>target의 attention mask = tree causal mask</li>
+          <li>attention backend가 custom mask 지원해야 함 (FA2 packed causal + offset)</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">함정</span>: spec decoding은 batch size가 작을 때만 throughput gain. batch이 이미 크면 memory-bound가 compute로 넘어가 gain이 사라진다.
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Scheduler interaction</h3>
+        <ul>
+          <li>token budget에서 spec step은 γ+1 tok/seq로 계산</li>
+          <li>accept rate 미달 시 γ 동적 조정 가능 (adaptive γ)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 12</span></div>
+</section>
+
+<!-- ============================ PAGE 13: §12 Quantization 통합 ============================ -->
+<section class="page" data-screen-label="13 Quant Path">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(13p)</span></div>
+    <div class="chap">§12 — Quantization 통합</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 양자화 대상 3축</h3>
+        <ul>
+          <li>알고리즘 (GPTQ/AWQ/SmoothQuant/FP8) 자체 <span class="xref">↗ V10</span></li>
+          <li>여기는 engine path에 들어가는 <b>기계적 hook</b>만</li>
+        </ul>
+        <table class="compact">
+          <thead><tr><th>축</th><th>대상</th><th>engine 영향</th></tr></thead>
+          <tbody>
+            <tr><td>weight</td><td>GPTQ/AWQ W4A16</td><td>dequant GEMM kernel</td></tr>
+            <tr><td>act+wgt</td><td>FP8 / INT8</td><td>low-prec GEMM</td></tr>
+            <tr><td>KV cache</td><td>INT8/FP8 KV</td><td>paged layout + scale</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Model loading path</h3>
+        <ol>
+          <li>config에서 <code>quantization</code> 감지</li>
+          <li>GPTQ/AWQ: kernel-bound <code>Linear</code> → <code>QuantLinear</code> 치환 (group_size, bits 메타 포함)</li>
+          <li>FP8: <code>Linear</code> → <code>Fp8Linear</code> + per-tensor scale</li>
+          <li>weight checkpoint에서 pre-packed quantized tensor 로드</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Weight-only quant (GPTQ/AWQ)</h3>
+        <div class="formula">
+          y = dequant(W<sub>q</sub>, s, z) @ x<br/>
+          fused: "GEMM with dequant on-the-fly"
+          <span class="legend">s scale · z zero-point · group_size g (e.g. 128) · W<sub>q</sub> INT4 packed</span>
+        </div>
+        <ul>
+          <li>backend: Marlin · Machete · ExLlamaV2 · AWQ-cuda</li>
+          <li>선택 조건: batch size, dtype, arch (SM80+ vs SM90)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> FP8 (H100 native)</h3>
+        <ul>
+          <li>weight · activation 둘 다 FP8 (E4M3 fwd)</li>
+          <li>per-tensor 또는 per-block scale</li>
+          <li>GEMM은 cuBLAS/CUTLASS FP8 kernel · BF16 accum</li>
+          <li>KV cache도 FP8 저장 가능 (per-page scale)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> KV cache quant path ★</h3>
+        <pre class="ascii">kv_dtype = "fp8_e4m3"
+block layout:
+  [B_p, H_kv, D]  data
+  [per-block scale]  side table
+
+write path:
+  k_fp16 → scale_compute → k_fp8
+  scale 저장 (per block or per token)
+
+read (attention):
+  k_fp8 → scale·k → k_fp16 → QK</pre>
+        <p class="tiny">정확도 위험: scale 위치 잘못 잡으면 붕괴 <span class="xref">↗ V07 §17 warn</span></p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Sampler · activation path</h3>
+        <ul>
+          <li>sampler는 보통 FP32 (수치 안정)</li>
+          <li>norm, residual, rotary는 FP16/BF16 유지 <span class="xref">↗ V08 §8–9</span></li>
+          <li>양자화는 GEMM과 KV에만 집중 (edge op는 FP16)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Engine별 지원</h3>
+        <table class="compact">
+          <thead><tr><th>engine</th><th>W4A16</th><th>FP8</th><th>KV Q</th></tr></thead>
+          <tbody>
+            <tr><td>vLLM</td><td>GPTQ/AWQ/Marlin</td><td>O (H100)</td><td>INT8/FP8</td></tr>
+            <tr><td>SGLang</td><td>AWQ/FP8</td><td>O</td><td>FP8</td></tr>
+            <tr><td>TRT-LLM</td><td>AWQ/SQ</td><td>O (per-tensor)</td><td>INT8/FP8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 13</span></div>
+</section>
+
+<!-- ============================ PAGE 14: §13 분산 추론 ============================ -->
+<section class="page" data-screen-label="14 Distributed">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(14p)</span></div>
+    <div class="chap">§13 — 분산 추론 (TP+PP in vLLM)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Scope 제한</h3>
+        <ul>
+          <li>collective 알고리즘·NVLink 토폴로지·NCCL 내부 <span class="xref">↗ V15</span></li>
+          <li>여기는 <b>vLLM engine</b>이 어떻게 TP/PP를 enable하는지만</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> TP 통신 지점 <span class="ko">Megatron 방식</span></h3>
+        <div class="formula">
+          Y = gelu(X · W<sub>1</sub><sup>col</sup>) · W<sub>2</sub><sup>row</sup><br/>
+          W<sub>1</sub> col-split, W<sub>2</sub> row-split<br/>
+          need <mark>allreduce</mark> after W<sub>2</sub>
+          <span class="legend">attention 내 Wo도 동일 패턴. allreduce ×2 per layer (attn, mlp)</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">3</span> PP 구성</h3>
+        <ul>
+          <li>layer 집합을 stage로 분할</li>
+          <li>inference는 micro-batch 없이 <b>per-request</b> forward</li>
+          <li>stage 간 <code>send/recv</code> activation (NCCL P2P)</li>
+          <li>PP > 1이면 pipeline bubble 대신 <b>inter-request parallel</b> 활용</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">4</span> Worker 간 역할</h3>
+        <pre class="ascii">engine (rank 0 driver)
+  Scheduler / BlockMgr  ← 단일
+  ┌──────┬──────┐
+  │       │       │
+Worker0 Worker1 WorkerN    (TP=N)
+  ModelRunner × TP
+  KV cache per-worker (shard of H_kv or full)
+  allreduce 동기식
+
+engine.execute_model:
+  broadcast SchedOut to all workers
+  각 worker: execute → gather output</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Executor 선택</h3>
+        <table class="compact">
+          <thead><tr><th>condition</th><th>executor</th></tr></thead>
+          <tbody>
+            <tr><td>TP=1, PP=1</td><td>Uniproc</td></tr>
+            <tr><td>single node, TP&gt;1</td><td>MP (torch.multiprocessing)</td></tr>
+            <tr><td>multi-node</td><td>Ray</td></tr>
+            <tr><td>TP + PP</td><td>Ray (권장)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> KV cache under TP</h3>
+        <ul>
+          <li>KV는 head 축으로 shard (H<sub>kv</sub>/TP head per worker)</li>
+          <li>GQA인 경우 H<sub>kv</sub> 작아서 TP가 H<sub>kv</sub> 초과 불가</li>
+          <li>paged 구조는 per-worker 독립 pool</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 통신·compute overlap</h3>
+        <ul>
+          <li>inference는 학습보다 overlap 기회 적음 (forward only)</li>
+          <li>SP (sequence parallel)을 켜면 norm/residual에서 allgather-reduce_scatter 분할</li>
+          <li>TP=8 이상에서 allreduce가 병목 <span class="arrow">→</span> NVLS <span class="xref">↗ V15 §5</span></li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">주의</span>: vLLM은 기본적으로 <b>static TP</b>. request 단위 dynamic TP는 지원 안 함 — 별도 replica로 처리.
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">8</span> 관련 flag</h3>
+        <ul>
+          <li><code>--tensor-parallel-size</code> · <code>--pipeline-parallel-size</code></li>
+          <li><code>--distributed-executor-backend {mp, ray}</code></li>
+          <li><code>--enable-expert-parallel</code> (MoE EP 별도 축)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 14</span></div>
+</section>
+
+<!-- ============================ PAGE 15: §14 SGLang RadixAttention ============================ -->
+<section class="page" data-screen-label="15 RadixAttention">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(15p)</span></div>
+    <div class="chap">§14 — SGLang RadixAttention</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Radix trie 자료구조 ★</h3>
+        <div class="def"><span class="label">정의</span>
+          모든 active/cached 시퀀스의 prefix를 <mark>radix trie</mark>로 유지.
+          edge에 token sequence 저장, 각 노드는 block id list · refcount · last_access 보유.
+        </div>
+        <pre class="ascii">root
+ ├─"You are a helpful"─┬─"assistant"  [A,B,C]  rc=3
+ │                      └─"expert"     [D]      rc=1
+ └─"###"─ ...           ... </pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 연산 API</h3>
+        <ul>
+          <li><code>match(tokens) → (node, matched_len)</code></li>
+          <li><code>insert(tokens, block_ids)</code> — split edge if needed</li>
+          <li><code>lock(node) / unlock(node)</code> — refcount +/−</li>
+          <li><code>evict(size)</code> — refcount=0 leaf LRU 제거</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> 흐름 per request</h3>
+        <pre class="ascii">req 도착:
+  1. radix.match(prompt) → (node, L)
+  2. block_tbl = [ node... 조상 블록들 ]
+  3. prefill only tokens[L:] (tail)
+  4. 생성 중 매 block 완성마다:
+       radix.insert(new_block, tokens)
+  5. seq 종료:
+       unlock 조상 path
+       (leaf refcount 0 되면 evict 대상)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> vLLM prefix cache와 차이</h3>
+        <table class="vs">
+          <thead><tr><th></th><th>vLLM (hash)</th><th>SGLang (trie)</th></tr></thead>
+          <tbody>
+            <tr><td>구조</td><td>block-hash → id</td><td>token trie</td></tr>
+            <tr><td>공유 단위</td><td>block-aligned</td><td>token-level</td></tr>
+            <tr><td>branching</td><td>명시적 CoW</td><td>edge split</td></tr>
+            <tr><td>LRU</td><td>block list</td><td>leaf 기준</td></tr>
+            <tr><td>lookup</td><td>O(prefix/B<sub>p</sub>)</td><td>O(prefix) token</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Multi-turn 이득</h3>
+        <ul>
+          <li>chat turn 2: prev all tokens가 prefix = trie path 완전 hit</li>
+          <li>agent tool loop: 같은 system + tool schema reuse</li>
+          <li>hit rate 60–90% 보고 사례</li>
+        </ul>
+        <p class="tiny">Zheng et al. SGLang, 2024</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Branching · fork</h3>
+        <ul>
+          <li>parallel sampling n: 한 노드에서 n child leaf</li>
+          <li>beam search: branch 시 edge에 token 추가 → 자동 split</li>
+          <li>tree-of-thought: 다수 fork 탐색</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Eviction 정책 세부</h3>
+        <ol>
+          <li>victim 후보: leaf with refcount=0</li>
+          <li>각 leaf last_access_time 최소 선택</li>
+          <li>leaf 제거 후 parent가 leaf-되고 refcount=0이면 재귀 제거</li>
+          <li>blocks_to_free 생성 → BlockManager.free</li>
+        </ol>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        정확성: 같은 token 수열이라도 <b>tokenizer·dtype·quant</b>가 다르면 분리된 trie — namespace key 필수.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 15</span></div>
+</section>
+
+<!-- ============================ PAGE 16: §15 SGLang Frontend ============================ -->
+<section class="page" data-screen-label="16 SGLang Frontend">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(16p)</span></div>
+    <div class="chap">§15 — SGLang Frontend (structured generation)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> SGL 언어 <span class="ko">embedded DSL</span></h3>
+        <div class="def"><span class="label">정의</span>
+          Python 내장 DSL. prompt를 <mark>program</mark>으로 표현.
+          <code>gen</code>, <code>select</code>, <code>fork</code>, <code>regex</code>, <code>json</code> 기본 primitive.
+        </div>
+<pre class="code"><span class="kw2">@function</span>
+<span class="kw2">def</span> <span class="fn">multi_turn</span>(s, q):
+  s += system(<span class="str">"You are..."</span>)
+  s += user(q)
+  s += <span class="fn">gen</span>(<span class="str">"ans"</span>, max_tokens=<span class="num2">256</span>)
+  <span class="kw2">if</span> s[<span class="str">"ans"</span>].<span class="fn">contains</span>(<span class="str">"?"</span>):
+    s += user(<span class="str">"clarify"</span>)
+    s += <span class="fn">gen</span>(<span class="str">"clar"</span>)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Compiled execution</h3>
+        <ul>
+          <li>SGL program은 engine이 직접 해석</li>
+          <li>prefix 반복은 RadixAttention이 자동으로 KV 재사용</li>
+          <li>parallel fork는 같은 prefix 공유 → 병렬 decode batch 구성</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Constrained decoding ★</h3>
+        <div class="def"><span class="label">정의</span>
+          logit에 <mark>mask</mark>를 씌워 허용되지 않은 token 확률 = 0 (−∞).
+          grammar 자동기 (FSM/CFG)가 각 step에서 허용 token set 계산.
+        </div>
+        <pre class="ascii">per step:
+  state = fsm.current()
+  allowed = fsm.allowed_tokens(state)
+  logits[~allowed] = -inf
+  tok = sample(logits)
+  state = fsm.step(state, tok)</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> FSM 종류</h3>
+        <table class="compact">
+          <thead><tr><th>유형</th><th>지원</th></tr></thead>
+          <tbody>
+            <tr><td>regex</td><td>Outlines-style FSM</td></tr>
+            <tr><td>JSON Schema</td><td>CFG / Pydantic → FSM</td></tr>
+            <tr><td>EBNF/CFG</td><td>pushdown automaton</td></tr>
+            <tr><td>XGrammar</td><td>incremental token masking (high perf)</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">engine은 FSM step을 CPU에서 돌리고 GPU logit에 mask 브로드캐스트</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Token masking 비용</h3>
+        <ul>
+          <li>vocab 100K+ — per-step mask 계산이 병목 가능</li>
+          <li>XGrammar: 가능 token set을 bit-packed + precompute</li>
+          <li>SGLang은 overlap (next-step mask 미리 계산)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Function calling · tool use</h3>
+        <ol>
+          <li>function schema → JSON CFG</li>
+          <li>model이 tool call → 구조 보장</li>
+          <li>tool 실행 결과를 새 user message로 append</li>
+          <li>RadixAttention이 이전 context 유지 · decode 이어감</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Other engines의 대응</h3>
+        <table class="compact">
+          <thead><tr><th>engine</th><th>구조 생성 수단</th></tr></thead>
+          <tbody>
+            <tr><td>vLLM</td><td>Outlines/XGrammar plugin</td></tr>
+            <tr><td>TRT-LLM</td><td>logit processor (사용자 구현)</td></tr>
+            <tr><td>LMDeploy</td><td>custom grammar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        FSM이 tokenizer의 BPE merge를 모르면 <b>invalid token sequence</b> 생성. tokenizer-aware FSM 필요.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 16</span></div>
+</section>
+
+<!-- ============================ PAGE 17: §16 TensorRT-LLM ============================ -->
+<section class="page" data-screen-label="17 TRT-LLM">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(17p)</span></div>
+    <div class="chap">§16 — TensorRT-LLM 아키텍처</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> 2-Phase: Build → Runtime</h3>
+        <pre class="ascii">[build time]
+ Python API (tensorrt_llm)
+   → TRT Network Graph (DSL)
+   → Plugin insertion (FA, GEMM, …)
+   → TRT Engine optimizer
+   → serialized .engine file
+
+[runtime]
+ C++/Python runtime
+   Executor (in-flight batching)
+   GptSession / GptManager
+   KV Cache Manager (paged)
+   samplingConfig per request</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Plugin 시스템 ★</h3>
+        <ul>
+          <li>TRT 기본 op으론 부족 <span class="arrow">→</span> custom kernel을 <code>IPlugin</code>으로 wrap</li>
+          <li>핵심 plugin: <code>gpt_attention</code> (FMHA/paged), <code>gemm</code>, <code>rmsnorm</code>, <code>lookup</code></li>
+          <li>plugin은 build 시 선택 · runtime에 고정</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> In-flight batching (IFB)</h3>
+        <div class="def"><span class="label">정의</span>
+          TRT-LLM 용어. Orca의 iteration-level scheduling과 동일 개념.
+          GptManager가 request queue를 매 step 재구성.
+        </div>
+        <ul>
+          <li>vLLM continuous batching과 1:1 대응</li>
+          <li>GptSession (batch=1), GptManager (IFB), Executor (최신)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> KV cache 구성</h3>
+        <ul>
+          <li>Paged KV 지원 (vLLM과 유사)</li>
+          <li><code>kv_cache_reuse</code> flag로 prefix 공유 on</li>
+          <li>FP8 KV · INT8 KV 지원 (per-block scale)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Engine build 유연성 trade</h3>
+        <table class="compact">
+          <thead><tr><th>장점</th><th>단점</th></tr></thead>
+          <tbody>
+            <tr><td>kernel autotune</td><td>build 수 분~시간</td></tr>
+            <tr><td>static optimization</td><td>dynamic shape 제약 (profile 필요)</td></tr>
+            <tr><td>layer fusion</td><td>모델 구조 변경 시 재build</td></tr>
+            <tr><td>lowest latency</td><td>quant 설정마다 별 engine</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Quant 지원</h3>
+        <ul>
+          <li>W4A16 (AWQ), W8A8 (SmoothQuant), FP8, INT4 weights</li>
+          <li>ModelOpt (구 AMMO) 로 양자화 후 TRT-LLM에 전달</li>
+          <li>build 시 quant config 고정 → 전용 plugin 선택</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> Triton Inference Server 통합</h3>
+        <ul>
+          <li>TRT-LLM backend plugin (<code>tensorrtllm_backend</code>)</li>
+          <li>Triton의 Preprocessor / Postprocessor와 ensemble</li>
+          <li>production 배포 기본 패턴</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        version 간 engine 파일 비호환. GPU arch·TRT 버전·quant 전부 동일해야 load 가능. CI에서 파이프라인으로 재빌드 필요.
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 17</span></div>
+</section>
+
+<!-- ============================ PAGE 18: §17 Engine 비교 매트릭스 ============================ -->
+<section class="page" data-screen-label="18 Engine Matrix">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(18p)</span></div>
+    <div class="chap">§17 — Engine 비교 매트릭스</div>
+  </div>
+  <div class="cols">
+    <div class="col" style="grid-column: 1 / span 3;">
+      <div class="sec">
+        <h3><span class="num">1</span> 5-Engine × 14-Axis 비교 ★
+          <span class="mnemonic">선택 결정표</span>
+        </h3>
+        <table class="compact">
+          <thead>
+            <tr>
+              <th style="width:14%">axis</th>
+              <th>vLLM</th>
+              <th>SGLang</th>
+              <th>TensorRT-LLM</th>
+              <th>LMDeploy</th>
+              <th>MLC-LLM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>언어·스택</th>
+              <td>Python + C++ core</td>
+              <td>Python + Triton/CUDA</td>
+              <td>C++ runtime + Python build</td>
+              <td>C++ + Python</td>
+              <td>TVM / MLC IR</td>
+            </tr>
+            <tr>
+              <th>스케줄러</th>
+              <td>3-queue (wait/run/swap) budget</td>
+              <td>RadixAttention-aware scheduler</td>
+              <td>In-flight Batching (GptManager)</td>
+              <td>Persistent batching</td>
+              <td>TVM runtime · 단순</td>
+            </tr>
+            <tr>
+              <th>KV 구조</th>
+              <td>PagedAttention (block_table)</td>
+              <td>Paged + Radix trie</td>
+              <td>Paged KV plugin</td>
+              <td>Block-based (TurboMind)</td>
+              <td>Contiguous · paged 옵션</td>
+            </tr>
+            <tr>
+              <th>Prefix sharing</th>
+              <td>Hash prefix cache (auto)</td>
+              <td>Radix trie (token-level)</td>
+              <td>kv_cache_reuse flag</td>
+              <td>Session-level cache</td>
+              <td>제한적</td>
+            </tr>
+            <tr>
+              <th>Chunked prefill</th>
+              <td>O (default on)</td>
+              <td>O (Sarathi-style)</td>
+              <td>O (context chunking)</td>
+              <td>O</td>
+              <td>제한적</td>
+            </tr>
+            <tr>
+              <th>CUDA Graph</th>
+              <td>decode bucketed</td>
+              <td>decode bucketed</td>
+              <td>build-time static</td>
+              <td>decode</td>
+              <td>TVM runtime</td>
+            </tr>
+            <tr>
+              <th>Spec decoding</th>
+              <td>Medusa/EAGLE/n-gram</td>
+              <td>EAGLE/Medusa</td>
+              <td>Medusa/EAGLE</td>
+              <td>미지원~제한</td>
+              <td>미지원</td>
+            </tr>
+            <tr>
+              <th>Quant (weight)</th>
+              <td>GPTQ·AWQ·Marlin·Machete</td>
+              <td>AWQ·FP8</td>
+              <td>AWQ·SQ·FP8·INT4</td>
+              <td>AWQ·SQ</td>
+              <td>GPTQ·AWQ (TVM codegen)</td>
+            </tr>
+            <tr>
+              <th>Quant (KV)</th>
+              <td>INT8/FP8</td>
+              <td>FP8</td>
+              <td>INT8/FP8 per-block</td>
+              <td>INT8</td>
+              <td>제한적</td>
+            </tr>
+            <tr>
+              <th>분산 (TP/PP)</th>
+              <td>TP, PP, EP (MoE)</td>
+              <td>TP, EP</td>
+              <td>TP, PP, EP</td>
+              <td>TP</td>
+              <td>TP (단순)</td>
+            </tr>
+            <tr>
+              <th>MoE</th>
+              <td>Mixtral · Qwen MoE · DeepSeek</td>
+              <td>DeepSeek MLA 최적화</td>
+              <td>Mixtral · DeepSeek</td>
+              <td>Mixtral</td>
+              <td>제한적</td>
+            </tr>
+            <tr>
+              <th>Structured gen</th>
+              <td>Outlines / XGrammar</td>
+              <td>native SGL + XGrammar</td>
+              <td>logit processor (수작업)</td>
+              <td>제한적</td>
+              <td>제한적</td>
+            </tr>
+            <tr>
+              <th>Sampling</th>
+              <td>temp/top-p/top-k/penalty/logitproc</td>
+              <td>같음 + logprob</td>
+              <td>같음 + bad_words</td>
+              <td>제한적 API</td>
+              <td>기본</td>
+            </tr>
+            <tr>
+              <th>Plug-ability</th>
+              <td>attention backend · model code open</td>
+              <td>kernel 교체 · Python-centric</td>
+              <td>plugin system · build step</td>
+              <td>자체 kernel library</td>
+              <td>IR lowering 레벨</td>
+            </tr>
+            <tr>
+              <th>Sweet spot</th>
+              <td>general throughput · 연구 workhorse</td>
+              <td>multi-turn · RadixAttn prefix hit 高</td>
+              <td>production low-latency · quant 극한</td>
+              <td>NVIDIA 외 NPU/edge 함께</td>
+              <td>cross-HW (Vulkan/Metal/AMD)</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="tiny">출처: 각 프로젝트 공식 문서 · 릴리스 노트 (2024~2025). 기능 유무만 정리, 실측 수치는 제외 (out-of-scope).</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 18</span></div>
+</section>
+
+<!-- ============================ PAGE 19: §18 API 서빙 레이어 ============================ -->
+<section class="page" data-screen-label="19 API Layer">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(19p)</span></div>
+    <div class="chap">§18 — API 서빙 레이어</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> OpenAI-compatible 스펙</h3>
+        <table class="compact">
+          <thead><tr><th>endpoint</th><th>용도</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /v1/completions</code></td><td>text completion</td></tr>
+            <tr><td><code>POST /v1/chat/completions</code></td><td>chat role-based</td></tr>
+            <tr><td><code>POST /v1/embeddings</code></td><td>임베딩</td></tr>
+            <tr><td><code>GET /v1/models</code></td><td>list models</td></tr>
+            <tr><td><code>POST /v1/rerank</code></td><td>reranker (일부 engine)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 요청 파이프라인</h3>
+<pre class="ascii">HTTP req (JSON)
+  → validate (pydantic)
+  → apply chat template (jinja)
+  → tokenize (prompt_ids)
+  → SamplingParams 생성
+  → engine.add_request()
+  → (async) stream chunks
+  → detokenize
+  → SSE event write
+  → HTTP close</pre>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Streaming (SSE)</h3>
+        <ul>
+          <li>Server-Sent Events: <code>data: {chunk}\n\n</code> 반복 후 <code>data: [DONE]\n\n</code></li>
+          <li>engine iteration마다 new tok 생성 → per-client chunk 전송</li>
+          <li>detokenize는 incremental (BPE 경계 보정: <code>offset_mapping</code>)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Chat template</h3>
+<pre class="code"><span class="cmt"># Jinja2 template (HF tokenizer_config.json)</span>
+{% <span class="kw2">for</span> m <span class="kw2">in</span> messages %}
+<span class="str">&lt;|start|&gt;</span>{{m.role}}\n{{m.content}}<span class="str">&lt;|end|&gt;</span>
+{% <span class="kw2">endfor</span> %}
+<span class="str">&lt;|start|&gt;</span>assistant\n</pre>
+        <p class="tiny">모델마다 다름 · 잘못 적용 시 성능 큰 영향</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Function calling</h3>
+        <ol>
+          <li>request에 <code>tools</code> 배열 (JSON schema)</li>
+          <li>schema를 prompt에 주입 (template)</li>
+          <li>constrained decoding (JSON grammar) 으로 구조 보장</li>
+          <li>response parsing → <code>tool_calls</code> 필드</li>
+        </ol>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Cancellation · abort</h3>
+        <ul>
+          <li>HTTP disconnect 감지 → engine에 <code>abort_request(req_id)</code></li>
+          <li>scheduler가 해당 seq를 running에서 제거, block free</li>
+          <li>이미 dispatch된 step은 완료 후 버려짐 (낭비 최소화는 timing 문제)</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> 관측성</h3>
+        <table class="compact">
+          <thead><tr><th>metric</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td>TTFT</td><td>첫 토큰 지연</td></tr>
+            <tr><td>TPOT</td><td>토큰 간 평균</td></tr>
+            <tr><td>e2e latency</td><td>전체 응답 시간</td></tr>
+            <tr><td>GPU cache usage</td><td>free blocks / total</td></tr>
+            <tr><td>num running/waiting</td><td>queue depth</td></tr>
+            <tr><td>prefix hit rate</td><td>cached / prompt token</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 19</span></div>
+</section>
+
+<!-- ============================ PAGE 20: §19 Latency breakdown ============================ -->
+<section class="page" data-screen-label="20 Latency Breakdown">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(20p)</span></div>
+    <div class="chap">§19 — Latency breakdown (TTFT vs TPOT)</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> e2e 공식 ★</h3>
+        <div class="formula">
+          T<sub>e2e</sub> = T<sub>queue</sub> + T<sub>TTFT</sub> + (N<sub>o</sub> − 1) · T<sub>TPOT</sub><br/>
+          T<sub>TTFT</sub> = T<sub>prefill</sub> + T<sub>sched</sub> + T<sub>sampler</sub>
+          <span class="legend">N<sub>o</sub> : output token 개수. T<sub>TPOT</sub>은 평균, variance 별도 추적</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Prefill 분해</h3>
+        <table class="compact">
+          <thead><tr><th>component</th><th>AI</th><th>driver</th></tr></thead>
+          <tbody>
+            <tr><td>QKV proj</td><td>high</td><td>GEMM (FLOPs)</td></tr>
+            <tr><td>Attention</td><td>N<sub>p</sub>·d</td><td>FA kernel</td></tr>
+            <tr><td>O proj</td><td>high</td><td>GEMM</td></tr>
+            <tr><td>MLP</td><td>high</td><td>GEMM×2</td></tr>
+            <tr><td>norm/residual</td><td>low</td><td>memory BW</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">prefill 전체: compute-bound (대부분 구성요소)</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Decode 분해</h3>
+        <table class="compact">
+          <thead><tr><th>component</th><th>비율</th><th>bound</th></tr></thead>
+          <tbody>
+            <tr><td>attn (paged)</td><td class="num">~50%</td><td>HBM BW</td></tr>
+            <tr><td>GEMM (weight)</td><td class="num">~30%</td><td>HBM BW (W 로드)</td></tr>
+            <tr><td>norm + rotary</td><td class="num">~10%</td><td>BW / launch</td></tr>
+            <tr><td>sampler</td><td class="num">~5%</td><td>vocab scan</td></tr>
+            <tr><td>host overhead</td><td class="num">~5%</td><td>Python/schedule</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny">decode: memory-bound 지배. batch ↑ or quant ↓로 AI 상승 필요</p>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Bottleneck 결정 규칙</h3>
+        <ul>
+          <li>T<sub>TTFT</sub> 크다 → prefill GEMM · long context attention (O(N²))</li>
+          <li>T<sub>TPOT</sub> 크다 → weight load BW · KV read BW</li>
+          <li>T<sub>queue</sub> 크다 → 용량 부족 · preemption 다발</li>
+          <li>variance 크다 → chunked prefill 미적용 · HoL</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> SLO 설계</h3>
+        <div class="formula">
+          목표: p99 TTFT ≤ S<sub>1</sub>, p99 TPOT ≤ S<sub>2</sub><br/>
+          제약: max_concurrent ≤ C s.t. SLO 충족<br/>
+          최적: throughput(tok/s) 최대 · SLO 충족 하에
+          <span class="legend">C를 올리면 throughput ↑ 하지만 latency ↑ — 반비례</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Goodput 지표</h3>
+        <div class="def"><span class="label">정의</span>
+          goodput = "SLO를 충족한 request의 toks/s". raw throughput보다 production에 의미.
+        </div>
+        <ul>
+          <li>SLO 미달 request는 goodput에서 제외</li>
+          <li>C 스윕하여 goodput 최대점 찾기</li>
+        </ul>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">7</span> HW 관점 병목</h3>
+        <ul>
+          <li>HBM BW → decode 상한</li>
+          <li>SM FLOPs → prefill 상한</li>
+          <li>NVLink/PCIe → multi-GPU overhead</li>
+          <li>CPU host → Python overhead (V1에서 개선) <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 20</span></div>
+</section>
+
+<!-- ============================ PAGE 21: §20 Throughput vs Latency ============================ -->
+<section class="page" data-screen-label="21 Throughput vs Latency">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(21p)</span></div>
+    <div class="chap">§20 — Throughput vs Latency trade</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Fundamental trade ★</h3>
+        <div class="formula">
+          throughput(B) ≈ B · tok/s<sub>decode</sub>(B)<br/>
+          latency<sub>TPOT</sub>(B) ≈ t<sub>step</sub>(B)
+          <span class="legend">B ↑: throughput 증가, step 시간 증가 → TPOT 증가</span>
+        </div>
+        <pre class="ascii">tok/s     │    ╱‾‾‾‾‾ saturation (FLOPs)
+          │   ╱
+          │  ╱  memory-bound linear (BW)
+          │ ╱
+          └─────────────────▶  B
+TPOT      │              ╱
+          │           ╱
+          │ ──────
+          └─────────────────▶  B</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> Memory-bound → compute-bound</h3>
+        <ul>
+          <li>작은 B: weight/KV 로드가 지배 → step 시간 ≈ const → throughput 선형 ↑</li>
+          <li>큰 B: FLOPs가 지배 → step 시간 선형 ↑ → throughput 포화</li>
+          <li>전환점 B* = HBM BW / (2 · weight_bytes_per_tok)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> Tunable knobs</h3>
+        <table class="compact">
+          <thead><tr><th>knob</th><th>영향</th></tr></thead>
+          <tbody>
+            <tr><td><code>max_num_seqs</code></td><td>batch 상한 → throughput ceiling</td></tr>
+            <tr><td><code>max_num_batched_tokens</code></td><td>step당 tok 총량 → TPOT spike</td></tr>
+            <tr><td><code>max_model_len</code></td><td>KV 예약 → 동시 req ↓</td></tr>
+            <tr><td><code>gpu_memory_utilization</code></td><td>KV pool 크기</td></tr>
+            <tr><td><code>block_size</code></td><td>공유 세밀도 vs overhead</td></tr>
+            <tr><td><code>swap_space</code></td><td>preempt swap 용량</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Chunked prefill ratio</h3>
+        <ul>
+          <li>token budget 중 prefill vs decode 점유 비율 조정</li>
+          <li>prefill 비율 ↑ → TTFT ↓, 기존 decode TPOT ↑</li>
+          <li>decode 비율 ↑ → TPOT 안정, prefill 대기 ↑</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">5</span> Workload별 sweet spot</h3>
+        <table class="compact">
+          <thead><tr><th>workload</th><th>우선</th><th>처방</th></tr></thead>
+          <tbody>
+            <tr><td>Chat interactive</td><td>TTFT</td><td>prefix cache · 큰 chunk 허용</td></tr>
+            <tr><td>Bulk batch</td><td>throughput</td><td>max_num_seqs 최대 · quant</td></tr>
+            <tr><td>Long doc QA</td><td>TTFT balance</td><td>chunked prefill · PP</td></tr>
+            <tr><td>Agent loop</td><td>TPOT + cache</td><td>radix · spec decoding</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">6</span> Admission control</h3>
+        <ul>
+          <li>들어오는 RPS가 capacity 초과 시 queue 폭발 → latency 급증</li>
+          <li>정책: reject · queue + timeout · shed low priority</li>
+          <li>goodput 최대점 이상 들어오면 전부 SLO 미달 위험</li>
+        </ul>
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        <span class="red">흔한 오해</span>: throughput을 올리면 자동으로 사용자 경험도 좋아진다 — 아님. latency SLO를 먼저 고정하고 그 안에서 throughput 최대화.
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        trade 3키: <span class="key">SEQ·TOK·KV</span>
+        (max_seqs / max_batched_tokens / kv pool)
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 21</span></div>
+</section>
+
+<!-- ============================ PAGE 22: §21 Cheat Sheet ============================ -->
+<section class="page" data-screen-label="22 Cheat Sheet">
+  <div class="page-header">
+    <div class="brand">V16 Inference Serving <span class="mono">(22p)</span></div>
+    <div class="chap">§21 — Cheat Sheet</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">1</span> Engine 선택 결정 트리 ★</h3>
+<pre class="ascii">Q1. 목표가 production low-latency + quant 극한?
+  YES → TensorRT-LLM (build 비용 감수)
+  NO  ↓
+Q2. multi-turn / agent / tree search 중심?
+  YES → SGLang (RadixAttention)
+  NO  ↓
+Q3. Nvidia 외 HW도 필요?
+  YES → MLC-LLM (cross-HW) or LMDeploy
+  NO  ↓
+Q4. 일반 research/throughput, 넓은 모델 커버?
+  YES → vLLM (workhorse)
+  NO  ↓
+Q5. edge/mobile / WebGPU?
+  YES → MLC-LLM</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">2</span> 지표 정의 요약</h3>
+        <table class="compact">
+          <thead><tr><th>지표</th><th>식</th></tr></thead>
+          <tbody>
+            <tr><td>TTFT</td><td>req 도착 → 첫 tok</td></tr>
+            <tr><td>TPOT</td><td>(e2e − TTFT) / (N<sub>o</sub>−1)</td></tr>
+            <tr><td>e2e</td><td>TTFT + (N<sub>o</sub>−1)·TPOT</td></tr>
+            <tr><td>tok/s</td><td>N<sub>o</sub>/e2e · per req</td></tr>
+            <tr><td>goodput</td><td>SLO 충족 req의 tok/s 합</td></tr>
+            <tr><td>prefix hit</td><td>cached_tok / prompt_tok</td></tr>
+            <tr><td>KV util</td><td>used_blocks / total_blocks</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">3</span> vLLM 경로 요약</h3>
+        <pre class="ascii">API → AsyncEngine → LLMEngine.step()
+  → Scheduler.schedule()
+      [waiting|running|swapped]
+      budget(tok,seq,block)
+  → Executor.execute_model()
+      broadcast to Workers (TP)
+  → Worker.ModelRunner
+      prepare_inputs (packed, block_tables)
+      model.forward() [CUDAGraph?]
+      sampler
+  → process_outputs (BlockMgr free/alloc)
+  → stream chunks</pre>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">4</span> Paged KV 공식 빠른 참조</h3>
+        <div class="formula">
+          block_bytes = B<sub>p</sub>·H<sub>kv</sub>·D·2·sizeof(dtype)<br/>
+          n_blocks = (mem − W − act − ws − safety) / (L·block_bytes)<br/>
+          max_concurrent_seq ≈ n_blocks / ⌈avg_len / B<sub>p</sub>⌉
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="num">5</span> Xref 정리</h3>
+        <ul>
+          <li>attention kernel 수식/내부 → <span class="xref">↗ V07</span></li>
+          <li>LLM 부속 kernel (RoPE/Norm/Sampler/MoE) → <span class="xref">↗ V08</span></li>
+          <li>양자화 수식·알고리즘 → <span class="xref">↗ V10</span></li>
+          <li>NCCL/5D 병렬 → <span class="xref">↗ V15</span></li>
+          <li>Roofline·stall 분석 → <span class="xref">↗ V18</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec">
+        <h3><span class="num">6</span> 흔한 함정 10선</h3>
+        <ol class="bullet-num">
+          <li>prefix cache 켰는데 tokenizer/quant mismatch로 hit=0</li>
+          <li>CUDA Graph capture가 eager 동작을 박제 → dtype/backend 변경 미반영</li>
+          <li>chunked prefill off 상태에서 long prompt 한 개가 전체 batch 멈춤</li>
+          <li>CoW 미구현/미호출로 prefix 공유 seq의 KV 오염</li>
+          <li>spec decoding을 큰 batch에 적용 — gain 소실</li>
+          <li>FP8 KV scale 위치 오인 → 정확도 붕괴</li>
+          <li>max_model_len ≫ 실제 사용 → KV pool 과소, 동시성 ↓</li>
+          <li>TP size &gt; H<sub>kv</sub> 설정 → GQA 모델 load 실패</li>
+          <li>detokenize incremental 버그 → BPE 경계 깨짐</li>
+          <li>admission 없이 RPS 과잉 → queue 폭발, 전부 SLO 미달</li>
+        </ol>
+      </div>
+
+      <div class="mnem"><span class="label"></span>
+        vLLM 5-layer: <span class="key">API·ENG·SCH·BLK·WRK</span>
+        (API · Engine · Scheduler · BlockMgr · Worker)
+      </div>
+
+      <div class="warn-box"><span class="label"></span>
+        단권화는 엔진 <b>경로 지도</b>일 뿐. 실제 튜닝 의사결정 · trace 분석은 코드·실측으로 체화 (out-of-scope).
+      </div>
+    </div>
+  </div>
+  <div class="page-footer"><span class="mono">V16 · 22 — end</span></div>
+</section>
+
+</div>
+
+<script src="tweaks.js"></script>
+</body>
+</html>

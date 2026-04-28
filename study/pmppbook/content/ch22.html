@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>22장. 고급 실전과 미래 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 22</p>
+    <h1>고급 실전과 미래</h1>
+    <p class="subtitle">CUDA가 어디에서 와서, 지금 어디에 있고, 어디로 가는지</p>
+  </header>
+
+  <h2>22.1 호스트와 디바이스의 관계는 이렇게 변했다</h2>
+  <p>21장까지 우리가 다룬 모든 코드의 한 줄 한 줄에는 한 가지 숨겨진 가정이 깔려 있었다. "CPU와 GPU는 서로 다른 메모리를 가진다." 호스트에서 만든 데이터는 디바이스로 옮겨야 GPU가 본다. 디바이스에서 만든 결과는 다시 호스트로 옮겨야 CPU가 본다. <code>cudaMemcpy</code>가 그 다리였다. 처음 CUDA를 배우는 사람이 가장 자주 잊는 일도 바로 이 복사다.</p>
+
+  <p>그러나 이 모델은 시간이 가면서 점점 부드러워져 왔다. CUDA의 역사는 사실상 "호스트와 디바이스 사이의 벽을 어떻게 낮출 것인가"의 역사다. 단계별로 짚어 보자.</p>
+
+  <p><strong>1단계: 명시적 cudaMemcpy(2007년 CUDA 1.0).</strong> 시작은 단순했다. <code>cudaMalloc</code>으로 디바이스 메모리를 잡고, <code>cudaMemcpy</code>로 양쪽으로 복사하고, 끝나면 <code>cudaFree</code>. 모든 복사가 PCIe를 탔다. PCIe Gen2 x16의 ~8GB/s는 당시 GPU 내부 대역폭(GTX 280, 141GB/s)에 비하면 한심한 수준이라 한 번 옮긴 데이터로 GPU에서 가능한 한 많이 일을 시키는 게 철칙이었다.</p>
+
+  <p><strong>2단계: pinned 메모리와 zero-copy(2008년 CUDA 2.2).</strong> <code>cudaHostAlloc</code>으로 잠긴 호스트 메모리에 DMA 엔진이 직접 접근하게 됐다. host-mapped(zero-copy) 메모리에서는 디바이스가 PCIe 너머의 호스트 RAM을 직접 가리키는 포인터를 받아 복사 자체를 생략할 수도 있었다 — 다만 매 접근이 PCIe를 타니 캐싱이 잘되는 데이터에만 의미가 있었다.</p>
+
+  <p><strong>3단계: 통합 가상 주소(UVA, 2011년 CUDA 4.0).</strong> 호스트와 모든 디바이스가 한 가상 주소 공간을 공유한다. 포인터 하나만 보면 그게 어느 메모리인지 런타임이 안다. <code>cudaMemcpy</code>의 방향 인자가 <code>cudaMemcpyDefault</code>로 통합되었고, 멀티 GPU 코드가 비약적으로 단순해졌다.</p>
+
+  <p><strong>4단계: 통합 메모리(UM, 2014년 CUDA 6.0 + Pascal).</strong> <code>cudaMallocManaged</code>로 잡은 포인터는 호스트와 디바이스가 모두 접근한다. 페이지 위치는 런타임이 추적하고, Pascal(2016) 이후 GPU의 페이지 폴트 하드웨어 덕에 처음 접근한 페이지를 그 자리에서 마이그레이션해 온다. 호스트보다 작은 GPU 메모리에서도 더 큰 데이터셋을 페이지 단위로 들락날락시키며 다룰 수 있다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>"옮길지 말지" 결정의 무게가 시간이 갈수록 프로그래머에게서 시스템으로 옮겨갔다. 1단계에서는 모두가 손으로 옮겼다. 4단계에서는 그냥 포인터를 쓰고, 성능이 안 나오는 곳에만 <code>cudaMemAdvise</code>나 <code>cudaMemPrefetchAsync</code> 같은 힌트로 시스템에게 살짝 귀띔한다. 손이 줄었지만 진단의 부담이 늘었다 — 왜 이 페이지가 자꾸 호스트로 돌아가는지 프로파일러로 봐야 알 때가 많다.</p>
+  </div>
+
+  <h2>22.2 커널 실행을 어떻게 짤지: 스트림과 그래프</h2>
+  <p>처음 CUDA 코드를 짤 때는 커널 한 번 부르고 결과를 기다리고 다음 커널을 부른다. 이건 <em>기본 스트림</em>(default stream)이라는 한 줄짜리 큐를 통해서 일어난다. 그러나 한 줄 큐에 모든 일을 직렬로 줄 세우는 것은 GPU의 절반을 비우는 짓일 수 있다. GPU 안에는 여러 SM이 있고, 한 커널이 SM을 다 쓰지 않으면 다른 커널이 옆에서 돌 수 있다.</p>
+
+  <p><strong>CUDA 스트림</strong>은 독립적인 큐다. 서로 다른 스트림에 넣은 일은 의존성이 없으면 동시에 진행할 수 있다. 가장 흔한 패턴은 "복사–계산 중첩"이다. 데이터셋을 청크로 자르고, 청크 1을 디바이스로 복사하는 동안 청크 0의 계산을 시키고, 청크 0을 호스트로 다시 복사하는 동안 청크 1을 계산한다. PCIe 양방향과 컴퓨트 엔진이 동시에 돌아 전체 시간을 거의 절반으로 줄일 수 있다.</p>
+
+  <p>여러 작은 커널이 서로 독립적이라면, 각각 다른 스트림에 띄워 GPU 점유율을 올릴 수도 있다. 이걸 <strong>커널-커널 동시 실행</strong>(kernel-kernel concurrency)이라고 한다. 한 커널이 SM의 절반만 쓰고 있으면 다른 커널이 남은 SM에 들어가 돈다. 다만 같은 SM 안에서 두 커널의 워프가 섞이는 것이 아니라 SM 단위로 분할된다 — Hopper(H100)에서는 더 정교한 partitioning이 가능해졌다.</p>
+
+  <p><strong>협력 그룹(cooperative groups)</strong>은 또 다른 축이다. 우리는 보통 "블록 안에서만 <code>__syncthreads()</code>로 동기화한다"고 배운다. 협력 그룹은 그 단위를 더 유연하게 만든다. 블록 안의 일부 스레드만 묶어 동기화할 수도 있고(<code>thread_block_tile&lt;32&gt;</code> 같은), 한 grid의 모든 블록이 동시에 동기화할 수도 있다(grid group). 후자는 launch 시 <code>cudaLaunchCooperativeKernel</code>로 한정해 띄워야 한다 — grid 전체가 동시에 돌고 있다는 보장이 필요하기 때문이다. 잘 쓰면 두 launch로 나눠야 했을 reduce/scan 같은 패턴을 한 launch로 끝낼 수 있다.</p>
+
+  <p><strong>CUDA Graphs</strong>는 launch 오버헤드 자체를 잡는 도구다. 한 step에서 같은 모양의 launch 시퀀스가 반복된다면(딥러닝 학습 한 step이 전형적이다), 그 시퀀스를 그래프로 캡처해 두고 한 번의 <code>cudaGraphLaunch</code>로 통째로 띄운다. 한 launch당 5~20us였던 호스트 오버헤드가 거의 0에 수렴한다. 작은 커널 수십 개로 구성된 트랜스포머 한 step에서 이 차이는 5~30%의 throughput 향상으로 나타난다.</p>
+
+  <pre><code><span class="com">// CUDA Graphs: 캡처 기반 사용 패턴</span>
+cudaStream_t s; cudaStreamCreate(&amp;s);
+cudaGraph_t g; cudaGraphExec_t gx;
+
+cudaStreamBeginCapture(s, cudaStreamCaptureModeGlobal);
+  conv1&lt;&lt;&lt;..., s&gt;&gt;&gt;(...);
+  bn1  &lt;&lt;&lt;..., s&gt;&gt;&gt;(...);
+  relu &lt;&lt;&lt;..., s&gt;&gt;&gt;(...);
+  conv2&lt;&lt;&lt;..., s&gt;&gt;&gt;(...);
+  <span class="com">// ... 같은 step의 모든 연산</span>
+cudaStreamEndCapture(s, &amp;g);
+cudaGraphInstantiate(&amp;gx, g, <span class="kw">nullptr</span>, <span class="kw">nullptr</span>, <span class="num">0</span>);
+
+<span class="kw">for</span> (<span class="kw">int</span> step = <span class="num">0</span>; step &lt; nSteps; ++step) {
+    cudaGraphLaunch(gx, s);   <span class="com">// 한 번에 그래프 통째로</span>
+}
+cudaStreamSynchronize(s);</code></pre>
+
+  <h2>22.3 메모리는 빨라지고 컴퓨트는 더 빨라진다</h2>
+  <p>CUDA 코드를 짜는 사람의 어깨에 늘 짐을 얹는 두 숫자가 있다. 메모리 대역폭과 컴퓨트 throughput. 두 수의 비율이 알고리즘이 메모리에 매이는지(memory-bound) 컴퓨트에 매이는지를 결정한다(루프라인 모델). 지난 15년간 두 숫자가 어떻게 변했는지 표로 보자.</p>
+
+  <div class="figure">
+<pre>
+GPU            출시   메모리       대역폭     FP32 TFLOPS   FP16/Tensor    노트
+─────────────  ────  ──────────  ─────────  ───────────  ──────────────  ──────────────────
+Tesla C1060    2008  4GB GDDR3    102 GB/s      0.93         —             초창기 GPGPU
+Fermi M2090    2011  6GB GDDR5    177 GB/s      1.33         —             ECC 도입
+Kepler K40     2013  12GB GDDR5   288 GB/s      4.29         —             Dynamic Parallelism
+Pascal P100    2016  16GB HBM2    732 GB/s     10.6        21 (FP16)      HBM 첫 등장, NVLink
+Volta V100     2017  32GB HBM2    900 GB/s     15.7       125 (Tensor)    Tensor Core 도입
+Ampere A100    2020  80GB HBM2e  2039 GB/s     19.5       312 (TF32/FP16) 2:4 sparsity
+Hopper H100    2022  80GB HBM3   3350 GB/s     67         989 (FP8)       Transformer Engine
+Blackwell B200 2024  192GB HBM3e ~8000 GB/s   ~80       ~4500 (FP4)      듀얼 다이, NVLink5
+</pre>
+  </div>
+  <p class="figure-caption">그림 22.1 — 주요 NVIDIA 데이터센터 GPU의 세대별 변천(공칭값 기준).</p>
+
+  <p>세 가지 추세가 또렷하다. 첫째, <strong>HBM</strong>이 표준이 됐다. P100에서 처음 들어와 세대가 갈수록 스택 수와 속도가 올랐다. GPU 다이 옆에 쌓아 인터포저로 잇는 구조라 와이어가 짧아 클럭당 대역폭이 폭증한다. 단가가 높아 컨슈머 GeForce 라인은 여전히 GDDR을 쓴다.</p>
+
+  <p>둘째, <strong>저정밀 컴퓨트의 폭발</strong>. FP32는 V100(15.7) → H100(67)로 4배 늘었지만, FP16/BF16 텐서 연산은 125 → 989로 8배. FP8까지 가면 또 두 배. 정밀도를 한 단계 낮출 때마다 throughput이 거의 두 배가 된다는 단순 산수다 — 딥러닝이 GPU 발전 방향을 끌어당긴 명백한 증거.</p>
+
+  <p>셋째, <strong>구조적 희소성</strong>. Ampere의 2:4 sparsity는 4개 원소 중 2개를 0으로 만든다는 제약 하에서 텐서 코어가 두 배 빠르게 돈다. 무작위 sparsity는 인덱싱 비용으로 손해를 보지만, 2:4는 패턴이 고정이라 하드웨어로 거의 공짜다.</p>
+
+  <p>이 진화의 실전 결론은 분명하다. <strong>정밀도를 낮춰라.</strong> 학습은 BF16/FP16 + FP32 마스터, 추론은 INT8/FP8까지. 그리고 <strong>텐서 코어를 써라</strong> — cuBLAS·cuDNN·CUTLASS가 다 그쪽을 호출한다. 손으로 짠 SGEMM 커널은 그 throughput을 못 따라간다.</p>
+
+  <h2>22.4 도구 경관: 컴파일러부터 라이브러리까지</h2>
+  <p>CUDA 프로그래밍 환경은 코드 한 줄 안에 보이지 않는 도구들로 빽빽하다. 빠르게 둘러보자.</p>
+
+  <p><strong>nvcc와 CUDA Toolkit.</strong> <code>nvcc</code>는 호스트 코드와 디바이스 코드를 분리해 호스트 부분은 호스트 컴파일러(gcc/clang/MSVC)에 넘기고, 디바이스 부분은 자체 백엔드로 PTX(중간 어셈블리)를 거쳐 SASS(실제 GPU 명령어)로 컴파일한다. <code>-arch=sm_80</code> 같은 플래그는 어떤 컴퓨트 능력을 타깃할지를 정한다. <code>-arch=compute_80,sm_80</code>처럼 두 단계를 다 지정하면 PTX와 SASS를 모두 바이너리에 넣어, 미래 GPU에서는 PTX가 JIT 컴파일되어 동작한다. 이게 CUDA 바이너리가 미래 호환성을 갖는 비결이다.</p>
+
+  <p><strong>Nsight Compute vs Nsight Systems.</strong> 둘은 보는 시야가 다르다. <em>Nsight Systems</em>는 시스템 전체의 타임라인을 본다 — 어떤 커널이 언제 시작했고, CPU는 뭘 하고 있었고, PCIe 트래픽은 언제 발생했는지. "왜 이 학습 한 step이 50ms 걸리지?"라는 질문에 답을 준다. <em>Nsight Compute</em>는 한 커널 안을 현미경으로 본다 — 워프 점유율, 메모리 트랜잭션 효율, 텐서 코어 활용률, stall 원인. "왜 이 SGEMM 커널이 이론치의 60%만 내지?"에 답을 준다. 큰 그림은 Nsight Systems, 한 점의 깊이는 Nsight Compute. 둘 다 적절히 쓰는 것이 실력이다.</p>
+
+  <p><strong>NVTX.</strong> 코드에 <code>nvtxRangePushA("forward pass")</code> ... <code>nvtxRangePop()</code> 같은 마커를 넣으면 Nsight Systems 타임라인에 그대로 색띠로 보인다. 라이브러리 호출 한 줄이 아니라 "내 코드의 어느 단계"가 시간을 먹는지 시각적으로 보인다. 거의 공짜에 가까운 도구이니 모든 큰 코드베이스는 NVTX 마커를 까는 습관을 들이는 것이 좋다.</p>
+
+  <p><strong>라이브러리 경관.</strong> 손수 짠 커널이 라이브러리를 이기기 어려운 영역들이 있다. 정리하면:</p>
+
+  <p>· <strong>cuBLAS</strong> — 밀집 선형대수(GEMM, GEMV 등). 텐서 코어 활용까지 다 알아서 한다.<br>
+  · <strong>cuDNN</strong> — 딥러닝 커널 (합성곱, 풀링, RNN, attention). 알고리즘 선택과 메모리 레이아웃 자동 튜닝 포함.<br>
+  · <strong>cuFFT</strong> — 고속 푸리에 변환.<br>
+  · <strong>cuSPARSE</strong> — 희소 행렬.<br>
+  · <strong>cuRAND</strong> — 난수 생성.<br>
+  · <strong>Thrust</strong> — STL 비슷한 알고리즘 라이브러리(sort, reduce, scan, transform). 빠른 프로토타이핑에 강력.<br>
+  · <strong>CUTLASS</strong> — 템플릿 기반 GEMM 빌딩 블록. cuBLAS가 안 가지고 있는 epilogue나 분할이 필요할 때 자기만의 GEMM을 짤 수 있게 해 준다. 대형 커널 라이브러리(FlashAttention 등)의 토대.<br>
+  · <strong>NCCL</strong> — 멀티 GPU/노드 사이의 collective 통신(allreduce, broadcast). 분산 학습의 핵심.</p>
+
+  <p>실전 룰은 단순하다. <strong>표준 연산은 라이브러리 먼저.</strong> 라이브러리가 안 가진 모양이거나, 파이프라인 fusion이 필요하거나, 특수한 데이터 레이아웃이 있을 때만 직접 짠다. 직접 짤 때도 CUTLASS 위에 짜는 것이 맨바닥 SGEMM을 짜는 것보다 거의 항상 낫다.</p>
+
+  <h2>22.5 미래: 메모리, 인터커넥트, 그리고 추상화</h2>
+  <p>GPU 컴퓨팅은 어디로 가고 있을까. 몇 갈래의 방향이 또렷하다.</p>
+
+  <p><strong>(1) 더 큰 메모리, 더 빠른 인터커넥트.</strong> 모델은 계속 커진다. 한 GPU에 다 안 들어가는 모델이 표준이 되었고, 8장에서 본 듯이 노드를 묶고 노드들을 묶어서 하나의 거대한 가상 가속기를 만든다. NVLink는 GPU-GPU 직결 인터커넥트로 시작해, 이제 NVSwitch와 결합해 64~256장의 GPU를 마치 한 메모리 풀처럼 묶는다. NVLink5는 양방향 1.8TB/s를 한 GPU 쌍에 쏟아붓는다. PCIe Gen5의 ~64GB/s와 30배 차이다. 가까운 미래에는 노드의 경계 자체가 점점 흐려질 것이다.</p>
+
+  <p><strong>(2) CPU와 GPU의 한 메모리 풀.</strong> NVIDIA Grace Hopper, AMD MI300A 같은 칩들은 CPU와 GPU를 같은 패키지에 넣고 같은 캐시 일관성 메모리를 공유시킨다. <code>cudaMemcpy</code>가 정말로 사라지는 시대다. 더 정확히는, "복사가 필요 없게 만든다"가 시스템의 일이 되어 가고 프로그래머는 "어디에 두는 것이 더 효율적인지"만 신경 쓰면 된다. 이질 컴퓨팅이 처음 약속했던 모델이 진짜로 성숙해지는 셈이다.</p>
+
+  <p><strong>(3) 정밀도의 더 깊은 분화.</strong> FP4가 Blackwell에서 표준이 됐다. 어떤 가중치는 INT8, 어떤 가중치는 FP4, attention의 KV는 FP8, output은 BF16 — 한 모델 안에서 정밀도가 텐서마다 다른 mixed precision 운영이 일반이 되어 간다. 컴파일러와 라이브러리가 이 mixed precision 그래프를 어떻게 깔끔하게 표현하느냐가 다음 세대 도구의 과제다.</p>
+
+  <p><strong>(4) 추상화 한 단계 위로.</strong> CUDA C++로 매번 커널을 짜는 일은 즐겁지만 느리다. <strong>Triton</strong>(OpenAI) 같은 DSL은 "이 텐서를 이렇게 타일링하고 이 축으로 reduce해라"를 NumPy 비슷한 문법으로 쓰면 GPU 커널로 내려준다. 1000줄 CUDA의 FlashAttention이 100줄 Triton으로 표현된다. cuTile, MLIR, JAX/TVM 같은 그래프 컴파일러들도 같은 자리를 노린다 — 위에서 의도를 적고, 아래는 컴파일러가 책임진다.</p>
+
+  <p>그렇다고 CUDA C++가 사라지지는 않는다. cuDNN 어텐션, NCCL allreduce, FlashAttention의 마지막 튜닝처럼 매 사이클이 중요한 자리에선 여전히 손맛이 산다. 그 위쪽은 점점 더 높은 추상화로, 필요할 때만 내려가서 손을 보는 — 그것이 다음 표준 작업 흐름일 것이다.</p>
+
+  <div class="callout good">
+    <div class="label">실전 자세</div>
+    <p>지금 GPU 코드를 짜는 사람의 가장 안전한 자세는 이렇다. 라이브러리 위에서 시작한다. 안 되면 Triton 같은 DSL로 한 단계 내려간다. 그래도 안 되면 CUTLASS 템플릿 위에 짠다. 그래도 안 되면 맨손 CUDA로 간다. 한 단계 한 단계 내려갈 때마다 코딩 시간은 5배씩 늘어난다. 그러니 진짜 그 깊이가 필요한지 매번 묻는 것이 좋다.</p>
+  </div>
+
+  <h2>22.6 정리</h2>
+  <p>CUDA의 표면 — <code>__global__</code>과 <code>&lt;&lt;&lt;...&gt;&gt;&gt;</code> — 은 2007년 첫 발표 때와 거의 같다. 그러나 아래 모든 것이 변했다. 메모리는 명시 복사에서 통합 메모리로, 인터커넥트는 PCIe에서 NVLink/NVSwitch로, 컴퓨트는 FP32에서 텐서 코어로, 라이브러리는 cuBLAS에서 cuDNN/CUTLASS/NCCL 생태계로.</p>
+
+  <p>한 가지 흐름이 모든 변화를 관통한다. <strong>"프로그래머가 신경 써야 하는 일이 점점 위로 올라간다."</strong> 복사 코드에서 정밀도/알고리즘 선택으로, 커널 튜닝에서 그래프 최적화로. 도구의 발전은 결국 우리가 더 큰 문제를 풀 수 있다는 뜻이다.</p>
+
+  <p>마지막 장에서는 22장 분량을 짧게 되짚고, 이 도구를 쥔 독자에게 작지만 진심 어린 도전 하나를 던진다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>호스트/디바이스 메모리 모델은 cudaMemcpy → pinned/zero-copy → UVA → Unified Memory + page fault로 진화. 손이 줄고 진단이 늘었다.</li>
+      <li>스트림으로 복사–계산 중첩과 커널-커널 동시 실행. 협력 그룹으로 grid-wide sync. CUDA Graphs로 launch 오버헤드 제거.</li>
+      <li>HBM이 표준화. FP32 throughput보다 텐서 코어 throughput이 훨씬 빠르게 성장. 2:4 sparsity, FP8/FP4까지 정밀도가 분화.</li>
+      <li>Nsight Systems = 시스템 타임라인, Nsight Compute = 커널 내부 분석. NVTX 마커는 거의 공짜의 가독성 향상.</li>
+      <li>표준 연산은 cuBLAS/cuDNN/CUTLASS/NCCL 등 라이브러리부터. 직접 짤 일은 점점 줄어든다.</li>
+      <li>미래: 더 큰 메모리, NVLink/NVSwitch로 흐려지는 노드 경계, Grace Hopper류 통합 메모리, Triton/MLIR/JAX 같은 한 단계 위 추상화.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch21.html"><span class="dir">← 이전</span><span>21장. CUDA 동적 병렬성</span></a>
+    <a href="ch23.html" class="next"><span class="dir">다음 →</span><span>23장. 마치며: 그래서, 다음은?</span></a>
+  </nav>
+</article>
+</body>
+</html>

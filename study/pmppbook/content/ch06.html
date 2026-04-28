@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6장. 성능 고려사항 — 대규모 병렬 프로세서 프로그래밍</title>
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<article class="chapter">
+  <header class="ch-head">
+    <p class="ch-num">Chapter 6</p>
+    <h1>성능 고려사항</h1>
+    <p class="subtitle">코얼레싱·latency hiding·코어스닝까지, GPU를 다그치는 일곱 가지 기술</p>
+  </header>
+
+  <h2>6.1 메모리 코얼레싱</h2>
+  <p>5장에서 우리는 데이터를 덜 읽는 법을 배웠다. 6장은 한 발 더 나아간다. <strong>같은 양을 읽더라도 어떻게 읽느냐</strong>가 GPU에서는 비용을 좌우한다. 그 첫 주제가 <strong>메모리 코얼레싱(coalescing)</strong>이다.</p>
+  <p>GPU의 글로벌 메모리는 DRAM이고, DRAM은 한 번에 한 행(row)을 활성화해서 거기서 연속된 여러 바이트를 한꺼번에 길어 올리는 게 본업이다. 이를 <strong>burst</strong>라 한다. 일반적으로 한 번의 메모리 트랜잭션은 32바이트나 128바이트 단위로 이뤄진다. 같은 연속 영역에서 데이터를 가져오면 한 번의 burst로 끝나고, 흩어진 영역이면 여러 번의 burst가 필요하다.</p>
+  <p>워프(warp) 안의 32개 스레드가 메모리에 동시에 접근할 때 GPU 메모리 컨트롤러는 이 32개의 주소를 모아서 가능한 한 적은 트랜잭션으로 묶는다. 32개 스레드가 32개의 연속된 4바이트 float을 읽는다면? 정확히 128바이트, 한 번의 트랜잭션으로 끝난다. 이런 패턴을 <strong>coalesced access</strong>라 부른다.</p>
+  <p>반대로 32개 스레드가 각자 멀리 떨어진 32개 위치를 읽으면 최대 32번의 트랜잭션이 발생한다. 같은 32개 데이터를 가져오는 데 비용이 32배다. <strong>"무엇을 읽느냐"가 아니라 "어떻게 인접한가"가 비용을 결정한다.</strong></p>
+
+  <h3>행 우선 vs 열 우선: 같은 행렬, 다른 운명</h3>
+  <p>C/CUDA의 2D 배열은 보통 행 우선(row-major) 저장이다. <code>A[i][j]</code>는 메모리상에서 <code>A[i*N + j]</code>다. 행을 따라 j를 1씩 증가시키면 주소는 4바이트씩 증가, 즉 연속이다. 열을 따라 i를 증가시키면 주소는 4*N바이트씩 점프, 즉 흩어진다.</p>
+  <pre><code>// 패턴 A: 코얼레싱이 되는 접근
+__global__ void rowMajorRead(const float* A, float* out, int N) {
+    int row = blockIdx.x;
+    int col = threadIdx.x;          // 워프 내 스레드 index
+    out[row * N + col] = A[row * N + col];   // col 방향 = 연속 주소
+}
+
+// 패턴 B: 코얼레싱이 깨지는 접근
+__global__ void colMajorRead(const float* A, float* out, int N) {
+    int col = blockIdx.x;
+    int row = threadIdx.x;
+    out[row * N + col] = A[row * N + col];   // row 방향 = N 간격 점프
+}</code></pre>
+  <p>패턴 A는 워프 내 32스레드가 행의 32개 연속 원소를 읽으므로 한 번의 burst로 끝난다. 패턴 B는 32스레드가 행렬의 한 열에서 원소를 하나씩 가져오므로 32번의 burst가 필요하다. 같은 양의 데이터지만 처리량은 약 32배 차이다.</p>
+
+  <div class="callout warn">
+    <div class="label">함정</div>
+    <p>"내 알고리즘은 어쩔 수 없이 열을 따라 읽어야 한다"라고 생각된다면, 글로벌에서 직접 열을 읽지 말고 <strong>공유 메모리에 행 단위로 코얼레싱하여 로드한 뒤, 공유 메모리에서 열을 읽는</strong> 방법을 고려하자. 이를 <strong>corner-turning</strong>이라 부른다. 공유 메모리는 코얼레싱 제약이 없어 (대신 bank conflict 제약이 있다) 임의 패턴이 훨씬 저렴하다.</p>
+  </div>
+
+  <h3>AoS vs SoA</h3>
+  <p>코얼레싱과 깊이 얽힌 또 하나의 패턴이 있다. 입자 시뮬레이션처럼 입자별로 위치(x,y,z)·속도(vx,vy,vz)를 다룰 때, 자료구조를 어떻게 잡느냐다.</p>
+  <p><strong>AoS (Array of Structures)</strong>: <code>struct Particle { float x,y,z,vx,vy,vz; }; Particle ps[N];</code> — 객체 지향적으로 자연스럽지만, 워프 내 스레드들이 각자 자기 입자의 x를 읽으면 6 float 간격으로 점프해 코얼레싱이 깨진다.</p>
+  <p><strong>SoA (Structure of Arrays)</strong>: <code>struct Particles { float x[N], y[N], z[N], vx[N], vy[N], vz[N]; };</code> — 같은 필드끼리 모아두므로 워프 내 스레드들이 x[0..31]을 읽을 때 연속 주소가 되어 코얼레싱이 살아난다. <strong>GPU에서는 거의 항상 SoA가 정답이다.</strong></p>
+
+  <h2>6.2 메모리 레이턴시 숨기기</h2>
+  <p>글로벌 메모리 latency는 보통 400~800 사이클이다. 만약 워프가 메모리를 읽고 그 결과를 기다리며 가만히 있으면 SM은 그 시간 동안 놀게 된다. GPU의 비밀 무기는 <strong>massive parallelism으로 latency를 가린다</strong>는 점이다. 한 워프가 메모리를 기다리는 동안 SM은 즉시 다른 준비된 워프로 컨텍스트 스위치한다. 워프 스위칭은 0 사이클 — 레지스터를 그대로 둔 채 스케줄러가 다른 워프를 골라잡는다.</p>
+  <p>그러므로 SM에 워프가 충분히 많이 상주해야 한다. 얼마나 많아야 하는가? 답은 <strong>Little's law</strong>가 알려준다. 시스템 안에서 처리 중인 작업 수는 처리율과 latency의 곱이다.</p>
+  <p>구체적으로, 글로벌 메모리 대역폭이 1.5 TB/s이고 latency가 500 cycle이라 하자. SM 클럭이 1.5 GHz라면 500 cycle = 333 ns. 따라서 <code>1.5 × 10¹² × 333 × 10⁻⁹ ≈ 500,000 byte</code>의 작업이 동시에 진행 중이어야 대역폭을 다 쓴다. 한 트랜잭션이 128바이트라면 동시 트랜잭션이 약 4,000개 필요하다. 워프당 한 번에 한 트랜잭션을 발생시킨다면 대략 4,000 워프 — 이게 latency를 완전히 가리는 데 필요한 in-flight 워프의 어림 숫자다.</p>
+  <p>실제 GPU는 SM당 64 워프 정도, SM이 80~108개 정도이므로 in-flight 워프가 5,000~7,000 수준에 도달할 수 있다. 그래서 occupancy를 어느 정도 확보하면 latency가 자연스레 가려진다. 다만 한 워프가 한 번에 발생시키는 메모리 작업이 많으면(메모리 명령을 빨리 던지는 워프) 더 적은 워프로도 대역폭을 채울 수 있다 — 이를 ILP(instruction-level parallelism)라 한다.</p>
+
+  <h2>6.3 스레드 코어스닝</h2>
+  <p>지금까지 우리는 "스레드 1개당 출력 1개"라는 매핑을 당연하게 여겼다. 그런데 가끔은 한 스레드가 출력 여러 개를 책임지게 하는 게 더 빠르다. 이 기법을 <strong>스레드 코어스닝(thread coarsening)</strong>이라 부른다.</p>
+  <p>왜 빠른가? 두 가지 이유다. <strong>(1) 중복 작업 제거.</strong> 5장의 타일드 행렬 곱에서 인접한 두 출력 타일이 A의 같은 행 타일을 공유한다. 두 블록이 각자 독립적으로 같은 A 타일을 글로벌에서 읽는데, 한 블록이 두 출력 타일을 동시에 처리하면 A 타일은 한 번만 읽으면 된다. <strong>(2) 레지스터 reuse.</strong> 한 스레드가 여러 출력을 누적하면 중간 부분합을 레지스터에 두고 재활용할 수 있다. 공유 메모리에 갈 일도, 글로벌에 갈 일도 줄어든다.</p>
+  <pre><code>// 코어스닝된 행렬 곱 (한 스레드가 출력 2개 처리)
+#define TILE_WIDTH 16
+#define COARSE_FACTOR 2
+
+__global__ void matmulCoarse(const float* A, const float* B, float* C, int Width) {
+    __shared__ float As[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float Bs[TILE_WIDTH][TILE_WIDTH * COARSE_FACTOR];
+
+    int row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int colStart = blockIdx.x * TILE_WIDTH * COARSE_FACTOR + threadIdx.x;
+
+    float acc[COARSE_FACTOR] = {0.0f};   // 레지스터에 부분합 보관
+
+    for (int ph = 0; ph &lt; (Width + TILE_WIDTH - 1) / TILE_WIDTH; ++ph) {
+        // A 타일은 한 번만 로드 (공유)
+        As[threadIdx.y][threadIdx.x] = A[row * Width + ph * TILE_WIDTH + threadIdx.x];
+
+        // B 타일은 COARSE_FACTOR개를 묶어서 로드
+        for (int c = 0; c &lt; COARSE_FACTOR; ++c) {
+            int col = colStart + c * TILE_WIDTH;
+            Bs[threadIdx.y][threadIdx.x + c * TILE_WIDTH]
+                = B[(ph * TILE_WIDTH + threadIdx.y) * Width + col];
+        }
+        __syncthreads();
+
+        for (int k = 0; k &lt; TILE_WIDTH; ++k) {
+            float a = As[threadIdx.y][k];        // A 한 번 읽고 c 배 재사용
+            for (int c = 0; c &lt; COARSE_FACTOR; ++c) {
+                acc[c] += a * Bs[k][threadIdx.x + c * TILE_WIDTH];
+            }
+        }
+        __syncthreads();
+    }
+
+    for (int c = 0; c &lt; COARSE_FACTOR; ++c) {
+        int col = colStart + c * TILE_WIDTH;
+        if (row &lt; Width &amp;&amp; col &lt; Width) C[row * Width + col] = acc[c];
+    }
+}</code></pre>
+  <p>이 커널에서 A 타일 로드는 코어스닝 없는 버전과 같지만 한 번 로드된 A 타일이 COARSE_FACTOR개의 출력 타일에 함께 쓰인다. 즉 <strong>A의 글로벌 트래픽이 1/COARSE_FACTOR로 줄어든다</strong>. 단점도 분명하다. 그리드 사이즈가 그만큼 작아지므로 병렬성이 줄고, 레지스터 사용량이 늘어 occupancy가 떨어질 수 있다. 일반적으로 COARSE_FACTOR 2~4가 적당하다.</p>
+
+  <div class="callout tip">
+    <div class="label">감 잡기</div>
+    <p>코어스닝은 양날의 검이다. 재사용으로 트래픽은 줄지만 병렬성도 같이 준다. 이미 GPU가 워프로 가득 찬 상태에서만 효과가 있다. SM이 한가하다면 코어스닝보다 그리드를 더 키우는 게 우선이다.</p>
+  </div>
+
+  <h2>6.4 최적화 체크리스트</h2>
+  <p>이 책 전반에서 무수한 커널을 고치게 될 텐데, 매번 처음부터 고민하지 말고 다음 순서로 점검하자. 6장은 책의 reference로 두고두고 펼칠 페이지다.</p>
+  <ol>
+    <li><strong>코얼레싱부터.</strong> 워프 내 32스레드가 글로벌 메모리에서 인접한 주소를 읽는가? 인덱스 계산을 점검하자. row-major 배열이라면 가장 안쪽 인덱스가 threadIdx.x여야 한다.</li>
+    <li><strong>워프 다이버전스(divergence) 줄이기.</strong> if/else 분기가 워프 안에서 갈리지 않도록 한다. 다이버전스가 발생하면 한 워프가 두 갈래를 모두 직렬 실행해야 한다. 가능한 한 데이터로 분기하지 말고 인덱스 산술로 같은 코드 경로를 타게 만든다.</li>
+    <li><strong>occupancy 확인.</strong> 레지스터·공유 메모리 사용량을 점검해 SM이 워프로 충분히 차 있는지 본다. <code>--ptxas-options=-v</code> 옵션으로 컴파일 시 자원 사용량이 출력된다.</li>
+    <li><strong>공유 메모리로 데이터 재사용.</strong> 같은 데이터를 여러 스레드가 읽는다면 타일링으로 한 번만 글로벌에서 가져오자.</li>
+    <li><strong>스레드 코어스닝.</strong> 그리드가 충분히 크고 레지스터 여유가 있다면 한 스레드에 출력 여러 개를 묶어 redundant work를 제거한다.</li>
+    <li><strong>알고리즘 자체를 바꾸기.</strong> 위 방법들을 다 했는데도 메모리 바운드라면 알고리즘을 바꿔야 한다. 산술 강도가 본질적으로 낮은 알고리즘은 하드웨어 최적화로 풀 수 없다.</li>
+  </ol>
+
+  <h2>6.5 병목을 알기</h2>
+  <p>최적화의 대전제는 "측정 없이는 추측하지 마라"다. <strong>roofline 모델</strong>은 한 커널의 성능 상한을 직관적으로 보여준다. x축은 산술 강도(FLOP/B), y축은 달성 throughput(FLOPS), 그래프에는 두 개의 한도선이 그려진다. 비스듬한 선은 <code>대역폭 × 산술강도</code>로 결정되는 메모리 한도, 수평선은 피크 연산 한도다. 두 선의 교차점이 컴퓨트 바운드와 메모리 바운드를 나누는 지점이다.</p>
+  <p>예를 들어 산술 강도 4 FLOP/B인 커널이 1.5 TB/s 대역폭의 GPU에서 달성 가능한 상한은 6 TFLOPS다. 만약 측정 결과가 5 TFLOPS라면 상한의 83%로 잘 쓰고 있는 셈이고, 1 TFLOPS라면 코얼레싱이나 구현에 문제가 있는 거다.</p>
+  <p>실제 측정에는 <strong>NVIDIA Nsight Compute</strong>가 표준 도구다. 커널 단위로 메모리 throughput, 명령 throughput, occupancy, stall 원인을 분석해 어디가 진짜 병목인지 알려준다. 추측 5번보다 프로파일러 1번이 빠르다.</p>
+
+  <h2>6.6 정리</h2>
+  <p>5장이 "데이터를 덜 옮기자"였다면 6장은 "옮기더라도 영리하게 옮기자"였다. 코얼레싱은 메모리 트랜잭션 수를 줄이고, latency hiding은 워프를 충분히 띄워 메모리 대기를 가린다. 코어스닝은 한 스레드에 일을 더 맡겨 redundant work를 없앤다. 그리고 이 모든 것을 종합한 체크리스트가 6.4절이다. 이후 모든 챕터에서 우리는 이 체크리스트를 실제 알고리즘에 적용하게 된다.</p>
+
+  <div class="recap">
+    <h3>이 챕터에서 챙길 것</h3>
+    <ul>
+      <li>코얼레싱: 워프 내 32스레드가 인접 주소를 읽으면 한 번의 트랜잭션, 흩어지면 최대 32번. AoS보다 SoA, 열보다 행.</li>
+      <li>Latency hiding: GPU는 워프를 많이 띄워 메모리 대기를 가린다. Little's law로 필요한 in-flight 워프 수를 추정한다.</li>
+      <li>스레드 코어스닝: 한 스레드가 출력 여러 개를 처리해 redundant work를 줄이지만 병렬성은 감소한다. 균형이 중요.</li>
+      <li>최적화 순서: 코얼레싱 → 다이버전스 → occupancy → 공유 메모리 → 코어스닝 → 알고리즘.</li>
+      <li>roofline 모델로 상한선을 그어 보고, Nsight Compute로 병목을 측정하라. 추측보다 측정.</li>
+    </ul>
+  </div>
+
+  <nav class="chapter-nav">
+    <a href="ch05.html">
+      <span class="dir">← 이전</span>
+      <span>메모리 계층과 데이터 지역성</span>
+    </a>
+    <a href="ch07.html" class="next">
+      <span class="dir">다음 →</span>
+      <span>컨볼루션과 상수 메모리</span>
+    </a>
+  </nav>
+</article>
+</body>
+</html>
