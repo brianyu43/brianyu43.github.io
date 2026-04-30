@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPU Mode Lecture 004 — Lecture 4 Compute and Memory Basics · CUDA Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head><body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · lecture archive</div>
+  <nav>
+    <a href="../index.html">CUDA Training</a>
+    <a href="index.html">GPU Mode Index</a>
+    <a href="lecture-003.html">← Prev</a>
+    <a href="lecture-005.html">Next →</a>
+  </nav>
+</div>
+
+<div class="wrap-wide">
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">GPU MODE</span>
+      <span class="epn">LECTURE 004</span>
+      <span>2024-02-05</span>
+      <span>AVAILABLE</span>
+      <span>HIGH</span>
+    </div>
+    <h1>Lecture 4 Compute and Memory Basics</h1>
+    <p class="dek">This lecture, Lecture 4 Compute and Memory Basics, is documented from the GPU Mode YouTube metadata, public captions, and official repo materials. The strongest detected technical themes are kernel, warp, CUDA, shared memory, tiling, occupancy, PyTorch, fusion. Key transcript/material signals point to: hello and welcome to uh today&#x27;s session of uh our Cuda...</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Speaker</div>
+          <div class="nm">Thomas Viehmann</div>
+          <div class="sub">YouTube / repo metadata 기반</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">G</div>
+        <div>
+          <div class="role">Study lens</div>
+          <div class="nm">GPU kernel · compiler · LLM systems</div>
+          <div class="sub">notes status: complete</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 6 ACTS</span><span>local study draft</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">00:00</span><span class="ix">01</span><span class="ti">강의 지도</span><span class="dur">summary · sources</span></a>
+        <a href="#a2"><span class="ts">06:00</span><span class="ix">02</span><span class="ti">핵심 아이디어</span><span class="dur">20 bullets</span></a>
+        <a href="#a3"><span class="ts">14:00</span><span class="ix">03</span><span class="ti">용어와 맥락</span><span class="dur">11 terms</span></a>
+        <a href="#a4"><span class="ts">22:00</span><span class="ix">04</span><span class="ti">커널 · 컴파일러 메커니즘</span><span class="dur">8 mechanisms</span></a>
+        <a href="#a5"><span class="ts">31:00</span><span class="ix">05</span><span class="ti">성능 엔지니어링</span><span class="dur">8 lessons</span></a>
+        <a href="#a6"><span class="ts">40:00</span><span class="ix">06</span><span class="ti">실습과 재방문 계획</span><span class="dur">6 exercises</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a1">
+    <div class="act-head">
+      <div class="num">01 · MAP<b>강의 지도</b></div>
+      <h2>이 강의는 어디에 꽂히는가.</h2>
+    </div>
+    <p class="act-lede">This lecture, <code>Lecture 4 Compute and Memory Basics</code>, is documented from the GPU Mode YouTube metadata, public captions, and official repo materials. The strongest detected technical themes are kernel, warp, CUDA, shared memory, tiling, occupancy, PyTorch, fusion. Key transcript/material signals point to: hello and welcome to uh today&#x27;s session of uh our Cuda mode reading group uh we&#x27;re reading the programming massively parallel processes book and today we&#x27;re reviewing chapters uh four and five in the material so uh wh... that it has 32 fp32 units and half of them can do in 32 actually and that it has the tensor core units but we&#x27;re not going to look at that today in great detail so when you run a kernel you define the block and the ho... launching a Cuda kernel you give it a block layout how many threads there are in a block and you give it a grd layout how many blocks should be launched in total so threads in a block are executed in parallel on the s...</p>
+    <div class="act-body split">
+      <div>
+        
+    <div class="viz">
+      <div class="viz-cap"><span>FIG · source coverage</span><span>lecture 004</span></div>
+      <div class="bars">
+        <div class="row"><span class="lbl">Transcript</span><span class="bar"><span style="width:100%"></span></span><span class="val">available</span></div>
+        <div class="row"><span class="lbl">Slides</span><span class="bar sml"><span style="width:100%"></span></span><span class="val">yes</span></div>
+        <div class="row"><span class="lbl">Code</span><span class="bar sml"><span style="width:100%"></span></span><span class="val">yes</span></div>
+        <div class="row"><span class="lbl">Core ideas</span><span class="bar"><span style="width:100%"></span></span><span class="val">20</span></div>
+        <div class="row"><span class="lbl">Key terms</span><span class="bar"><span style="width:77%"></span></span><span class="val">11</span></div>
+      </div>
+    </div>
+      </div>
+      <div>
+        
+    <div class="callout">
+      <div class="label">LOCAL STUDY NOTE</div>
+      <p>이 글은 로컬 개인 학습 아카이브의 transcript / metadata / notes 를 바탕으로 재구성한 GPU Mode lecture note 입니다. 원자료가 없거나 caption fetch 가 실패한 곳은 추정하지 않고 명시했습니다.</p>
+    </div>
+        
+  <table class="tbl">
+    <thead><tr><th>Source</th><th>URL</th></tr></thead>
+    <tbody>
+      <tr><td>YouTube</td><td><a href="https://www.youtube.com/watch?v=lTmYrKwjSOU" target="_blank">https://www.youtube.com/watch?v=lTmYrKwjSOU</a></td></tr>
+      <tr><td>GitHub folder</td><td><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_004" target="_blank">https://github.com/gpu-mode/lectures/tree/main/lecture_004</a></td></tr>
+      <tr><td>Slides</td><td><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_004/cuda-mode-2024-02-03.pdf" target="_blank">https://github.com/gpu-mode/lectures/blob/main/lecture_004/cuda-mode-2024-02-03.pdf</a></td></tr>
+      <tr><td>Code</td><td><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_004" target="_blank">https://github.com/gpu-mode/lectures/tree/main/lecture_004</a></td></tr>
+    </tbody>
+  </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a2">
+    <div class="act-head">
+      <div class="num">02 · CORE<b>핵심 아이디어</b></div>
+      <h2>강의가 반복해서 밀어붙이는 기술적 주장들.</h2>
+    </div>
+    <p class="act-lede">원 transcript 와 노트에서 추출한 중심 논점을 엔지니어링 관점으로 다시 배열했다.</p>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>kernel</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>warp</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>CUDA</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>shared memory</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>tiling</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>occupancy</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>PyTorch</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>fusion</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: hello and welcome to uh today&#x27;s session of uh our Cuda mode reading group uh we&#x27;re reading the programming massively parallel processes book and today we&#x27;re reviewing chapters uh four and five in the material so uh what&#x27;s covered there i...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: that it has 32 fp32 units and half of them can do in 32 actually and that it has the tensor core units but we&#x27;re not going to look at that today in great detail so when you run a kernel you define the block and the how many threads are i...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: launching a Cuda kernel you give it a block layout how many threads there are in a block and you give it a grd layout how many blocks should be launched in total so threads in a block are executed in parallel on the same streaming mod pr...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: and it can access its shared memory blocks are completely independent to us so Cuda is free to arbitrarily assign blocks to streaming multiprocessors and we don&#x27;t know about execution order so we don&#x27;t we know that all threads in a block...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: this in 64 as well because I got burned there once when I ported the uh pyo bnom kernels to uh to the from the old torch scheme to the new pytorch one one I accidentally switched the indexing to 64 bits um and then spent a lot of time as...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: new kernel was slower um then I figured out all sorts of optimizations before I hit the right one and so now the bnom kernel and py to is reasonably snow is reasonably fast which is a good result I guess we have the Shar memory and regis...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: registers to much slower local memory uh to store the variables um this is all like a bit complicated to calculate so previously there was an Excel sheet for the occupancy calculation now this is part of inside compute and I uh Venture t...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: memory architecture and data locality and that is because a lot of kernels will be limited by memory accesses uh uh in their execution speed and so this is part of the basics of getting fast kernels but before we look at that in uh more...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: computation part uh where we have roughly three parts fixed costs for kernel launches and such um and we can try to try to estimate that I have a kernel in the notebook that&#x27;s just empty that will try to tell us something about the fixed...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: drive towards having some sort of uh compilers uh for things so typically EIG pyo does it loads an input computes the result and then stores the output for each operation um and so it&#x27;s obviously faster if we combine kernels so it goes l...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: flops per bite of memory transfer because uh uh this will actually give you an idea of whether uh our kernel is compute bound or memory bound so in our example we had five uh fp32 flops and we had uh four bytes of transfer and so uh the...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: bound kernel if you are in the regime where you have a high computational intensity you so with any given bit of memory uh you compute a lot uh then your Peak output is basically uh Peak throughput is basically the speed of the dpu uh uh...</div></div>
+  </section>
+
+  <section class="act" id="a3">
+    <div class="act-head">
+      <div class="num">03 · TERMS<b>용어와 맥락</b></div>
+      <h2>이 강의를 읽기 위한 작은 사전.</h2>
+    </div>
+    <div class="act-body split rev">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>Glossary</span><span>11 entries</span></div>
+          <table class="tbl">
+            <tbody>
+              <tr><td><strong>kernel</strong> — A GPU program launched over many threads/blocks to process data in parallel.</td></tr><tr><td><strong>warp</strong> — A group of GPU threads that execute in lockstep on NVIDIA GPUs.</td></tr><tr><td><strong>CUDA</strong> — NVIDIA&#x27;s GPU programming platform and kernel programming model.</td></tr><tr><td><strong>shared memory</strong> — Program-managed on-chip SRAM used for tiling and reuse within a block.</td></tr><tr><td><strong>tiling</strong> — Splitting work/data into blocks that fit cache/shared memory/registers.</td></tr><tr><td><strong>occupancy</strong> — How many warps/blocks can reside on an SM, constrained by registers, shared memory, and launch shape.</td></tr><tr><td><strong>PyTorch</strong> — The deep learning framework often used here as the host/runtime integration layer.</td></tr><tr><td><strong>fusion</strong> — Combining operations into fewer kernels to reduce memory traffic and launch overhead.</td></tr><tr><td><strong>Triton</strong> — A Python-embedded DSL/compiler for writing high-performance GPU kernels.</td></tr><tr><td><strong>Tensor Core</strong> — Matrix-multiply hardware units optimized for mixed-precision GEMM-like workloads.</td></tr><tr><td><strong>scheduling</strong> — Choosing execution order, tiling, parallelism, and memory movement strategy.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="pull">“용어를 외우는 게 아니라, 어떤 병목을 가리키는 이름인지 붙잡는다.”<span class="by">study rule</span></div>
+        <p class="act-lede">For CUDA kernels, this lecture is relevant because it touches implementation details such as launch structure, memory movement, profiling, or low-level GPU execution. For Triton kernels, it helps connect Python-level kernel authoring to tiling, program IDs, compiler lowering, and autotuned performance. For ML compilers, it is useful for understanding how higher-level tensor programs become IR, PTX/SASS, scheduled kernels, or fused operators. For GPU architecture, the matmul/Tensor Core/CUTLASS/CuTe themes are the bridge between hardware matrix instructions and production kernels. For profiling and optimization, the lecture gives hooks for thinking about bandwidth, occupancy, tiling, benchmarking, and bottleneck diagnosis.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a4">
+    <div class="act-head">
+      <div class="num">04 · MECHANISM<b>커널 · 컴파일러 메커니즘</b></div>
+      <h2>알고리즘, 런타임, lowering, memory layout.</h2>
+    </div>
+    <div class="act-body split">
+      <div>
+        <div class="callout">
+    <ul>
+      <li>Transcript context: hello and welcome to uh today&#x27;s session of uh our Cuda mode reading group uh we&#x27;re reading the programming massively parallel processes book and today we&#x27;re reviewing chapters uh four and five in the material so uh wh...</li>
+      <li>Transcript context: that it has 32 fp32 units and half of them can do in 32 actually and that it has the tensor core units but we&#x27;re not going to look at that today in great detail so when you run a kernel you define the block and the ho...</li>
+      <li>Transcript context: launching a Cuda kernel you give it a block layout how many threads there are in a block and you give it a grd layout how many blocks should be launched in total so threads in a block are executed in parallel on the s...</li>
+      <li>Transcript context: and it can access its shared memory blocks are completely independent to us so Cuda is free to arbitrarily assign blocks to streaming multiprocessors and we don&#x27;t know about execution order so we don&#x27;t we know that al...</li>
+      <li>Transcript context: this in 64 as well because I got burned there once when I ported the uh pyo bnom kernels to uh to the from the old torch scheme to the new pytorch one one I accidentally switched the indexing to 64 bits um and then sp...</li>
+      <li>Transcript context: new kernel was slower um then I figured out all sorts of optimizations before I hit the right one and so now the bnom kernel and py to is reasonably snow is reasonably fast which is a good result I guess we have the S...</li>
+      <li>Transcript context: registers to much slower local memory uh to store the variables um this is all like a bit complicated to calculate so previously there was an Excel sheet for the occupancy calculation now this is part of inside comput...</li>
+      <li>Transcript context: memory architecture and data locality and that is because a lot of kernels will be limited by memory accesses uh uh in their execution speed and so this is part of the basics of getting fast kernels but before we look...</li>
+    </ul>
+  </div>
+      </div>
+      <div>
+        <div class="callout">
+    <ul>
+      <li>Local repo materials include 1 code/notebook file(s). Start with: <code>lecture_004/cuda-mode-session-4.ipynb</code>.</li>
+      <li>Slide/presentation files are present: <code>lecture_004/cuda-mode-2024-02-03.pdf</code>.</li>
+    </ul>
+  </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a5">
+    <div class="act-head">
+      <div class="num">05 · PERF<b>성능 엔지니어링</b></div>
+      <h2>빠르게 만드는 법보다 먼저, 무엇이 느린지 묻는다.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Start performance work by separating memory bandwidth limits from compute limits; use profiler counters rather than wall-clock timing alone.</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">For matmul-like kernels, tile for data reuse, align work with Tensor Core/MMA shapes when available, and validate against vendor baselines.</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">In Triton, benchmark multiple block sizes/num-warps/stages; good source code can still be slow under the wrong launch configuration.</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">Transcript-derived lesson: registers to much slower local memory uh to store the variables um this is all like a bit complicated to calculate so previously there was an Excel sheet for the occupancy calculation now this is part of inside comput...</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Transcript-derived lesson: bound kernel if you are in the regime where you have a high computational intensity you so with any given bit of memory uh you compute a lot uh then your Peak output is basically uh Peak throughput is basically the sp...</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">Transcript-derived lesson: kernel so what happens in order to create this shape here which is called the roof line uh is that you actually don&#x27;t have a plus between the memory transfer in the compute but because if you you can hide the memory t...</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Transcript-derived lesson: FILE: lecture_004/cuda-mode-session-4.ipynb # CUDA-MODE session 4 (ch 4 + 5 of the book) Notebook by Thomas Viehmann, based on Jeremy Howard&#x27;s notebook from lecture 3 !pip install ninja !sudo apt update !sudo apt inst...</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">Transcript-derived lesson: Why? cuda_src = cuda_begin + r&#x27;&#x27;&#x27; __global__ void my_gelu_kernel(float* out, float* inp, int n) { int i = blockIdx.x*blockDim.x + threadIdx.x; if (i &gt;= n) return; float x = inp[i]; out[i] = 0.5f * x * (1.0f+ tanhf(sqr...</div></div>
+  </section>
+
+  <section class="act" id="a6">
+    <div class="act-head">
+      <div class="num">06 · PRACTICE<b>실습과 재방문 계획</b></div>
+      <h2>읽고 끝내지 말고, 하나는 직접 재현한다.</h2>
+    </div>
+    <div class="act-body split rev">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>Exercises</span><span>implement / profile / compare</span></div>
+          <ol>
+            <li>Implement a minimal CUDA kernel related to the lecture topic, then benchmark it against a PyTorch baseline with proper synchronization.</li><li>Profile the kernel with Nsight Compute and identify one memory, occupancy, or instruction-throughput bottleneck.</li><li>Reimplement a small version of the operation in Triton and sweep block size, <code>num_warps</code>, and <code>num_stages</code>.</li><li>Build a tiled matmul/GEMM microbenchmark and compare naive, shared-memory tiled, and library-backed versions.</li><li>Dump an intermediate representation or generated PTX/SASS for a tiny kernel and annotate the lowering path.</li><li>Write a one-page implementation plan for applying the lecture&#x27;s main idea from <code>Lecture 4 Compute and Memory Basics</code> to an LLM inference or training bottleneck.</li>
+          </ol>
+        </div>
+        <div class="callout">
+          <div class="label">Study priority</div>
+          <ul>
+            <li>Priority: High</li><li>Reason: Directly overlaps with GPU kernel/compiler/LLM systems engineering priorities.</li><li>Suggested revisit depth: implement something</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="callout">
+          <div class="label">Connections</div>
+          <ul>
+            <li>Lecture 001: Lecture 1 How to profile CUDA kernels in PyTorch — likely related through CUDA, PyTorch, kernel.</li><li>Lecture 028: Lecture 28: Liger Kernel - Efficient Triton Kernels for LLM Training — likely related through Triton, kernel.</li><li>Lecture 034: Lecture 34: Low Bit Triton Kernels — likely related through Triton, kernel.</li><li>Lecture 050: Lecture 50: A learning journey CUDA, Triton, Flash Attention — likely related through CUDA, Triton.</li><li>Lecture 003: Lecture 3: Getting Started With CUDA for Python Programmers — likely related through CUDA.</li><li>Lecture 005: Lecture 5: Going Further with CUDA for Python Programmers — likely related through CUDA.</li>
+          </ul>
+        </div>
+        <div class="callout">
+          <div class="label">Open questions</div>
+          <ul>
+            <li>Verify any caption-derived names, acronyms, and numeric claims against the original video/slides before relying on them.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="artnav"><a href="lecture-003.html"><span class="lbl">Previous</span>Lecture 003</a><a class="nxt" href="lecture-005.html"><span class="lbl">Next</span>Lecture 005</a></div>
+  </section>
+</div>
+
+<footer class="bot">
+  <span>GPU Mode local study archive · generated from notes</span>
+  <span><a href="index.html">Index</a></span>
+</footer>
+</body></html>

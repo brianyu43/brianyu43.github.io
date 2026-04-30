@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPU Mode Lectures — 104편 블로그 노트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head><body>
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · lecture archive</div>
+  <nav>
+    <a href="../index.html">CUDA Training</a>
+    <a href="lecture-001.html">Start</a>
+    <a href="https://www.youtube.com/@GPUMODE" target="_blank">YouTube</a>
+  </nav>
+</div>
+<div class="wrap">
+  <div class="hero">
+    <p class="eyebrow"><span class="dot"></span>GPU MODE · 104 LECTURES · LOCAL STUDY BLOG</p>
+    <h1>CUDA 커널에서<br>LLM 시스템까지.</h1>
+    <div class="sub">GPU Mode 1–104 강의를 기존 CUDA Training 블로그 형식으로 다시 엮은 로컬 학습 노트. 각 페이지는 요약, 핵심 아이디어, 용어, 메커니즘, 성능 레슨, 실습으로 구성되어 있다.</div>
+    <div class="stats">
+      <div><b>104</b>lecture pages</div>
+      <div><b>43</b>caption-backed</div>
+      <div><b>43</b>complete notes</div>
+      <div><b>61</b>partial notes</div>
+      <div><b>GPU</b>kernels · compilers · systems</div>
+    </div>
+  </div>
+  <div class="toc">
+    <div class="sec-label">PART I · CUDA foundations</div>
+    <a class="card" href="lecture-001.html">
+      <div class="num">001</div>
+      <div>
+        <h3>Lecture 1 How to profile CUDA kernels in PyTorch</h3>
+        <p>Mark Saroufim · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-002.html">
+      <div class="num">002</div>
+      <div>
+        <h3>Lecture 2 Ch1-3 PMPP book</h3>
+        <p>Andreas Koepf · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-003.html">
+      <div class="num">003</div>
+      <div>
+        <h3>Lecture 3: Getting Started With CUDA for Python Programmers</h3>
+        <p>Jeremy Howard · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-004.html">
+      <div class="num">004</div>
+      <div>
+        <h3>Lecture 4 Compute and Memory Basics</h3>
+        <p>Thomas Viehmann · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-005.html">
+      <div class="num">005</div>
+      <div>
+        <h3>Lecture 5: Going Further with CUDA for Python Programmers</h3>
+        <p>Jeremy Howard · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-006.html">
+      <div class="num">006</div>
+      <div>
+        <h3>Lecture 6 Optimizing Optimizers</h3>
+        <p>Jane Xu · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-007.html">
+      <div class="num">007</div>
+      <div>
+        <h3>Lecture 7 Advanced Quantization</h3>
+        <p>Charles Hernandez · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-008.html">
+      <div class="num">008</div>
+      <div>
+        <h3>Lecture 8: CUDA Performance Checklist</h3>
+        <p>Mark Saroufim · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-009.html">
+      <div class="num">009</div>
+      <div>
+        <h3>Lecture 9 Reductions</h3>
+        <p>Mark Saroufim · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-010.html">
+      <div class="num">010</div>
+      <div>
+        <h3>Lecture 10: Build a Prod Ready CUDA library</h3>
+        <p>Oscar Amoros Huguet · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-011.html">
+      <div class="num">011</div>
+      <div>
+        <h3>Lecture 11: Sparsity</h3>
+        <p>Jesse Cai · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-012.html">
+      <div class="num">012</div>
+      <div>
+        <h3>Lecture 12: Flash Attention</h3>
+        <p>Thomas Viehmann · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-013.html">
+      <div class="num">013</div>
+      <div>
+        <h3>Lecture 13: Ring Attention</h3>
+        <p>Andreas Koepf · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-014.html">
+      <div class="num">014</div>
+      <div>
+        <h3>Lecture 14: Practitioners Guide to Triton</h3>
+        <p>Umer Adil · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>    <div class="sec-label">PART II · Kernels, collectives, attention</div>
+    <a class="card" href="lecture-015.html">
+      <div class="num">015</div>
+      <div>
+        <h3>Lecture 15: CUTLASS</h3>
+        <p>Eric Auld · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-016.html">
+      <div class="num">016</div>
+      <div>
+        <h3>Lecture 16: On Hands Profiling</h3>
+        <p>Taylor Robbie · transcript: available · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-017.html">
+      <div class="num">017</div>
+      <div>
+        <h3>Lecture 17: NCCL</h3>
+        <p>Dan Johnson · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-018.html">
+      <div class="num">018</div>
+      <div>
+        <h3>Lecture 18: Fusing Kernels</h3>
+        <p>Kapil Sharma · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-019.html">
+      <div class="num">019</div>
+      <div>
+        <h3>Lecture 19: Data Processing on GPUs</h3>
+        <p>Devavret Makkar · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-020.html">
+      <div class="num">020</div>
+      <div>
+        <h3>Lecture 20: Scan Algorithm</h3>
+        <p>Izzat El Haj · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-021.html">
+      <div class="num">021</div>
+      <div>
+        <h3>Lecture 21: Scan Algorithm Part 2</h3>
+        <p>Izzat El Haj · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-022.html">
+      <div class="num">022</div>
+      <div>
+        <h3>Lecture 22: Hacker&#x27;s Guide to Speculative Decoding in VLLM</h3>
+        <p>Cade Daniel · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-023.html">
+      <div class="num">023</div>
+      <div>
+        <h3>Lecture 23: Tensor Cores</h3>
+        <p>Vijay Thakkar &amp; Pradeep Ramani · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-024.html">
+      <div class="num">024</div>
+      <div>
+        <h3>Lecture 24: Scan at the Speed of Light</h3>
+        <p>Jake Hemstad &amp; Georgii Evtushenko · transcript: available · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-025.html">
+      <div class="num">025</div>
+      <div>
+        <h3>Lecture 25: Speaking Composable Kernel (CK)</h3>
+        <p>Haocong Wang · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-026.html">
+      <div class="num">026</div>
+      <div>
+        <h3>Lecture 26: SYCL Mode (Intel GPU)</h3>
+        <p>Patric Zhao · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-027.html">
+      <div class="num">027</div>
+      <div>
+        <h3>Lecture 27: gpu.cpp - Portable GPU compute using WebGPU</h3>
+        <p>Austin Huang · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-028.html">
+      <div class="num">028</div>
+      <div>
+        <h3>Lecture 28: Liger Kernel - Efficient Triton Kernels for LLM Training</h3>
+        <p>Byron Hsu · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-029.html">
+      <div class="num">029</div>
+      <div>
+        <h3>Lecture 29: Triton Internals</h3>
+        <p>Kapil Sharma · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-030.html">
+      <div class="num">030</div>
+      <div>
+        <h3>Lecture 30: Quantized Training</h3>
+        <p>Thien Tran · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>    <div class="sec-label">PART III · Triton, low-bit, serving</div>
+    <a class="card" href="lecture-031.html">
+      <div class="num">031</div>
+      <div>
+        <h3>Lecture 31: Beginners Guide to Metal</h3>
+        <p>Nikita Shulga · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-032.html">
+      <div class="num">032</div>
+      <div>
+        <h3>Lecture 32: Unsloth</h3>
+        <p>Daniel Han · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-033.html">
+      <div class="num">033</div>
+      <div>
+        <h3>Lecture 33: Bitblas</h3>
+        <p>Wang Lei · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-034.html">
+      <div class="num">034</div>
+      <div>
+        <h3>Lecture 34: Low Bit Triton Kernels</h3>
+        <p>Hicham Badri · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-035.html">
+      <div class="num">035</div>
+      <div>
+        <h3>Lecture 35: SGLang</h3>
+        <p>Yineng Zhang · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-036.html">
+      <div class="num">036</div>
+      <div>
+        <h3>Lecture 36: CUTLASS and Flash Attention 3</h3>
+        <p>Jay Shah · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-037.html">
+      <div class="num">037</div>
+      <div>
+        <h3>Lecture 37: Introduction to SASS &amp; GPU Microarchitecture</h3>
+        <p>Arun Demeure · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-038.html">
+      <div class="num">038</div>
+      <div>
+        <h3>Lecture 38: Low Bit ARM kernels</h3>
+        <p>Scott Roy · transcript: available · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-039.html">
+      <div class="num">039</div>
+      <div>
+        <h3>Lecture 39: Torchtitan</h3>
+        <p>Mark Saroufim and Tianyu Liu · transcript: available · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-040.html">
+      <div class="num">040</div>
+      <div>
+        <h3>Lecture 40: CUDA Docs for Humans</h3>
+        <p>Zihao Ye · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-041.html">
+      <div class="num">041</div>
+      <div>
+        <h3>Lecture 41: FlashInfer</h3>
+        <p>Charles Frye · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-042.html">
+      <div class="num">042</div>
+      <div>
+        <h3>Lecture 42: Mosaic GPU</h3>
+        <p>Adam Paszke · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-043.html">
+      <div class="num">043</div>
+      <div>
+        <h3>Lecture 43: int8 tensorcore matmul for Turing</h3>
+        <p>Erik Schultheis · transcript: available · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">COMPLETE</div>
+    </a>
+    <a class="card" href="lecture-044.html">
+      <div class="num">044</div>
+      <div>
+        <h3>Lecture 44: NVIDIA Profiling</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-045.html">
+      <div class="num">045</div>
+      <div>
+        <h3>Lecture 45: Outperforming cuBLAS on H100</h3>
+        <p>pranjalssh · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-046.html">
+      <div class="num">046</div>
+      <div>
+        <h3>Lecture 46: Distributed GEMM</h3>
+        <p>Ali Hassani · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>    <div class="sec-label">PART IV · Systems and compiler arc</div>
+    <a class="card" href="lecture-047.html">
+      <div class="num">047</div>
+      <div>
+        <h3>Lecture 47: KernelBot Benchmark GPU Kernels on Discord</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-048.html">
+      <div class="num">048</div>
+      <div>
+        <h3>Lecture 48: The Ultra Scale Playbook</h3>
+        <p>Nouamane Tazi · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-049.html">
+      <div class="num">049</div>
+      <div>
+        <h3>Lecture 49: Low Bit Metal Kernels</h3>
+        <p>Manuel Candales · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-050.html">
+      <div class="num">050</div>
+      <div>
+        <h3>Lecture 50: A learning journey CUDA, Triton, Flash Attention</h3>
+        <p>Umar Jamil · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-051.html">
+      <div class="num">051</div>
+      <div>
+        <h3>Lecture 51: Consumer GPU performance</h3>
+        <p>Jake Cannell · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-052.html">
+      <div class="num">052</div>
+      <div>
+        <h3>Lecture 52: Scaling Laws for Low Precision</h3>
+        <p>Tanishq Kumar · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-053.html">
+      <div class="num">053</div>
+      <div>
+        <h3>Lecture 53: torch.compile Q&amp;A</h3>
+        <p>Richard Zou · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-054.html">
+      <div class="num">054</div>
+      <div>
+        <h3>Lecture 54: Small RL Models at the Speed of Light with LeanRL</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-055.html">
+      <div class="num">055</div>
+      <div>
+        <h3>Lecture 55: Modular’s unified device accelerator language</h3>
+        <p>Missing · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-056.html">
+      <div class="num">056</div>
+      <div>
+        <h3>Lecture 56: Kernel Benchmarking Tales</h3>
+        <p>Georgii Evtushenko · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-057.html">
+      <div class="num">057</div>
+      <div>
+        <h3>Lecture 57: CuTe</h3>
+        <p>Cris Cecka · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-058.html">
+      <div class="num">058</div>
+      <div>
+        <h3>Lecture 58: Disaggregated LLM Inference</h3>
+        <p>Junda Chen · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-059.html">
+      <div class="num">059</div>
+      <div>
+        <h3>Lecture 59: FastVideo</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-060.html">
+      <div class="num">060</div>
+      <div>
+        <h3>Lecture 60: Optimizing Linear Attention</h3>
+        <p>Songlin Yang · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-061.html">
+      <div class="num">061</div>
+      <div>
+        <h3>Lecture 61: D-Matrix Corsair</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-062.html">
+      <div class="num">062</div>
+      <div>
+        <h3>Lecture 62: Exo 2 Growing a scheduling language</h3>
+        <p>Yuka Ikarashi · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-063.html">
+      <div class="num">063</div>
+      <div>
+        <h3>Lecture 63: Search-Based Deep Learning Compilers</h3>
+        <p>Joe Fioti · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-064.html">
+      <div class="num">064</div>
+      <div>
+        <h3>Lecture 64: Multi-GPU programming</h3>
+        <p>Markus Hrywniak · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>    <div class="sec-label">PART V · ScaleML and multi-GPU</div>
+    <a class="card" href="lecture-065.html">
+      <div class="num">065</div>
+      <div>
+        <h3>Lecture 65: Neighborhood Attention</h3>
+        <p>Ali Hassani · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-066.html">
+      <div class="num">066</div>
+      <div>
+        <h3>Lecture 66: Game Arena</h3>
+        <p>Lanxiang Hu · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-067.html">
+      <div class="num">067</div>
+      <div>
+        <h3>Lecture 67: NCCL and NVSHMEM</h3>
+        <p>Jeff Hammond · transcript: failed · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-068.html">
+      <div class="num">068</div>
+      <div>
+        <h3>Lecture 68: Landscape of GPU Centric communication</h3>
+        <p>Didem Unat · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-069.html">
+      <div class="num">069</div>
+      <div>
+        <h3>Lecture 69: Quartet 4 bit training</h3>
+        <p>Roberto Castro and Andrei Panferov · transcript: failed · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-070.html">
+      <div class="num">070</div>
+      <div>
+        <h3>Lecture 70: PCCL Fault tolerant collectives</h3>
+        <p>mike64t · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-071.html">
+      <div class="num">071</div>
+      <div>
+        <h3>Lecture 71: [ScaleML Series] FlexOlmo: Open Language Models for Flexible Data Use</h3>
+        <p>Sewon Min · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-072.html">
+      <div class="num">072</div>
+      <div>
+        <h3>Lecture 72: [ScaleML Series] Efficient &amp; Effective Long-Context Modeling for Large Language Models</h3>
+        <p>Guangxuan Xiao · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-073.html">
+      <div class="num">073</div>
+      <div>
+        <h3>Lecture 73: [ScaleML Series] Quantization in Large Models</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-074.html">
+      <div class="num">074</div>
+      <div>
+        <h3>Lecture 74: [ScaleML Series] Positional Encodings and PaTH Attention</h3>
+        <p>Songlin Yang · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-075.html">
+      <div class="num">075</div>
+      <div>
+        <h3>Lecture 75 [ScaleML Series] GPU Programming Fundamentals + ThunderKittens</h3>
+        <p>William Brandon; Simran Arora · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-076.html">
+      <div class="num">076</div>
+      <div>
+        <h3>Lecture 76: BackendBench fixing the LLM kernel correctness problem</h3>
+        <p>Mark Saroufim · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-077.html">
+      <div class="num">077</div>
+      <div>
+        <h3>Lecture 77: Domain Specific Languages for GPU Kernels</h3>
+        <p>Tri Dao · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-078.html">
+      <div class="num">078</div>
+      <div>
+        <h3>Lecture 78 Iris: Multi-GPU Programming in Triton</h3>
+        <p>Muhammad Awad, Muhammad Osama &amp; Brandon Potter · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-079.html">
+      <div class="num">079</div>
+      <div>
+        <h3>Lecture 79 Mirage (MPK): Compiling LLMs into Mega Kernels</h3>
+        <p>Mengdi Wu, Xinhao Cheng · transcript: failed · slides: yes · code: yes</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-080.html">
+      <div class="num">080</div>
+      <div>
+        <h3>Lecture 80: How FlashAttention 4 Works</h3>
+        <p>Charles Frye · transcript: failed · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>    <div class="sec-label">PART VI · DSLs, observability, CuTe</div>
+    <a class="card" href="lecture-081.html">
+      <div class="num">081</div>
+      <div>
+        <h3>Lecture 81: High-performance purely functional data-parallel array programming</h3>
+        <p>Troels Henriksen · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-082.html">
+      <div class="num">082</div>
+      <div>
+        <h3>Lecture 82 Helion: A high-level DSL for ML kernels</h3>
+        <p>Jason Ansel, Oguz Ulgen, Will Feng · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-083.html">
+      <div class="num">083</div>
+      <div>
+        <h3>Lecture 83: Formalized Kernel Derivation</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-084.html">
+      <div class="num">084</div>
+      <div>
+        <h3>Lecture 84: Numerics and AI</h3>
+        <p>Paulius Micikevicius · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-085.html">
+      <div class="num">085</div>
+      <div>
+        <h3>Lecture 85: Factorio Learning Environment</h3>
+        <p>Jack Hopkins · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-086.html">
+      <div class="num">086</div>
+      <div>
+        <h3>Lecture 86: Getting Started with CuTe DSL</h3>
+        <p>Vicki Wang · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-087.html">
+      <div class="num">087</div>
+      <div>
+        <h3>Lecture 87: Low Latency Communication Kernels with NVSHMEM</h3>
+        <p>Prajwal Singhania · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-088.html">
+      <div class="num">088</div>
+      <div>
+        <h3>Lecture 88: TinyTPU</h3>
+        <p>William Zhang · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-089.html">
+      <div class="num">089</div>
+      <div>
+        <h3>Lecture 89: cuTile (from friends at NVIDIA)</h3>
+        <p>Mehdi Amini, Jared Roesch · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-090.html">
+      <div class="num">090</div>
+      <div>
+        <h3>Lecture 90: Building resilient ML Engineering skills</h3>
+        <p>Stas Bekman · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-091.html">
+      <div class="num">091</div>
+      <div>
+        <h3>Mega Lecture 91: Reinforcement Learning, Agents &amp; OpenEnv</h3>
+        <p>Missing · transcript: failed · slides: missing · code: yes</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-092.html">
+      <div class="num">092</div>
+      <div>
+        <h3>Lecture 92: Smol Training Playbook</h3>
+        <p>Loubna Ben Allal · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-093.html">
+      <div class="num">093</div>
+      <div>
+        <h3>Lecture 93: Cornserve Easy, Fast and Scalable Multimodal AI</h3>
+        <p>Jeff Ma · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-094.html">
+      <div class="num">094</div>
+      <div>
+        <h3>Lecture 94: tvm-ffi</h3>
+        <p>Tianqi Chen · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-095.html">
+      <div class="num">095</div>
+      <div>
+        <h3>Lecture 95: Single controller programming with Monarch</h3>
+        <p>Allen Wang and Colin Taylor · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-096.html">
+      <div class="num">096</div>
+      <div>
+        <h3>Lecture 96: TLX</h3>
+        <p>Missing · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-097.html">
+      <div class="num">097</div>
+      <div>
+        <h3>Lecture 97: HipKittens</h3>
+        <p>William Hu · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-098.html">
+      <div class="num">098</div>
+      <div>
+        <h3>Lecture 98: GPU Observability</h3>
+        <p>Yusheng (郑昱笙) Zheng · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-099.html">
+      <div class="num">099</div>
+      <div>
+        <h3>Lecture 99: Distributed ML on consumer devices</h3>
+        <p>Matt Beton · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-100.html">
+      <div class="num">100</div>
+      <div>
+        <h3>Lecture 100: InferenceX Continuous OSS Inference Benchmarking</h3>
+        <p>Kimbo Chen, Cam Quilici, Bryan Shan · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-101.html">
+      <div class="num">101</div>
+      <div>
+        <h3>Lecture 101: Learning CUTLASS the hard way</h3>
+        <p>Kapil Sharma · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-102.html">
+      <div class="num">102</div>
+      <div>
+        <h3>Lecture 102: quartet v2</h3>
+        <p>Andrei Panferov and Erik Schultheis · transcript: failed · slides: missing · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-103.html">
+      <div class="num">103</div>
+      <div>
+        <h3>Lecture 103: Fundamentals of CuTe Layout Algebra and Category-theoretic Interpretation</h3>
+        <p>Jack Carlisle and Jay Shah · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+    <a class="card" href="lecture-104.html">
+      <div class="num">104</div>
+      <div>
+        <h3>Lecture 104: Gluon and Linear Layouts</h3>
+        <p>Peter Bell, Mario Lezcano, Keren Zhou · transcript: failed · slides: yes · code: missing</p>
+      </div>
+      <div class="tag">PARTIAL</div>
+    </a>
+  </div>
+</div>
+<footer class="bot">
+  <span>Generated from /gpumode_lecture_archive</span>
+  <span>Personal study draft</span>
+</footer>
+</body></html>

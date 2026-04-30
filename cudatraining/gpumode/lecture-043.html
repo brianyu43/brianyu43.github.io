@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPU Mode Lecture 043 — Lecture 43: int8 tensorcore matmul for Turing · CUDA Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css?v=2">
+</head><body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · lecture archive</div>
+  <nav>
+    <a href="../index.html">CUDA Training</a>
+    <a href="index.html">GPU Mode Index</a>
+    <a href="lecture-042.html">← Prev</a>
+    <a href="lecture-044.html">Next →</a>
+  </nav>
+</div>
+
+<div class="wrap-wide">
+  <section class="pod-hero">
+    <div class="pod-kick">
+      <span class="stack">GPU MODE</span>
+      <span class="epn">LECTURE 043</span>
+      <span>2025-02-09</span>
+      <span>AVAILABLE</span>
+      <span>HIGH</span>
+    </div>
+    <h1>Lecture 43: int8 tensorcore matmul for Turing</h1>
+    <p class="dek">This lecture, Lecture 43: int8 tensorcore matmul for Turing, is documented from the GPU Mode YouTube metadata, public captions, and official repo materials. The strongest detected technical themes are shared memory, kernel, reduction, warp, MMA, NCU, CUDA, occupancy. Key transcript/material signals point to: run for different Benchmark sizes um and also a...</p>
+
+    <div class="hosts">
+      <div class="host sam">
+        <div class="av">S</div>
+        <div>
+          <div class="role">Speaker</div>
+          <div class="nm">Erik Schultheis</div>
+          <div class="sub">YouTube / repo metadata 기반</div>
+        </div>
+      </div>
+      <div class="host jensen">
+        <div class="av">G</div>
+        <div>
+          <div class="role">Study lens</div>
+          <div class="nm">GPU kernel · compiler · LLM systems</div>
+          <div class="sub">notes status: complete</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-head"><span>CHAPTERS · 6 ACTS</span><span>local study draft</span></div>
+      <div class="chapter-list">
+        <a href="#a1"><span class="ts">00:00</span><span class="ix">01</span><span class="ti">강의 지도</span><span class="dur">summary · sources</span></a>
+        <a href="#a2"><span class="ts">06:00</span><span class="ix">02</span><span class="ti">핵심 아이디어</span><span class="dur">20 bullets</span></a>
+        <a href="#a3"><span class="ts">14:00</span><span class="ix">03</span><span class="ti">용어와 맥락</span><span class="dur">15 terms</span></a>
+        <a href="#a4"><span class="ts">22:00</span><span class="ix">04</span><span class="ti">커널 · 컴파일러 메커니즘</span><span class="dur">10 mechanisms</span></a>
+        <a href="#a5"><span class="ts">31:00</span><span class="ix">05</span><span class="ti">성능 엔지니어링</span><span class="dur">7 lessons</span></a>
+        <a href="#a6"><span class="ts">40:00</span><span class="ix">06</span><span class="ti">실습과 재방문 계획</span><span class="dur">6 exercises</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a1">
+    <div class="act-head">
+      <div class="num">01 · MAP<b>강의 지도</b></div>
+      <h2>이 강의는 어디에 꽂히는가.</h2>
+    </div>
+    <p class="act-lede">This lecture, <code>Lecture 43: int8 tensorcore matmul for Turing</code>, is documented from the GPU Mode YouTube metadata, public captions, and official repo materials. The strongest detected technical themes are shared memory, kernel, reduction, warp, MMA, NCU, CUDA, occupancy. Key transcript/material signals point to: run for different Benchmark sizes um and also a point score um based on some rough kind of um guidelines how fast um you&#x27;re supposed to get um so so I see a question by dongju who&#x27;s asking like what kinds of efforts a... correct code for both I think maybe it&#x27;s actually also the same on PTX only and and Sass it&#x27;s different I don&#x27;t remember exactly um the second thing is specializing for um specific gpus one thing you can do if you kno... and stores these parts of the U input in registers of Cuda threads like it&#x27;s the normal registers that you also have if you do regular Cuda nothing special here um which also means that um the normal considerations of...</p>
+    <div class="act-body split">
+      <div>
+        
+    <div class="viz">
+      <div class="viz-cap"><span>FIG · source coverage</span><span>lecture 043</span></div>
+      <div class="bars">
+        <div class="row"><span class="lbl">Transcript</span><span class="bar"><span style="width:100%"></span></span><span class="val">available</span></div>
+        <div class="row"><span class="lbl">Slides</span><span class="bar sml"><span style="width:100%"></span></span><span class="val">yes</span></div>
+        <div class="row"><span class="lbl">Code</span><span class="bar sml"><span style="width:20%"></span></span><span class="val">missing</span></div>
+        <div class="row"><span class="lbl">Core ideas</span><span class="bar"><span style="width:100%"></span></span><span class="val">20</span></div>
+        <div class="row"><span class="lbl">Key terms</span><span class="bar"><span style="width:100%"></span></span><span class="val">15</span></div>
+      </div>
+    </div>
+      </div>
+      <div>
+        
+    <div class="callout">
+      <div class="label">LOCAL STUDY NOTE</div>
+      <p>이 글은 로컬 개인 학습 아카이브의 transcript / metadata / notes 를 바탕으로 재구성한 GPU Mode lecture note 입니다. 원자료가 없거나 caption fetch 가 실패한 곳은 추정하지 않고 명시했습니다.</p>
+    </div>
+        
+  <table class="tbl">
+    <thead><tr><th>Source</th><th>URL</th></tr></thead>
+    <tbody>
+      <tr><td>YouTube</td><td><a href="https://www.youtube.com/watch?v=BgGe_erJB1A" target="_blank">https://www.youtube.com/watch?v=BgGe_erJB1A</a></td></tr>
+      <tr><td>Slides</td><td><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_042" target="_blank">https://github.com/gpu-mode/lectures/tree/main/lecture_042</a></td></tr>
+    </tbody>
+  </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a2">
+    <div class="act-head">
+      <div class="num">02 · CORE<b>핵심 아이디어</b></div>
+      <h2>강의가 반복해서 밀어붙이는 기술적 주장들.</h2>
+    </div>
+    <p class="act-lede">원 transcript 와 노트에서 추출한 중심 논점을 엔지니어링 관점으로 다시 배열했다.</p>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>shared memory</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>kernel</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>reduction</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>warp</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>MMA</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>NCU</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln"><strong>CUDA</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln"><strong>occupancy</strong> appears as a central thread; use the transcript/materials to connect it to the lecture&#x27;s concrete examples.</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: run for different Benchmark sizes um and also a point score um based on some rough kind of um guidelines how fast um you&#x27;re supposed to get um so so I see a question by dongju who&#x27;s asking like what kinds of efforts are there to optimize...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: correct code for both I think maybe it&#x27;s actually also the same on PTX only and and Sass it&#x27;s different I don&#x27;t remember exactly um the second thing is specializing for um specific gpus one thing you can do if you know both your GPU um a...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: and stores these parts of the U input in registers of Cuda threads like it&#x27;s the normal registers that you also have if you do regular Cuda nothing special here um which also means that um the normal considerations of load performance ap...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: graph which is one of the first things I guess to usually consult when figuring out um how to improve a kernel um and we can see basically like we&#x27;re transferring a lot of data like for this Matrix modifcation between um L2 cach and L1 c...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: um type of uh performance indicators that you get with ncu which I think you always should look at and which is the warp stall Cycles um maybe I should explain what those are because I guess not everyone is familiar with with these so ba...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: kernel yet and then if we go back to ncu and um now also use this nice feature that you can show the difference between two corners um then you can see that we&#x27;ve improved quite substantially on the amount of memory that we read and also...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: two um entries uh here those are the index calculations the one after that is the lug load from Global memory um and I think the one shr shift right is probably also from index calculations so all of these go down which means that the de...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: um streaming multiprocessor you have still two different versions of memory one is registers which is the only memory that&#x27;s actually is very fast and the one cache that&#x27;s at the same time since since VTA I think um also shared memory um...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: in registers and the only way you can do that is if each thread handles more of the output do um so in that sense both these strategies kind of like arejust um the same thing from different perspectives um and then the procedure is exact...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: um in the amount of uh memory requests we do and 50% reduction in memory transfers basically so now this is relative to the already improved um kernel uh with um the colum major B magx not towards the the first one because um if we kept...</div></div>
+    <div class="dlg sam"><div class="who">LEARNER</div><div class="ln">Transcript-derived point: just go into a not like 99% range and we wouldn&#x27;t actually see the difference between the faster G so every um ncu comparison I&#x27;m showing will be between the previous kernel and the next one and not um with a fixed Baseline um finally we...</div></div>
+    <div class="dlg jensen"><div class="who">ENGINEER</div><div class="ln">Transcript-derived point: reduction of that so we&#x27;re now several orders of magnitude I think or at least like one and a half orders of magnitude better than the original kernel we&#x27;re also down to just transferring N9 gigabytes of U memory from from device to L2 i...</div></div>
+  </section>
+
+  <section class="act" id="a3">
+    <div class="act-head">
+      <div class="num">03 · TERMS<b>용어와 맥락</b></div>
+      <h2>이 강의를 읽기 위한 작은 사전.</h2>
+    </div>
+    <div class="act-body split rev">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>Glossary</span><span>15 entries</span></div>
+          <table class="tbl">
+            <tbody>
+              <tr><td><strong>shared memory</strong> — Program-managed on-chip SRAM used for tiling and reuse within a block.</td></tr><tr><td><strong>kernel</strong> — A GPU program launched over many threads/blocks to process data in parallel.</td></tr><tr><td><strong>reduction</strong> — Parallel accumulation pattern such as sum, max, min, or norm.</td></tr><tr><td><strong>warp</strong> — A group of GPU threads that execute in lockstep on NVIDIA GPUs.</td></tr><tr><td><strong>MMA</strong> — Matrix multiply-accumulate instruction family used by Tensor Cores.</td></tr><tr><td><strong>NCU</strong> — Nsight Compute, used for kernel-level performance counters and analysis.</td></tr><tr><td><strong>CUDA</strong> — NVIDIA&#x27;s GPU programming platform and kernel programming model.</td></tr><tr><td><strong>occupancy</strong> — How many warps/blocks can reside on an SM, constrained by registers, shared memory, and launch shape.</td></tr><tr><td><strong>Tensor Core</strong> — Matrix-multiply hardware units optimized for mixed-precision GEMM-like workloads.</td></tr><tr><td><strong>SM</strong> — Streaming Multiprocessor, the GPU execution unit that schedules warps.</td></tr><tr><td><strong>PTX</strong> — NVIDIA&#x27;s virtual GPU ISA used as an intermediate target before SASS.</td></tr><tr><td><strong>SASS</strong> — NVIDIA machine code executed by the GPU.</td></tr><tr><td><strong>matmul</strong> — Matrix multiplication, the dominant primitive in many ML workloads.</td></tr><tr><td><strong>normalization</strong> — Operations such as LayerNorm/RMSNorm that rescale activations.</td></tr><tr><td><strong>benchmarking</strong> — Measuring performance carefully with warmup, synchronization, and representative sizes.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="pull">“용어를 외우는 게 아니라, 어떤 병목을 가리키는 이름인지 붙잡는다.”<span class="by">study rule</span></div>
+        <p class="act-lede">For CUDA kernels, this lecture is relevant because it touches implementation details such as launch structure, memory movement, profiling, or low-level GPU execution. For Triton kernels, it helps connect Python-level kernel authoring to tiling, program IDs, compiler lowering, and autotuned performance. For ML compilers, it is useful for understanding how higher-level tensor programs become IR, PTX/SASS, scheduled kernels, or fused operators. For GPU architecture, the matmul/Tensor Core/CUTLASS/CuTe themes are the bridge between hardware matrix instructions and production kernels. For profiling and optimization, the lecture gives hooks for thinking about bandwidth, occupancy, tiling, benchmarking, and bottleneck diagnosis.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a4">
+    <div class="act-head">
+      <div class="num">04 · MECHANISM<b>커널 · 컴파일러 메커니즘</b></div>
+      <h2>알고리즘, 런타임, lowering, memory layout.</h2>
+    </div>
+    <div class="act-body split">
+      <div>
+        <div class="callout">
+    <ul>
+      <li><strong>matmul</strong>: detected in the sources; study the lecture examples for the concrete algorithm/kernel/compiler mechanism.</li>
+      <li><strong>reduction</strong>: detected in the sources; study the lecture examples for the concrete algorithm/kernel/compiler mechanism.</li>
+      <li><strong>normalization</strong>: detected in the sources; study the lecture examples for the concrete algorithm/kernel/compiler mechanism.</li>
+      <li><strong>PTX</strong>: detected in the sources; study the lecture examples for the concrete algorithm/kernel/compiler mechanism.</li>
+      <li><strong>SASS</strong>: detected in the sources; study the lecture examples for the concrete algorithm/kernel/compiler mechanism.</li>
+      <li>Transcript context: run for different Benchmark sizes um and also a point score um based on some rough kind of um guidelines how fast um you&#x27;re supposed to get um so so I see a question by dongju who&#x27;s asking like what kinds of efforts a...</li>
+      <li>Transcript context: graph which is one of the first things I guess to usually consult when figuring out um how to improve a kernel um and we can see basically like we&#x27;re transferring a lot of data like for this Matrix modifcation between...</li>
+      <li>Transcript context: kernel yet and then if we go back to ncu and um now also use this nice feature that you can show the difference between two corners um then you can see that we&#x27;ve improved quite substantially on the amount of memory t...</li>
+      <li>Transcript context: two um entries uh here those are the index calculations the one after that is the lug load from Global memory um and I think the one shr shift right is probably also from index calculations so all of these go down whi...</li>
+      <li>Transcript context: um streaming multiprocessor you have still two different versions of memory one is registers which is the only memory that&#x27;s actually is very fast and the one cache that&#x27;s at the same time since since VTA I think um a...</li>
+    </ul>
+  </div>
+      </div>
+      <div>
+        <div class="callout">
+    <ul>
+      <li>No local code/notebook material was found for this lecture in the official repo inventory.</li>
+    </ul>
+  </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act" id="a5">
+    <div class="act-head">
+      <div class="num">05 · PERF<b>성능 엔지니어링</b></div>
+      <h2>빠르게 만드는 법보다 먼저, 무엇이 느린지 묻는다.</h2>
+    </div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Start performance work by separating memory bandwidth limits from compute limits; use profiler counters rather than wall-clock timing alone.</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">For matmul-like kernels, tile for data reuse, align work with Tensor Core/MMA shapes when available, and validate against vendor baselines.</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">In Triton, benchmark multiple block sizes/num-warps/stages; good source code can still be slow under the wrong launch configuration.</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">Transcript-derived lesson: run for different Benchmark sizes um and also a point score um based on some rough kind of um guidelines how fast um you&#x27;re supposed to get um so so I see a question by dongju who&#x27;s asking like what kinds of efforts a...</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Transcript-derived lesson: and stores these parts of the U input in registers of Cuda threads like it&#x27;s the normal registers that you also have if you do regular Cuda nothing special here um which also means that um the normal considerations of...</div></div>
+    <div class="dlg jensen"><div class="who">KERNEL</div><div class="ln">Transcript-derived lesson: um type of uh performance indicators that you get with ncu which I think you always should look at and which is the warp stall Cycles um maybe I should explain what those are because I guess not everyone is familiar w...</div></div>
+    <div class="dlg sam"><div class="who">PROF</div><div class="ln">Transcript-derived lesson: in registers and the only way you can do that is if each thread handles more of the output do um so in that sense both these strategies kind of like arejust um the same thing from different perspectives um and then th...</div></div>
+  </section>
+
+  <section class="act" id="a6">
+    <div class="act-head">
+      <div class="num">06 · PRACTICE<b>실습과 재방문 계획</b></div>
+      <h2>읽고 끝내지 말고, 하나는 직접 재현한다.</h2>
+    </div>
+    <div class="act-body split rev">
+      <div>
+        <div class="viz">
+          <div class="viz-cap"><span>Exercises</span><span>implement / profile / compare</span></div>
+          <ol>
+            <li>Implement a minimal CUDA kernel related to the lecture topic, then benchmark it against a PyTorch baseline with proper synchronization.</li><li>Profile the kernel with Nsight Compute and identify one memory, occupancy, or instruction-throughput bottleneck.</li><li>Reimplement a small version of the operation in Triton and sweep block size, <code>num_warps</code>, and <code>num_stages</code>.</li><li>Build a tiled matmul/GEMM microbenchmark and compare naive, shared-memory tiled, and library-backed versions.</li><li>Dump an intermediate representation or generated PTX/SASS for a tiny kernel and annotate the lowering path.</li><li>Write a one-page implementation plan for applying the lecture&#x27;s main idea from <code>Lecture 43: int8 tensorcore matmul for Turing</code> to an LLM inference or training bottleneck.</li>
+          </ol>
+        </div>
+        <div class="callout">
+          <div class="label">Study priority</div>
+          <ul>
+            <li>Priority: High</li><li>Reason: Directly overlaps with GPU kernel/compiler/LLM systems engineering priorities.</li><li>Suggested revisit depth: implement something</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="callout">
+          <div class="label">Connections</div>
+          <ul>
+            <li>Lecture 001: Lecture 1 How to profile CUDA kernels in PyTorch — likely related through CUDA, kernel.</li><li>Lecture 056: Lecture 56: Kernel Benchmarking Tales — likely related through benchmarking, kernel.</li><li>Lecture 003: Lecture 3: Getting Started With CUDA for Python Programmers — likely related through CUDA.</li><li>Lecture 005: Lecture 5: Going Further with CUDA for Python Programmers — likely related through CUDA.</li><li>Lecture 008: Lecture 8: CUDA Performance Checklist — likely related through CUDA.</li><li>Lecture 009: Lecture 9 Reductions — likely related through reduction.</li>
+          </ul>
+        </div>
+        <div class="callout">
+          <div class="label">Open questions</div>
+          <ul>
+            <li>Code/notebook links were not found in the official repo/README inventory.</li><li>Verify any caption-derived names, acronyms, and numeric claims against the original video/slides before relying on them.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="artnav"><a href="lecture-042.html"><span class="lbl">Previous</span>Lecture 042</a><a class="nxt" href="lecture-044.html"><span class="lbl">Next</span>Lecture 044</a></div>
+  </section>
+</div>
+
+<footer class="bot">
+  <span>GPU Mode local study archive · generated from notes</span>
+  <span><a href="index.html">Index</a></span>
+</footer>
+</body></html>
