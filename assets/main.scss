@@ -106,3 +106,356 @@ h1, h2, h3, h4, h5, h6 {
   content: " · ";
   color: #9B8E82;
 }
+
+/* ==================== CARD-BASED HOME LAYOUT ==================== */
+
+// Break out of minima's narrow .wrapper for the home page only
+.wrapper:has(.cards-page),
+main.page-content:has(.cards-page) > .wrapper {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+main.page-content:has(.cards-page) {
+  padding: 0;
+}
+
+.home {
+  display: contents;
+}
+
+.cards-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+
+  @media (max-width: 1180px) {
+    grid-template-columns: 240px minmax(0, 1fr);
+    .cards-sidebar--right { display: none; }
+  }
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    .cards-sidebar { order: 2; }
+    .cards-main { order: 1; }
+  }
+}
+
+.card {
+  background: #FFFFFF;
+  border: 1px solid #E8E0D8;
+  border-radius: 10px;
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(94, 78, 66, 0.04);
+}
+
+.card-head {
+  font-family: "Georgia", serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6D5740;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #E8E0D8;
+}
+
+/* ==================== LEFT SIDEBAR ==================== */
+
+.cards-sidebar { font-size: 14px; }
+
+.profile-card {
+  text-align: center;
+  padding: 26px 22px 22px;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C4A882 0%, #8B6F4E 100%);
+  color: #FAF9F6;
+  display: grid;
+  place-items: center;
+  font-family: "Georgia", serif;
+  font-size: 30px;
+  font-weight: 600;
+  margin: 0 auto 14px;
+  box-shadow: 0 2px 6px rgba(139, 111, 78, 0.25);
+}
+
+.profile-name {
+  font-family: "Georgia", serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #3E3232;
+  margin: 0 0 4px;
+}
+
+.profile-role {
+  font-size: 12px;
+  color: #9B8E82;
+  margin: 0 0 18px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 14px 0;
+  margin: 0 0 16px;
+  border-top: 1px solid #E8E0D8;
+  border-bottom: 1px solid #E8E0D8;
+}
+
+.profile-stats .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-stats .stat strong {
+  font-family: "Georgia", serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #3E3232;
+  line-height: 1.1;
+}
+
+.profile-stats .stat span {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9B8E82;
+  margin-top: 2px;
+}
+
+.profile-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.profile-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: #6D5740;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.profile-links a:hover {
+  background: #F5F0EB;
+  color: #3E3232;
+}
+
+.cat-list, .archive-list, .recents-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cat-list li, .archive-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid #F5F0EB;
+  font-size: 13.5px;
+
+  &:last-child { border-bottom: none; }
+
+  a {
+    color: #6D5740;
+    text-decoration: none;
+    text-transform: capitalize;
+
+    &:hover { color: #3E3232; }
+  }
+
+  .cnt {
+    font-family: "Georgia", serif;
+    font-size: 11px;
+    color: #FAF9F6;
+    background: #C4A882;
+    border-radius: 10px;
+    padding: 1px 8px;
+    min-width: 24px;
+    text-align: center;
+  }
+}
+
+/* ==================== MAIN COLUMN ==================== */
+
+.cards-main { min-width: 0; }
+
+.cards-intro {
+  margin-bottom: 22px;
+  &:empty { display: none; }
+}
+
+.cards-page-title {
+  font-family: "Georgia", serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #3E3232;
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #C4A882;
+  letter-spacing: 0.02em;
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.post-card {
+  background: #FFFFFF;
+  border: 1px solid #E8E0D8;
+  border-radius: 10px;
+  padding: 22px 24px 18px;
+  box-shadow: 0 1px 2px rgba(94, 78, 66, 0.04);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+.post-card:hover {
+  box-shadow: 0 4px 14px rgba(94, 78, 66, 0.10);
+  border-color: #C4A882;
+  transform: translateY(-1px);
+}
+
+.post-card-head { margin-bottom: 12px; }
+
+.post-card-title {
+  font-family: "Georgia", serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  line-height: 1.32;
+  letter-spacing: -0.005em;
+}
+
+.post-card-title a {
+  color: #3E3232;
+  text-decoration: none;
+}
+
+.post-card-title a:hover { color: #8B6F4E; }
+
+.post-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: #9B8E82;
+
+  .meta-cat a {
+    color: #8B6F4E;
+    text-decoration: none;
+    text-transform: capitalize;
+  }
+
+  .meta-cat a:hover { color: #6D5740; text-decoration: underline; }
+}
+
+.post-card-excerpt {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #5C4E42;
+  margin: 0 0 14px;
+}
+
+.post-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.tag {
+  font-family: "Georgia", serif;
+  font-size: 11.5px;
+  font-style: italic;
+  color: #6D5740;
+  background: #F5F0EB;
+  border: 1px solid #E8E0D8;
+  padding: 2px 9px;
+  border-radius: 12px;
+}
+
+.post-card-footer {
+  padding-top: 12px;
+  border-top: 1px solid #F5F0EB;
+}
+
+.read-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Georgia", serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8B6F4E;
+  text-decoration: none;
+}
+
+.read-more:hover { color: #3E3232; gap: 8px; }
+
+/* ==================== RIGHT SIDEBAR ==================== */
+
+.recents-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 9px 0;
+  border-bottom: 1px solid #F5F0EB;
+
+  &:last-child { border-bottom: none; }
+
+  .recents-date {
+    font-family: "Georgia", serif;
+    font-size: 11px;
+    color: #9B8E82;
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+  }
+
+  a {
+    color: #3E3232;
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  a:hover { color: #8B6F4E; }
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-cloud-item em {
+  font-style: normal;
+  font-size: 10px;
+  color: #9B8E82;
+  margin-left: 2px;
+}
+
+/* hide the rss-subscribe text from the original home block layout */
+.home > .post-list, .home > .post-list-heading, .home > .rss-subscribe { display: none; }
