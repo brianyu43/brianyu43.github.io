@@ -1,16 +1,16 @@
 /* GPU Mode Lecture Archive — blog stylesheet
-   Beige cream design system, inspired by cudatraining/podcast pages */
+   Paper-white design system unified with cudatraining (paler, less yellow) */
 :root{
-  --bg:#F2EEE3;          /* uploaded image cream tone */
-  --bg-soft:#EAE5D7;
-  --paper:#F8F4E9;
-  --paper-deep:#DCD6C6;
+  --bg:#F5F2EB;          /* paler unified base */
+  --bg-soft:#EBE6D8;
+  --paper:#FBF8F1;       /* near-white card */
+  --paper-deep:#E2DCCB;
   --ink:#1F1B14;
   --ink-soft:#4B4236;
   --muted:#8A8172;
-  --line:#CBC3B1;
-  --line-soft:#DAD3C2;
-  --accent:#9A5A2B;      /* rust */
+  --line:#D2CAB6;
+  --line-soft:#DFD9C5;
+  --accent:#9A5A2B;      /* rust — kept */
   --accent-2:#B77250;
   --accent-3:#7E4E2A;
   --good:#5F7B3A;

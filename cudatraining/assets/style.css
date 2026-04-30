@@ -1,15 +1,15 @@
-/* CUDA Training Blog — beige design system (muted) */
+/* CUDA Training Blog — paper-white design system (paler, less yellow) */
 :root{
-  --bg:#EFEBE1;          /* base beige — desaturated */
-  --bg-soft:#E7E2D6;
-  --paper:#F5F1E6;       /* card */
-  --paper-deep:#D9D3C4;
+  --bg:#F5F2EB;          /* paler base, less saturation */
+  --bg-soft:#EBE6D8;
+  --paper:#FBF8F1;       /* card — near-white */
+  --paper-deep:#E2DCCB;
   --ink:#221E18;
   --ink-soft:#4B4236;
   --muted:#8A8172;
-  --line:#CAC3B3;
-  --line-soft:#D8D2C3;
-  --accent:#9A5A2B;      /* rust (unchanged — intentional) */
+  --line:#D2CAB6;
+  --line-soft:#DFD9C5;
+  --accent:#9A5A2B;      /* rust — kept */
   --accent-2:#B77250;
   --good:#5F7B3A;
   --warn:#A85A2A;

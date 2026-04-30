@@ -643,8 +643,8 @@ slug: economy-four-currencies
     <div class="masthead-right">
       <span class="issue">Vol. 01 · 2026.04.19</span>
       <div class="lang-switch" role="group" aria-label="Language">
-        <button type="button" data-switch="ko" class="active" aria-pressed="true">한</button>
-        <button type="button" data-switch="en" aria-pressed="false">EN</button>
+        <button type="button" data-switch="ko" aria-pressed="false">한</button>
+        <button type="button" data-switch="en" class="active" aria-pressed="true">EN</button>
       </div>
     </div>
   </div>
@@ -1974,7 +1974,7 @@ slug: economy-four-currencies
     const hashLang = location.hash === '#en' ? 'en' : (location.hash === '#ko' ? 'ko' : null);
     let saved = null;
     try { saved = localStorage.getItem('blog-lang'); } catch (e) {}
-    apply(hashLang || saved || 'ko');
+    apply(hashLang || saved || 'en');
   })();
 </script>
 
