@@ -258,6 +258,7 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  scroll-margin-top: 82px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
