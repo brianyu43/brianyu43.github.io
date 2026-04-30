@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L086 · Getting Started with CuTe DSL · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* L086 CuTe DSL specific */
+.l86-layout{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:8px 0}
+.l86-layout .h{color:var(--accent);font-weight:700;font-size:12px;margin-bottom:6px}
+.l86-layout .body{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:start}
+.l86-layout .body .lhs{color:var(--ink);font-weight:600;font-size:13px}
+.l86-layout .body .lhs em{font-style:normal;color:var(--ink-soft);font-weight:400;font-size:11px;display:block;margin-top:2px}
+.l86-layout .body .rhs{color:var(--ink-soft);line-height:1.5;font-size:11.5px}
+.l86-layout .body .rhs code{color:var(--accent);font-weight:600}
+
+.l86-grid{display:inline-grid;grid-template-columns:repeat(8,28px);gap:2px;margin:8px 0}
+.l86-grid .c{width:28px;height:28px;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--paper);background:var(--accent);border-radius:3px}
+.l86-grid .c.cool{background:var(--cool)}
+.l86-grid .c.lite{background:var(--bg-soft);color:var(--ink-soft)}
+.l86-grid .c.hi{background:#5a8a5a}
+.l86-grid .c.warn{background:#a35a3a}
+
+.l86-pipe{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l86-pipe .stage{display:grid;grid-template-columns:90px 1fr 110px;gap:14px;padding:11px 16px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l86-pipe .stage .lvl{color:var(--accent);font-weight:700}
+.l86-pipe .stage .nm{color:var(--ink);font-weight:600;font-size:13px;font-family:'Pretendard',sans-serif}
+.l86-pipe .stage .nm em{font-style:normal;color:var(--ink-soft);font-weight:400;font-size:11.5px;display:block;margin-top:2px}
+.l86-pipe .stage .what{color:var(--muted);text-align:right;font-size:11.5px}
+.l86-pipe .stage.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l86-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.l86-cmp .col{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px}
+.l86-cmp .col.hi{border-color:var(--accent)}
+.l86-cmp .col .h{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px}
+
+@media (max-width:760px){
+  .l86-cmp{grid-template-columns:1fr}
+  .l86-pipe .stage{grid-template-columns:1fr}
+  .l86-pipe .stage .what{text-align:left}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_085.html">← L085</a>
+    <a href="lecture_087.html">L087 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L086</span>
+    <span>2025</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>Getting Started with CuTe DSL — Python 으로 만나는 CuTe</h1>
+  <p class="dek">CUTLASS C++ 의 핵심인 CuTe (layout 과 tensor 의 algebra) 를 <strong>파이썬에서 직접 다루는 DSL</strong>. 같은 <em>shape, stride, layout, tile, copy</em> 의 개념을 C++ 보일러플레이트 없이 만지고, 결국에는 PTX/SASS 까지 — 같은 백엔드로 — 내려간다. NVIDIA 의 Vicki Wang 이 깐 CuTe Python DSL 의 첫 진입점, layout algebra 의 직관, GEMM 작성 시퀀스, 그리고 Triton 과의 경계까지 — slides PDF 와 도메인 지식으로 재구성한 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">CuTe</span>
+    <span class="chip hi">Python DSL</span>
+    <span class="chip hi">CUTLASS</span>
+    <span class="chip hi">layout algebra</span>
+    <span class="chip">Tensor Core</span>
+    <span class="chip">GEMM</span>
+    <span class="chip">PTX</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">V</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Vicki Wang</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">NVIDIA · CUTLASS / CuTe DSL 팀</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L086</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Vicki Wang</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자막</div><div class="val">failed · slides 있음</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why CuTe DSL</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">CUTLASS C++ 의 진입 장벽</span><span class="em">why Python wrapping</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">CuTe Python DSL 의 추상</span><span class="em">layout · tensor · copy · MMA</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">layout algebra</span><span class="em">shape · stride pictogram</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">예시: GEMM 작성</span><span class="em">end-to-end</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">PTX/SASS 까지의 길</span><span class="em">lowering</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">Triton 과 비교</span><span class="em">where CuTe wins</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">채택</span><span class="em">where it's used</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음</span><span class="em">roadmap</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why CuTe DSL</span></div>
+    <h2>“CUTLASS 한 번이라도 본 사람” 의 진입 장벽을 한 단계 낮춘다</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 는 NVIDIA 의 production GEMM/Conv 라이브러리. 그 안의 CuTe 가 layout 과 tile 의 algebra 를 표현하는 핵심 추상이다. 그러나 CuTe 는 <strong>C++ template</strong>으로 짜여 있고 — 한 번 코드를 펼친 사람이라면 안다 — 진입 장벽이 매우 높다. 이 강의는 CuTe 의 같은 추상을 <em>파이썬으로 직접 만지는</em> 새 DSL 을 깐다.</p>
+
+  <p>NVIDIA 가 CuTe Python DSL 을 만든 의도는 — 외부에 공개된 자료 흐름에서 — 세 갈래로 모인다.</p>
+
+  <ol>
+    <li><strong>CUTLASS 의 표현력은 살리고 진입 장벽은 낮춘다</strong> — 같은 layout algebra 를 Python 에서 만지고, 빠른 iteration 가능.</li>
+    <li><strong>Triton 이 못 다루는 자리</strong> — Triton 은 사용자에게 layout 을 직접 노출하지 않는다. CuTe DSL 은 layout 의 모든 비트를 노출한다 — Tensor Core 의 mma 명령에 정확히 맞추는 자리에서 가치.</li>
+    <li><strong>새 hardware 의 빠른 채택</strong> — Hopper 의 TMA, Blackwell 의 새 tensor memory accelerator 같은 새 명령은 CuTe 차원에서 가장 먼저 노출. DSL 이 같이 빨리 따라가야 산업이 받아쓸 수 있다.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">자료 한계 · 확인 필요</div>
+    <p>강의 자막은 실패. 슬라이드 PDF (<code>lecture_086/cute_dsl_introduce.pdf</code>) 가 repo 에 있어 큰 흐름 재구성 가능. 정확한 API 이름 / 코드 예시는 NVIDIA 의 공식 문서 (CUTLASS Python README, CuTe DSL Programming Guide) 와 도메인 지식 기반.</p>
+  </div>
+
+  <div class="pull">“CuTe 의 layout algebra 는 강력하다 — 단지 C++ template 안에 있어서 만지기 어려웠을 뿐. Python 표면이 그 거리를 좁힌다.”<span class="by">강의 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>CUTLASS C++ 의 진입 장벽</b><span>· why Python wrapping</span></div>
+    <h2>왜 Python DSL 인가</h2>
+  </div>
+  <p class="sec-lede">CUTLASS C++ 코드를 한 번이라도 펼친 사람이라면 — 진입의 어려움이 어디서 오는지 안다. 그 어려움을 명시화한다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">deep template</div>
+      <div class="d">한 GEMM 이 수십 개의 template parameter. 컴파일 에러가 줄줄이. <code>using GemmT = cutlass::gemm::device::Gemm&lt;...10 parameters...&gt;;</code> 같은 식.</div>
+    </div>
+    <div class="term">
+      <div class="t">긴 컴파일 시간</div>
+      <div class="d">한 번 코드 바꾸면 nvcc 가 수 분 단위 컴파일. iteration 가 매우 느림.</div>
+    </div>
+    <div class="term">
+      <div class="t">디버깅 어려움</div>
+      <div class="d">printf 가 안 되고, 컴파일 타임에 모든 게 결정되어 — 변수의 모양을 사람이 머리에 들어야 함.</div>
+    </div>
+    <div class="term">
+      <div class="t">학습 곡선</div>
+      <div class="d">CuTe 의 layout 추상 자체가 새로움 (<a href="lecture_103.html">L103</a> 의 layout algebra). 그 위에 C++ template 의 비용 — 두 번 막힌다.</div>
+    </div>
+    <div class="term">
+      <div class="t">PyTorch 통합 비용</div>
+      <div class="d">CUTLASS 커널을 PyTorch 에 통합하려면 pybind / load_inline / setup.py. <a href="lecture_001.html">L001</a> 의 load_inline 이 그 자리.</div>
+    </div>
+    <div class="term">
+      <div class="t">Triton 의 우회</div>
+      <div class="d">대부분의 사용자가 “직접 CuTe 짜지 말고 Triton 으로 가자” 의 우회. 그러나 Tensor Core 의 정확한 layout 통제가 필요한 자리에서는 한계.</div>
+    </div>
+  </div>
+
+  <p>CuTe Python DSL 의 답 — <em>같은 추상을 그대로 Python 에 노출</em>. C++ template 의 deep nesting 없이, 같은 layout / tensor / copy / mma 를 Python 객체로 직접 만지고, 컴파일은 즉시 (JIT) 도는 형태.</p>
+
+  <div class="callout cool">
+    <div class="label">JIT 의 자리</div>
+    <p>CuTe DSL 의 lowering 은 Python → MLIR (또는 CuTe IR) → PTX. JIT 라 컴파일 시간이 한 함수당 초 단위. C++ 의 분 단위와 비교 불가. 빠른 iteration 의 가장 큰 가치.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>CuTe Python DSL 의 추상</b><span>· layout · tensor · copy · MMA</span></div>
+    <h2>네 가지 핵심 객체</h2>
+  </div>
+  <p class="sec-lede">CuTe 의 추상은 — C++ 이든 Python 이든 — 네 가지 객체에 모인다. 이 넷의 의미를 한 번 박아두면 나머지가 펼쳐진다.</p>
+
+  <div class="l86-layout">
+    <div class="h">Layout</div>
+    <div class="body">
+      <div class="lhs">Layout = Shape × Stride<em>tensor 의 인덱스 → 메모리 주소</em></div>
+      <div class="rhs">a <code>Layout</code> 은 단순히 “이 텐서의 어떤 (i,j) 가 메모리의 어느 offset 에 있는가” 의 함수. CuTe 의 모든 magic 은 이 함수 자체를 1급 객체로 다룬다는 데서 옴. 예: <code>Layout(Shape(M,N), Stride(N,1))</code> 은 row-major M×N 텐서.</div>
+    </div>
+  </div>
+
+  <div class="l86-layout">
+    <div class="h">Tensor</div>
+    <div class="body">
+      <div class="lhs">Tensor = pointer + Layout<em>실제 데이터 + 그 모양</em></div>
+      <div class="rhs">PyTorch tensor 와 같은 의미. <code>Tensor(ptr, layout)</code>. 차이는 — CuTe 의 Tensor 는 메모리 위치(GMEM, SMEM, RMEM) 를 type 차원에서 들고 있다. <code>Tensor&lt;float, GMEM, ...&gt;</code> 같이.</div>
+    </div>
+  </div>
+
+  <div class="l86-layout">
+    <div class="h">Copy / TiledCopy</div>
+    <div class="body">
+      <div class="lhs">Copy<em>한 layout → 다른 layout 의 복사</em></div>
+      <div class="rhs">한 텐서를 다른 layout (다른 메모리, 다른 shape) 으로 복사하는 단위. <strong>중요한 점</strong> — 단순 memcpy 가 아니라 “이 thread 가 이 element 를 가져온다” 의 매핑을 layout algebra 로 표현. coalesced load, async copy, TMA 가 모두 이 한 추상 위.</div>
+    </div>
+  </div>
+
+  <div class="l86-layout">
+    <div class="h">MMA / TiledMMA</div>
+    <div class="body">
+      <div class="lhs">MMA<em>matrix-multiply-accumulate</em></div>
+      <div class="rhs">Tensor Core 의 mma 명령 한 개의 추상. <code>m16n8k16</code> 같은 모양과 그에 맞는 layout 이 함께 정의됨. <strong>TiledMMA</strong> 는 이 한 명령을 여러 thread / warp 에 분배하는 layout 매핑.</div>
+    </div>
+  </div>
+
+  <p>이 네 객체로 한 GEMM 의 추상이 거의 다 표현된다 — “G/S/R memory 의 layout 들이 있고, 그 사이를 copy 가 stage 하고, 마지막에 MMA 가 누적” 의 그림.</p>
+
+  <div class="pull">“CuTe 는 layout 을 1급 객체로 다루는 첫 시도다. 같은 layout 표현이 source / target / thread 매핑에 다 쓰인다.”<span class="by">CUTLASS 문서 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>layout algebra</b><span>· shape · stride pictogram</span></div>
+    <h2>(Shape, Stride) 의 그림 — 한 번 보면 다음에 다 펼쳐진다</h2>
+  </div>
+  <p class="sec-lede">CuTe 의 가장 큰 진입 장벽이자 가치 — <strong>layout algebra</strong>. 한 번 직관이 잡히면 같은 표기로 row-major, column-major, transposed, swizzled, blocked 가 모두 표현된다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · row-major 4×4 텐서</span><span>Shape=(4,4), Stride=(4,1)</span></div>
+    <div class="l86-grid">
+      <div class="c">0</div><div class="c">1</div><div class="c">2</div><div class="c">3</div><div class="c lite">4</div><div class="c lite">5</div><div class="c lite">6</div><div class="c lite">7</div>
+      <div class="c">4</div><div class="c">5</div><div class="c">6</div><div class="c">7</div><div class="c lite">8</div><div class="c lite">9</div><div class="c lite">10</div><div class="c lite">11</div>
+      <div class="c">8</div><div class="c">9</div><div class="c">10</div><div class="c">11</div><div class="c lite">12</div><div class="c lite">13</div><div class="c lite">14</div><div class="c lite">15</div>
+      <div class="c">12</div><div class="c">13</div><div class="c">14</div><div class="c">15</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+    </div>
+    <div class="viz-note">왼쪽 4×4 가 텐서. 셀 안의 숫자 = 메모리 offset. (i,j) 의 offset = i·stride[0] + j·stride[1] = i·4 + j·1. row 가 row-major 의 기본.</div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · column-major 4×4 (transpose 효과)</span><span>Shape=(4,4), Stride=(1,4)</span></div>
+    <div class="l86-grid">
+      <div class="c cool">0</div><div class="c cool">4</div><div class="c cool">8</div><div class="c cool">12</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c cool">1</div><div class="c cool">5</div><div class="c cool">9</div><div class="c cool">13</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c cool">2</div><div class="c cool">6</div><div class="c cool">10</div><div class="c cool">14</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c cool">3</div><div class="c cool">7</div><div class="c cool">11</div><div class="c cool">15</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+    </div>
+    <div class="viz-note">같은 데이터, 다른 stride. <code>Stride=(1,4)</code> 면 (i,j) → i + j·4. <strong>같은 메모리에 다른 layout 을 씌우는 것이 transpose</strong> — 데이터 이동 없음. CuTe 의 가장 강력한 추상 중 하나.</div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 2×2 block 단위 layout (4×4)</span><span>Shape=((2,2),(2,2)), Stride=((2,8),(1,4))</span></div>
+    <div class="l86-grid">
+      <div class="c hi">0</div><div class="c hi">1</div><div class="c warn">4</div><div class="c warn">5</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c hi">2</div><div class="c hi">3</div><div class="c warn">6</div><div class="c warn">7</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c">8</div><div class="c">9</div><div class="c cool">12</div><div class="c cool">13</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+      <div class="c">10</div><div class="c">11</div><div class="c cool">14</div><div class="c cool">15</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div><div class="c lite">—</div>
+    </div>
+    <div class="viz-note">tile 안에서는 row-major, tile 사이는 row-major-of-tiles. <strong>nested Shape 와 Stride 로 hierarchical layout 을 표현</strong> — 이게 CuTe 의 본업이고, Triton 이 안 노출하는 자리.</div>
+  </div>
+
+  <div class="callout">
+    <div class="label">layout algebra 의 연산</div>
+    <p>두 layout 의 합성 (composition), 분해 (compose / divide), tile 추출 (logical_divide), thread 분배 (zipped_divide) 등이 모두 정의된 algebra. <a href="lecture_103.html">L103</a> 이 이 algebra 의 category-theoretic 해석을 깐다 — 같은 그림이 더 깊게 펼쳐진다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>예시: GEMM 작성</b><span>· end-to-end</span></div>
+    <h2>한 GEMM 을 CuTe Python DSL 로 짠다</h2>
+  </div>
+  <p class="sec-lede">강의의 핵심 데모가 정확히 이 자리. 같은 GEMM 을 — Triton 도 아니고 CUTLASS C++ 도 아니고 — CuTe Python DSL 로 짜는 시퀀스. 외부 자료로 재구성한 개념적 형태.</p>
+
+  <div class="l86-cmp">
+    <div class="col">
+      <div class="h">CUTLASS C++ (개념적 형태)</div>
+<pre><code><span style="color:#A99E89">// 깊은 template 의 한 예</span>
+using GemmKernel = cutlass::gemm::collective::CollectiveBuilder&lt;
+  cutlass::arch::Sm90,
+  cutlass::arch::OpClassTensorOp,
+  cutlass::half_t, LayoutA, AlignmentA,
+  cutlass::half_t, LayoutB, AlignmentB,
+  ElementAccumulator,
+  TileShape, ClusterShape,
+  cutlass::gemm::collective::StageCountAuto,
+  cutlass::gemm::collective::KernelScheduleAuto
+&gt;::CollectiveOp;
+
+<span style="color:#A99E89">// 이걸 device::Gemm 에 한 번 더 wrap 하고...</span>
+<span style="color:#A99E89">// 메인 함수에서 args, workspace, smem 사이즈 까지 직접 셋업</span></code></pre>
+    </div>
+    <div class="col hi">
+      <div class="h">CuTe Python DSL (개념적 형태 · 확인 필요)</div>
+<pre><code><span style="color:#E7B369">import</span> cutlass.cute <span style="color:#E7B369">as</span> cute
+
+<span style="color:#E7B369">@cute</span>.kernel
+<span style="color:#E7B369">def</span> gemm(A, B, C,
+         tA: cute.TiledCopy,
+         tB: cute.TiledCopy,
+         tC: cute.TiledMMA):
+    bid_m = cute.block_idx(<span style="color:#E7B369">0</span>)
+    bid_n = cute.block_idx(<span style="color:#E7B369">1</span>)
+
+    <span style="color:#A99E89"># tile 추출 — layout algebra 로</span>
+    gA = cute.local_tile(A, (BM, BK), (bid_m, _))
+    gB = cute.local_tile(B, (BN, BK), (bid_n, _))
+    gC = cute.local_tile(C, (BM, BN), (bid_m, bid_n))
+
+    sA = cute.make_smem_tensor(BM, BK)
+    sB = cute.make_smem_tensor(BN, BK)
+    rC = cute.make_reg_tensor(BM, BN)
+
+    <span style="color:#E7B369">for</span> k <span style="color:#E7B369">in</span> range(K // BK):
+        cute.copy(tA, gA[:,:,k], sA)
+        cute.copy(tB, gB[:,:,k], sB)
+        cute.cp_async_wait()
+        cute.gemm(tC, sA, sB, rC)
+
+    cute.copy(tC, rC, gC)</code></pre>
+    </div>
+  </div>
+
+  <p>두 코드의 의도는 같다 — Hopper Tensor Core 위에서 fp16 GEMM 을 짜는 일. 차이는 <em>표현의 두께</em>. CuTe Python 은 같은 추상 (TiledCopy, TiledMMA, local_tile, copy) 을 명시적으로 다루지만 — template 의 깊이가 사라지고, JIT 로 빠르게 컴파일된다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GEMM 의 tile 분해 그림</span><span>(BM, BN, BK) 와 메모리 위치</span></div>
+    <pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px;color:var(--ink-soft);line-height:1.5">
+A: GMEM   M × K   ──tA──▶  sA: SMEM    BM × BK
+B: GMEM   N × K   ──tB──▶  sB: SMEM    BN × BK
+                              │
+                              ▼
+                         tC (TiledMMA)
+                              │
+                              ▼
+                         rC: RMEM   BM × BN
+                              │
+                              └──tC──▶ C: GMEM   BM × BN</pre>
+    <div class="viz-note">G(global) → S(shared) → R(register) → S → G 의 표준 GEMM 흐름. <strong>tA, tB, tC 가 layout 매핑(어떤 thread 가 어떤 element 를 책임)</strong>. 이 매핑이 정확하지 않으면 mma 명령이 안 받는다.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>PTX/SASS 까지의 길</b><span>· lowering</span></div>
+    <h2>CuTe Python 의 lowering 파이프라인</h2>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CuTe Python DSL lowering</span><span>4 stages</span></div>
+    <div class="l86-pipe">
+      <div class="stage">
+        <span class="lvl">L0</span>
+        <span class="nm">CuTe Python DSL<em>@cute.kernel · TiledCopy · TiledMMA · layout algebra</em></span>
+        <span class="what">사용자가 짜는 자리</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L1</span>
+        <span class="nm">CuTe IR<em>layout algebra 가 1급으로 보존</em></span>
+        <span class="what">중간 표현</span>
+      </div>
+      <div class="stage hi">
+        <span class="lvl">L2</span>
+        <span class="nm">MLIR / NVGPU dialect<em>layout 이 thread / warp 매핑으로 lowering</em></span>
+        <span class="what">메모리 / 동기화 결정</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L3</span>
+        <span class="nm">PTX<em>mma.sync, ldmatrix, cp.async, TMA 명령</em></span>
+        <span class="what">virtual ISA</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L4</span>
+        <span class="nm">SASS<em>arch 별 머신 코드 — sm_90, sm_100</em></span>
+        <span class="what">실제 SM 위에서 도는 명령</span>
+      </div>
+    </div>
+    <div class="viz-note">L1–L2 의 통과가 가장 비싼 자리 — layout algebra 의 의미를 thread mapping 으로 풀어내는 단계. CUTLASS C++ 와 같은 백엔드(같은 PTX)를 생성하는 게 디자인 원칙.</div>
+  </div>
+
+  <p>중요한 사실 한 가지 — <strong>CuTe Python DSL 이 만드는 PTX 는 CUTLASS C++ 가 만드는 PTX 와 같은 quality</strong>를 목표로 한다. 표면(C++ vs Python) 만 다르고, 깎은 결과는 같다는 게 디자인 의도. 그래서 production 에서 “Python DSL 로 짰는데 더 느리다” 같은 의외 없음.</p>
+
+  <div class="callout">
+    <div class="label">debugging tools</div>
+    <p>각 lowering 단계의 IR 을 직접 dump 가능 (확인 필요 — <code>CUTE_LOG_LEVEL</code> 같은 환경변수). 학습 자료로도 가치 — 자기 코드가 어떤 PTX 명령으로 내려가는지 직접 본다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>Triton 과 비교</b><span>· where CuTe wins</span></div>
+    <h2>같은 GEMM, 다른 표현 — 언제 어느 쪽인가</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">Triton 이 더 적합한 자리</div>
+      <div class="d">표준 fused 패턴 (attention 변형, RMSNorm fused, elementwise pipeline). 짧고 빠르게 짜는 자리.</div>
+    </div>
+    <div class="term">
+      <div class="t">CuTe DSL 이 더 적합한 자리</div>
+      <div class="d">Tensor Core 의 layout 을 직접 깎아야 하는 자리. 새 mma 변형, 새 dtype, swizzle 의 직접 통제.</div>
+    </div>
+    <div class="term">
+      <div class="t">새 hardware 의 첫 노출</div>
+      <div class="d">Hopper TMA, Blackwell tensor memory, 새 mma 명령은 보통 CUTLASS / CuTe 에 가장 먼저 노출. Triton 이 따라가는 데 시차.</div>
+    </div>
+    <div class="term">
+      <div class="t">표현력</div>
+      <div class="d">CuTe 가 layout algebra 를 직접 노출. Triton 은 layout 을 컴파일러 결정으로 숨김. 통제력 vs 단순성의 trade-off.</div>
+    </div>
+    <div class="term">
+      <div class="t">학습 곡선</div>
+      <div class="d">Triton 이 훨씬 쉬움. CuTe 는 layout algebra 자체가 큰 학습 부담.</div>
+    </div>
+    <div class="term">
+      <div class="t">production 기여</div>
+      <div class="d">CUTLASS / CuTe 가 NVIDIA production GEMM 의 본가. Triton 은 사용자 측 빠른 prototyping. 두 자리가 다름.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">의사결정 사다리 — 갱신</div>
+    <p><a href="lecture_001.html">L001</a> 의 사다리에 한 칸이 추가된다 — <strong>torch → Triton → CuTe DSL → CUTLASS C++ → 직접 PTX</strong>. NCU 가 “이 명령으로 mma 의 layout 이 안 맞는다” 같은 hint 를 주면 Triton 으로 안 잡히는 자리 — CuTe 로 내려간다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>채택</b><span>· where it's used</span></div>
+    <h2>현재 시점 CuTe DSL 이 자리잡은 곳</h2>
+  </div>
+
+  <ul>
+    <li><strong>NVIDIA 내부 production GEMM</strong> — cuBLAS / CUTLASS 본체 안의 일부. 새 mma 변형의 첫 표현.</li>
+    <li><strong>FlashAttention-3</strong> — Tri Dao 등의 FA-3 가 CUTLASS / CuTe 위에서. Hopper TMA 와 producer-consumer 분리 — Triton 이 표현 어려운 자리.</li>
+    <li><strong>BlackForestLab / Cohere 등의 production 학습 stack</strong> — 일부 hot path 가 CUTLASS / CuTe 기반 — 확인 필요.</li>
+    <li><strong>학계의 새 알고리즘 prototyping</strong> — layout 자체가 핵심인 새 fusion 패턴 (예: low-bit GEMM 의 layout 변형).</li>
+    <li><strong>Triton 의 backend 로</strong> — <strong>확인 필요</strong>. Triton 의 일부 hopper 백엔드가 CuTe 의 추상을 차용하는 흐름.</li>
+  </ul>
+
+  <p>강의에서 Vicki 가 강조했을 입장 — <em>CuTe DSL 은 Triton 의 대체가 아니라 보완</em>. 두 도구가 사용자 표면 차원에서 같이 산다는 디자인.</p>
+
+  <div class="pull">“CuTe 의 가치는 일반 사용자가 매일 쓰는 데 있지 않다 — 새 hardware 의 새 명령을 가장 먼저 production 에 풀어내는 자리에 있다.”<span class="by">강의 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음</b><span>· roadmap</span></div>
+    <h2>CuTe Python DSL 의 다음 라운드</h2>
+  </div>
+
+  <ol>
+    <li><strong>Blackwell 의 새 명령 노출</strong> — tensor memory accelerator, new mma 변형, FP4 mma. CuTe DSL 이 가장 먼저 받는 자리.</li>
+    <li><strong>autotune 통합</strong> — layout / tile size 의 search 를 자동화. <a href="lecture_082.html">L082 Helion</a> 의 흐름과 합쳐질 가능성.</li>
+    <li><strong>PyTorch 통합</strong> — torch.compile 과의 자연스러운 결합. 사용자가 PyTorch 안에서 CuTe 커널을 부르고, autograd 가 자동.</li>
+    <li><strong>비-NVIDIA backend</strong> — <strong>확인 필요</strong>. 현재 NVIDIA only. AMD MI300 등 다른 hardware 로의 확장 가능성.</li>
+    <li><strong>학습 자료</strong> — layout algebra 의 진입 장벽을 낮추기 위한 시각화 도구, 인터랙티브 튜토리얼. <a href="lecture_103.html">L103</a> 의 본격 카테고리이론적 해석도 같은 흐름.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">CuTe 의 위치</div>
+      <div class="d">CUTLASS 의 layout / tensor / copy / mma 추상. Python DSL 은 같은 추상을 더 친숙한 표면으로.</div>
+    </div>
+    <div class="term">
+      <div class="t">Layout = Shape × Stride</div>
+      <div class="d">tensor 의 인덱스 → 메모리 offset 의 함수. CuTe 의 magic 의 출발점. nested 가능 — hierarchical layout.</div>
+    </div>
+    <div class="term">
+      <div class="t">4 객체</div>
+      <div class="d">Layout · Tensor · Copy/TiledCopy · MMA/TiledMMA. 이 넷으로 GEMM 의 추상이 거의 다.</div>
+    </div>
+    <div class="term">
+      <div class="t">layout algebra</div>
+      <div class="d">composition, divide, zipped_divide. 같은 표기로 row-major / column-major / blocked / swizzled 다 표현.</div>
+    </div>
+    <div class="term">
+      <div class="t">GEMM 의 GSR 흐름</div>
+      <div class="d">G(global) → S(shared) → R(register) → S → G. tA/tB/tC 가 thread → element 매핑.</div>
+    </div>
+    <div class="term">
+      <div class="t">lowering 5 stages</div>
+      <div class="d">Python DSL → CuTe IR → MLIR → PTX → SASS. JIT 컴파일 — C++ 의 분 단위가 초 단위로.</div>
+    </div>
+    <div class="term">
+      <div class="t">Triton 과의 분담</div>
+      <div class="d">Triton = 표준 fused 패턴. CuTe = layout 을 직접 깎는 자리. 보완 관계.</div>
+    </div>
+    <div class="term">
+      <div class="t">의사결정 사다리</div>
+      <div class="d">torch → Triton → CuTe DSL → CUTLASS C++ → PTX. NCU 의 layout-related hint 가 trigger.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=9-dfte_N3yk" target="_blank" rel="noopener">youtube.com/watch?v=9-dfte_N3yk</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_086/cute_dsl_introduce.pdf" target="_blank" rel="noopener">cute_dsl_introduce.pdf</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_086" target="_blank" rel="noopener">gpu-mode/lectures/lecture_086</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Related</span>
+      <span class="v"><a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">NVIDIA/cutlass</a> · CUTLASS Python DSL docs · <a href="lecture_057.html">L057 CuTe</a> · <a href="lecture_103.html">L103 Layout Algebra</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>layout 의 그림 직접 그리기</strong> — 종이 위에 (Shape=(4,4), Stride=(4,1)) 와 (Shape=(4,4), Stride=(1,4)) 의 메모리 offset 을 모두 그려본다. transpose 가 데이터 이동 없이 가능한 이유 손에.</li>
+    <li><strong>nested layout</strong> — Shape=((2,2),(2,2)) 의 4×4 의 offset 을 그려본다. tile 단위 layout 의 직관.</li>
+    <li><strong>CUTLASS Python DSL 설치 + first kernel</strong> — 공식 README 의 hello world. JIT 컴파일 시간 직접 측정.</li>
+    <li><strong>simple GEMM</strong> — § 05 의 형태로 fp16 GEMM 한 번 짜기. cuBLAS baseline 과 시간 비교.</li>
+    <li><strong>같은 GEMM 의 lowering dump</strong> — CuTe IR / MLIR / PTX 를 각각 dump 해본다. layout 이 어떻게 thread mapping 으로 lowering 되는지 추적.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>CuTe 의 자리에 등장하는 다른 강의들</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_015.html">
+      <div class="n">L015</div>
+      <div class="ti">CUTLASS</div>
+      <div class="by">CUTLASS C++ 의 본격 — CuTe Python 의 본가</div>
+    </a>
+    <a class="conn" href="lecture_036.html">
+      <div class="n">L036</div>
+      <div class="ti">CUTLASS &amp; Flash Attention 3</div>
+      <div class="by">CUTLASS / CuTe 가 production 에 들어간 사례</div>
+    </a>
+    <a class="conn" href="lecture_057.html">
+      <div class="n">L057</div>
+      <div class="ti">CuTe (이전 강의)</div>
+      <div class="by">CuTe 의 더 깊은 introduction</div>
+    </a>
+    <a class="conn" href="lecture_082.html">
+      <div class="n">L082</div>
+      <div class="ti">Helion DSL</div>
+      <div class="by">PyTorch-native 한 다른 DSL — CuTe 와 다른 추상</div>
+    </a>
+    <a class="conn" href="lecture_089.html">
+      <div class="n">L089</div>
+      <div class="ti">cuTile</div>
+      <div class="by">tile-based 추상의 또 다른 분기</div>
+    </a>
+    <a class="conn" href="lecture_103.html">
+      <div class="n">L103</div>
+      <div class="ti">CuTe Layout Algebra</div>
+      <div class="by">layout algebra 의 카테고리이론적 해석 — 이 강의의 algebra 의 본격</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+
+  <ul>
+    <li><strong>CuTe Python DSL 의 정확한 API</strong> — 노트의 코드 예시는 개념적 형태. <code>cute.local_tile</code>, <code>cute.copy</code>, <code>cute.gemm</code> 같은 정확한 함수 이름은 NVIDIA 공식 문서 확인 필요.</li>
+    <li><strong>release 상태</strong> — public release 인지, NVIDIA 내부 도구인지, beta 인지. 발표 시점에 따라 다름.</li>
+    <li><strong>JIT 컴파일 시간 실제 수치</strong> — § 02 의 “초 단위” 가 정확한가. 첫 호출의 cold start 와 두 번째의 warm 시간 비교.</li>
+    <li><strong>비-NVIDIA backend 가능성</strong> — AMD / Intel 으로의 확장 — NVIDIA 의 입장과 산업의 호환성 요구.</li>
+    <li><strong>Triton 과의 정확한 경계</strong> — 같은 fused attention 을 두 도구로 짠 결과의 성능 비교가 어디 있는가.</li>
+    <li><strong>FlashAttention-3 의 채택</strong> — FA-3 가 CUTLASS / CuTe 위에 어떻게 짜였는가. 그 코드를 CuTe Python 으로 재구현하면 같은 성능이 나오는가.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트는 슬라이드 PDF + 도메인 지식으로 재구성. <strong>정확한 API, 정확한 lowering 경로, 정확한 사용 예시</strong>는 NVIDIA 의 공식 문서 (CUTLASS Python README, CuTe DSL Programming Guide) 에서 직접 확인. § 04 의 layout 그림은 row/column-major 의 일반적 정의로 정확하지만, hierarchical 형태의 정확한 표기는 CuTe 문서의 표기를 따라가야 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_085.html">
+    <span class="lbl">← Lecture 085</span>
+    <span class="nm">Factorio Learning Environment</span>
+  </a>
+  <a class="nxt" href="lecture_087.html">
+    <span class="lbl">Lecture 087 →</span>
+    <span class="nm">Low Latency Communication Kernels with NVSHMEM</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L086 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

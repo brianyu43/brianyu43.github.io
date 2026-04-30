@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L003 · Getting Started With CUDA for Python · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* L003 — Python kernel → CUDA 의 동형 사다리 */
+.l3-ladder{display:grid;grid-template-columns:1fr;gap:0;font-family:'JetBrains Mono',monospace}
+.l3-ladder .row{display:grid;grid-template-columns:90px 1fr 1fr 80px;gap:14px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-bottom:6px;font-size:12px;align-items:start}
+.l3-ladder .row .lvl{color:var(--accent);font-weight:700;font-size:12px}
+.l3-ladder .row .py{color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;white-space:pre}
+.l3-ladder .row .cu{color:var(--ink-soft);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;white-space:pre}
+.l3-ladder .row .ms{text-align:right;color:var(--ink-soft);font-size:11px}
+.l3-ladder .row.hi{background:var(--bg-soft);border-color:var(--accent)}
+.l3-ladder .row.hi .ms{color:var(--accent);font-weight:700}
+
+.l3-flow{display:grid;grid-template-columns:1fr;gap:0;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l3-flow .step{display:grid;grid-template-columns:36px 1fr;gap:14px;padding:10px 14px;align-items:flex-start}
+.l3-flow .step .n{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--paper);font-weight:700;font-size:12px}
+.l3-flow .step .body{padding-top:4px}
+.l3-flow .step .body strong{color:var(--ink);font-weight:700;display:block;margin-bottom:2px}
+.l3-flow .step .body em{font-style:normal;color:var(--ink-soft)}
+.l3-flow .step .body code{background:var(--bg-soft);padding:1px 6px;border-radius:3px;font-size:11px}
+
+.l3-mat{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;font-family:'JetBrains Mono',monospace;font-size:9.5px;margin:6px 0;max-width:340px}
+.l3-mat .c{background:var(--paper);border:1px solid var(--line);padding:4px 2px;text-align:center;color:var(--ink-soft)}
+.l3-mat .c.hi{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.l3-mat .c.dim{opacity:.4}
+
+@media (max-width:760px){
+  .l3-ladder .row{grid-template-columns:1fr}
+  .l3-ladder .row .ms{text-align:left}
+  .l3-mat{grid-template-columns:repeat(6,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_002.html">← L002</a>
+    <a href="lecture_004.html">L004 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L003</span>
+    <span>2024 · JAN · 27</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Getting Started With CUDA for Python Programmers</h1>
+  <p class="dek">Jeremy Howard 가 제안한 학습 순서 — <strong>Python 안에서 같은 알고리즘을 “kernel 모양” 으로 먼저 짜고, 그 코드를 거의 글자 그대로 CUDA C 로 옮긴다</strong>. 디버깅이 어려운 GPU 위에서 헤매기 전에, 익숙한 Python 의 print/breakpoint 위에서 알고리즘을 손에 익히는 학습 사다리. RGB→grayscale 과 (5×784)·(784×10) 짜리 작은 matmul 두 예제로 세 단계 (single-thread → block-of-threads → CUDA) 를 차례로 깐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">Python kernel mockup</span>
+    <span class="chip hi">load_inline</span>
+    <span class="chip hi">2D matmul</span>
+    <span class="chip hi">RGB→grayscale</span>
+    <span class="chip">torch.utils.cpp_extension</span>
+    <span class="chip">CUDA_LAUNCH_BLOCKING</span>
+    <span class="chip">wurlitzer</span>
+    <span class="chip cool">PMPP Ch.3 응용</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">J</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Jeremy Howard</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">answer.ai · fast.ai 창립자 · Jupyter 위에서 GPU 를 가르치는 방식의 설계자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L003</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Jeremy Howard</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">notebook 셀별로 따라 친다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">CUDA 의 인지적 부담을 깎는다</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">Jeremy 의 학습 사다리</span><span class="em">Python → block kernel → CUDA</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">RGB → grayscale, Python 위에서</span><span class="em">naive Python loop</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">Python kernel mockup</span><span class="em">run_kernel(f, n, *args)</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">block 을 Python 으로 흉내내기</span><span class="em">blk_kernel(f, blocks, threads)</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">load_cuda — Python 위의 wrapper</span><span class="em">load_inline 의 깔끔한 포장</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">CUDA 로 옮기는 mechanical step</span><span class="em">rgb2grey 의 거의 1:1 변환</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">2D matmul — block 좌표 두 개로</span><span class="em">(5,784) × (784,10)</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">notebook 위에서 디버깅하는 trick</span><span class="em">CUDA_LAUNCH_BLOCKING · wurlitzer</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why this lecture exists</span></div>
+    <h2>“CUDA 가 어렵다” 는 평판의 진짜 출처</h2>
+  </div>
+  <p class="sec-lede">CUDA 의 학습 곡선이 가파른 이유는 문법이 아니다. <strong>알고리즘과 GPU 모델 두 개를 동시에 처음 보기 때문</strong>이다. Jeremy 의 진단이 정확하다 — “Python 으로 이미 짤 수 있는 알고리즘을, GPU 위에서 다시 짜면서 동시에 indexing/launch/메모리 모델까지 처음 만나니, 어디서 막힌 건지가 안 잡힌다.”</p>
+
+  <p>강의가 푸는 두 질문.</p>
+  <ol>
+    <li><strong>알고리즘 자체는 익숙한 Python 위에서 먼저 손에 잡고</strong> — print, breakpoint, 작은 입력을 자유롭게 쓰면서 — 그 위에 “GPU 의 모양” 을 layered 로 얹을 수 있는가.</li>
+    <li><strong>그렇게 익숙해진 Python kernel 을 거의 mechanical 하게 CUDA C 로 변환</strong> 할 수 있는가. (Jeremy 가 ChatGPT 에 그대로 붙여넣어 변환을 추천하는 자리.)</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">시리즈 안에서의 위치</div>
+    <p><a href="lecture_001.html">L001</a> 은 “이미 도는 코드를 어떻게 보는가” 의 강의, <a href="lecture_002.html">L002</a> 는 “CUDA 프로그램이 무엇으로 구성되는가” 의 강의. <strong>L003 은 “그 사이를 학습자가 어떻게 건너가는가” 의 강의</strong>. 다음 단계인 <a href="lecture_005.html">L005</a> 가 같은 사다리에 shared memory 를 한 단 더 올린다.</p>
+  </div>
+
+  <div class="pull">“GPU 위에서 디버깅하는 건 어렵다 — 그러니 가능한 한 마지막에 GPU 로 넘긴다. 알고리즘 자체는 Python 으로 다 끝내놓고.”<span class="by">Jeremy Howard · 학습 노트</span></div>
+</section>
+
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>Jeremy 의 학습 사다리</b><span>· Python → block kernel → CUDA</span></div>
+    <h2>같은 알고리즘을 세 번 짠다 — 매번 한 단씩 GPU 모델에 가까워지면서</h2>
+  </div>
+  <p class="sec-lede">Jeremy 가 <code>pmpp.ipynb</code> 에서 깐 학습 패턴은 RGB→grayscale 과 matmul 두 예제에 똑같이 반복된다. <strong>같은 알고리즘 → 세 단계의 변환</strong>: ① 일반 Python loop, ② 한 thread 시점의 “kernel” 함수 + 외부 loop, ③ block-aware 한 “kernel” 함수 + 이중 loop. 이 셋을 끝낸 다음 비로소 CUDA C 로 mechanical 하게 옮긴다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 알고리즘의 3단 변환</span><span>RGB→grayscale 의 한 줄 진화</span></div>
+    <div class="l3-ladder">
+      <div class="row">
+        <span class="lvl">L0 · 일반 Python</span>
+        <pre class="py">for i in range(n):
+    res[i] = 0.30*x[i] + 0.59*x[i+n] + 0.11*x[i+2n]</pre>
+        <pre class="cu">— 외부 loop, kernel 개념 없음 —</pre>
+        <span class="ms">~3 s</span>
+      </div>
+      <div class="row">
+        <span class="lvl">L1 · Python kernel</span>
+        <pre class="py">def k(i, x, out, n):
+    out[i] = 0.30*x[i] + ...
+
+run_kernel(k, n, x, res, n)</pre>
+        <pre class="cu">한 thread 시점만 짠다.
+loop 는 runner 가.</pre>
+        <span class="ms">~3 s</span>
+      </div>
+      <div class="row hi">
+        <span class="lvl">L2 · block kernel</span>
+        <pre class="py">def k(bi, ti, bdim, x, out, n):
+    i = bi*bdim + ti
+    if i &lt; n: out[i] = ...
+
+blk_kernel(k, blocks, 256, x, ...)</pre>
+        <pre class="cu">CUDA 의 indexing 한 줄을
+Python 으로 흉내냄.</pre>
+        <span class="ms">~3 s</span>
+      </div>
+      <div class="row">
+        <span class="lvl">L3 · CUDA C</span>
+        <pre class="py">— 위 함수를 ChatGPT 에 붙여
+변환 →</pre>
+        <pre class="cu">__global__ void k(uchar* x, ...) {
+  int i = blockIdx.x*blockDim.x + threadIdx.x;
+  if (i&lt;n) out[i] = 0.30*x[i] + ...
+}</pre>
+        <span class="ms">~0.3 ms</span>
+      </div>
+    </div>
+    <div class="viz-note">L1 에서 L2 로 갈 때 <strong>알고리즘은 한 글자도 바뀌지 않는다</strong>. <em>호출 패턴</em>만 바뀐다 — “한 번에 N 개 thread 가 부른다고 가정” 하는 식. CUDA 로의 변환이 거의 무손실인 이유.</div>
+  </div>
+
+  <p>이 사다리의 진짜 가치는 <strong>L1 과 L2 에서 print, breakpoint 가 그대로 동작한다</strong>는 점이다. <code>i</code> 가 어떤 값에서 잘못됐는지, <code>blockidx*blockdim + threadidx</code> 가 어떻게 계산되는지를 Python 안에서 직접 확인할 수 있다. CUDA C 로 옮긴 뒤에는 같은 디버깅이 <code>printf</code>(§09) 또는 cuda-gdb 의 영역.</p>
+</section>
+
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>RGB → grayscale, Python 위에서</b><span>· naive 첫 단계</span></div>
+    <h2>알고리즘을 가장 단순한 형태로 손에 둔다</h2>
+  </div>
+  <p class="sec-lede">예제는 <strong>(C, H, W) shape 의 RGB tensor 를 (H, W) shape 의 grayscale 로 변환</strong>. 가중치는 0.2989·R + 0.5870·G + 0.1140·B 의 luma 공식. notebook 의 첫 셀이 PIL/torchvision 으로 강아지 사진을 가져와 (3, 1066, 1600) tensor 를 만든다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># pmpp.ipynb cell 9 — naive Python</span>
+<span style="color:#E7B369">def</span> rgb2grey_py(x):
+    c, h, w = x.shape
+    n = h * w
+    x = x.flatten()
+    res = torch.empty(n, dtype=x.dtype,
+                      device=x.device)
+    <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(n):
+        res[i] = (<span style="color:#E7B369">0.2989</span>*x[i]
+                + <span style="color:#E7B369">0.5870</span>*x[i+n]
+                + <span style="color:#E7B369">0.1140</span>*x[i+<span style="color:#E7B369">2</span>*n])
+    <span style="color:#E7B369">return</span> res.view(h, w)</code></pre>
+    </div>
+    <div>
+      <p>코드를 펼쳐 보면 한 가지 디테일이 의도적이다 — <strong>tensor 를 <code>.flatten()</code> 으로 1D 로 만들어 놓고</strong>, 채널은 메모리 위 offset (<code>x[i+n]</code>, <code>x[i+2n]</code>) 으로 본다. 이렇게 1D 로 깔아놓는 게 다음 단계의 <em>“한 thread = 한 출력 element”</em> 패턴과 정확히 매핑된다. <code>(c, h, w)</code> 에 대한 3중 loop 가 1중 loop 가 되는 자리.</p>
+      <div class="callout cool">
+        <div class="label">왜 0.30 / 0.59 / 0.11 인가</div>
+        <p>Rec.601 luma 가중치. 인간 시각이 G 에 가장 민감하고 B 에 가장 둔감하다는 측정에서 나옴. <a href="lecture_002.html">L002</a> 의 <code>0.21·R + 0.71·G + 0.07·B</code> (Rec. 709) 와 약간 다른 표준. 두 가중치 다 grayscale 로 보면 차이가 미미하다.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>이 단계에서 <code>%%time</code> 으로 측정한 시간이 약 3초 — 1066×1600 = 약 1.7M element 의 Python loop. 느린 게 핵심이 아니다, <strong>알고리즘이 정확히 무엇을 계산하는지가 손에 잡히는 게 핵심</strong>.</p>
+</section>
+
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>Python kernel mockup</b><span>· run_kernel(f, n, *args)</span></div>
+    <h2>한 thread 의 시점만 짠다 — 그리고 외부 runner 가 N번 호출</h2>
+  </div>
+  <p class="sec-lede">두 번째 단계가 학습 사다리의 진짜 도구다. <strong>kernel 함수를 “한 thread 의 시점” 만으로 짜고</strong>, loop 는 외부 <code>run_kernel</code> 이 책임진다. 이 함수의 시그니처가 정확히 CUDA kernel 의 메탈 모델이다.</p>
+
+<pre><code><span style="color:#A99E89"># pmpp.ipynb cell 13–17</span>
+<span style="color:#E7B369">def</span> run_kernel(f, times, *args):
+    <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(times):
+        f(i, *args)               <span style="color:#A99E89"># 한 thread 의 호출</span>
+
+<span style="color:#E7B369">def</span> rgb2grey_k(i, x, out, n):
+    out[i] = (<span style="color:#E7B369">0.2989</span>*x[i]
+            + <span style="color:#E7B369">0.5870</span>*x[i+n]
+            + <span style="color:#E7B369">0.1140</span>*x[i+<span style="color:#E7B369">2</span>*n])
+
+<span style="color:#E7B369">def</span> rgb2grey_pyk(x):
+    c, h, w = x.shape; n = h * w
+    x = x.flatten()
+    res = torch.empty(n, dtype=x.dtype, device=x.device)
+    run_kernel(rgb2grey_k, h*w, x, res, n)   <span style="color:#A99E89"># N번 launch 흉내</span>
+    <span style="color:#E7B369">return</span> res.view(h, w)</code></pre>
+
+  <div class="split rev">
+    <div>
+      <p>이 코드의 모든 사실이 의미 있다.</p>
+      <ul>
+        <li><strong>kernel 은 return 하지 않는다</strong> — Jeremy 가 markdown 셀에서 명시적으로 못 박는다 (<em>“NB: A kernel can not return anything. It can only change contents of things passed to it.”</em>). CUDA 의 <code>__global__ void</code> 와 정확히 매핑.</li>
+        <li><strong>인자 첫 번째는 thread 의 좌표</strong> — <code>i</code>. 나머지 인자는 모두 buffer 또는 scalar.</li>
+        <li><strong>kernel 안에서는 자기 좌표 외엔 제어 흐름이 없다</strong> — “나는 <code>i</code> 번째다, 내 일만 한다”. 다른 thread 가 무엇을 하는지 모른다.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">왜 이게 중요한가</div>
+        <p>이 시그니처를 손에 익히면 — CUDA 로 옮길 때 <strong>indexing 한 줄</strong>(<code>i = bIdx*bDim + tIdx</code>) 만 추가하면 된다. 알고리즘은 그대로다. 코드 변환 비용이 거의 0 이 되는 자리.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>L0(naive Python) 와 L1(kernel mockup) 의 시간이 비슷하다 — Python loop 가 dominant 하니까. 시간을 줄이는 게 이 단계의 목표가 아니다. <em>thread-시점의 함수</em>를 손에 두는 게 목표.</p>
+</section>
+
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>block 을 Python 으로 흉내내기</b><span>· blk_kernel(f, blocks, threads)</span></div>
+    <h2>CUDA 의 indexing 한 줄을 Python 위에서 미리 본다</h2>
+  </div>
+  <p class="sec-lede">L1(<code>run_kernel</code>) 은 “한 thread 시점” 만 모델링한다 — block 이 없다. 다음 단계가 block 을 추가한 <code>blk_kernel</code>. CUDA 의 launch shape <code>&lt;&lt;&lt;blocks, threads&gt;&gt;&gt;</code> 와 thread 의 indexing 식 <code>blockIdx*blockDim + threadIdx</code> 를 Python 으로 그대로 흉내낸다.</p>
+
+<pre><code><span style="color:#A99E89"># pmpp.ipynb cell 21–23</span>
+<span style="color:#E7B369">def</span> blk_kernel(f, blocks, threads, *args):
+    <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(blocks):
+        <span style="color:#E7B369">for</span> j <span style="color:#E7B369">in</span> range(threads):
+            f(i, j, threads, *args)               <span style="color:#A99E89"># (blockIdx, threadIdx, blockDim)</span>
+
+<span style="color:#E7B369">def</span> rgb2grey_bk(blockidx, threadidx, blockdim, x, out, n):
+    i = blockidx * blockdim + threadidx
+    <span style="color:#E7B369">if</span> i &lt; n:                                <span style="color:#A99E89"># boundary guard — CUDA 와 동일</span>
+        out[i] = <span style="color:#E7B369">0.2989</span>*x[i] + <span style="color:#E7B369">0.5870</span>*x[i+n] + <span style="color:#E7B369">0.1140</span>*x[i+<span style="color:#E7B369">2</span>*n]
+
+<span style="color:#E7B369">def</span> rgb2grey_pybk(x):
+    c, h, w = x.shape; n = h*w
+    x = x.flatten(); res = torch.empty(n, dtype=x.dtype, device=x.device)
+    threads = <span style="color:#E7B369">256</span>
+    blocks = math.ceil(h*w / threads)
+    blk_kernel(rgb2grey_bk, blocks, threads, x, res, n)
+    <span style="color:#E7B369">return</span> res.view(h, w)</code></pre>
+
+  <div class="split">
+    <div>
+      <p>이 코드의 의미는 직접적이다.</p>
+      <ul>
+        <li>블록 수 <code>cdiv(n, 256)</code>, 블록 당 thread 수 256 — CUDA 에서 흔한 default. <em>thread 수는 32 의 배수 (warp 크기) 가 권장됨</em>.</li>
+        <li>kernel 함수 시그니처가 <code>(blockidx, threadidx, blockdim, ...)</code> — CUDA 의 <code>blockIdx.x, threadIdx.x, blockDim.x</code> 와 정확히 1:1.</li>
+        <li>boundary check <code>if i &lt; n</code> 가 필요한 이유는 <code>n = h*w</code> 가 256 으로 나눠 떨어지지 않을 가능성. 마지막 block 에 일부 thread 는 <code>i &gt;= n</code>.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">CUDA 의 한계도 같이 흉내</div>
+        <p>Jeremy 의 markdown 셀이 명시적으로 깐다 — <strong>“2^31 max blocks for dim 0, 2^16 max for dims 1 &amp; 2”, “1024 max threads per block (use a multiple of 32)”</strong>. 이 한계는 Python <code>blk_kernel</code> 안에서는 강제되지 않지만, CUDA 에서는 강제. 알고 가야 한다.</p>
+      </div>
+    </div>
+  </div>
+
+  <p>이 시점에서 학습자가 손에 가지고 있는 건 — <strong>CUDA 와 정확히 같은 모양의 알고리즘</strong>이다. 두 차이만 남았다: ① Python 의 indexing 산술이 GPU 의 32-bit register 산술로, ② Python 의 외부 loop 가 GPU 의 SM 위 병렬 실행으로. 두 변환 모두 mechanical 하다.</p>
+</section>
+
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>load_cuda — Python 위의 wrapper</b><span>· load_inline 의 깔끔한 포장</span></div>
+    <h2>L001 의 load_inline 을 한 줄로 줄인다 — notebook 위에서 자주 쓸 수 있게</h2>
+  </div>
+  <p class="sec-lede">CUDA 코드를 끼워넣는 도구는 <a href="lecture_001.html">L001 §05</a> 에서 본 <code>torch.utils.cpp_extension.load_inline</code> 그대로다. Jeremy 는 자주 쓰는 옵션을 묶어 한 줄짜리 wrapper 로 만든다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># pmpp.ipynb cell 28</span>
+<span style="color:#E7B369">def</span> load_cuda(cuda_src, cpp_src, funcs,
+              opt=<span style="color:#E7B369">False</span>, verbose=<span style="color:#E7B369">False</span>):
+    <span style="color:#E7B369">return</span> load_inline(
+        cuda_sources=[cuda_src],
+        cpp_sources=[cpp_src],
+        functions=funcs,
+        extra_cuda_cflags=[<span style="color:#C6B98A">"-O2"</span>] <span style="color:#E7B369">if</span> opt <span style="color:#E7B369">else</span> [],
+        verbose=verbose,
+        name=<span style="color:#C6B98A">"inline_ext"</span>,
+    )
+
+<span style="color:#A99E89"># 모든 CUDA 셀 머리에 붙는 boilerplate</span>
+cuda_begin = <span style="color:#C6B98A">r'''</span>
+<span style="color:#C6B98A">#include &lt;torch/extension.h&gt;</span>
+<span style="color:#C6B98A">#include &lt;stdio.h&gt;</span>
+<span style="color:#C6B98A">#include &lt;c10/cuda/CUDAException.h&gt;</span>
+
+<span style="color:#C6B98A">#define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")</span>
+<span style="color:#C6B98A">#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")</span>
+<span style="color:#C6B98A">#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)</span>
+
+<span style="color:#C6B98A">inline unsigned int cdiv(unsigned int a, unsigned int b) {</span>
+<span style="color:#C6B98A">  return (a + b - 1) / b;</span>
+<span style="color:#C6B98A">}</span>
+<span style="color:#C6B98A">'''</span></code></pre>
+    </div>
+    <div>
+      <p>여기서 한 가지 미묘한 trick — <code>name="inline_ext"</code> 가 항상 같다. <strong>같은 이름이면 PyTorch 가 build cache 를 재사용</strong>해서 두 번째 호출부터 빠르다. 다른 셀에서 다른 커널을 짜더라도 같은 “module” 안에 함수만 추가되는 패턴.</p>
+      <p>(노트북 셀에서 cuda_src 를 수정해서 재빌드할 때, 같은 name 이면 PyTorch 가 디스크의 .so 를 재로드. 의도적으로 다른 이름을 줘서 cache 를 무효화하는 것도 가능.)</p>
+      <div class="callout cool">
+        <div class="label">cuda_begin 의 보일러플레이트</div>
+        <p><code>CHECK_CUDA</code> · <code>CHECK_CONTIGUOUS</code> 매크로는 <strong>잘못된 입력을 빨리 catch</strong> 하기 위함. CUDA tensor 가 아니거나 메모리 layout 이 비연속이면 raw <code>data_ptr</code> 가 우리 가정과 다를 수 있다. <code>cdiv</code> 는 ceiling division — block 수 계산의 표준.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>CUDA 로 옮기는 mechanical step</b><span>· rgb2grey 의 거의 1:1 변환</span></div>
+    <h2>Python block kernel 의 변수명을 그대로 — indexing 한 줄만 추가</h2>
+  </div>
+  <p class="sec-lede">학습 사다리의 마지막 단. Python <code>rgb2grey_bk</code> 를 그대로 ChatGPT 또는 손으로 CUDA C 로 옮긴다. 변환의 “보일러플레이트” 는 cuda_begin 가 다 써놨고, 함수 본체는 거의 한 글자도 안 바뀐다.</p>
+
+<pre><code><span style="color:#A99E89">// pmpp.ipynb cell 33 — load_cuda 가 빌드하는 본체</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> rgb_to_grayscale_kernel(
+    <span style="color:#E7B369">unsigned</span> <span style="color:#E7B369">char</span>* x, <span style="color:#E7B369">unsigned</span> <span style="color:#E7B369">char</span>* out, <span style="color:#E7B369">int</span> n)
+{
+    <span style="color:#E7B369">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;          <span style="color:#A99E89">// ← 이 한 줄만 추가</span>
+    <span style="color:#E7B369">if</span> (i &lt; n)
+        out[i] = <span style="color:#E7B369">0.2989f</span>*x[i] + <span style="color:#E7B369">0.5870f</span>*x[i+n]
+               + <span style="color:#E7B369">0.1140f</span>*x[i+<span style="color:#E7B369">2</span>*n];
+}
+
+torch::Tensor rgb_to_grayscale(torch::Tensor input) {
+    CHECK_INPUT(input);                                       <span style="color:#A99E89">// 매크로의 가치</span>
+    <span style="color:#E7B369">int</span> h = input.size(<span style="color:#E7B369">1</span>);
+    <span style="color:#E7B369">int</span> w = input.size(<span style="color:#E7B369">2</span>);
+    <span style="color:#E7B369">auto</span> output = torch::empty({h, w}, input.options());
+    <span style="color:#E7B369">int</span> threads = <span style="color:#E7B369">256</span>;
+    rgb_to_grayscale_kernel<span style="color:#E7B369">&lt;&lt;&lt;</span>cdiv(w*h, threads), threads<span style="color:#E7B369">&gt;&gt;&gt;</span>(
+        input.data_ptr&lt;<span style="color:#E7B369">unsigned</span> <span style="color:#E7B369">char</span>&gt;(),
+        output.data_ptr&lt;<span style="color:#E7B369">unsigned</span> <span style="color:#E7B369">char</span>&gt;(),
+        w*h);
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+    <span style="color:#E7B369">return</span> output;
+}</code></pre>
+
+  <div class="split rev">
+    <div>
+      <p>변환 매핑을 펼쳐 보면.</p>
+      <ul>
+        <li><code>def</code> → <code>__global__ void</code></li>
+        <li>Python <code>i = blockidx * blockdim + threadidx</code> → CUDA <code>int i = blockIdx.x * blockDim.x + threadIdx.x</code></li>
+        <li>Python <code>if i &lt; n:</code> → CUDA <code>if (i &lt; n)</code></li>
+        <li><code>blk_kernel(fn, blocks, threads, …)</code> → <code>fn&lt;&lt;&lt;blocks, threads&gt;&gt;&gt;(…)</code></li>
+        <li><code>x.flatten()</code> 의 의미 → <code>data_ptr&lt;unsigned char&gt;()</code> + 1D offset 산술</li>
+      </ul>
+      <p>이 매핑이 <strong>한 줄도 빠지지 않고 mechanical</strong>이라는 점이 학습 사다리의 가치다. 알고리즘에 대한 이해는 Python 단계에서 다 끝났고, CUDA 단계는 변환 작업.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">시간 점프</div>
+        <p>Python 단계 ~3초, CUDA 단계 ~0.3ms. 약 1만 배의 점프. 같은 알고리즘, 같은 결과 (byte 단위로 비교 가능). <em>알고리즘에 대한 자신감과 launch 패턴에 대한 자신감이 분리된다는 사실이 이 강의의 핵심 메시지.</em></p>
+      </div>
+      <div class="callout cool" style="margin-top:14px">
+        <div class="label">ChatGPT 의 실용적 사용</div>
+        <p>Jeremy 가 명시적으로 추천 — <em>“Python kernel 을 그대로 ChatGPT 에 붙이고 ‘이걸 CUDA C 로 변환해 달라, 이름 같게’.”</em> 매핑이 mechanical 하니 LLM 이 안정적으로 잘 한다. 사람이 직접 쓰는 것보다 빠르고 오류가 적다는 게 강의의 입장.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pull">“알고리즘을 Python 으로 짜놓으면 — CUDA 변환은 더 이상 알고리즘 디자인이 아니라 그냥 매핑이다.”<span class="by">Jeremy Howard · L003</span></div>
+</section>
+
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>2D matmul</b><span>· block 좌표 두 개로</span></div>
+    <h2>같은 사다리를 2D 에 적용 — (5, 784) × (784, 10) 의 작은 matmul</h2>
+  </div>
+  <p class="sec-lede">강의 후반부는 같은 학습 패턴을 <em>matmul</em> 에 적용. 입력은 MNIST 의 작은 sample (<code>m1.shape = (5, 784)</code>) 와 random 가중치 (<code>m2.shape = (784, 10)</code>). 출력은 (5, 10). 작은 사이즈를 쓰는 이유 — Python 단계에서 <code>%time</code> 으로 측정 가능한 범위에 두기 위해.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># pmpp.ipynb cell 56 — naive Python matmul</span>
+<span style="color:#E7B369">def</span> matmul(a, b):
+    (ar, ac), (br, bc) = a.shape, b.shape
+    c = torch.zeros(ar, bc)
+    <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(ar):
+        <span style="color:#E7B369">for</span> j <span style="color:#E7B369">in</span> range(bc):
+            <span style="color:#E7B369">for</span> k <span style="color:#E7B369">in</span> range(ac):
+                c[i,j] += a[i,k] * b[k,j]
+    <span style="color:#E7B369">return</span> c</code></pre>
+<pre><code><span style="color:#A99E89"># 2D Python kernel — 한 출력 element 의 시점</span>
+<span style="color:#E7B369">def</span> matmul_k(i, j, a, b, c, ac):
+    s = <span style="color:#E7B369">0.0</span>
+    <span style="color:#E7B369">for</span> k <span style="color:#E7B369">in</span> range(ac):
+        s += a[i,k] * b[k,j]
+    c[i,j] = s</code></pre>
+    </div>
+    <div>
+      <p>여기서 새로 들어오는 패턴.</p>
+      <ul>
+        <li><strong>“한 thread = 한 출력 element”</strong> 의 같은 분해. (i, j) 좌표 한 쌍이 한 thread 에 매핑.</li>
+        <li><strong>thread 안에 inner loop (k 차원) 가 남는다</strong> — accumulation. 이게 <em>data reuse 의 첫 자리</em>다. 같은 row 의 thread 들이 같은 a row 를 다시 읽고, 같은 column 의 thread 들이 같은 b column 을 다시 읽는다.</li>
+        <li>이 reuse 를 시각화한 게 다음의 작은 figure.</li>
+      </ul>
+
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · matmul 의 data reuse</span><span>row 와 column 이 N번 다시 읽힌다</span></div>
+        <div style="display:flex;gap:20px;margin:10px 0;align-items:center">
+          <div>
+            <div style="color:var(--ink-soft);font-size:11px;margin-bottom:4px">A (5×784)</div>
+            <div class="l3-mat">
+              <div class="c hi">a00</div><div class="c hi">a01</div><div class="c hi">a02</div><div class="c hi">a03</div><div class="c hi">a04</div><div class="c hi">a05</div><div class="c hi">a06</div><div class="c hi">a07</div>
+              <div class="c">a10</div><div class="c">a11</div><div class="c">a12</div><div class="c">a13</div><div class="c">a14</div><div class="c">a15</div><div class="c">a16</div><div class="c">a17</div>
+            </div>
+          </div>
+          <div style="font-size:24px;color:var(--ink-soft)">×</div>
+          <div>
+            <div style="color:var(--ink-soft);font-size:11px;margin-bottom:4px">B (784×10)</div>
+            <div class="l3-mat" style="grid-template-columns:repeat(2,1fr)">
+              <div class="c hi">b00</div><div class="c">b01</div>
+              <div class="c hi">b10</div><div class="c">b11</div>
+              <div class="c hi">b20</div><div class="c">b21</div>
+              <div class="c hi">b30</div><div class="c">b31</div>
+            </div>
+          </div>
+        </div>
+        <div class="viz-note">노란 row a0_ 은 b 의 모든 column 과 곱해진다 → b column 수만큼 다시 읽힘. 노란 column b_0 은 a 의 모든 row 와 곱해진다 → a row 수만큼 다시 읽힘. <a href="lecture_005.html">L005</a> 의 shared memory tiling 이 이 reuse 를 잡는다.</div>
+      </div>
+    </div>
+  </div>
+
+  <p>그리고 같은 사다리로 CUDA 단계까지 — 2D launch (<code>dim3(16, 16)</code> threads, <code>dim3(cdiv(bc,16), cdiv(ar,16))</code> blocks) 로 띄우고, kernel 안에서 <code>row = blockIdx.y*blockDim.y + threadIdx.y</code> 와 <code>col = blockIdx.x*blockDim.x + threadIdx.x</code> 두 줄로 좌표를 계산. 나머지는 Python 의 inner loop 가 그대로.</p>
+
+  <p>이 단순 CUDA matmul 은 <strong>shared memory 를 쓰지 않는다</strong> — 매 element 마다 a 의 한 row, b 의 한 column 을 global memory 에서 다시 읽는다. <em>data reuse 가 보이지만 잡지 않은 상태</em>가 의도적이다. <a href="lecture_005.html">L005</a> 가 이 코드 위에 shared memory tiling 을 한 단 더 얹어 “Going Further” 의 의미가 된다.</p>
+</section>
+
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>notebook 위에서 디버깅하는 trick</b><span>· CUDA_LAUNCH_BLOCKING · wurlitzer</span></div>
+    <h2>“실행은 됐는데 결과가 이상하다” 를 어떻게 추적하는가</h2>
+  </div>
+  <p class="sec-lede">notebook 환경에서 CUDA 디버깅을 하면 흔히 만나는 두 문제 — <em>error 가 어디서 났는지 위치가 비동기 launch 때문에 어긋난다, kernel 안의 <code>printf</code> 출력이 stdout 에 안 잡힌다</em>. Jeremy 가 두 가지 환경 설정을 셀 머리에 박는다.</p>
+
+  <div class="l3-flow">
+    <div class="step">
+      <div class="n">1</div>
+      <div class="body">
+        <strong><code>os.environ['CUDA_LAUNCH_BLOCKING'] = '1'</code></strong>
+        <em>모든 CUDA launch 를 동기로 만든다 — error 위치가 정확히 launch 줄에서 잡힌다. <code>cudaDeviceSynchronize()</code> 가 자동으로 launch 직후에 박히는 것과 같음. 디버깅용; production 에선 끈다 (성능 떨어진다).</em>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n">2</div>
+      <div class="body">
+        <strong><code>%load_ext wurlitzer</code></strong>
+        <em>kernel 안의 <code>printf</code> 출력을 Jupyter cell 의 output 으로 redirect. 안 켜면 stdout 이 어디로 가는지 모른 채 사라진다. 작은 입력에 대해 <code>if (i == 0) printf("...")</code> 패턴이 가능해진다.</em>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n">3</div>
+      <div class="body">
+        <strong><code>verbose=True</code></strong> <em>option in <code>load_inline</code></em>
+        <em>nvcc 의 컴파일 명령과 그 출력을 다 보여준다. 빌드 실패 시 어떤 flag 가 들어갔는지, 어떤 라인이 syntax error 인지 직접 확인.</em>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n">4</div>
+      <div class="body">
+        <strong>매크로 <code>CHECK_INPUT(x)</code></strong>
+        <em>kernel launch 전에 “이 tensor 가 정말 CUDA 위에 있고, contiguous 한가” 를 검증. 잘못된 가정으로 raw pointer 를 dereferencing 하기 전에 catch.</em>
+      </div>
+    </div>
+    <div class="step">
+      <div class="n">5</div>
+      <div class="body">
+        <strong>작은 입력으로 먼저</strong>
+        <em>Python kernel mockup 단계에서는 <code>img2 = tvf.resize(img, 150, antialias=True)</code> 처럼 입력을 작게. 같은 kernel 이 작은 입력에서 정확하면 큰 입력에서도 거의 항상 정확.</em>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">통합 패턴</div>
+    <p>Jeremy 의 notebook 모든 셀의 머리에 위 1·2가 박혀 있고, <code>load_cuda(..., verbose=True)</code> 가 켜져 있고, 작은 입력으로 먼저 검증한 뒤 큰 입력. <strong>“CUDA 가 디버깅이 어렵다” 라는 신화를 깨는 가장 단순한 한 묶음의 환경 설정</strong>이 이 자리.</p>
+  </div>
+
+  <div class="pull">“CUDA 코드를 짜는 데 1시간이 걸렸다면 — 그 중 50분은 Python 위에서, 5분은 변환에, 5분은 CUDA 디버깅에 써라.”<span class="by">학습 노트 · L003 §09</span></div>
+</section>
+
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">이 강의에서 6개월 뒤 다시 돌아왔을 때 가장 먼저 복원해야 하는 사실들과 — 직접 손에 박아야 하는 코드 자료들.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">3단 사다리</div>
+      <div class="d">Python loop → Python kernel(<code>run_kernel</code>) → Python block kernel(<code>blk_kernel</code>) → CUDA. 같은 알고리즘을 같은 변수명으로 4번.</div>
+    </div>
+    <div class="term">
+      <div class="t">kernel 의 metal 모델</div>
+      <div class="d"><code>def k(i, *args)</code> 또는 <code>def k(bIdx, tIdx, bDim, *args)</code>. <strong>kernel can not return</strong>. buffer 를 mutate 한다.</div>
+    </div>
+    <div class="term">
+      <div class="t">indexing 한 줄</div>
+      <div class="d"><code>i = blockIdx.x * blockDim.x + threadIdx.x</code> + <code>if i &lt; n</code> guard. 1D 커널의 표준 첫 두 줄.</div>
+    </div>
+    <div class="term">
+      <div class="t">cuda_begin 의 매크로</div>
+      <div class="d"><code>CHECK_CUDA</code> · <code>CHECK_CONTIGUOUS</code> · <code>CHECK_INPUT</code> · <code>cdiv</code>. 모든 셀 머리에 붙는 보일러플레이트.</div>
+    </div>
+    <div class="term">
+      <div class="t">CUDA_LAUNCH_BLOCKING</div>
+      <div class="d">launch 를 동기로 만들어 error 위치를 정확하게. 디버깅용. production 에선 끈다.</div>
+    </div>
+    <div class="term">
+      <div class="t">wurlitzer</div>
+      <div class="d">Jupyter cell 안에서 kernel 의 <code>printf</code> 를 보려면 필수. <code>%load_ext wurlitzer</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">load_cuda wrapper</div>
+      <div class="d"><code>load_inline</code> 의 자주 쓰는 옵션 묶기. <code>name="inline_ext"</code> 고정으로 build cache 재사용.</div>
+    </div>
+    <div class="term">
+      <div class="t">2D launch</div>
+      <div class="d"><code>dim3(16, 16)</code> threads, <code>dim3(cdiv(W,16), cdiv(H,16))</code> blocks. matmul 과 image 처리의 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">알고리즘은 Python 에서 끝낸다</div>
+      <div class="d">CUDA 코드의 “창의력” 은 Python kernel 에 다 있다. CUDA 변환은 매핑 작업이고 LLM 이 잘한다.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=4sgKnKbR-WE" target="_blank" rel="noopener">youtube.com/watch?v=4sgKnKbR-WE</a></span>
+    </div>
+    <div class="row miss">
+      <span class="k">Slides</span>
+      <span class="v">없음 — notebook 자체가 자료. <code>pmpp.ipynb</code> 가 슬라이드 역할.</span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v">
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_003/pmpp.ipynb" target="_blank" rel="noopener">pmpp.ipynb</a> ·
+        <a href="https://colab.research.google.com/drive/180uk6frvMBeT4tywhhYXmz3PJaCIA_uk?usp=sharing" target="_blank" rel="noopener">Colab</a>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_003" target="_blank" rel="noopener">gpu-mode/lectures/lecture_003</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>강아지 사진을 자기 노트북 환경에서 grayscale</strong> — <code>pmpp.ipynb</code> 를 그대로 돌려 4단계 (naive → kernel → block kernel → CUDA) 의 결과가 <em>byte 단위로 동일</em> 한지 검증.</li>
+    <li><strong>L0 → L1 변환 직접 해보기</strong> — 다른 알고리즘 (예: per-row max, per-row sum) 을 같은 4단계로 변환. 같은 변수명을 유지하면서.</li>
+    <li><strong>boundary check 일부러 빠뜨려서 본다</strong> — Python 단계에서는 <code>IndexError</code> 가 나고, CUDA 단계에서는 <code>illegal memory access</code>. 같은 버그가 두 환경에서 어떻게 다르게 보이는지.</li>
+    <li><strong>thread 수 sweep</strong> — 256 → 64, 128, 512, 1024. <code>%timeit</code> 으로 시간 변화. <code>n_warps</code> 와의 관계 추측.</li>
+    <li><strong>matmul 을 작은 사이즈에서 검증, 큰 사이즈에서 측정</strong> — (5, 784) × (784, 10) 의 결과를 PyTorch <code>torch.matmul</code> 과 <code>torch.allclose</code>. 그 다음 (1024, 1024) × (1024, 1024) 로 키워 시간 비교 — naive 가 cuBLAS 와 얼마나 차이나는가.</li>
+    <li><strong><code>CUDA_LAUNCH_BLOCKING</code> 의 효과 보기</strong> — 일부러 잘못된 indexing (예: <code>i+5</code>) 을 넣어서 launch 했을 때, BLOCKING=1 과 0 에서 traceback 위치가 어떻게 다른지.</li>
+    <li><strong>printf 디버깅</strong> — kernel 안에 <code>if (i &lt; 5) printf("i=%d, val=%f\n", i, x[i]);</code> 를 박고 wurlitzer 로 볼 수 있는지 확인. 작은 입력에 한정.</li>
+    <li><strong>한 페이지 plan</strong> — 자기가 짜고 싶은 다음 커널을 정하고, “Python 4단계 → CUDA” 의 사다리에 맞춰 계획서 작성.</li>
+  </ol>
+</section>
+
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 학습 사다리가 다른 강의에서 어떻게 확장되는지</h2>
+  </div>
+  <p class="sec-lede">L003 의 “Python 위에서 알고리즘을 손에 잡는다” 패턴이 시리즈의 여러 강의에서 한 단씩 확장된다.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">Profiling CUDA kernels in PyTorch</div>
+      <div class="by">Mark Saroufim — load_inline 의 첫 등장. 이 강의가 그 도구를 학습 사다리로 정리.</div>
+    </a>
+    <a class="conn" href="lecture_002.html">
+      <div class="n">L002</div>
+      <div class="ti">PMPP Ch.1–3</div>
+      <div class="by">Andreas Köpf — 이 강의의 grid/block/thread 가 책 그대로의 정식 모델</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA for Python</div>
+      <div class="by">Jeremy Howard — 같은 사다리에 shared memory tiling 을 한 단 추가. 이 강의의 직속 후속편.</div>
+    </a>
+    <a class="conn" href="lecture_004.html">
+      <div class="n">L004</div>
+      <div class="ti">Compute and Memory Basics</div>
+      <div class="by">Thomas Viehmann — 이 강의 notebook 을 base 로 PMPP Ch.4–5 의 occupancy/roofline 을 추가</div>
+    </a>
+    <a class="conn" href="lecture_007.html">
+      <div class="n">L007</div>
+      <div class="ti">Advanced Quantization</div>
+      <div class="by">Charles Hernandez — “Python 으로 알고리즘 짜기” 의 advanced 단계. quantization 알고리즘을 Python+torch.compile 로 먼저.</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">Mark Saroufim — 이 강의 마지막의 “naive matmul” 을 어떻게 빠르게 만드는지의 체크리스트</div>
+    </a>
+    <a class="conn" href="lecture_010.html">
+      <div class="n">L010</div>
+      <div class="ti">Build a Prod Ready CUDA library</div>
+      <div class="by">Oscar Booth — load_inline 의 production 형태. setup.py 와 wheel 빌드.</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Adam Paszke — 이 강의의 RGB→grayscale + 후처리를 한 커널로 합치는 패턴</div>
+    </a>
+  </div>
+</section>
+
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">학습 사다리의 framing 안에서 의도적으로 비워둔 자리들과 — 직접 자기 환경에서 확인해야 손에 박히는 사실들.</p>
+  <ul>
+    <li><strong>shared memory 가 빠진 matmul 의 시간</strong> — 강의의 단순 CUDA matmul 이 cuBLAS 와 얼마나 차이나는지의 정량은 강의에서 직접 측정하지 않는다. <em>“not a CUDA expert”</em> 라고 Jeremy 도 명시. <a href="lecture_005.html">L005</a> 에서 직접 측정.</li>
+    <li><strong>PTX 또는 SASS 직접 보기</strong> — 강의의 사다리에서는 PTX 를 까지 않는다. <code>nvcc -ptx</code> 또는 <code>cuobjdump</code> 로 같은 알고리즘이 어떤 instruction sequence 가 되는지는 별도로 검증.</li>
+    <li><strong>LLM 변환의 신뢰성</strong> — Jeremy 가 ChatGPT 변환을 추천하지만, <em>어디서 실패하는가</em> 는 다루지 않는다. 복잡한 indexing, conditional flow, atomic operation 이 들어간 알고리즘에서 변환의 정확도는 직접 검증 필요.</li>
+    <li><strong><code>CUDA_LAUNCH_BLOCKING=1</code> 의 성능 비용</strong> — “디버깅용” 이라고 했지만, 정량적인 성능 차이는 강의에서 측정하지 않는다. 실제로 얼마나 느려지는지 자기 GPU 에서 측정 필요.</li>
+    <li><strong>multi-GPU / distributed 는 빠진다</strong> — 이 강의의 모든 예제는 single GPU. 다음 단계의 학습 사다리는 <a href="lecture_017.html">L017</a> 의 PyTorch distributed 또는 NCCL 강의들.</li>
+    <li><strong>Triton 과의 비교</strong> — 강의에서 Triton 은 거의 언급하지 않는다. 같은 학습 사다리가 Triton 에 어떻게 적용되는지는 <a href="lecture_014.html">L014</a> 의 Triton 강의에서.</li>
+  </ul>
+</section>
+
+<div class="artnav">
+  <a href="lecture_002.html">
+    <span class="lbl">← Lecture 002</span>
+    <span class="nm">Andreas Köpf — PMPP Ch.1–3 의 grid/block/thread 정식 모델</span>
+  </a>
+  <a class="nxt" href="lecture_004.html">
+    <span class="lbl">Lecture 004 →</span>
+    <span class="nm">Thomas Viehmann — PMPP Ch.4–5 의 compute/memory roofline</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L003 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

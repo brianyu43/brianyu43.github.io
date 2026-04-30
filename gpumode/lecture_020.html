@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L020 · Scan Algorithm · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l20-arr{font-family:'JetBrains Mono',monospace;font-size:13px;display:grid;grid-template-columns:90px repeat(8,1fr);gap:6px;align-items:center;margin:8px 0}
+.l20-arr .lbl{color:var(--ink-soft);font-size:11px}
+.l20-arr .cell{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:6px;text-align:center;color:var(--ink);font-weight:600}
+.l20-arr .cell.acc{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.l20-arr .cell.cool{background:var(--cool);color:var(--paper);border-color:var(--cool)}
+.l20-arr .cell.dim{opacity:.4}
+
+.l20-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l20-cmp .col{padding:14px;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px}
+.l20-cmp .col.hi{border-color:var(--accent)}
+.l20-cmp .col h4{margin:0 0 8px;font-family:'Pretendard',sans-serif;font-size:13px;color:var(--ink)}
+.l20-cmp .col .stat{display:grid;grid-template-columns:1fr 90px;padding:5px 0;border-bottom:1px dashed var(--line-soft);font-size:12px}
+.l20-cmp .col .stat:last-child{border-bottom:none}
+.l20-cmp .col .stat .k{color:var(--ink-soft)}
+.l20-cmp .col .stat .v{color:var(--ink);font-weight:700;text-align:right}
+.l20-cmp .col .stat .v.warn{color:var(--warn)}
+.l20-cmp .col .stat .v.good{color:var(--good)}
+
+.l20-tree svg{width:100%;max-width:520px;height:auto;display:block;margin:0 auto}
+.l20-tree text{font-family:'JetBrains Mono',monospace;font-size:11px;fill:var(--ink)}
+.l20-tree .node{fill:var(--paper);stroke:var(--line)}
+.l20-tree .node.hi{fill:var(--accent);stroke:var(--accent)}
+.l20-tree .node.hi text,.l20-tree text.on-acc{fill:var(--paper)}
+.l20-tree .ed{stroke:var(--line-soft);stroke-width:1}
+.l20-tree .ed.acc{stroke:var(--accent);stroke-width:1.6}
+
+@media(max-width:760px){.l20-arr{grid-template-columns:60px repeat(8,1fr);font-size:11px}.l20-cmp{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_019.html">← L019</a>
+    <a href="lecture_021.html">L021 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L020</span>
+    <span>Scan Algorithm — Part 1</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · slides · available</span>
+  </div>
+  <h1>Scan Algorithm</h1>
+  <p class="dek">Sequential 코드에서 가장 빼기 어려운 패턴 — <code>out[i] = out[i-1] + in[i]</code> 의 loop-carried dependency. 그 obvious 한 sequential 을 <em>parallel 로 어떻게 바꾸는가</em>. Beirut 미국대학교의 Izzat El Haj 가 단일 thread block 안에서 <strong>Hillis-Steele · Brent-Kung</strong> 두 알고리즘을 깐 part 1 의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">prefix sum</span>
+    <span class="chip hi">Hillis-Steele</span>
+    <span class="chip hi">Brent-Kung (Blelloch)</span>
+    <span class="chip hi">work efficiency</span>
+    <span class="chip hi">step efficiency</span>
+    <span class="chip">double buffering</span>
+    <span class="chip">__syncthreads()</span>
+    <span class="chip">single-block scan</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">I</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Izzat El Haj</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Professor · American University of Beirut · PMPP co-author</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L020</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Izzat El Haj</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">scan kernel 직접 구현</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why scan?</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">scan 의 정의</span><span class="em">inclusive · exclusive</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">sequential 의 loop-carried dep</span><span class="em">왜 어려운가</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">Hillis-Steele scan</span><span class="em">단순한 doubling</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">Brent-Kung (Blelloch)</span><span class="em">work-efficient tree</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">work vs step efficiency</span><span class="em">두 비용 축</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">double buffering</span><span class="em">in-place 의 함정</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">__syncthreads + memory model</span><span class="em">independent thread scheduling</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">scan 의 응용 — radix · compaction</span><span class="em">왜 이 알고리즘이 중요한가</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why scan?</span></div>
+    <h2>“가장 sequential 해 보이는 작업을 parallel 로 바꾸기”</h2>
+  </div>
+  <p class="sec-lede">Izzat 의 강의는 PMPP 교과서 7장 의 raw 영상 버전으로 보면 거의 정확하다. 다른 chapter 와 달리 <strong>scan 은 알고리즘이 직관과 정반대</strong>다 — sequential 로 짜면 5줄, parallel 로 잘 짜려면 한 chapter 가 든다.</p>
+
+  <p>강의가 깐 큰 질문 두 개.</p>
+  <ol>
+    <li><strong>왜 scan 이 중요한가</strong> — radix sort, stream compaction, segmented reduction, dynamic memory allocation, sparse matrix 처리 등 <em>거의 모든 GPU 데이터 알고리즘의 빌딩블록</em>. <a href="lecture_019.html">L019</a> 의 CSV 파서가 그 사용 사례 중 하나.</li>
+    <li><strong>obvious 한 sequential 을 어떻게 parallel 로 짜는가</strong> — 두 가지 핵심 알고리즘 (Hillis-Steele, Brent-Kung) 이 답을 준다. 같은 결과, 다른 trade-off.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>Izzat 은 part 1 에서 <em>“single thread block 안에서만”</em> 의 scan 을 다룬다. multi-block scan, decoupled lookback 같은 production 알고리즘은 다음 강의 <a href="lecture_021.html">L021</a> · 그리고 더 깊게 <a href="lecture_024.html">L024</a> 의 영역. 이 part 1 은 <strong>알고리즘의 골격</strong>을 깐다.</p>
+  </div>
+
+  <div class="pull">“scan 은 GPU 컴퓨팅의 기본기다 — sort, compaction, reduce, parsing, sparse — 거의 모든 곳에 들어 있다.”<span class="by">Izzat El Haj (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>scan 의 정의</b><span>· inclusive · exclusive</span></div>
+    <h2>같은 데이터, 두 가지 출력 — 한 칸의 차이</h2>
+  </div>
+  <p class="sec-lede">scan = prefix sum 의 일반화. binary 결합 연산 ⊕ 와 입력 [x0, x1, ..., x_{n-1}] 가 주어지면, 출력은 위치 i 의 누적값. 두 변형이 있다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · inclusive vs exclusive scan (⊕ = +)</span><span>같은 입력의 두 출력</span></div>
+    <div class="l20-arr">
+      <span class="lbl">입력</span>
+      <span class="cell">3</span><span class="cell">1</span><span class="cell">7</span><span class="cell">0</span><span class="cell">4</span><span class="cell">1</span><span class="cell">6</span><span class="cell">3</span>
+    </div>
+    <div class="l20-arr">
+      <span class="lbl">inclusive</span>
+      <span class="cell acc">3</span><span class="cell acc">4</span><span class="cell acc">11</span><span class="cell acc">11</span><span class="cell acc">15</span><span class="cell acc">16</span><span class="cell acc">22</span><span class="cell acc">25</span>
+    </div>
+    <div class="l20-arr">
+      <span class="lbl">exclusive</span>
+      <span class="cell cool">0</span><span class="cell cool">3</span><span class="cell cool">4</span><span class="cell cool">11</span><span class="cell cool">11</span><span class="cell cool">15</span><span class="cell cool">16</span><span class="cell cool">22</span>
+    </div>
+    <div class="viz-note"><strong>inclusive</strong> 의 i 번째 = x0 ⊕ … ⊕ x_i (자기 포함). <strong>exclusive</strong> 의 i 번째 = x0 ⊕ … ⊕ x_{i-1} (자기 제외, 첫 칸은 identity 0). 둘은 한 칸 shift 차이. radix sort 같은 알고리즘은 exclusive 가 자연스럽고, running average 같은 작업은 inclusive 가 자연스럽다.</div>
+  </div>
+
+  <p>일반적으로 ⊕ 는 <em>associative</em> (결합법칙) 면 충분하다 — commutative 일 필요는 없다. <code>min</code>, <code>max</code>, <code>or</code>, <code>and</code>, 행렬 곱 모두 가능. associative 하지 않은 op (예: subtraction) 는 scan 으로 표현할 수 없다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>sequential 의 loop-carried dep</b><span>· 왜 어려운가</span></div>
+    <h2>5줄짜리 sequential 코드 — 그게 곧 문제다</h2>
+  </div>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89">// sequential — 단순하다 못해 자명한 코드</span>
+<span style="color:#E7B369">void</span> scan_seq(<span style="color:#E7B369">const float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n) {
+  out[<span style="color:#E7B369">0</span>] = in[<span style="color:#E7B369">0</span>];
+  <span style="color:#E7B369">for</span> (<span style="color:#E7B369">int</span> i = <span style="color:#E7B369">1</span>; i &lt; n; i++) {
+    out[i] = out[i-<span style="color:#E7B369">1</span>] + in[i];   <span style="color:#A99E89">// ← 의존</span>
+  }
+}</code></pre>
+    </div>
+    <div>
+      <p><strong>loop iteration i 가 i-1 의 결과를 본다</strong>. iteration 들이 직렬로 흐를 수밖에 없다. 이게 GPU 가 못 푸는 패턴 — thread 들이 서로 다른 iteration 을 잡으려면 그 사이에 결과를 주고받아야 한다.</p>
+      <p>n 개 element 에 대해:</p>
+      <ul>
+        <li><strong>work</strong> = n-1 개 add 연산</li>
+        <li><strong>step</strong> = n-1 개 (직렬)</li>
+        <li><strong>parallelism</strong> = 0 (순차)</li>
+      </ul>
+      <p>parallel 알고리즘의 목표 — 같은 work 를 유지하면서 step 을 log(n) 까지 내리는 것. 또는 work 를 약간 늘리는 대신 step 을 더 내리는 것.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 scan 이 “직관과 반대” 인가</div>
+    <p>Brent–Kung 같은 work-efficient scan 은 sequential 코드와 정확히 같은 work (n-1 op) 를 하면서 step 만 2log(n) 으로 줄인다. <em>“같은 일을, 다른 순서로”</em> 라는 GPU 알고리즘 디자인의 표준 패턴.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>Hillis-Steele scan</b><span>· 단순한 doubling</span></div>
+    <h2>“멀리 있는 element 를 한 칸씩 더 멀리 본다” — log(n) step</h2>
+  </div>
+  <p class="sec-lede">가장 단순한 parallel scan. step k 에서 thread i 는 자기 값에 <code>2^k</code> 떨어진 element 를 더한다. log(n) step 후 모든 thread 가 자기 자리의 prefix sum 을 들고 있다.</p>
+
+<pre><code><span style="color:#A99E89">// Hillis-Steele — block 단위 scan (shared memory 위)</span>
+__global__ <span style="color:#E7B369">void</span> hillis_steele(<span style="color:#E7B369">const float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n) {
+  __shared__ <span style="color:#E7B369">float</span> buf[<span style="color:#E7B369">2</span>][BLOCK];     <span style="color:#A99E89">// double buffer</span>
+  <span style="color:#E7B369">int</span> tid = threadIdx.x;
+  buf[<span style="color:#E7B369">0</span>][tid] = in[tid];
+  __syncthreads();
+
+  <span style="color:#E7B369">int</span> read = <span style="color:#E7B369">0</span>, write = <span style="color:#E7B369">1</span>;
+  <span style="color:#E7B369">for</span> (<span style="color:#E7B369">int</span> stride = <span style="color:#E7B369">1</span>; stride &lt; n; stride *= <span style="color:#E7B369">2</span>) {
+    <span style="color:#E7B369">if</span> (tid &gt;= stride)
+      buf[write][tid] = buf[read][tid] + buf[read][tid - stride];
+    <span style="color:#E7B369">else</span>
+      buf[write][tid] = buf[read][tid];
+    __syncthreads();
+    read ^= <span style="color:#E7B369">1</span>; write ^= <span style="color:#E7B369">1</span>;
+  }
+  out[tid] = buf[read][tid];
+}</code></pre>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Hillis-Steele 의 step 들 (n=8)</span><span>stride 1, 2, 4</span></div>
+    <div class="l20-arr">
+      <span class="lbl">step 0</span>
+      <span class="cell">a</span><span class="cell">b</span><span class="cell">c</span><span class="cell">d</span><span class="cell">e</span><span class="cell">f</span><span class="cell">g</span><span class="cell">h</span>
+    </div>
+    <div class="l20-arr">
+      <span class="lbl">step 1</span>
+      <span class="cell">a</span><span class="cell acc">a..b</span><span class="cell acc">b..c</span><span class="cell acc">c..d</span><span class="cell acc">d..e</span><span class="cell acc">e..f</span><span class="cell acc">f..g</span><span class="cell acc">g..h</span>
+    </div>
+    <div class="l20-arr">
+      <span class="lbl">step 2</span>
+      <span class="cell">a</span><span class="cell">a..b</span><span class="cell acc">a..c</span><span class="cell acc">a..d</span><span class="cell acc">b..e</span><span class="cell acc">c..f</span><span class="cell acc">d..g</span><span class="cell acc">e..h</span>
+    </div>
+    <div class="l20-arr">
+      <span class="lbl">step 3</span>
+      <span class="cell">a</span><span class="cell">a..b</span><span class="cell">a..c</span><span class="cell">a..d</span><span class="cell acc">a..e</span><span class="cell acc">a..f</span><span class="cell acc">a..g</span><span class="cell acc">a..h</span>
+    </div>
+    <div class="viz-note">3 step 만에 모두 자기 prefix sum. 일반화하면 <strong>step = log₂(n)</strong>. 그런데 work 는 <strong>n·log(n)</strong> — 매 step 마다 거의 모든 thread 가 add 한다. sequential 의 n 보다 log(n) 배 많은 일.</div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">언제 Hillis-Steele 가 이기는가</div>
+    <p>n 이 작을 때(예: 32, warp 크기). 코드가 매우 단순하고 control divergence 가 거의 없어서 instruction 효율이 높다. <code>__shfl_up_sync</code> 같은 warp shuffle 로 구현하면 <em>shared memory 도 안 쓰고</em> warp 안에서 끝난다 — § 21 에서 다시 등장.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>Brent-Kung (Blelloch) scan</b><span>· work-efficient tree</span></div>
+    <h2>tree 위로 reduce → tree 아래로 distribute — work O(n)</h2>
+  </div>
+  <p class="sec-lede">두 phase 알고리즘. <strong>up-sweep (reduce)</strong> — binary tree 를 위로 올라가면서 partial sum 을 모은다. <strong>down-sweep</strong> — 트리를 다시 내려오면서 누적값을 분배한다.</p>
+
+  <div class="viz l20-tree">
+    <div class="viz-cap"><span>FIG · Brent-Kung up-sweep (n=8)</span><span>partial sum 누적</span></div>
+    <svg viewBox="0 0 520 200">
+      <!-- bottom row -->
+      <g>
+        <rect x="20"  y="160" width="48" height="28" rx="3" class="node"/><text x="44"  y="178" text-anchor="middle">a</text>
+        <rect x="80"  y="160" width="48" height="28" rx="3" class="node hi"/><text x="104" y="178" text-anchor="middle" class="on-acc">a+b</text>
+        <rect x="140" y="160" width="48" height="28" rx="3" class="node"/><text x="164" y="178" text-anchor="middle">c</text>
+        <rect x="200" y="160" width="48" height="28" rx="3" class="node hi"/><text x="224" y="178" text-anchor="middle" class="on-acc">a..d</text>
+        <rect x="260" y="160" width="48" height="28" rx="3" class="node"/><text x="284" y="178" text-anchor="middle">e</text>
+        <rect x="320" y="160" width="48" height="28" rx="3" class="node hi"/><text x="344" y="178" text-anchor="middle" class="on-acc">e+f</text>
+        <rect x="380" y="160" width="48" height="28" rx="3" class="node"/><text x="404" y="178" text-anchor="middle">g</text>
+        <rect x="440" y="160" width="48" height="28" rx="3" class="node hi"/><text x="464" y="178" text-anchor="middle" class="on-acc">a..h</text>
+      </g>
+      <!-- edges -->
+      <g>
+        <path d="M44 160 L104 132" class="ed acc"/>
+        <path d="M104 160 L104 132" class="ed acc"/>
+        <path d="M164 160 L224 132" class="ed acc"/>
+        <path d="M224 160 L224 132" class="ed acc"/>
+        <path d="M284 160 L344 132" class="ed acc"/>
+        <path d="M344 160 L344 132" class="ed acc"/>
+        <path d="M404 160 L464 132" class="ed acc"/>
+        <path d="M464 160 L464 132" class="ed acc"/>
+      </g>
+      <text x="20"  y="120" text-anchor="start" fill="var(--ink-soft)">step 1 — partial sums of pairs</text>
+      <text x="20"  y="80"  text-anchor="start" fill="var(--ink-soft)">step 2 — partial sums of quads</text>
+      <text x="20"  y="40"  text-anchor="start" fill="var(--ink-soft)">step 3 — total sum at root</text>
+    </svg>
+    <div class="viz-note">log(n) step. 각 step 의 work 가 절반씩 줄어 — 총 work = n−1 (sequential 과 동일). 그 후 down-sweep 이 또 log(n) step 으로 누적값을 트리 아래로 뿌린다. <strong>총 work O(n), 총 step 2log(n)</strong>.</div>
+  </div>
+
+<pre><code><span style="color:#A99E89">// Brent-Kung — 약식 (up-sweep)</span>
+<span style="color:#E7B369">for</span> (stride = <span style="color:#E7B369">1</span>; stride &lt; BLOCK; stride *= <span style="color:#E7B369">2</span>) {
+  <span style="color:#E7B369">int</span> idx = (tid + <span style="color:#E7B369">1</span>) * stride * <span style="color:#E7B369">2</span> - <span style="color:#E7B369">1</span>;
+  <span style="color:#E7B369">if</span> (idx &lt; BLOCK) buf[idx] += buf[idx - stride];
+  __syncthreads();
+}
+<span style="color:#A99E89">// down-sweep (exclusive 의 경우 root 를 0 으로 set 후)</span>
+<span style="color:#E7B369">for</span> (stride = BLOCK/<span style="color:#E7B369">2</span>; stride &gt; <span style="color:#E7B369">0</span>; stride /= <span style="color:#E7B369">2</span>) {
+  <span style="color:#E7B369">int</span> idx = (tid + <span style="color:#E7B369">1</span>) * stride * <span style="color:#E7B369">2</span> - <span style="color:#E7B369">1</span>;
+  <span style="color:#E7B369">if</span> (idx + stride &lt; BLOCK) {
+    <span style="color:#E7B369">float</span> t = buf[idx];
+    buf[idx] += buf[idx - stride];
+    buf[idx - stride] = t;
+  }
+  __syncthreads();
+}</code></pre>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>work vs step efficiency</b><span>· 두 비용 축</span></div>
+    <h2>같은 결과, 두 가지 가격표 — 알고리즘을 비교하는 정식 frame</h2>
+  </div>
+  <p class="sec-lede">PMPP 가 가르치는 정식 frame. <strong>work efficiency</strong> = 알고리즘이 sequential 과 같은 op 수를 쓰는가. <strong>step efficiency</strong> = critical path 의 길이가 얼마나 짧은가. 두 축은 trade-off — Hillis-Steele 은 step 이 짧지만 work 가 많다.</p>
+
+  <div class="l20-cmp">
+    <div class="col">
+      <h4>Hillis-Steele</h4>
+      <div class="stat"><span class="k">total work</span><span class="v warn">O(n log n)</span></div>
+      <div class="stat"><span class="k">step (depth)</span><span class="v good">log₂(n)</span></div>
+      <div class="stat"><span class="k">work-efficient?</span><span class="v warn">no</span></div>
+      <div class="stat"><span class="k">step-efficient?</span><span class="v good">yes</span></div>
+      <div class="stat"><span class="k">코드 복잡도</span><span class="v good">simple</span></div>
+      <div class="stat"><span class="k">언제 좋은가</span><span class="v">n 작을 때</span></div>
+    </div>
+    <div class="col hi">
+      <h4>Brent-Kung (Blelloch)</h4>
+      <div class="stat"><span class="k">total work</span><span class="v good">O(n)</span></div>
+      <div class="stat"><span class="k">step (depth)</span><span class="v">2·log₂(n)</span></div>
+      <div class="stat"><span class="k">work-efficient?</span><span class="v good">yes</span></div>
+      <div class="stat"><span class="k">step-efficient?</span><span class="v">2× 의 step</span></div>
+      <div class="stat"><span class="k">코드 복잡도</span><span class="v warn">more</span></div>
+      <div class="stat"><span class="k">언제 좋은가</span><span class="v">n 클 때</span></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">실전의 진실</div>
+    <p>둘 다 “순수” 형태로는 거의 안 쓰인다. 대부분의 production 코드는 <strong>warp-level Hillis-Steele + block-level Brent-Kung + grid-level decoupled lookback</strong> 의 hierarchical 합성. 이 합성이 <a href="lecture_021.html">L021</a> 의 main 주제. 그리고 <a href="lecture_024.html">L024</a> 가 “speed of light” 까지 짜내는 영역.</p>
+  </div>
+
+  <div class="pull">“sequential 과 같은 work 를 유지하면서 step 만 줄이는 게 좋은 GPU 알고리즘이다 — Brent-Kung 이 그 정신을 가장 깔끔하게 보여준다.”<span class="by">Izzat El Haj (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>double buffering</b><span>· in-place 의 함정</span></div>
+    <h2>같은 buffer 에 read 와 write 가 섞이면 race</h2>
+  </div>
+  <p class="sec-lede">강의에서 Izzat 이 직접 보여준 작은 “함정”. naive 한 Hillis-Steele 구현은 <code>buf[tid] = buf[tid] + buf[tid - stride]</code> — 같은 buffer 에 읽고 쓴다. 어떤 thread 가 자기 자리를 update 한 뒤, 다른 thread 가 그 update 된 값을 읽으면 결과가 망가진다.</p>
+
+<pre><code><span style="color:#A99E89">// 잘못된 in-place — race condition</span>
+<span style="color:#E7B369">if</span> (tid &gt;= stride)
+  buf[tid] += buf[tid - stride];   <span style="color:#A99E89">// race!</span>
+__syncthreads();</code></pre>
+
+  <p>해결은 <strong>double buffering</strong> — read 와 write 를 다른 buffer 로 분리, 매 step 마다 swap. <code>buf[2][BLOCK]</code> 으로 두 개를 두고 <code>read</code>, <code>write</code> index 를 toggle.</p>
+
+  <div class="callout">
+    <div class="label">trade-off</div>
+    <p>shared memory 사용량이 2배. 작은 BLOCK 에서는 문제 없고, 큰 BLOCK (1024+) 에서는 occupancy 에 영향. Brent-Kung 은 in-place 가 안전하다 — read 와 write 의 자리가 step 별로 disjoint 하기 때문.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>__syncthreads + memory model</b><span>· independent thread scheduling</span></div>
+    <h2>같은 warp 안 thread 도 “SIMD 처럼 동시에 도는 것” 이 더 이상 보장되지 않는다</h2>
+  </div>
+  <p class="sec-lede">강의의 미묘한 디테일. Volta 이전 GPU 에서는 같은 warp 의 32 thread 가 lockstep 으로 도는 게 자연스러운 가정이었다 — warp-internal 동기화가 implicit. Volta 부터 <strong>independent thread scheduling</strong> 이 들어가서 — warp 안 thread 들이 더 이상 lockstep 으로 도는 게 보장되지 않는다.</p>
+
+  <div class="callout">
+    <div class="label">Volta+ 에서 안전하게 짜는 법</div>
+    <p>warp 안에서 다른 thread 가 쓴 결과를 읽으려면 — (1) <code>__syncwarp()</code> 로 명시적 barrier, (2) <code>__shfl_*_sync</code> 같은 sync 가 명시된 collective 만 사용. compiler 도 memory 명령 reorder 를 더 적극적으로 한다 — <code>volatile</code> 또는 <code>__threadfence_block()</code> 가 필요한 경우 늘어남.</p>
+  </div>
+
+  <p>그리고 강의의 또 한 자리 — 같은 warp 안 thread 들 사이에서도 ordering 보장이 약해서 <em>“thread A 가 buf[5] 에 쓰고 thread B 가 그 직후 buf[5] 를 읽는다”</em> 같은 패턴은 <code>__syncthreads()</code> 또는 <code>__syncwarp()</code> 없이는 안전하지 않다. scan 처럼 stride 마다 의존성이 바뀌는 알고리즘에서 매 step 후 <strong>반드시 sync</strong>.</p>
+
+<pre><code><span style="color:#A99E89">// 안전한 패턴 (Volta+)</span>
+<span style="color:#E7B369">for</span> (stride = <span style="color:#E7B369">1</span>; stride &lt; BLOCK; stride *= <span style="color:#E7B369">2</span>) {
+  <span style="color:#E7B369">float</span> v = (tid &gt;= stride) ? buf[read][tid - stride] : <span style="color:#E7B369">0.0f</span>;
+  __syncthreads();
+  buf[write][tid] = buf[read][tid] + v;
+  __syncthreads();
+  read ^= <span style="color:#E7B369">1</span>; write ^= <span style="color:#E7B369">1</span>;
+}</code></pre>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>scan 의 응용</b><span>· radix · compaction</span></div>
+    <h2>왜 이 알고리즘이 GPU 컴퓨팅의 “핵심 5개 primitive” 중 하나인가</h2>
+  </div>
+  <p class="sec-lede">강의 끝부분에서 짧게 짚는 자리지만, scan 이 어디에 쓰이는지 이해하지 않으면 <em>“왜 이렇게 깊이 들어가는가”</em> 의 동기가 약해진다. 대표 응용 5가지.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">stream compaction</div>
+      <div class="d">filter — 조건을 만족하는 element 만 모아서 dense array. 각 element 가 “포함됨? 0/1” 의 mask 를 만든 뒤, mask 에 exclusive scan → 결과의 i 번째 자리. <a href="lecture_019.html">L019</a> 의 SQL filter.</div>
+    </div>
+    <div class="term">
+      <div class="t">radix sort</div>
+      <div class="d">매 bit 단계마다 0-bit 와 1-bit 를 분리. 그 분리가 정확히 stream compaction 두 번. radix sort 의 cost 가 거의 다 scan.</div>
+    </div>
+    <div class="term">
+      <div class="t">segmented reduction</div>
+      <div class="d">서로 다른 길이의 segment 들의 합을 한 번에. segment boundary 를 mask 로 두고 inclusive scan-with-reset.</div>
+    </div>
+    <div class="term">
+      <div class="t">CSV / JSON 파싱</div>
+      <div class="d"><a href="lecture_019.html">L019</a> § 04 — newline 누적이 row index, comma 누적이 col index. 파싱이 곧 scan.</div>
+    </div>
+    <div class="term">
+      <div class="t">dynamic memory alloc</div>
+      <div class="d">각 thread 가 “나는 N byte 가 필요” 라고 말하면 — 그 N 들의 exclusive scan 이 곧 각 thread 의 시작 offset.</div>
+    </div>
+    <div class="term">
+      <div class="t">sparse matrix · CSR</div>
+      <div class="d">CSR row offset 이 곧 row 별 nnz 의 prefix sum. matrix construction 의 첫 단계.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드 자료</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">inclusive vs exclusive</div>
+      <div class="d">같은 데이터의 한 칸 shift. 거의 모든 알고리즘은 exclusive 가 자연 (radix, compaction, alloc).</div>
+    </div>
+    <div class="term">
+      <div class="t">Hillis-Steele</div>
+      <div class="d">stride doubling. work O(n log n), step log(n). 코드 단순. 작은 n 에 좋음. warp-level 의 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">Brent-Kung</div>
+      <div class="d">up-sweep + down-sweep. work O(n), step 2log(n). work-efficient. block-level 의 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">work vs step</div>
+      <div class="d">두 비용 축. 알고리즘 비교의 frame. Hillis-Steele = step 우선, Brent-Kung = work 우선.</div>
+    </div>
+    <div class="term">
+      <div class="t">double buffering</div>
+      <div class="d">in-place race 회피. shared memory 2배. Brent-Kung 은 in-place 안전 (자리가 disjoint).</div>
+    </div>
+    <div class="term">
+      <div class="t">__syncthreads() 매 step</div>
+      <div class="d">stride 마다 의존성 바뀜 — 반드시 sync. Volta+ 에서는 warp-level 도 <code>__syncwarp()</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">single-block 한계</div>
+      <div class="d">이 강의는 한 block 안 (≤1024 element). 더 큰 array 는 part 2 (L021) 의 multi-block scan / decoupled lookback.</div>
+    </div>
+    <div class="term">
+      <div class="t">scan 의 응용</div>
+      <div class="d">compaction, radix, segmented reduce, parsing, alloc, sparse — GPU 컴퓨팅의 거의 모든 곳.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=ZKrWyEqqPVY" target="_blank" rel="noopener">youtube.com/watch?v=ZKrWyEqqPVY</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://docs.google.com/presentation/d/1MEMsE5LKi6ush_60hlYu3-cz4DUCFzSL/edit" target="_blank" rel="noopener">Google Slides — Scan part 1+2</a></span>
+    </div>
+    <div class="row">
+      <span class="k">교재</span>
+      <span class="v">PMPP (Programming Massively Parallel Processors), 4th ed., Ch. 11 — Prefix Sum (Scan)</span>
+    </div>
+    <div class="row">
+      <span class="k">참고 구현</span>
+      <span class="v">
+        <a href="https://github.com/NVIDIA/cccl/tree/main/cub" target="_blank" rel="noopener">CUB — DeviceScan / BlockScan</a> ·
+        <a href="https://github.com/NVIDIA/cccl/tree/main/thrust" target="_blank" rel="noopener">Thrust — exclusive_scan</a>
+      </span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>Hillis-Steele 직접 짜기</strong> — n=1024 의 single-block scan. shared memory + double buffer. CPU sequential 결과와 비교.</li>
+    <li><strong>Brent-Kung up/down sweep</strong> — index 계산 (idx = (tid+1) * 2*stride − 1) 을 종이에 그려보고 코드로. exclusive 와 inclusive 두 버전.</li>
+    <li><strong>work-vs-step 측정</strong> — 두 알고리즘의 add 호출 수를 카운트해서 sequential 대비 비율 확인. n=1024 면 Hillis-Steele 약 10×, Brent-Kung 약 1×.</li>
+    <li><strong>volatile/__syncwarp 실험</strong> — Hillis-Steele 의 inner loop 에서 sync 없이 돌려보고 결과가 nondeterministic 한지 확인.</li>
+    <li><strong>warp shuffle 버전</strong> — <code>__shfl_up_sync</code> 로 32-thread Hillis-Steele. shared memory 안 쓰고 register-only.</li>
+    <li><strong>compaction 만들기</strong> — random array 의 “positive only” compaction 을 mask + exclusive scan + scatter 로 직접.</li>
+    <li><strong>NCU 비교</strong> — 두 알고리즘의 instruction count, achieved occupancy, scoreboard stall. work-efficient 가 항상 빠른지 직접 검증.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>scan 이 다음 강의들에서 어떻게 다시 등장하는지</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_021.html">
+      <div class="n">L021</div>
+      <div class="ti">Scan Algorithm Part 2</div>
+      <div class="by">Izzat El Haj — multi-block scan, warp-level + block-level 합성. 이 강의의 직접 후속</div>
+    </a>
+    <a class="conn" href="lecture_024.html">
+      <div class="n">L024</div>
+      <div class="ti">Scan at the Speed of Light</div>
+      <div class="by">Jake Hemstad — speed-of-light analysis, decoupled lookback, CUB internals</div>
+    </a>
+    <a class="conn" href="lecture_009.html">
+      <div class="n">L009</div>
+      <div class="ti">Reductions</div>
+      <div class="by">— scan 의 표면적이 작아진 sibling. up-sweep 만 하면 reduction</div>
+    </a>
+    <a class="conn" href="lecture_019.html">
+      <div class="n">L019</div>
+      <div class="ti">Data Processing on GPUs</div>
+      <div class="by">Devavret Makkar — § 04 의 CSV 파서가 scan 의 최대 응용 사례</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">Profiling CUDA kernels</div>
+      <div class="by">— 두 scan 알고리즘의 NCU 비교에서 그 도구를 씀</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA</div>
+      <div class="by">Jeremy Howard — shared memory, double buffer, vectorized load 의 실전 패턴</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>shared memory bank conflict</strong> — Brent-Kung 의 index 패턴이 bank conflict 를 만드는 자리가 있다. PMPP 가 padding trick (CONFLICT_FREE_OFFSET) 으로 해결. 강의에서는 짧게 언급.</li>
+    <li><strong>warp shuffle scan</strong> — 강의에서는 일반 shared memory 버전 위주. <code>__shfl_up_sync</code> 의 정식 코드는 <a href="lecture_021.html">L021</a> 의 영역.</li>
+    <li><strong>inclusive ↔ exclusive 변환의 비용</strong> — exclusive 를 inclusive 로 바꿀 때 한 step 의 추가 work. 강의의 BLOCK 안에서는 무시할 수 있지만 multi-block 으로 가면 의미 있음.</li>
+    <li><strong>thread coarsening</strong> — 한 thread 가 여러 element 처리해서 work 를 키우는 대신 BLOCK 의 thread 수를 줄이는 트릭. <a href="lecture_021.html">L021</a> 의 본격 주제.</li>
+    <li><strong>strict CCCL 비교</strong> — CUB 의 <code>BlockScan</code> 이 정확히 어떤 알고리즘 (RAKING/WARP_SCANS/MATRIX) 을 default 로 쓰는지 직접 source 확인.</li>
+    <li><strong>numerical stability</strong> — float scan 은 더하는 순서에 따라 round-off 누적 차이가 있다. associative 가 numerical 로는 정확히 성립하지 않음. 강의에서 언급 안 됨 — 후속 자료로 보강.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 step 도식과 코드는 PMPP 의 표준 표현을 따른다. 자기 GPU 에서 직접 두 알고리즘을 짜고 NCU 로 work/step 을 측정해보면 그래프가 손에 박힌다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_019.html">
+    <span class="lbl">← Lecture 019</span>
+    <span class="nm">Data Processing on GPUs — Devavret Makkar</span>
+  </a>
+  <a class="nxt" href="lecture_021.html">
+    <span class="lbl">Lecture 021 →</span>
+    <span class="nm">Scan Algorithm Part 2 — multi-block, warp-level, thread coarsening</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L020 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

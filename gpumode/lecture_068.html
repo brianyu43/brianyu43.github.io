@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L068 · Landscape of GPU-centric Communication · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l68-map{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l68-tab{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l68-tab .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:10px;color:var(--muted);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l68-tab .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:10px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:6px;align-items:center}
+.l68-tab .row .nm{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l68-tab .row .v{color:var(--ink-soft)}
+.l68-tab .row .v.hi{color:var(--accent);font-weight:700}
+.l68-tab .row.hi{border-color:var(--accent)}
+.l68-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.l68-card{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l68-card .h{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
+.l68-card .b{color:var(--ink);font-size:14px;font-weight:600;font-family:'Pretendard',sans-serif;margin-bottom:4px}
+.l68-card .d{color:var(--ink-soft);font-size:12.5px;line-height:1.5}
+.l68-card.acc{border-color:var(--accent);background:var(--bg-soft)}
+@media (max-width:760px){
+  .l68-grid{grid-template-columns:1fr}
+  .l68-tab .h,.l68-tab .row{grid-template-columns:1.2fr 1fr 1fr}
+  .l68-tab .h span:nth-child(n+5),.l68-tab .row .v:nth-child(n+5){display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_067.html">← L067</a>
+    <a href="lecture_069.html">L069 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L068</span>
+    <span>2025 · Survey lecture</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>The Landscape of GPU-centric Communication</h1>
+  <p class="dek">한 강의 안에 <strong>NCCL · NVSHMEM · MSCCL · MPI · Gloo · UCC · GPUDirect · IBGDA</strong> 가 모두 들어간다. Didem Unat 의 이 강의는 — 개별 라이브러리의 깊이가 아니라 — <em>GPU 중심 통신 생태계의 좌표계</em>를 그린다. 어디에 무엇이 있는지, 무엇이 무엇을 대체하지 않고 보완하는지, 어떤 axis 로 비교해야 하는지. 학술 survey 의 정신으로 깐 강의.</p>
+
+  <div class="chips">
+    <span class="chip hi">survey</span>
+    <span class="chip hi">collective</span>
+    <span class="chip hi">P2P</span>
+    <span class="chip">RDMA</span>
+    <span class="chip">GPUDirect</span>
+    <span class="chip">DGX topology</span>
+    <span class="chip">multi-node</span>
+    <span class="chip">MSCCL</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">D</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Didem Unat</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Koç University · GPU communication 연구 그룹</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L068</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Didem Unat</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">강의 형식</div><div class="val">survey / map</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why a map</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">collective vs P2P 정리</span><span class="em">two communication shapes</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">NCCL · MSCCL · Gloo · MPI 비교</span><span class="em">library landscape</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">RDMA · GPUDirect · NVSHMEM 위치</span><span class="em">the transport stack</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">DGX topology 매핑</span><span class="em">where the wires are</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">다중 노드 패턴</span><span class="em">cross-rail · IB · Ethernet</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">새 hardware</span><span class="em">NVL72 · UALink · ICI</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">production trade-off</span><span class="em">debug · stability</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 발전</span><span class="em">where the field heads</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why a map</span></div>
+    <h2>“NCCL 만 알면 되는 줄 알았는데, 새 페이퍼마다 다른 라이브러리가 등장한다”</h2>
+  </div>
+  <p class="sec-lede">2024-2025 시스템 페이퍼를 읽다 보면 라이브러리 이름이 폭발적으로 늘어난다. NCCL · MSCCL · NVSHMEM · UCC · UCX · Gloo · MPI · oneCCL · RCCL · NCCL-Net · IBGDA · GPUDirect Storage. 각자 정확히 어디에 있고 무엇을 약속하는가? 강의의 답은 <strong>한 장의 좌표계</strong>다.</p>
+
+  <p>Didem 이 깐 좌표계의 두 축.</p>
+  <ol>
+    <li><strong>communication shape</strong> — collective (모두 참여) vs P2P / one-sided (한 쪽 참여)</li>
+    <li><strong>스택 레이어</strong> — application API → algorithm → transport → hardware</li>
+  </ol>
+
+  <p>이 두 축 위에 모든 라이브러리가 정확한 위치를 가진다. 같은 점에 두 라이브러리가 있으면 경쟁, 다른 점에 있으면 상보. 이 분리 자체가 강의의 가장 큰 가치.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“라이브러리 이름이 너무 많다” 는 사실 중요한 신호다 — <em>해결되지 않은 trade-off 가 많다는 뜻</em>. 한 도구로 모두 풀리면 다른 도구가 안 만들어진다. 따라서 각 라이브러리가 어떤 trade-off 의 어느 쪽에 서 있는지 보면, 도메인의 미해결 문제가 보인다.</p>
+  </div>
+
+  <div class="pull">“같은 NVLink 위에 4-5개 라이브러리가 도는 건 비효율이 아니다 — 다른 패턴을 약속하는 다른 추상이 필요하다는 신호다.”<span class="by">강의 §1 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>collective vs P2P 정리</b><span>· Two communication shapes</span></div>
+    <h2>모든 GPU 통신은 결국 두 모양 중 하나로 환원된다</h2>
+  </div>
+  <p class="sec-lede">다양한 라이브러리가 등장해도 본질적으로 약속하는 communication shape 는 두 가지. <strong>collective</strong> — 미리 정해진 그룹의 모든 GPU 가 같은 일에 참여. <strong>P2P / one-sided</strong> — 한 GPU 가 다른 한 GPU 에 직접 access.</p>
+
+  <div class="l68-grid">
+    <div class="l68-card acc">
+      <div class="h">shape 1 · collective</div>
+      <div class="b">모두 참여, 동기적</div>
+      <div class="d">allreduce, allgather, broadcast, alltoall. 학습 코드의 표준. <em>topology 인지 algorithm</em>이 가능 — ring, tree, double binary tree. 라이브러리: <strong>NCCL, MPI, Gloo, UCC, oneCCL, RCCL</strong>.</div>
+    </div>
+    <div class="l68-card acc">
+      <div class="h">shape 2 · P2P / one-sided</div>
+      <div class="b">한 쪽만 부르면 끝</div>
+      <div class="d">put, get, send, recv, atomic. <em>fine-grained, asymmetric</em> 패턴 — MoE dispatch, halo exchange, sparse pattern. 라이브러리: <strong>NVSHMEM, MPI one-sided, GPUDirect P2P</strong>.</div>
+    </div>
+    <div class="l68-card">
+      <div class="h">shape 1.5 · scheduled collective</div>
+      <div class="b">collective 의 사용자 정의</div>
+      <div class="d">미리 컴파일된 알고리즘 그래프. <em>MSCCL / MSCCL++</em> 가 대표 — 사용자가 directed graph 로 알고리즘을 적고 NCCL 위에 올림. 표준 collective 가 못 잡는 패턴 (e.g., latency-critical alltoall).</div>
+    </div>
+    <div class="l68-card">
+      <div class="h">shape 2.5 · streaming P2P</div>
+      <div class="b">async-capable P2P</div>
+      <div class="d"><code>cudaMemcpyPeerAsync</code>, GPUDirect P2P, NVLink direct load/store. <em>hardware-supported P2P</em> 의 가장 raw 한 형태. 라이브러리 추상이 거의 없음.</div>
+    </div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">왜 두 개를 모두 가지는가</h3>
+  <p>collective 는 <em>“비슷한 패턴이 반복”</em> 인 경우의 BW 효율을, P2P 는 <em>“불규칙하거나 작은 메시지”</em> 의 latency 효율을 제공한다. ML workload 의 양면이 모두 등장하기 때문에 둘 다 필요하다 — 학습 루프의 gradient sync 는 collective, MoE expert dispatch 는 P2P.</p>
+
+  <div class="pull">“collective 는 ‘버스 시간표’, P2P 는 ‘우버’. 둘 다 같은 도시에서 도는 이유와 같은 이유로 GPU 클러스터에 둘 다 있다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>NCCL · MSCCL · Gloo · MPI 비교</b><span>· Library landscape</span></div>
+    <h2>같은 collective shape, 다른 약속들 — 어디에 무엇이 있는가</h2>
+  </div>
+  <p class="sec-lede">collective 한 shape 안에서도 라이브러리 별로 약속이 다르다. NCCL 의 자동 topology 최적화, MSCCL 의 사용자 정의 알고리즘, MPI 의 multi-vendor 호환성, Gloo 의 CPU fallback. 같은 함수 시그너처라도 안에서 무엇을 하는지가 다르다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · collective 라이브러리 11 차원 비교</span><span>같은 shape, 다른 trade-off</span></div>
+    <div class="l68-tab">
+      <div class="h"><span>라이브러리</span><span>벤더</span><span>backend</span><span>강점</span><span>위치</span></div>
+      <div class="row hi"><span class="nm">NCCL</span><span class="v">NVIDIA</span><span class="v">CUDA</span><span class="v hi">속도, topology</span><span class="v">기본</span></div>
+      <div class="row"><span class="nm">RCCL</span><span class="v">AMD</span><span class="v">HIP</span><span class="v">NCCL API 호환</span><span class="v">AMD 의 NCCL</span></div>
+      <div class="row hi"><span class="nm">MSCCL / MSCCL++</span><span class="v">MS / NVIDIA</span><span class="v">CUDA</span><span class="v hi">사용자 정의 알고리즘</span><span class="v">NCCL 위 layer</span></div>
+      <div class="row"><span class="nm">Gloo</span><span class="v">Meta</span><span class="v">CPU + CUDA</span><span class="v">CPU fallback</span><span class="v">PyTorch backup</span></div>
+      <div class="row"><span class="nm">MPI (OpenMPI, MPICH)</span><span class="v">multi</span><span class="v">CPU + CUDA-aware</span><span class="v">HPC 표준</span><span class="v">supercomputer</span></div>
+      <div class="row"><span class="nm">UCC / UCX</span><span class="v">multi</span><span class="v">multi</span><span class="v">unified collective</span><span class="v">vendor neutral</span></div>
+      <div class="row"><span class="nm">oneCCL</span><span class="v">Intel</span><span class="v">SYCL</span><span class="v">Intel GPU 계열</span><span class="v">Intel 의 NCCL</span></div>
+      <div class="row hi"><span class="nm">NVSHMEM (P2P)</span><span class="v">NVIDIA</span><span class="v">CUDA</span><span class="v hi">PGAS, device-side</span><span class="v">P2P 의 표준</span></div>
+      <div class="row"><span class="nm">DeepEP</span><span class="v">DeepSeek</span><span class="v">CUDA + NVSHMEM</span><span class="v">MoE dispatch</span><span class="v">application kernel</span></div>
+      <div class="row"><span class="nm">PCCL</span><span class="v">실험적</span><span class="v">multi</span><span class="v">fault tolerance</span><span class="v">L070 강의</span></div>
+      <div class="row"><span class="nm">torch.distributed</span><span class="v">PyTorch</span><span class="v">위 backend</span><span class="v">통합 API</span><span class="v">user-facing</span></div>
+    </div>
+    <div class="viz-note">PyTorch 에서 <code>backend='nccl'</code> 또는 <code>'gloo'</code> 또는 <code>'mpi'</code> 를 고르면 그 backend 의 collective 가 호출된다. <strong>PyTorch 는 추상이고, NCCL/Gloo/MPI 는 구현</strong>. 같은 <code>all_reduce</code> 호출이 backend 마다 다른 알고리즘으로 풀린다.</div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">MSCCL — collective 를 코드처럼 적는 시도</h3>
+  <p>MSCCL 의 의의는 — collective 알고리즘이 더 이상 라이브러리에 박힌 black box 가 아니라, <em>사용자가 작성하는 그래프</em>가 된다는 점. <code>chunk → connection → step</code> 으로 각 단계의 데이터 이동을 명시적으로 적는다. NCCL 이 자동으로 골라주지 못하는 패턴 (예: 비대칭 토폴로지 위의 alltoall) 을 직접 짤 수 있다. Microsoft 의 large-scale 학습 인프라에서 시작해 NVIDIA 가 MSCCL++ 로 흡수.</p>
+
+  <div class="callout">
+    <div class="label">실전 가이드</div>
+    <p>처음에는 <strong>NCCL</strong> 만 쓴다. 토폴로지가 표준 (DGX, single rail IB) 이면 NCCL 이 자동으로 잘 푼다. <em>비표준 토폴로지나 NCCL 이 잘 못 푸는 패턴</em>이 등장하면 그때 MSCCL 또는 NVSHMEM. 처음부터 다 쓰지 말 것.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>RDMA · GPUDirect · NVSHMEM 의 위치</b><span>· The transport stack</span></div>
+    <h2>“라이브러리” 와 “transport” 를 헷갈리지 않는다 — 4 layer stack</h2>
+  </div>
+  <p class="sec-lede">또 다른 흔한 혼동 — <strong>NCCL</strong> 과 <strong>RDMA</strong> 와 <strong>GPUDirect</strong> 가 같은 레벨인가? 답은 아니다. 셋은 서로 다른 layer 에 있다. 강의의 큰 frame: <em>application API → collective algorithm → transport → hardware</em> 의 4 layer.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GPU communication 의 4 layer stack</span><span>매핑이 명확해진다</span></div>
+    <svg viewBox="0 0 700 300" width="100%" height="300" style="font-family:'JetBrains Mono',monospace">
+      <!-- Layer 1: Application API -->
+      <rect x="40" y="20" width="620" height="50" class="box-soft"/>
+      <text x="50" y="40" class="lbl">L1 · APPLICATION API</text>
+      <rect x="60" y="40" width="140" height="22" class="box-paper"/><text x="130" y="55" class="tx" text-anchor="middle">torch.distributed</text>
+      <rect x="220" y="40" width="80" height="22" class="box-paper"/><text x="260" y="55" class="tx" text-anchor="middle">JAX</text>
+      <rect x="320" y="40" width="100" height="22" class="box-paper"/><text x="370" y="55" class="tx" text-anchor="middle">DeepSpeed</text>
+      <rect x="440" y="40" width="100" height="22" class="box-paper"/><text x="490" y="55" class="tx" text-anchor="middle">Megatron</text>
+      <rect x="560" y="40" width="80" height="22" class="box-paper"/><text x="600" y="55" class="tx" text-anchor="middle">user app</text>
+      <!-- Layer 2: Collective / P2P library -->
+      <rect x="40" y="85" width="620" height="50" class="box-deep"/>
+      <text x="50" y="105" class="lbl">L2 · COMMUNICATION LIBRARY</text>
+      <rect x="60" y="105" width="80" height="22" class="box-acc"/><text x="100" y="120" class="tx-hi" text-anchor="middle">NCCL</text>
+      <rect x="150" y="105" width="80" height="22" class="box-acc"/><text x="190" y="120" class="tx-hi" text-anchor="middle">MSCCL</text>
+      <rect x="240" y="105" width="80" height="22" class="box-acc"/><text x="280" y="120" class="tx-hi" text-anchor="middle">Gloo</text>
+      <rect x="330" y="105" width="80" height="22" class="box-acc"/><text x="370" y="120" class="tx-hi" text-anchor="middle">MPI</text>
+      <rect x="420" y="105" width="100" height="22" class="box-cool"/><text x="470" y="120" class="tx-hi" text-anchor="middle">NVSHMEM</text>
+      <rect x="530" y="105" width="100" height="22" class="box-cool"/><text x="580" y="120" class="tx-hi" text-anchor="middle">DeepEP</text>
+      <!-- Layer 3: Transport -->
+      <rect x="40" y="150" width="620" height="50" class="box-soft"/>
+      <text x="50" y="170" class="lbl">L3 · TRANSPORT</text>
+      <rect x="60" y="170" width="120" height="22" class="box-paper"/><text x="120" y="185" class="tx" text-anchor="middle">GPUDirect P2P</text>
+      <rect x="190" y="170" width="120" height="22" class="box-paper"/><text x="250" y="185" class="tx" text-anchor="middle">GPUDirect RDMA</text>
+      <rect x="320" y="170" width="100" height="22" class="box-paper"/><text x="370" y="185" class="tx" text-anchor="middle">IBGDA</text>
+      <rect x="430" y="170" width="100" height="22" class="box-paper"/><text x="480" y="185" class="tx" text-anchor="middle">UCX verbs</text>
+      <rect x="540" y="170" width="100" height="22" class="box-paper"/><text x="590" y="185" class="tx" text-anchor="middle">TCP/IP</text>
+      <!-- Layer 4: Hardware -->
+      <rect x="40" y="215" width="620" height="60" class="box-cool"/>
+      <text x="50" y="235" class="tx-hi">L4 · HARDWARE</text>
+      <rect x="60" y="240" width="100" height="28" class="box-paper"/><text x="110" y="258" class="tx" text-anchor="middle">NVLink/NVSwitch</text>
+      <rect x="170" y="240" width="100" height="28" class="box-paper"/><text x="220" y="258" class="tx" text-anchor="middle">PCIe</text>
+      <rect x="280" y="240" width="100" height="28" class="box-paper"/><text x="330" y="258" class="tx" text-anchor="middle">InfiniBand</text>
+      <rect x="390" y="240" width="100" height="28" class="box-paper"/><text x="440" y="258" class="tx" text-anchor="middle">RoCE / Ethernet</text>
+      <rect x="500" y="240" width="100" height="28" class="box-paper"/><text x="550" y="258" class="tx" text-anchor="middle">UALink (new)</text>
+      <rect x="610" y="240" width="40" height="28" class="box-paper"/><text x="630" y="258" class="tx" text-anchor="middle">ICI</text>
+    </svg>
+    <div class="viz-note">NCCL 은 <strong>L2</strong> 에 있고, GPUDirect/RDMA 는 <strong>L3</strong>에 있다. NCCL 이 GPUDirect RDMA 를 transport 로 “쓴다”. 같은 NCCL 호출이 노드 안에서는 GPUDirect P2P, 노드 사이는 GPUDirect RDMA 를 자동 선택.</div>
+  </div>
+
+  <p>이 stack 의 핵심 통찰 — <strong>같은 layer 안에서는 라이브러리들이 경쟁, 다른 layer 사이에서는 의존</strong>. NCCL 은 NVSHMEM 과 같은 layer 에서 다른 약속을 한다 (L2). NCCL 은 GPUDirect (L3) 위에 의존한다.</p>
+
+  <div class="callout cool">
+    <div class="label">GPUDirect 가 정확히 무엇인가</div>
+    <p>GPUDirect 는 단일 라이브러리가 아니라 <em>NVIDIA driver 의 기능 모음</em>. 세 가지 주요 변종 — <strong>P2P</strong> (같은 PCIe root 의 GPU 사이 직접 transfer), <strong>RDMA</strong> (NIC 가 host CPU 우회 GPU 메모리 access), <strong>Async / IBGDA</strong> (GPU 가 직접 IB verbs 발행). 각자 transport layer 의 일부.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>DGX topology 매핑</b><span>· Where the wires are</span></div>
+    <h2>같은 “8 GPU 노드” 안에서도 link 의 모양이 다르다</h2>
+  </div>
+  <p class="sec-lede">topology 는 algorithm 의 전제. 같은 8 GPU 노드라도 — DGX-1 (P100, ring NVLink), DGX-2 (V100, NVSwitch), DGX-A100 (A100, fully-connected NVSwitch), DGX-H100 (NVLink 4 + NVSwitch), DGX B200 (NVLink 5 + 더 큰 NVSwitch), GB200 NVL72 (72 GPU 의 NVLink fabric) — 모두 다르다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · DGX 세대별 topology</span><span>NVLink 의 진화</span></div>
+    <div class="l68-tab">
+      <div class="h"><span>세대</span><span>GPU</span><span>노드 내</span><span>BW (per pair)</span><span>알고리즘 영향</span></div>
+      <div class="row"><span class="nm">DGX-1 (2017)</span><span class="v">P100/V100 ×8</span><span class="v">cube-mesh NVLink</span><span class="v">~20 GB/s</span><span class="v">ring 자연스러움</span></div>
+      <div class="row hi"><span class="nm">DGX-2 (2018)</span><span class="v">V100 ×16</span><span class="v hi">NVSwitch 1</span><span class="v">~50 GB/s</span><span class="v">fully-connected</span></div>
+      <div class="row"><span class="nm">DGX-A100 (2020)</span><span class="v">A100 ×8</span><span class="v">NVSwitch 2</span><span class="v">~300 GB/s</span><span class="v">tree algorithm 효과</span></div>
+      <div class="row hi"><span class="nm">DGX-H100 (2023)</span><span class="v">H100 ×8</span><span class="v hi">NVSwitch 3 + SHARP</span><span class="v">~450 GB/s</span><span class="v">in-network reduction</span></div>
+      <div class="row"><span class="nm">DGX B200 (2024)</span><span class="v">B200 ×8</span><span class="v">NVSwitch 4</span><span class="v">~900 GB/s</span><span class="v">NVLink 5</span></div>
+      <div class="row hi"><span class="nm">GB200 NVL72 (2025)</span><span class="v">B200 ×72</span><span class="v hi">rack-scale NVLink</span><span class="v">~1.8 TB/s 가능</span><span class="v">노드/랙 경계 흐려짐</span></div>
+    </div>
+    <div class="viz-note"><strong>NVL72 의 의미</strong> — 72 GPU 가 “한 노드” 처럼 보임. 기존 “노드 내부 = NVLink, 노드 사이 = IB” 의 이분법이 깨진다. 알고리즘은 “rail 한 개로 큰 메시지” 를 가정하던 것에서 “여러 NVLink 도메인 + 그 사이 IB” 의 hierarchical 패턴으로 이동.</div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">SHARP — in-network reduction</h3>
+  <p>NVSwitch 3 (H100+) 부터 추가된 기능 — <strong>switch 자체가 reduction 을 수행</strong>. 8 GPU 의 gradient 를 NVSwitch 가 합산해서 한 번에 broadcast. ring 의 2(N-1) 단계를 1 단계로 압축. NCCL 이 자동으로 사용 (확인 필요, 환경에 따라 명시적 enable 필요).</p>
+
+  <div class="pull">“하드웨어가 algorithm 을 흡수한다 — SHARP 는 ring 알고리즘의 한 step 을 switch 안으로 이동시킨 일이다.”<span class="by">학습 노트 · §5</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>다중 노드 패턴</b><span>· Cross-rail · IB · Ethernet</span></div>
+    <h2>“노드 내부” 와 “노드 사이” 의 BW 차이가 30배 — 이게 모든 distributed algorithm 의 출발점</h2>
+  </div>
+  <p class="sec-lede">노드 내부의 NVLink 는 ~450 GB/s, 노드 사이의 InfiniBand 는 ~50 GB/s (NDR 400Gb 기준). 약 9-10배 차이. RoCE Ethernet 은 더 낮음. 이 비대칭이 모든 multi-node algorithm 의 출발점.</p>
+
+  <div class="split">
+    <div>
+      <p>대표 패턴 셋.</p>
+      <ul>
+        <li><strong>hierarchical allreduce</strong> — 노드 내부에서 먼저 reduce-scatter (NVLink), 노드 사이에서 ring allreduce (IB), 다시 노드 내부에서 allgather. NCCL 의 표준.</li>
+        <li><strong>multi-rail aggregation</strong> — 한 노드에 IB NIC 8개 (rail 8). 각 rail 이 독립적으로 한 GPU 의 traffic 을 처리. <em>NCCL 의 channel 수가 rail 수에 매칭</em>.</li>
+        <li><strong>tensor parallel 은 노드 내부, pipeline parallel 은 노드 사이</strong> — TP 는 high-frequency activation 통신, PP 는 low-frequency activation 통신. 통신 빈도가 wire 의 BW 와 정렬되도록 배치.</li>
+      </ul>
+      <div class="callout">
+        <div class="label">실전 매핑 룰</div>
+        <p>"빈번한 통신은 빠른 wire 위에" — TP 는 NVLink, PP 는 IB, DP 는 가장 느려도 무방하면 RoCE. 이 룰이 깨지면 학습 throughput 이 즉각 떨어진다.</p>
+      </div>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · BW 비대칭과 parallelism 매핑</span><span>30× gap</span></div>
+        <div class="bars">
+          <div class="row"><span class="lbl">NVLink (intra-node)</span><div class="bar"><span style="width:96%"></span></div><span class="val">450 GB/s</span></div>
+          <div class="row"><span class="lbl">NVLink (NVL72)</span><div class="bar"><span style="width:100%"></span></div><span class="val">~1.8 TB/s</span></div>
+          <div class="row"><span class="lbl">IB NDR ×8 rail</span><div class="bar cool"><span style="width:60%"></span></div><span class="val">400 GB/s</span></div>
+          <div class="row"><span class="lbl">IB NDR ×1 rail</span><div class="bar cool"><span style="width:14%"></span></div><span class="val">50 GB/s</span></div>
+          <div class="row"><span class="lbl">100 GbE</span><div class="bar sml"><span style="width:6%"></span></div><span class="val">12 GB/s</span></div>
+          <div class="row"><span class="lbl">PCIe 5 ×16</span><div class="bar sml"><span style="width:18%"></span></div><span class="val">63 GB/s</span></div>
+        </div>
+        <div class="viz-note">노드 사이 BW 는 <strong>multi-rail aggregation</strong>으로 끌어올린다. 한 노드에 IB NIC 8 개를 박아 800 Gb/s × 8 = 6.4 Tb/s ≈ 800 GB/s — NVLink 노드 내부와 비슷한 수준에 근접.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>새 hardware</b><span>· NVL72 · UALink · ICI</span></div>
+    <h2>“노드” 의 정의 자체가 바뀌고 있다</h2>
+  </div>
+  <p class="sec-lede">2025 의 frontier hardware 는 “노드 = 한 box” 의 정의를 깬다. NVIDIA NVL72 (rack-scale 72 GPU), UALink (open standard), Google TPU 의 ICI (3D torus), AMD MI300x 의 Infinity Fabric. 모두 <em>“NVLink 가 한 rack 을 덮는다”</em> 의 변종.</p>
+
+  <div class="l68-grid">
+    <div class="l68-card acc">
+      <div class="h">NVIDIA · NVL72</div>
+      <div class="b">72 GPU rack-scale NVLink</div>
+      <div class="d">한 rack 의 72 GPU 가 모두 NVLink 5 로 연결됨. 기존 8-GPU 노드 9 개를 한 노드처럼 다룸. <em>rack 단위가 새 “fast domain”</em>이 됨. NCCL 은 이걸 single-node 로 인식.</div>
+    </div>
+    <div class="l68-card">
+      <div class="h">UALink (Ultra Accelerator Link)</div>
+      <div class="b">vendor-neutral fabric</div>
+      <div class="d">AMD, Intel, Cisco, Meta, MS, Google 이 함께 미는 open standard. NVLink 의 대안. 라이브러리 입장에서는 transport 가 추가될 뿐이지만, vendor lock-in 의 풀림은 큰 의미.</div>
+    </div>
+    <div class="l68-card">
+      <div class="h">Google TPU · ICI</div>
+      <div class="b">3D torus / 4D mesh</div>
+      <div class="d">TPU 의 자체 fabric. all-to-all 패턴이 자연스럽게 빠른 토폴로지. NVLink 의 fully-connected 와 다른 trade-off. <em>JAX / pjit 의 sharding 이 ICI 토폴로지에 매핑</em>.</div>
+    </div>
+    <div class="l68-card">
+      <div class="h">AMD · Infinity Fabric</div>
+      <div class="b">MI300X 의 GPU 간 fabric</div>
+      <div class="d">RCCL 이 NCCL API 호환으로 위에 얹힘. xGMI 라는 transport 가 NVLink 자리. <em>ROCm 의 communication 스택은 점점 NVIDIA 와 비슷</em>한 layer 화 모양으로.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">관전 포인트</div>
+    <p>“노드 안 NVLink, 노드 사이 IB” 의 두 단계가, NVL72 시대에는 <strong>“rack 안 NVLink, rack 사이 IB / Ethernet”</strong>의 두 단계로 재정의된다. 알고리즘의 hierarchy 는 그대로 유지되지만 도메인 사이즈가 9 배. <em>같은 알고리즘이 9 배 큰 문제를 같은 BW 로 풀 수 있다</em>가 NVL72 의 약속.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>production trade-off</b><span>· Debug · stability</span></div>
+    <h2>“가장 빠른 것” 과 “가장 안정적인 것” 이 항상 같지는 않다</h2>
+  </div>
+  <p class="sec-lede">benchmark 위 1.2배 빠른 라이브러리가 production 에서 <em>잘못 갈 수 있다</em>. 실제로 production team 이 라이브러리를 고를 때의 기준은 속도가 아니라 stability + observability.</p>
+
+  <ul>
+    <li><strong>NCCL_DEBUG=INFO</strong> — NCCL 의 첫 디버깅 도구. 어떤 알고리즘을 골랐고 어떤 transport 위에서 도는지 stdout 에 찍힘. production 인시던트의 첫 진입점.</li>
+    <li><strong>silent corruption</strong> — 통신 결과가 틀린 채로 진행되는 경우. NCCL 은 fail-fast 가 default, 일부 transport 는 silent 가능성. <em>checkpoint validation</em> 이 추가 안전망.</li>
+    <li><strong>timeout tuning</strong> — <code>NCCL_TIMEOUT</code>, PyTorch 의 <code>init_process_group(timeout=...)</code>. 너무 짧으면 stragglers 에서 hang 으로 오인, 너무 길면 진짜 hang 인 것을 늦게 알아챔.</li>
+    <li><strong>incremental rollout</strong> — 새 라이브러리 (MSCCL, NVSHMEM) 는 일부 워크로드에서만 enable, 천천히 비율 늘림. 한 번에 다 바꾸면 회귀 원인 분석 불가.</li>
+  </ul>
+
+  <div class="pull">“production 의 1순위는 ‘오늘 죽지 않는 것’ 이지 ‘5% 빠른 것’ 이 아니다 — communication library 선택의 거의 모든 결정이 이 줄 위에 있다.”<span class="by">학습 노트 · §8</span></div>
+
+  <div class="callout">
+    <div class="label">관찰 가능성</div>
+    <p>multi-node 학습에서 “왜 step 시간이 갑자기 50% 늘었는가” 의 90% 는 communication 쪽. <em>NCCL 의 channel timeline, IB 의 link counter, NIC 의 retransmit count</em> 셋을 항상 본다. 이게 production GPU systems 엔지니어링의 일상.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 발전</b><span>· Where the field heads</span></div>
+    <h2>frontier 는 어디로 — compiler-driven, in-kernel, fault-tolerant</h2>
+  </div>
+  <p class="sec-lede">강의의 마무리. communication library 가 향하는 세 방향 — (a) compiler 가 통신을 자동 합성, (b) communication 이 kernel 안으로 들어감, (c) fault tolerance 가 default.</p>
+
+  <ul>
+    <li><strong>compiler-driven communication</strong> — JAX 의 <code>shard_map</code>, PyTorch 의 SPMD compiler 가 사용자 의도 (sharding spec) 만 받아서 collective 호출을 자동 삽입. 사용자가 NCCL 을 직접 안 부름.</li>
+    <li><strong>in-kernel communication</strong> — NVSHMEM device API, NCCL device API. <em>Triton + NVSHMEM</em> 같은 합성 (확인 필요) 으로 kernel 안에서 통신.</li>
+    <li><strong>fault-tolerant collective</strong> — <a href="lecture_070.html">L070 PCCL</a>, NCCL 3.x 의 design. 한 rank 의 죽음이 전체 학습을 죽이지 않는 model.</li>
+    <li><strong>networked attention</strong> — long-context 학습에서 KV cache 의 distributed sharding (Ring Attention, DistAttn). 알고리즘과 communication 의 경계가 흐려짐.</li>
+    <li><strong>heterogeneous fabric</strong> — UALink, NVLink, IB, RoCE 가 한 cluster 안에 섞임. 라이브러리가 자동으로 best path routing.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">사용자 입장의 결론</div>
+    <p>5년 후의 사용자는 <em>“NCCL allreduce 를 부른다”</em> 가 아니라 <em>“이 텐서가 모든 rank 에서 평균이어야 한다”</em> 라고만 적는다. 컴파일러가 토폴로지, 메시지 사이즈, fault profile 을 보고 알고리즘과 transport 를 자동으로 선택. <strong>이 강의의 landscape 가 그 시점에 “컴파일러의 search space”</strong>가 된다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· Key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">두 axis</div>
+      <div class="d">communication shape (collective vs P2P) × stack layer (API → algo → transport → HW). 모든 라이브러리가 한 점에 위치.</div>
+    </div>
+    <div class="term">
+      <div class="t">L1-L4 stack</div>
+      <div class="d">torch.distributed → NCCL/NVSHMEM → GPUDirect/RDMA → NVLink/IB. 헷갈리면 다시 layer 를 분리.</div>
+    </div>
+    <div class="term">
+      <div class="t">collective 라이브러리들</div>
+      <div class="d">NCCL · MSCCL · Gloo · MPI · UCC · oneCCL. 같은 shape, 다른 trade-off.</div>
+    </div>
+    <div class="term">
+      <div class="t">P2P 라이브러리들</div>
+      <div class="d">NVSHMEM · MPI one-sided · DeepEP. one-sided shape.</div>
+    </div>
+    <div class="term">
+      <div class="t">SHARP</div>
+      <div class="d">switch 안에서 reduction 수행. ring 의 2(N-1) 단계를 1 단계로.</div>
+    </div>
+    <div class="term">
+      <div class="t">topology 매핑</div>
+      <div class="d">TP 는 NVLink, PP 는 IB. 통신 빈도 ↔ wire BW 정렬.</div>
+    </div>
+    <div class="term">
+      <div class="t">NVL72</div>
+      <div class="d">"노드" 의 정의가 9 배 큼. rack-scale NVLink. 알고리즘 hierarchy 의 도메인 사이즈가 변경.</div>
+    </div>
+    <div class="term">
+      <div class="t">production 1순위</div>
+      <div class="d">속도 아니라 stability + observability. NCCL_DEBUG=INFO, timeout tuning, incremental rollout.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=beuOWBbiJfQ" target="_blank" rel="noopener">youtube.com/watch?v=beuOWBbiJfQ</a></span>
+    </div>
+    <div class="row miss">
+      <span class="k">Slides</span>
+      <span class="v">없음 (확인 필요 — 강의 영상에서만 소화)</span>
+    </div>
+    <div class="row">
+      <span class="k">관련 paper</span>
+      <span class="v">Didem Unat et al. — GPU communication survey 시리즈 (관련 arXiv 추가 검색 필요)</span>
+    </div>
+    <div class="row">
+      <span class="k">Doc</span>
+      <span class="v"><a href="https://docs.nvidia.com/deeplearning/nccl/" target="_blank" rel="noopener">NCCL docs</a> · <a href="https://github.com/microsoft/msccl" target="_blank" rel="noopener">MSCCL</a> · <a href="https://github.com/NVIDIA/nccl-tests" target="_blank" rel="noopener">nccl-tests</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>NCCL_DEBUG=INFO</strong> 로 자기 학습 코드 한 번 돌려서, NCCL 이 어떤 transport (NVLink? GPUDirect RDMA?) 를 골랐는지 stdout 에서 직접 확인. layer L3 가 자기 코드에서 무엇인지 확인.</li>
+    <li><strong>nccl-tests sweep</strong> — <code>./all_reduce_perf -b 8 -e 1G -f 2 -g 8</code>. 메시지 사이즈 vs latency / BW 그래프 직접 그리기. ring vs tree crossover 가 어디 있는지.</li>
+    <li><strong>PyTorch backend swap</strong> — 같은 학습 코드를 <code>backend='nccl'</code>, <code>'gloo'</code> 로 두 번 init. step 시간 비교. backend 가 추상이라는 사실 직접 체감.</li>
+    <li><strong>topology 시각화</strong> — <code>nvidia-smi topo -m</code> 으로 자기 노드의 GPU/NIC 토폴로지 출력. NV# (NVLink) vs PHB (PCIe) vs SYS 가 어디서 끊기는지 확인.</li>
+    <li><strong>multi-node IB benchmarking</strong> — <code>ib_write_bw</code> 로 두 노드 사이 IB BW 측정. NCCL 의 BW 와 raw IB 의 BW 비율 (보통 60-90%) 확인.</li>
+    <li><strong>MSCCL sketch</strong> — MSCCL 예제 알고리즘 (ring allreduce.json) 을 직접 읽어보고, 같은 알고리즘을 NCCL 가 자동으로 푸는 것과 비교. “알고리즘이 코드” 의 의미 직접 확인.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· Connections</span></div>
+    <h2>landscape 의 각 점이 어느 강의에서 본격적으로 다뤄지는가</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_017.html">
+      <div class="n">L017</div>
+      <div class="ti">NCCL deep dive</div>
+      <div class="by">L1-L2 의 NCCL 부분만 따로 깊이</div>
+    </a>
+    <a class="conn" href="lecture_067.html">
+      <div class="n">L067</div>
+      <div class="ti">NCCL and NVSHMEM</div>
+      <div class="by">두 라이브러리만 1대1 비교</div>
+    </a>
+    <a class="conn" href="lecture_070.html">
+      <div class="n">L070</div>
+      <div class="ti">PCCL fault tolerant</div>
+      <div class="by">§09 의 fault tolerance 방향의 실 작품</div>
+    </a>
+    <a class="conn" href="lecture_087.html">
+      <div class="n">L087</div>
+      <div class="ti">NVSHMEM low-latency</div>
+      <div class="by">device-side P2P 의 실전 kernel</div>
+    </a>
+    <a class="conn" href="lecture_037.html">
+      <div class="n">L037</div>
+      <div class="ti">CUTLASS 와 GEMM</div>
+      <div class="by">in-kernel communication 의 같은 가족 — kernel-level 추상</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">profile CUDA kernels</div>
+      <div class="by">multi-node 시 nsys 로 NCCL channel timeline</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· Open questions</span></div>
+    <h2>이 노트가 의도적으로 비워둔 자리들</h2>
+  </div>
+  <ul>
+    <li><strong>강의에서 Didem 이 추천한 specific reading list</strong> — slides 가 missing 이라 확인 불가. 영상 다시 확인 필요.</li>
+    <li><strong>SHARP 의 실제 enable 조건</strong> — switch firmware, NCCL 버전, 환경변수 매핑. 본문에서는 일반적 설명에 머무름.</li>
+    <li><strong>UALink 의 production 시점</strong> — 2025 표준 publication 단계. 실제 hardware 출시 시기는 별도 추적.</li>
+    <li><strong>UCX vs UCC 의 정확한 layer 분리</strong> — 본문에서는 같은 레이어로 다뤘으나 UCX 가 transport, UCC 가 collective layer 의 구조. 정확한 그림은 OpenUCX 문서 참고.</li>
+    <li><strong>강의 안의 정량적 비교 (라이브러리별 BW)</strong> — slides 가 missing 이라 정량 표 재구성 어려움. 본문은 정성 패턴만.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본문의 layer stack 그림과 4-layer 분리는 강의의 핵심 framing 으로 추정되는 부분이다. 정확한 강의 표현은 영상 transcript 가 복원되면 확인 권장. 본 노트는 도메인 일반론으로 layer 분리를 재구성한 것.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_067.html">
+    <span class="lbl">← Lecture 067</span>
+    <span class="nm">NCCL and NVSHMEM — Jeff Hammond</span>
+  </a>
+  <a class="nxt" href="lecture_069.html">
+    <span class="lbl">Lecture 069 →</span>
+    <span class="nm">Quartet 4-bit training — Castro & Panferov</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L068 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

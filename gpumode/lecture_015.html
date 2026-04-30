@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L015 · CUTLASS · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l15-hier{display:grid;grid-template-columns:1fr;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l15-hier .lvl{display:grid;grid-template-columns:140px 1fr 130px;gap:12px;padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l15-hier .lvl.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l15-hier .lvl .l{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.04em}
+.l15-hier .lvl .nm{color:var(--ink);font-weight:600;font-size:13.5px;font-family:'Pretendard',sans-serif}
+.l15-hier .lvl .nm em{font-style:normal;display:block;color:var(--ink-soft);font-weight:500;font-size:12px;margin-top:2px}
+.l15-hier .lvl .what{color:var(--ink-soft);font-size:11.5px;text-align:right;line-height:1.4}
+
+.l15-layout{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;width:100%;max-width:480px;margin:8px 0}
+.l15-layout div{aspect-ratio:1;display:grid;place-items:center;background:var(--bg-soft);font-family:'JetBrains Mono',monospace;font-size:8.5px;color:var(--ink-soft);border-radius:1px}
+.l15-layout div.a{background:var(--accent);color:var(--paper);font-weight:700}
+.l15-layout div.b{background:var(--cool);color:var(--paper);font-weight:700}
+.l15-layout div.c{background:var(--accent-2);color:var(--paper-deep);font-weight:700}
+
+.l15-tier{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l15-tier .col{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.l15-tier .col.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l15-tier .col h4{margin:0 0 6px;font-family:'Pretendard',sans-serif;font-size:13px;color:var(--accent)}
+.l15-tier .col p{margin:0;color:var(--ink-soft);font-size:12px;line-height:1.5}
+.l15-tier .col code{font-size:11.5px}
+
+@media (max-width:760px){
+  .l15-tier{grid-template-columns:1fr}
+  .l15-hier .lvl{grid-template-columns:1fr}
+  .l15-hier .lvl .what{text-align:left}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_014.html">← L014</a>
+    <a href="lecture_016.html">L016 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L015</span>
+    <span>2024 · APR · 13</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>CUTLASS</h1>
+  <p class="dek">CUTLASS 는 NVIDIA 의 GEMM/conv 를 위한 C++ template 라이브러리. <strong>“cuBLAS 의 black box 를 열어서 자기 epilogue 와 fusion 을 끼울 수 있는 자리”</strong>를 제공한다. Eric Auld 가 — CUTLASS 코드의 telltale sign (<code>_</code> placeholder, CuTe layout, <code>cute::tile</code>) 부터 hierarchical tiling 의 사고방식까지 — 처음 보는 사람도 코드를 읽을 수 있게 깐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">CUTLASS</span>
+    <span class="chip hi">CuTe (Cute Tensor)</span>
+    <span class="chip hi">layout 추상</span>
+    <span class="chip hi">Tensor Core MMA</span>
+    <span class="chip hi">hierarchical tiling</span>
+    <span class="chip">epilogue fusion</span>
+    <span class="chip">cuBLAS vs CUTLASS</span>
+    <span class="chip">underscore placeholder</span>
+    <span class="chip">FlashAttention 의 base</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">E</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Eric Auld</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">CUTLASS · GEMM 코드의 reading guide</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L015</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Eric Auld</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자료</div><div class="val">repo 별도 폴더 없음</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">cuBLAS 의 black box</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">3 단계 추상 — host API · CUTLASS · CuTe</span><span class="em">tier model</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">CUTLASS 코드의 telltale sign</span><span class="em">_ 와 namespace</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">layout 의 본질</span><span class="em">shape × stride</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">tile 의 합성 — divide / compose</span><span class="em">계층적 tiling</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">tensor core 와 layout 의 만남</span><span class="em">MMA 16×16×16</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">epilogue fusion</span><span class="em">사용자 정의 후처리</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">FlashAttention 이 CUTLASS 위에 있는 이유</span><span class="em">FA-2/3 의 base</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">언제 CUTLASS 로 내려가는가</span><span class="em">의사결정</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why this lecture exists</span></div>
+    <h2>“cuBLAS 위에 한 줄을 끼우고 싶을 때 — 갈 곳이 없다”</h2>
+  </div>
+  <p class="sec-lede">cuBLAS, cuDNN 같은 NVIDIA 의 high-level library 는 GEMM/conv 를 비싸게 빠르게 한다. 단, <strong>black box 다</strong>. 사용자가 GEMM 의 끝에 quantize step 을 끼우거나, attention 의 score 를 받아 다른 op 를 fuse 하려고 하면 — host 로 한 번 나갔다 돌아와야 한다. HBM 왕복 한 번이 추가.</p>
+
+  <p>CUTLASS 가 그 자리를 푼다. <strong>같은 GEMM kernel 의 “author” 입장에서 코드를 작성</strong>할 수 있게 — C++ template + GPU device code 의 라이브러리를 제공한다. 강의가 풀려는 두 가지.</p>
+  <ol>
+    <li><strong>CUTLASS 코드를 처음 봐도 읽을 수 있게 — telltale sign 과 mental model 을 깐다</strong>. 코드의 <code>_</code> 와 <code>cute::</code> namespace 가 무슨 뜻인지.</li>
+    <li><strong>CuTe layout 추상이 hierarchical tiling 을 어떻게 표현하는가</strong>. shape × stride 의 일반화된 모양.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>이 강의는 “CUTLASS 로 GEMM 을 어떻게 짜는가” 의 tutorial 이 아니다 (그건 NVIDIA examples 가 한다). <strong>“이미 있는 CUTLASS 코드를 어떻게 읽는가”</strong> 의 reading guide — Eric 이 ML team 에서 “이 kernel 은 왜 안 빠른가” 를 답하는 사람의 시각으로 깐다.</p>
+  </div>
+
+  <div class="pull">“CUTLASS 는 black box 의 반대다 — 모든 게 보이지만, 그래서 뭐가 뭔지 알아야 한다.”<span class="by">Eric Auld · 강의 paraphrase</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>3 단계 추상</b><span>· host API · CUTLASS · CuTe</span></div>
+    <h2>같은 GEMM 을 세 깊이로 보는 자리 — user 가 어디까지 내려가는가</h2>
+  </div>
+  <p class="sec-lede">Eric 의 frame — NVIDIA 의 GEMM stack 은 사실 <strong>3 layer</strong>. 사용자는 자기 task 에 맞는 layer 만 보면 된다.</p>
+
+  <div class="l15-tier">
+    <div class="col">
+      <h4>L0 · host API<em>cuBLAS, cuDNN, cuSPARSELt</em></h4>
+      <p>host 함수 한 줄 호출. <code>cublasGemmEx(...)</code>. 가장 빠르지만 <strong>fusion 안 됨</strong>. 사용자가 짜는 코드는 host 측. NVIDIA 가 internal kernel 결정.</p>
+    </div>
+    <div class="col hi">
+      <h4>L1 · CUTLASS<em>C++ template kernel</em></h4>
+      <p>device kernel 자체를 사용자가 instantiate. epilogue 로 사용자 정의 후처리 fuse 가능. <strong>이 강의의 자리</strong>. cuBLAS 의 ~95% 성능까지.</p>
+    </div>
+    <div class="col">
+      <h4>L2 · CuTe<em>layout primitive</em></h4>
+      <p>CUTLASS 안에서 가장 깊은 layer. tensor 의 layout 을 <code>Layout&lt;Shape, Stride&gt;</code> 로 표현하는 추상. CUTLASS 3.x 부터 standard. <strong>가장 깊지만 가장 강력</strong>한 자리.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">version note</div>
+    <p>CUTLASS 2.x 까지는 epilogue 가 별도 template 으로 따로 박혀 있었지만 — <strong>CUTLASS 3.x (Hopper 이후)</strong> 부터는 CuTe 가 first-class. 모든 layout · tiling 이 CuTe 로 통일. 강의 시점 (2024 April) 에는 3.x 가 main.</p>
+  </div>
+
+  <p>L0 → L1 → L2 로 갈수록 — 더 많은 코드를 작성해야 하고, 더 많은 자유를 얻고, 더 많이 잘못 짤 수 있다. 강의는 <strong>L1 ~ L2 의 boundary</strong> 에 머문다 — 사용자가 알아야 할 만큼만.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>CUTLASS 코드의 telltale sign</b><span>· _ 와 namespace</span></div>
+    <h2>“이 코드가 CUTLASS 다” 를 1초 안에 알아보는 표식</h2>
+  </div>
+  <p class="sec-lede">Eric 의 강의 초반 — 코드를 펼쳤을 때 “이게 CUTLASS 인가” 를 즉시 알아보는 단서들. 처음 보는 사람에게 가장 도움이 되는 자리.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">_ (underscore) placeholder</div>
+      <div class="d"><code>tile(_, _, k)</code> — 의미는 “이 axis 는 그대로 둔다”. CuTe 의 indexing 규약. Python 의 <code>:</code> 와 비슷한 자리.</div>
+    </div>
+    <div class="term">
+      <div class="t">cute:: namespace</div>
+      <div class="d"><code>cute::Layout</code>, <code>cute::Shape</code>, <code>cute::Stride</code>, <code>cute::tile</code>. 이 namespace 가 보이면 거의 CUTLASS 3.x.</div>
+    </div>
+    <div class="term">
+      <div class="t">_ Layout 안의 _</div>
+      <div class="d"><code>Layout&lt;Shape&lt;_8, _16&gt;, Stride&lt;_16, _1&gt;&gt;</code>. <strong>compile time integer</strong> — 8, 16 같은 숫자가 type 안에 들어 있다. <code>_8</code> 는 <code>Int&lt;8&gt;</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">tiled_mma / tiled_copy</div>
+      <div class="d">CuTe 의 “tile + MMA” 또는 “tile + copy” 의 합성 객체. tensor core 가 어떻게 thread 사이에 뿌려지는지 표현.</div>
+    </div>
+    <div class="term">
+      <div class="t">SM75, SM80, SM90</div>
+      <div class="d">arch tag — Turing, Ampere, Hopper. CUTLASS template 가 architecture 별로 instantiated.</div>
+    </div>
+    <div class="term">
+      <div class="t">Gemm template &lt;A, B, C, D&gt;</div>
+      <div class="d">대부분의 CUTLASS GEMM 은 4 개 type tensor (A, B, C input, D output) 의 template. epilogue 가 D = α·(A@B) + β·C 형태.</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">실용 reading 순서</div>
+    <p>Eric 의 권고 — 새 CUTLASS 코드를 만나면 (1) 가장 위 <code>using ...</code> alias 들을 본다 (Layout, Shape 정의 — kernel 이 무엇을 어떤 모양으로 처리하는지가 여기 있음), (2) <code>__global__</code> kernel 본문은 마지막에. 디테일이 alias 안에 다 들어 있다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>layout 의 본질</b><span>· shape × stride</span></div>
+    <h2>“tensor 가 메모리 어디 있는가” 의 가장 일반적인 표현</h2>
+  </div>
+  <p class="sec-lede">CuTe 의 핵심 — <strong>Layout = Shape × Stride</strong>. PyTorch 의 stride 와 비슷하지만 더 일반화. nested 가능, compile-time 가능, <em>tile 합성에 닫혀 있다</em>.</p>
+
+  <div class="split">
+    <div>
+      <p>가장 단순한 layout — <code>(8, 16)</code> shape, <code>(16, 1)</code> stride 의 row-major 8×16 행렬. coordinate (i, j) 가 메모리 offset i·16 + j·1 = i·16 + j.</p>
+      <p>nested layout — <code>((4, 2), 16)</code> shape 는 외부 4, 내부 2 의 두 단계 모드 + 마지막 모드 16. 같은 64 element 를 “4 그룹 × 2 element + 16” 으로 표현. 이게 hierarchical tiling 의 표현이 된다.</p>
+      <p>complex layout — column-major, transposed, swizzled (bank conflict 회피용 stride pattern) 모두 같은 Layout 추상으로 표현 가능.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// CUTLASS 3.x — CuTe Layout 의 예</span>
+<span style="color:#E7B369">using</span> ALayout =
+    cute::<span style="color:#E7B369">Layout</span>&lt;
+      cute::<span style="color:#E7B369">Shape</span>&lt;_8, _16&gt;,    <span style="color:#A99E89">// 8 × 16 tile</span>
+      cute::<span style="color:#E7B369">Stride</span>&lt;_16, _1&gt;   <span style="color:#A99E89">// row-major</span>
+    &gt;;
+
+<span style="color:#A99E89">// nested — outer 4 그룹 × inner 8</span>
+<span style="color:#E7B369">using</span> NestedLayout =
+    cute::<span style="color:#E7B369">Layout</span>&lt;
+      cute::<span style="color:#E7B369">Shape</span>&lt;cute::<span style="color:#E7B369">Shape</span>&lt;_4, _8&gt;, _16&gt;,
+      cute::<span style="color:#E7B369">Stride</span>&lt;cute::<span style="color:#E7B369">Stride</span>&lt;_128, _16&gt;, _1&gt;
+    &gt;;
+
+<span style="color:#A99E89">// 같은 데이터를 다양한 layout 으로 view</span>
+<span style="color:#E7B369">auto</span> tA = cute::<span style="color:#E7B369">make_tensor</span>(ptr, ALayout{});</code></pre>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 type 안에 숫자가 들어가는가</div>
+    <p>CUDA C++ template 으로 컴파일될 때 — <code>_8</code> 같은 compile-time 상수가 <em>모든 multiplication 을 컴파일러가 풀게</em> 한다. 결과: kernel 안의 indexing 이 instruction 1-2 개로 끝남. runtime 곱셈이 안 일어남. 이게 CUTLASS 의 zero-overhead abstraction 의 토대.</p>
+  </div>
+
+  <div class="pull">“layout 은 단순히 data 가 어디 있는가의 표현이 아니다 — <em>같은 data 를 어떻게 보느냐</em> 의 함수다. 같은 메모리에 여러 layout 을 동시에 부여 가능.”<span class="by">학습 노트 paraphrase</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>tile 의 합성</b><span>· divide / compose</span></div>
+    <h2>큰 행렬 → CTA tile → warp tile → MMA tile — 같은 추상이 4 단계</h2>
+  </div>
+  <p class="sec-lede">CUTLASS GEMM 의 사고 핵심 — 같은 GEMM 을 <strong>여러 단계의 tile 로 동시에 분해</strong>한다. 그리고 그 분해 자체가 layout 의 합성 (compose) 으로 표현된다.</p>
+
+  <div class="l15-hier">
+    <div class="lvl">
+      <span class="l">L0 · whole</span>
+      <span class="nm">전체 GEMM<em>M × N × K (예: 4096 × 4096 × 4096)</em></span>
+      <span class="what">grid 결정의 단위</span>
+    </div>
+    <div class="lvl">
+      <span class="l">L1 · CTA tile</span>
+      <span class="nm">한 thread block 이 다루는 부분<em>BlockM × BlockN × BlockK (예: 128 × 256 × 32)</em></span>
+      <span class="what">SRAM 으로 stage</span>
+    </div>
+    <div class="lvl hi">
+      <span class="l">L2 · warp tile</span>
+      <span class="nm">한 warp 이 누산하는 부분<em>WarpM × WarpN (예: 64 × 64)</em></span>
+      <span class="what">register 위 누산기</span>
+    </div>
+    <div class="lvl">
+      <span class="l">L3 · MMA tile</span>
+      <span class="nm">한 instruction 이 다루는 부분<em>16 × 16 × 16 (Ampere fp16) 또는 64 × 64 × 16 (Hopper WGMMA)</em></span>
+      <span class="what">tensor core 한 번</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">divide 의 의미</div>
+    <p>CuTe 의 <code>tile(...)</code> 또는 <code>logical_divide(...)</code> 가 — <strong>“이 큰 layout 을 작은 layout 단위로 자른다”</strong>. 결과는 nested layout. 외부 모드는 “몇 번째 tile” index, 내부 모드는 “tile 안의 element”. 같은 data 의 두 단계 view.</p>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CTA tile 안의 layout</span><span>thread → element 매핑</span></div>
+    <div class="l15-layout">
+      <div class="a">T0</div><div class="a">T0</div><div class="a">T0</div><div class="a">T0</div><div class="b">T1</div><div class="b">T1</div><div class="b">T1</div><div class="b">T1</div>
+      <div class="a">T0</div><div class="a">T0</div><div class="a">T0</div><div class="a">T0</div><div class="b">T1</div><div class="b">T1</div><div class="b">T1</div><div class="b">T1</div>
+      <div class="c">T2</div><div class="c">T2</div><div class="c">T2</div><div class="c">T2</div><div>T3</div><div>T3</div><div>T3</div><div>T3</div>
+      <div class="c">T2</div><div class="c">T2</div><div class="c">T2</div><div class="c">T2</div><div>T3</div><div>T3</div><div>T3</div><div>T3</div>
+    </div>
+    <div class="viz-note">한 8×8 sub-tile 이 4 thread (T0~T3) 에 어떻게 분할되는지. 각 thread 가 자기 4×4 fragment 를 register 에 들고 MMA. <strong>이 매핑 자체가 또 layout</strong> — “thread index → element index” 의 layout.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>tensor core 와 layout 의 만남</b><span>· MMA 16×16×16</span></div>
+    <h2>MMA instruction 이 요구하는 layout 을 어떻게 갖춰주는가</h2>
+  </div>
+  <p class="sec-lede">Tensor Core 의 MMA instruction 은 <strong>“이 thread 들이 input 의 어느 자리를 register 에 가지고 있어야 한다”</strong> 의 정확한 규약을 가진다. 사용자의 input layout 이 그 규약과 안 맞으면 — 추가 swizzling 또는 memory load 패턴이 필요. CUTLASS 는 이를 layout 합성으로 자동 처리.</p>
+
+  <div class="split">
+    <div>
+      <p>예 — Ampere 의 <code>m16n16k16.f16.f16.f32</code> MMA. 32 thread 가 한 warp 으로 일하는데:</p>
+      <ul>
+        <li>A (16×16): 8 element per thread, register 8 개에 분포.</li>
+        <li>B (16×16): 8 element per thread, register 8 개.</li>
+        <li>C (16×16, accumulator): fp32 4 element per thread.</li>
+        <li>각 thread 의 fragment 가 정확히 어디에 박혀야 하는지가 PTX 문서에 있음.</li>
+      </ul>
+      <p>CUTLASS 는 이 매핑을 <code>MMA_Atom</code> 으로 추상화. 사용자는 <code>using MMA = SM80_16x8x16_F32F16F16F32_TN;</code> 같은 식으로 한 줄. 그 다음 <code>tiled_mma</code> 를 만들어 warp 안 thread 들에 자동 distribute.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// Ampere fp16 MMA atom</span>
+<span style="color:#E7B369">using</span> MmaAtom = cute::<span style="color:#E7B369">MMA_Atom</span>&lt;
+    cute::<span style="color:#E7B369">SM80_16x8x16_F32F16F16F32_TN</span>
+&gt;;
+
+<span style="color:#A99E89">// warp 마다 어떻게 tile 을 자르는지</span>
+<span style="color:#E7B369">using</span> TiledMma = cute::<span style="color:#E7B369">TiledMMA</span>&lt;
+    MmaAtom,
+    cute::<span style="color:#E7B369">Layout</span>&lt;cute::<span style="color:#E7B369">Shape</span>&lt;_2, _2&gt;&gt;  <span style="color:#A99E89">// 2x2 warps</span>
+&gt;;
+
+<span style="color:#A99E89">// kernel 안에서 호출</span>
+<span style="color:#E7B369">auto</span> tCgC = ...;   <span style="color:#A99E89">// thread 의 C fragment view</span>
+<span style="color:#E7B369">auto</span> tArA = ...;   <span style="color:#A99E89">// A fragment</span>
+<span style="color:#E7B369">auto</span> tBrB = ...;   <span style="color:#A99E89">// B fragment</span>
+cute::<span style="color:#E7B369">gemm</span>(tiled_mma, tArA, tBrB, tCgC);</code></pre>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 swizzle 이 필요한가</div>
+    <p>MMA 에 들어가는 input 이 shared memory 에서 register 로 올라올 때 — 자연스러운 row-major 로 stage 하면 같은 cycle 에 여러 thread 가 같은 SRAM bank 를 친다 (<strong>bank conflict</strong>). swizzling 은 stride 를 살짝 비틀어서 같은 cycle 의 access 가 다른 bank 로 가게. CUTLASS 의 swizzle 은 layout 의 한 종류로 표현.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>epilogue fusion</b><span>· 사용자 정의 후처리</span></div>
+    <h2>GEMM 결과가 register 에 있는 동안 — 거기서 다른 op 를 끝낸다</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 가 cuBLAS 와 차별화되는 가장 큰 자리 — <strong>epilogue 안에 사용자 정의 op 를 끼울 수 있다</strong>. 누산기가 register 에 있고, 아직 HBM 으로 안 나간 시점에서 — <code>D = act(α·(A@B) + β·C + bias)</code> 같은 chain 을 한 kernel 안에 fuse.</p>
+
+  <div class="split">
+    <div>
+      <p>대표 epilogue 패턴.</p>
+      <ul>
+        <li><strong>linear + bias + ReLU</strong> — Conv 또는 Linear 의 표준 후처리. cuBLAS 에는 일부만 있음, CUTLASS 는 자유.</li>
+        <li><strong>quantization</strong> — fp32 accumulator → int8 output. dequant scale 곱 + clamp + cast 가 한 자리에.</li>
+        <li><strong>FlashAttention 의 softmax + scaling</strong> — score 누산기 위에 online softmax 와 V 곱이 epilogue 안에 들어감 (사실은 main loop 도 일부 변형되지만 mental model 상).</li>
+        <li><strong>2:4 sparsity dequant</strong> — sparse GEMM 의 결과 위에 metadata 기반 변환.</li>
+      </ul>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// epilogue functor 의 pattern</span>
+<span style="color:#E7B369">struct</span> MyEpilogue {
+    <span style="color:#E7B369">float</span> alpha, beta, scale;
+
+    <span style="color:#E7B369">template</span>&lt;<span style="color:#E7B369">class</span> AccTensor, <span style="color:#E7B369">class</span> CTensor&gt;
+    __device__ <span style="color:#E7B369">void</span>
+    <span style="color:#E7B369">operator</span>()(AccTensor&amp; acc, CTensor&amp; bias) {
+        <span style="color:#A99E89">// register 에서 처리 — HBM 안 거침</span>
+        cute::<span style="color:#E7B369">transform</span>(acc, [&amp;](<span style="color:#E7B369">float</span> x){
+            <span style="color:#E7B369">float</span> y = alpha * x + beta * bias;
+            <span style="color:#E7B369">return</span> y &gt; <span style="color:#E7B369">0</span> ? y : <span style="color:#E7B369">0</span>;  <span style="color:#A99E89">// ReLU</span>
+        });
+    }
+};</code></pre>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">FlashAttention 과의 관계</div>
+    <p>FA 의 <em>“Q×K^T → softmax → ×V”</em> chain 이 결국 — <strong>한 GEMM (Q×K^T) 의 epilogue 에 softmax 와 다음 GEMM (×V) 을 같이 fuse 한 형태</strong>. CUTLASS 가 이 수준의 fusion 을 지원해야 FA 같은 알고리즘이 production 으로 가능. § 08 에서 본격.</p>
+  </div>
+
+  <div class="pull">“epilogue fusion 은 단순한 ‘후처리 op’ 가 아니다 — register 위에서 다음 알고리즘을 시작할 수 있는 자리다.”<span class="by">학습 노트 paraphrase</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>FlashAttention 이 CUTLASS 위에 있는 이유</b><span>· FA-2/3 의 base</span></div>
+    <h2>FA 의 production 구현은 거의 모두 CUTLASS — 왜 그런가</h2>
+  </div>
+  <p class="sec-lede">FA-2 의 official repo (Tri Dao) 와 FA-3 (NVIDIA + Colfax) 는 <strong>CUTLASS template 위에 작성</strong>되어 있다. 강의에서 Eric 이 “왜 그게 자연스러운가” 를 짚는다.</p>
+
+  <div class="split">
+    <div>
+      <p>이유 셋.</p>
+      <ol>
+        <li><strong>tensor core 의 layout 정확히 다뤄야 함</strong> — FA 는 attention score 의 N×N tile 을 register 위에 누산하는데, 그 layout 이 MMA instruction 과 정확히 맞아야 함. CUTLASS 의 layout 추상이 이걸 표현 가능.</li>
+        <li><strong>register accounting 이 critical</strong> — FA 의 m, l, O accumulator 가 register 에 박혀야 함 (§ L012 § 05 참조). CUTLASS 가 fragment 의 register 사용을 정확히 제어.</li>
+        <li><strong>하나의 kernel 안에 두 GEMM + softmax 를 fuse</strong> — Q×K^T 와 P×V 가 같은 kernel 안에서 register 위 누산기를 공유. Triton 으로도 가능하지만 CUTLASS 가 더 정밀한 layout 통제.</li>
+      </ol>
+      <p>그래서 FA 의 algorithm 자체는 Triton 으로도 표현 가능하지만 — <em>peak performance 의 마지막 5-10% 는 CUTLASS 위에서만 가능</em>한 자리.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">FA-3 와 Hopper</div>
+        <p>FA-3 가 Hopper 의 새 instruction (TMA, WGMMA) 을 활용하는데 — 이 instruction 들이 CUTLASS 3.x 의 CuTe 추상에 first-class 로 통합되어 있다. 같은 kernel 을 Triton 으로 짜려면 manual lowering 이 필요한데 CUTLASS 에서는 builtin.</p>
+      </div>
+      <div class="callout cool">
+        <div class="label">학습 메모</div>
+        <p>FA 의 <code>flash_attention.cu</code> (Thomas 의 L012 강의) 는 educational 코드 — 단순화. 실제 production FA repo 는 같은 알고리즘이지만 CUTLASS template 의 5000+ 줄.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>언제 CUTLASS 로 내려가는가</b><span>· 의사결정</span></div>
+    <h2>cuBLAS / Triton 으로 안 풀리는 자리만 — 비용이 비싸다</h2>
+  </div>
+  <p class="sec-lede">Eric 이 강의에서 자기 직업 경험으로 정리한 의사결정 — CUTLASS 는 강력하지만 학습 곡선이 가파르다. 비용이 정당화되는 자리만 가야 한다.</p>
+
+  <div class="split">
+    <div>
+      <p><strong>CUTLASS 로 내려가는 정당한 신호</strong></p>
+      <ul>
+        <li>Triton 의 자동 layout 으로 못 잡는 bank conflict / register layout 문제 — NCU 의 instructions stalls 이 layout 관련.</li>
+        <li>cuBLAS + 별도 kernel 로 짠 fusion 이 한 kernel 안에 합치면 1.3-2× 빨라질 잠재성이 보일 때.</li>
+        <li>새 hardware 의 새 instruction (TMA, WGMMA) 을 활용해야 할 때 — Triton 도 점차 따라잡지만 CUTLASS 가 항상 먼저.</li>
+        <li>vendor library 의 90% 가 아니라 95% 가 필요한 production critical path.</li>
+      </ul>
+    </div>
+    <div>
+      <p><strong>안 가도 되는 자리</strong></p>
+      <ul>
+        <li>memory-bound op (elementwise, normalize). CUTLASS 의 GEMM-grade 추상이 무의미.</li>
+        <li>일반적인 LLM training/inference 의 거의 모든 layer — Triton 또는 cuBLAS 으로 충분.</li>
+        <li>fast prototyping. CUTLASS 는 컴파일 시간이 길고 디버깅이 어렵다.</li>
+      </ul>
+      <p>Eric 의 직업적 입장 — <em>“회사에서 CUTLASS 를 직접 짜는 사람은 보통 ML team 안에 1-2 명. 그 사람이 다른 ML 엔지니어와 협업해서 critical path 만 짠다.”</em></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">3-tier abstraction</div>
+      <div class="d">cuBLAS (host) → CUTLASS (device kernel) → CuTe (layout primitive). 자기 task 가 필요한 깊이만.</div>
+    </div>
+    <div class="term">
+      <div class="t">Layout = Shape × Stride</div>
+      <div class="d">CuTe 의 본질. compile-time integer 와 함께. 모든 indexing 이 zero-overhead 로 풀림.</div>
+    </div>
+    <div class="term">
+      <div class="t">_ placeholder</div>
+      <div class="d"><code>tile(_, _, k)</code> 의 <code>_</code> 는 “이 axis 그대로”. CUTLASS 코드의 1초 식별자.</div>
+    </div>
+    <div class="term">
+      <div class="t">hierarchical tiling</div>
+      <div class="d">whole → CTA → warp → MMA. 4 단계가 모두 layout 합성으로 표현. divide / compose.</div>
+    </div>
+    <div class="term">
+      <div class="t">MMA atom + tiled_mma</div>
+      <div class="d"><code>SM80_16x8x16_F32F16F16F32_TN</code> 같은 atom. <code>TiledMMA</code> 가 atom 을 warp 들에 분배.</div>
+    </div>
+    <div class="term">
+      <div class="t">epilogue fusion</div>
+      <div class="d">register 의 누산기 위에서 사용자 op 직접 작성. cuBLAS 의 black box 와 차이 나는 자리. FA, sparse, quant 의 base.</div>
+    </div>
+    <div class="term">
+      <div class="t">swizzle = layout</div>
+      <div class="d">bank conflict 회피의 stride 패턴이 그저 또 다른 layout. 사용자가 직접 정의 가능.</div>
+    </div>
+    <div class="term">
+      <div class="t">FA 의 base</div>
+      <div class="d">FA-2/3 의 production 구현이 모두 CUTLASS 위에. layout 통제 + register accounting + 두 GEMM fuse.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=G6q719ck7ww" target="_blank" rel="noopener">youtube.com/watch?v=G6q719ck7ww</a></span>
+    </div>
+    <div class="row miss">
+      <span class="k">Slides</span>
+      <span class="v">repo 에 별도 슬라이드 없음 — 강의는 코드 + 화이트보드</span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v"><a href="https://github.com/ericauld" target="_blank" rel="noopener">github.com/ericauld</a> · CUTLASS 원본: <a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">NVIDIA/cutlass</a></span>
+    </div>
+    <div class="row miss">
+      <span class="k">Repo</span>
+      <span class="v">gpu-mode/lectures 에 별도 lecture_015 폴더 없음</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>CUTLASS examples 빌드</strong> — <a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">NVIDIA/cutlass</a> repo clone, examples/00_basic_gemm 컴파일. 첫 실행과 cuBLAS 비교.</li>
+    <li><strong>CuTe layout playground</strong> — examples/cute/tutorial 의 layout 예제 그대로 따라가며 print. shape/stride 의 nested 표현 손에 익히기.</li>
+    <li><strong>tile divide 직접 시도</strong> — 64×64 행렬을 <code>logical_divide</code> 로 8×8 sub-tile 로 자르고, nested layout 의 두 모드 직접 indexing.</li>
+    <li><strong>Ampere MMA atom 한 번</strong> — 16×16×16 fp16 MMA 를 한 warp 위에서 직접. fragment view 의 thread → element 매핑 print.</li>
+    <li><strong>epilogue functor 작성</strong> — <code>D = max(0, α·(A@B) + bias)</code> 의 fused linear + ReLU + bias kernel. cuBLAS + 별도 kernel 대비 시간 측정.</li>
+    <li><strong>NCU 비교</strong> — 같은 GEMM 을 cuBLAS, CUTLASS default, CUTLASS + custom epilogue 세 형태로. DRAM bytes 와 throughput 비교.</li>
+    <li><strong>FA repo 구조 읽기</strong> — Tri Dao 의 flash-attention repo 의 csrc/flash_attn 디렉토리. CUTLASS template 의 어떤 자리가 어떻게 쓰이는지 — 코드 5 페이지 읽기.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">Flash Attention</div>
+      <div class="by">Thomas Viehmann — § 08 의 “FA 가 CUTLASS 위에” 의 직접적 자리. 같은 알고리즘 두 시각</div>
+    </a>
+    <a class="conn" href="lecture_011.html">
+      <div class="n">L011</div>
+      <div class="ti">Sparsity</div>
+      <div class="by">Jesse Cai — § 07 의 epilogue fusion 이 sparse GEMM + dequant 의 결합에 들어가는 자리</div>
+    </a>
+    <a class="conn" href="lecture_014.html">
+      <div class="n">L014</div>
+      <div class="ti">Practitioners Guide to Triton</div>
+      <div class="by">Umer Adil — § 09 의 의사결정의 한 단계 위 layer. Triton 으로 충분한 자리 vs CUTLASS 필요한 자리</div>
+    </a>
+    <a class="conn" href="lecture_010.html">
+      <div class="n">L010</div>
+      <div class="ti">Build a Prod Ready CUDA library</div>
+      <div class="by">Oscar Amoros — fusion 디자인의 일반론. § 02 의 3-tier 가 L010 의 user/author/ninja 와 같은 자리</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">CUTLASS epilogue 의 fusion 이 Triton 으로 어떻게 표현되는지 — 같은 패턴의 다른 layer</div>
+    </a>
+    <a class="conn" href="lecture_025.html">
+      <div class="n">L025</div>
+      <div class="ti">Composable Kernel (CK)</div>
+      <div class="by">AMD ROCm 의 CUTLASS 등가물. CuTe 와 비슷한 layout 추상</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">How to profile CUDA kernels in PyTorch</div>
+      <div class="by">Mark Saroufim — § 09 의 “CUTLASS 로 내려갈 신호” 의 NCU 도구. 같은 진단 frame</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+  <ul>
+    <li><strong>CUTLASS 3.x → 4.x</strong> — 강의 시점 (2024 April) 이후의 major 변화. Hopper / Blackwell 지원의 진화. <em>NVIDIA/cutlass repo 직접 추적 필요</em>.</li>
+    <li><strong>CuTe 와 Triton 의 비교</strong> — 두 추상이 같은 자리를 다른 방식으로 푼다. 어느 쪽이 어떤 use case 에 우월한가의 systematic 비교가 강의에는 부족.</li>
+    <li><strong>Hopper 의 WGMMA + TMA 의 정확한 활용</strong> — 강의에서 짧게 언급. 코드 패턴 직접 보기.</li>
+    <li><strong>FA-3 의 CUTLASS 사용 디테일</strong> — § 08 에서 “CUTLASS 위에” 라고 적었지만, FA-3 가 어떤 part 에서 CUTLASS 의 어떤 부분을 쓰는지 정확한 매핑 필요.</li>
+    <li><strong>swizzle 의 정확한 모양</strong> — § 06 의 swizzle 이 layout 으로 표현된다고 적었지만, 실제 CuTe 의 <code>Swizzle</code> 타입 정확한 작동 — 별도 학습 필요.</li>
+    <li><strong>compilation cost</strong> — CUTLASS template 의 컴파일 시간이 길다. 빌드 시스템에서 어떻게 풀어가는지 (precompile, kernel selection 등).</li>
+    <li><strong>FlashInfer · ThunderKittens 같은 alternatives</strong> — CUTLASS 외 fused kernel 라이브러리의 비교. 강의 시점 이후 새 자리들.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 namespace 와 type 이름 (<code>SM80_16x8x16_F32F16F16F32_TN</code> 등) 은 CUTLASS 3.x 의 실제 표기를 paraphrase 한 것이지만 — version 별로 정확한 형태가 약간 다르다. CUTLASS repo 의 <code>include/cute/atom/mma_atom.hpp</code> 에서 직접 확인.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_014.html">
+    <span class="lbl">← Lecture 014</span>
+    <span class="nm">Practitioners Guide to Triton — 한 단계 위의 추상에서 더 깊이로</span>
+  </a>
+  <a class="nxt" href="lecture_016.html">
+    <span class="lbl">Lecture 016 →</span>
+    <span class="nm">On Hands Profiling — Taylor Robbie 가 깐 nsys/NCU 위 production 모델 진단</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L015 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

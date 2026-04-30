@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L049 · Low Bit Metal Kernels · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l49-hier{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin:14px 0}
+.l49-hier .lvl{display:grid;grid-template-columns:140px 1fr 110px;gap:14px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l49-hier .lvl.hi{background:var(--bg-soft);border-color:var(--accent)}
+.l49-hier .lvl .nm{color:var(--accent);font-weight:700;font-size:11.5px}
+.l49-hier .lvl .d{color:var(--ink-soft);font-size:11.5px;line-height:1.45}
+.l49-hier .lvl .v{color:var(--ink);font-weight:600;text-align:right;font-size:11px}
+
+.l49-pack{display:grid;grid-template-columns:auto auto auto;gap:18px;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;margin:14px 0}
+.l49-pack .byt{padding:14px 18px;background:var(--paper);border:1px solid var(--line);border-radius:8px;text-align:center}
+.l49-pack .byt .nm{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em;margin-bottom:8px}
+.l49-pack .byt .vis{display:inline-block;padding:6px;background:var(--bg-soft);border-radius:4px}
+.l49-pack .byt .vis .nib{display:inline-grid;grid-auto-flow:column;gap:1px}
+.l49-pack .byt .vis .nib div{width:18px;height:18px;background:var(--accent);color:var(--paper);font-weight:700;display:grid;place-items:center;font-size:9px;border-radius:2px}
+.l49-pack .byt .vis .nib div.b{background:var(--cool-2)}
+.l49-pack .byt .info{font-size:10px;color:var(--muted);margin-top:6px}
+.l49-pack .arrow{font-size:18px;color:var(--accent);font-weight:700}
+
+.l49-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px;margin:14px 0}
+.l49-cmp .col{padding:14px 18px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l49-cmp .col h4{margin:0 0 8px;font-size:13px;color:var(--accent);font-family:'JetBrains Mono',monospace;letter-spacing:.06em}
+.l49-cmp .col ul{margin:0;padding-left:18px;color:var(--ink-soft);font-size:12px;line-height:1.55}
+.l49-cmp .col.cool h4{color:var(--cool)}
+
+.l49-bars{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l49-bars .row{display:grid;grid-template-columns:160px 1fr 90px;gap:14px;align-items:center}
+.l49-bars .row .lbl{color:var(--ink)}
+.l49-bars .row .bar{height:20px;background:var(--bg-soft);border-radius:4px;position:relative}
+.l49-bars .row .bar span{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.l49-bars .row .bar.cool span{background:var(--cool-2)}
+.l49-bars .row .bar.good span{background:var(--good)}
+.l49-bars .row .bar.warn span{background:var(--warn)}
+.l49-bars .row .v{color:var(--ink);font-weight:700;text-align:right;font-size:12px}
+@media (max-width:760px){
+  .l49-cmp{grid-template-columns:1fr}
+  .l49-pack{grid-template-columns:1fr;justify-items:center}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_048.html">← L048</a>
+    <a href="lecture_050.html">L050 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L049</span>
+    <span>2025 · APR</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · 실패 · ExecuTorch + Metal 공식 자료 기반</span>
+  </div>
+  <h1>Low Bit Metal Kernels</h1>
+  <p class="dek">Apple Silicon (M1/M2/M3, 그리고 iPhone) 위에서 <strong>INT4 / INT8 quantized LLM</strong> 을 돌리는 Metal 커널의 디자인. weight-only quantization 의 dequant + matmul fusion, unified memory 활용, ExecuTorch 통합. Manuel Candales 의 발표 — Meta 의 ExecuTorch 팀이 iPhone 위 Llama 추론을 어떻게 만들었는가. transcript 누락 강의이므로 본 노트는 ExecuTorch + Metal Performance Shaders + torchao 의 공개 자료 위에서 정리.</p>
+
+  <div class="chips">
+    <span class="chip hi">Apple Silicon</span>
+    <span class="chip hi">Metal · MSL</span>
+    <span class="chip hi">INT4 dequant</span>
+    <span class="chip hi">unified memory</span>
+    <span class="chip">ExecuTorch</span>
+    <span class="chip">Llama on iPhone</span>
+    <span class="chip">torchao</span>
+    <span class="chip">SIMD group</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">M</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Manuel Candales</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · ExecuTorch · Apple Silicon backend</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L049</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Manuel Candales</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · on-device LLM 의 코어</div></div>
+    <div class="cell warn"><div class="lbl">상태</div><div class="val">transcript fetch failed</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 Metal · low bit · on-device 인가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">Apple Silicon 의 INT4/INT8</span><span class="em">M-series · iPhone</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">Metal compute pipeline</span><span class="em">command queue · MSL</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">dequant 패턴</span><span class="em">unpack · scale · zero point</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">unified memory 활용</span><span class="em">CPU↔GPU 의 zero-copy</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">PyTorch ExecuTorch 통합</span><span class="em">.pte 파일 → 실행</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">Llama on iPhone 사례</span><span class="em">7B / 8B 의 실행</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">NVIDIA 와 차이</span><span class="em">SIMD group · threadgroup memory</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">한계와 trade-off</span><span class="em">메모리 대역폭 · power</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 Metal · low bit · on-device 인가</span></div>
+    <h2>“iPhone 에 Llama 를 박는다” 가 가능해진 자리</h2>
+  </div>
+  <p class="sec-lede">2024–2025 의 큰 trend 중 하나 — <strong>on-device LLM</strong>. 데이터 보안, latency, network 의존성 제거. 그러나 7–8B 모델이 iPhone 16 Pro (8 GB unified memory) 안에 들어가려면 — <em>quantization 이 필수</em>. 그리고 Apple Silicon 의 GPU 는 NVIDIA 와 다른 architecture — Metal 위에 직접 짜야 한다.</p>
+
+  <p>이 강의의 자리 — <strong>NVIDIA 시리즈의 코어 기법(low bit, dequant fusion, tile 최적화) 가 Apple Silicon 위에서 어떻게 다시 깨지는가</strong>. 같은 idea, 다른 hardware, 다른 도구.</p>
+
+  <p>강의 transcript 가 누락되었지만 ExecuTorch (Meta 의 on-device 추론 framework) + Metal Performance Shaders + torchao 가 모두 open source. 본 노트는 이 자료들의 공개 정보 + Apple Silicon GPU architecture 도메인 지식 위에서 정리한다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame · 추정</div>
+    <p>같은 INT4 LLM kernel 의 구현이 NVIDIA 와 Apple 에서 어떻게 다른가 — <strong>memory bandwidth bound</strong> 라는 점은 같다. 그러나 NVIDIA 가 SMEM + register tile 의 조합으로 reuse 를 만든다면, Apple 은 <em>unified memory</em> + <em>SIMD group threadgroup memory</em> 의 다른 layered. 그리고 <strong>tile 단위가 NVIDIA 의 warp(32) 보다 작다</strong> (Apple SIMD group 32, 그러나 register file 이 다름).</p>
+  </div>
+
+  <div class="pull">“on-device LLM 의 본질은 메모리 대역폭이다 — 7B model 을 INT4 로 압축하면 3.5 GB. iPhone 의 GPU memory bandwidth (~200 GB/s) 로 token 1개당 weight 한 번 read = 17 ms. 이게 latency 의 lower bound.”<span class="by">학습 노트 · on-device LLM 정리</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>Apple Silicon 의 INT4/INT8</b><span>· M-series · iPhone</span></div>
+    <h2>Apple GPU 의 architecture 와 quantization 지원</h2>
+  </div>
+  <p class="sec-lede">Apple Silicon GPU (M-series) 의 architecture 는 NVIDIA 와 다르다. 알아야 할 자리들.</p>
+
+  <div class="l49-hier">
+    <div class="lvl"><span class="nm">unified memory</span><span class="d">CPU 와 GPU 가 같은 DRAM 공유. copy 없음. M3 Pro 의 메모리 ~36–128 GB, iPhone 의 ~6–8 GB.</span><span class="v">200–400 GB/s</span></div>
+    <div class="lvl"><span class="nm">GPU core</span><span class="d">M-series 의 GPU. M3 Max 가 40 core. iPhone 16 Pro 가 6 core. NVIDIA 의 SM 과 다른 단위.</span><span class="v">M3 Max: 40</span></div>
+    <div class="lvl"><span class="nm">SIMD group</span><span class="d">32 thread 의 한 group. NVIDIA 의 warp 와 비슷. SIMD shuffle / SIMD reduce 지원.</span><span class="v">32 thread</span></div>
+    <div class="lvl"><span class="nm">threadgroup memory</span><span class="d">NVIDIA 의 SMEM 과 비슷. on-chip cache. 32 KB / threadgroup (M-series).</span><span class="v">32 KB</span></div>
+    <div class="lvl hi"><span class="nm">low bit native?</span><span class="d">Apple GPU 는 INT8 dot product (uint8 dot4 같은) 일부 지원. INT4 는 <strong>native instruction 없음</strong> — software dequant 필요.</span><span class="v">software</span></div>
+    <div class="lvl"><span class="nm">tensor core?</span><span class="d">NVIDIA-style tensor core 없음. SIMD-level matmul instruction (M3 부터의 Dynamic Caching, AMX) 일부 활용.</span><span class="v">제한적</span></div>
+  </div>
+
+  <div class="callout">
+    <div class="label">큰 차이</div>
+    <p>NVIDIA 의 INT8 tensor core 가 한 명령으로 16×16 matmul. Apple Silicon 은 그런 단일 instruction 이 없다. <strong>dequant 후 FP16 SIMD vector matmul</strong> 이 표준 path. 그래서 dequant 의 효율이 전체 성능을 결정. <em>이 점이 본 강의의 코어 자료</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>Metal compute pipeline</b><span>· command queue · MSL</span></div>
+    <h2>Metal 의 compute kernel 작성 — CUDA 와 거울 비춘 추상</h2>
+  </div>
+  <p class="sec-lede">Apple 의 GPU 프로그래밍은 <strong>Metal</strong>. compute shader 를 <strong>Metal Shading Language (MSL)</strong> — C++ 기반 — 로 작성. 추상은 CUDA 와 거의 일대일 대응.</p>
+
+  <div class="l49-cmp">
+    <div class="col">
+      <h4>CUDA</h4>
+      <ul>
+        <li>kernel: <code>__global__ void f(...)</code></li>
+        <li>grid · block · thread</li>
+        <li>SMEM: <code>__shared__</code></li>
+        <li>warp = 32 thread</li>
+        <li><code>__syncthreads()</code></li>
+        <li><code>cudaMemcpy</code> for H↔D</li>
+        <li>nvcc 컴파일러</li>
+      </ul>
+    </div>
+    <div class="col cool">
+      <h4>Metal MSL</h4>
+      <ul>
+        <li>kernel: <code>kernel void f(...)</code></li>
+        <li>grid · threadgroup · thread</li>
+        <li>threadgroup memory: <code>threadgroup</code></li>
+        <li>SIMD group = 32 thread</li>
+        <li><code>threadgroup_barrier(...)</code></li>
+        <li><code>MTLBuffer</code> · unified memory 로 zero-copy</li>
+        <li>Xcode metal 컴파일러</li>
+      </ul>
+    </div>
+  </div>
+
+  <pre><code><span style="color:#A99E89">// Metal MSL — INT4 dequant + matmul (개념)</span>
+#include &lt;metal_stdlib&gt;
+<span style="color:#E7B369">using namespace</span> metal;
+
+kernel <span style="color:#E7B369">void</span> int4_matmul(
+    device <span style="color:#E7B369">const</span> uint8_t* W_packed [[buffer(0)]],   <span style="color:#A99E89">// INT4 packed</span>
+    device <span style="color:#E7B369">const</span> half*    scales   [[buffer(1)]],   <span style="color:#A99E89">// per-group scale</span>
+    device <span style="color:#E7B369">const</span> half*    X         [[buffer(2)]],   <span style="color:#A99E89">// activation FP16</span>
+    device       half*    Y         [[buffer(3)]],
+    constant uint&amp; M [[buffer(4)]],
+    constant uint&amp; N [[buffer(5)]],
+    constant uint&amp; K [[buffer(6)]],
+    uint2 gid [[threadgroup_position_in_grid]],
+    uint2 tid [[thread_position_in_threadgroup]],
+    uint  sid [[simdgroup_index_in_threadgroup]])
+{
+    threadgroup half X_tile[BLOCK_M][BLOCK_K];
+    threadgroup half W_tile[BLOCK_K][BLOCK_N];
+
+    half acc = 0;
+    <span style="color:#E7B369">for</span> (uint k = 0; k &lt; K; k += BLOCK_K) {
+        <span style="color:#A99E89">// 1) X 를 threadgroup memory 로</span>
+        X_tile[tid.y][tid.x] = X[...];
+
+        <span style="color:#A99E89">// 2) INT4 dequant: 1 byte = 2 nibble</span>
+        uint8_t packed = W_packed[...];
+        half low  = ((<span style="color:#E7B369">int</span>)(packed &amp; 0x0F) - 8) * scales[group];
+        half high = ((<span style="color:#E7B369">int</span>)(packed &gt;&gt; 4)   - 8) * scales[group];
+        W_tile[tid.y * 2    ][tid.x] = low;
+        W_tile[tid.y * 2 + 1][tid.x] = high;
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        <span style="color:#A99E89">// 3) matmul tile</span>
+        <span style="color:#E7B369">for</span> (uint kk = 0; kk &lt; BLOCK_K; ++kk) {
+            acc += X_tile[tid.y][kk] * W_tile[kk][tid.x];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    Y[...] = acc;
+}</code></pre>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>dequant 패턴</b><span>· unpack · scale · zero point</span></div>
+    <h2>INT4 weight 를 FP16 으로 풀어내는 가장 짧은 코드</h2>
+  </div>
+  <p class="sec-lede">low-bit quantization 의 핵심 — weight 가 INT4 로 packed 되어 있다. 한 byte 안에 두 weight. 사용 직전에 dequant.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · INT4 dequant 의 모양</span><span>1 byte = 2 weight</span></div>
+    <div class="l49-pack">
+      <div class="byt">
+        <div class="nm">packed byte</div>
+        <div class="vis">
+          <div class="nib">
+            <div>1</div><div>0</div><div>1</div><div>0</div>
+            <div class="b">0</div><div class="b">1</div><div class="b">1</div><div class="b">1</div>
+          </div>
+        </div>
+        <div class="info">8 bits = high nibble | low nibble</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="byt">
+        <div class="nm">unpack</div>
+        <div class="vis">
+          <div class="nib">
+            <div>10</div><div class="b">7</div>
+          </div>
+        </div>
+        <div class="info">low = byte &amp; 0x0F<br>high = byte &gt;&gt; 4</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="byt">
+        <div class="nm">dequant</div>
+        <div class="vis">
+          <div class="nib">
+            <div style="background:var(--good)">FP16</div><div style="background:var(--good)">FP16</div>
+          </div>
+        </div>
+        <div class="info">(int4 - zero) × scale<br>per-group scale</div>
+      </div>
+    </div>
+    <div class="viz-note">한 byte 의 2 weight 를 nibble 분리, signed conversion (8 빼기, 또는 zero point 빼기), per-group scale 로 곱하기. <strong>이 3단계가 inner loop 안에서</strong>. 효율의 핵심.</div>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">per-group scale</div>
+      <div class="d">128 또는 64 weight 마다 한 scale. fine-grained quantization 의 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">symmetric vs asymmetric</div>
+      <div class="d">symmetric (zero point 0) 가 빠름. asymmetric 은 정확도 좋음. 각자 trade-off.</div>
+    </div>
+    <div class="term">
+      <div class="t">vectorized unpack</div>
+      <div class="d">한 번에 4 byte = 8 weight unpack. SIMD intrinsic 활용. ~2x 속도.</div>
+    </div>
+    <div class="term">
+      <div class="t">dequant fusion</div>
+      <div class="d">dequant 후 별도 buffer 안 만든다. inner loop 안에서 register 로 직접.</div>
+    </div>
+    <div class="term">
+      <div class="t">scale 사전 load</div>
+      <div class="d">128 weight 의 한 scale 을 inner loop 시작 전에 한 번 load. 매번 load 안 함.</div>
+    </div>
+    <div class="term">
+      <div class="t">activation INT8</div>
+      <div class="d">weight INT4 + activation FP16 가 표준. activation 도 INT8 로 내리면 추가 속도 + 정확도 손실.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>unified memory 활용</b><span>· CPU ↔ GPU zero-copy</span></div>
+    <h2>“같은 메모리를 본다” 가 만드는 디자인 차이</h2>
+  </div>
+  <p class="sec-lede">Apple Silicon 의 가장 큰 architecture 차이 — <strong>CPU 와 GPU 가 같은 DRAM</strong>. cudaMemcpy 같은 H↔D copy 가 없다. 같은 buffer 의 같은 메모리를 두 processor 가 본다.</p>
+
+  <div class="l49-cmp">
+    <div class="col">
+      <h4>NVIDIA 모델</h4>
+      <ul>
+        <li>CPU memory + GPU HBM 분리</li>
+        <li>cudaMemcpy H↔D 가 비용</li>
+        <li>weight 를 GPU 로 미리 옮김</li>
+        <li>load_inline 등의 build 추상</li>
+        <li>큰 batch 에 적합</li>
+      </ul>
+    </div>
+    <div class="col cool">
+      <h4>Apple unified memory</h4>
+      <ul>
+        <li>같은 DRAM 을 CPU/GPU 공유</li>
+        <li>copy 없음 (zero copy)</li>
+        <li>weight 는 그냥 file 에서 mmap</li>
+        <li>MTLBuffer 로 같은 포인터 공유</li>
+        <li>작은 batch / 단일 사용자에 적합</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>이 차이가 만드는 디자인 결정 — <strong>weight loading 이 거의 무료</strong>. file → mmap → MTLBuffer 한 줄로 GPU 가 직접 read 가능. 7B INT4 = 3.5 GB 의 weight 를 disk → memory → GPU 의 단계 없이 한 번에. iPhone 의 cold start latency 의 핵심.</p>
+
+  <div class="callout cool">
+    <div class="label">trade-off</div>
+    <p>unified memory 의 한계 — <em>대역폭이 NVIDIA HBM 보다 낮다</em>. iPhone 16 Pro 의 메모리 대역폭은 ~70 GB/s, M3 Max 는 400 GB/s, H100 의 HBM3 는 3.35 TB/s. <strong>memory bandwidth bound</strong> 인 LLM inference 에서는 이게 직접 latency 가 됨. 7B INT4 = 3.5 GB / 70 GB/s = 50 ms 가 token 당 lower bound (iPhone).</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>PyTorch ExecuTorch 통합</b><span>· .pte 파일 → 실행</span></div>
+    <h2>PyTorch 모델이 iPhone 에 도착하는 길</h2>
+  </div>
+  <p class="sec-lede">ExecuTorch 는 Meta 가 만든 PyTorch 의 on-device 추론 framework. PyTorch 모델을 <strong>.pte (PyTorch Edge)</strong> 파일로 export 후 mobile / embedded 에서 실행.</p>
+
+  <div class="l49-hier">
+    <div class="lvl"><span class="nm">PyTorch model</span><span class="d">평소처럼 nn.Module. transformers 또는 직접 작성.</span><span class="v">torch.export</span></div>
+    <div class="lvl"><span class="nm">torchao quantize</span><span class="d">INT4 / INT8 양자화. weight-only 또는 dynamic activation. group size 결정.</span><span class="v">~50% 메모리</span></div>
+    <div class="lvl"><span class="nm">torch.export</span><span class="d">graph-based export. ATen IR 로 변환. control flow 처리.</span><span class="v">portable</span></div>
+    <div class="lvl"><span class="nm">to_edge</span><span class="d">ExecuTorch 의 edge dialect 로 변환. constraint 검증.</span><span class="v">edge IR</span></div>
+    <div class="lvl hi"><span class="nm">backend partition</span><span class="d">어떤 op 를 어느 backend (Metal / CoreML / XNNPACK / 자체 CPU) 로 보낼지 결정.</span><span class="v">delegated</span></div>
+    <div class="lvl"><span class="nm">.pte file</span><span class="d">최종 산출물. iPhone app 안에 bundle. C++ runtime 으로 실행.</span><span class="v">~3.5 GB · 7B</span></div>
+  </div>
+
+  <p>이 단계 중 <strong>backend partition</strong> 가 본 강의의 자리. weight matmul 같은 op 가 Metal backend 로 delegated. 그 Metal backend 가 INT4 dequant + matmul 의 custom Metal 커널 호출. <em>partition 결정이 latency 를 결정</em> — 일부 op 만 Metal 가면 CPU↔GPU dispatch overhead 증가.</p>
+
+  <div class="callout">
+    <div class="label">torchao 의 역할</div>
+    <p>quantization recipe 의 reference 라이브러리. INT4 weight-only, INT8 dynamic activation, GPTQ, AWQ 같은 알고리즘. ExecuTorch 의 quantize step 이 torchao 호출. <strong>같은 quantize 결과가 NVIDIA / Apple / CPU 모두에서 사용 가능</strong> — 다만 dequant kernel 은 backend 별.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>Llama on iPhone 사례</b><span>· 7B / 8B 의 실행</span></div>
+    <h2>실제 iPhone 위에서 LLM 이 어떻게 도는가</h2>
+  </div>
+  <p class="sec-lede">Meta + Apple 의 협업으로 demonstrate 된 자리 — Llama 3 8B 가 iPhone 16 Pro 에서 실시간 token 생성. 10–15 tokens/sec 수준. <strong>같은 hardware, 다른 implementation 으로는 그 절반</strong>이 일반적.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Llama 3 8B INT4 의 디바이스별 추정 throughput</span><span>token/sec · prefill 후 decode</span></div>
+    <div class="l49-bars">
+      <div class="row"><span class="lbl">H100 (FP16 ref)</span><div class="bar"><span style="width:90%"></span></div><span class="v">~150 tok/s</span></div>
+      <div class="row"><span class="lbl">M3 Max</span><div class="bar good"><span style="width:55%"></span></div><span class="v">~60</span></div>
+      <div class="row"><span class="lbl">M3 Pro</span><div class="bar cool"><span style="width:35%"></span></div><span class="v">~35</span></div>
+      <div class="row"><span class="lbl">iPhone 16 Pro</span><div class="bar warn"><span style="width:12%"></span></div><span class="v">~12</span></div>
+    </div>
+    <div class="viz-note">memory bandwidth 가 dominant. token 당 weight 한 번 read = bandwidth/(weight size). iPhone 의 70 GB/s ÷ 4 GB = 17 tok/s 가 이론적 max. 12 tok/s 는 그 70%. <em>잘 짜인 구현</em>의 표시.</div>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">prefill vs decode</div>
+      <div class="d">prefill 은 large batch matmul, compute bound. decode 는 batch=1 의 GEMV-급, memory bound. 두 phase 의 커널이 다르게 최적화.</div>
+    </div>
+    <div class="term">
+      <div class="t">KV cache 메모리</div>
+      <div class="d">long context 에서 KV cache 가 weight 에 추가됨. 8K context 에서 8B model 의 KV ~1 GB. 4-bit KV quantization 도 활용.</div>
+    </div>
+    <div class="term">
+      <div class="t">power 관리</div>
+      <div class="d">iPhone 은 thermal throttle. 지속 30초+ 추론하면 frequency 떨어짐. 측정 시 throttle 후 측정도 같이.</div>
+    </div>
+    <div class="term">
+      <div class="t">CoreML vs Metal</div>
+      <div class="d">CoreML 이 Apple 의 high-level framework. Metal 이 low-level. 같은 모델을 CoreML 에 맡기면 Apple 의 ANE (Neural Engine) 활용 가능. Metal 직접은 GPU 만 사용.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>NVIDIA 와 차이</b><span>· SIMD group · threadgroup memory · no tensor core</span></div>
+    <h2>같은 idea, 다른 도구 — 핵심 격차 정리</h2>
+  </div>
+  <p class="sec-lede">NVIDIA GPU 위 INT4 LLM kernel 의 표준 구조 (예: GPTQ, AWQ + tinygemm) 와 Apple Silicon 위 같은 일의 구현이 어디서 갈리는지.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">tensor core 부재</div>
+      <div class="d">NVIDIA: WGMMA 한 instruction. Apple: SIMD vector matmul. 단순하지만 throughput/instruction 차이.</div>
+    </div>
+    <div class="term">
+      <div class="t">register file 크기</div>
+      <div class="d">NVIDIA H100: 256 KB/SM. Apple M-series: 더 작음 (정확한 숫자 미공개). register tile 사이즈 작아짐.</div>
+    </div>
+    <div class="term">
+      <div class="t">async copy 부재</div>
+      <div class="d">NVIDIA TMA / cp.async 같은 hardware async copy 없음. threadgroup memory 로 stage 가 manual.</div>
+    </div>
+    <div class="term">
+      <div class="t">unified memory</div>
+      <div class="d">CPU↔GPU copy 없음. weight loading 이 거의 무료. 단, bandwidth 한계가 throughput.</div>
+    </div>
+    <div class="term">
+      <div class="t">SIMD group = warp</div>
+      <div class="d">32 thread. <code>simd_shuffle</code>, <code>simd_sum</code> 같은 reduce primitive. NVIDIA warp shuffle 과 비슷.</div>
+    </div>
+    <div class="term">
+      <div class="t">debugging 어려움</div>
+      <div class="d">Xcode GPU frame capture 가 도구. NCU 같은 metric profiler 는 없음. metric 이 limited.</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">결과적 디자인 차이</div>
+    <p>NVIDIA INT4 커널: tile 크게, register file 활용, async copy 로 prefetch, tensor core 활용. Apple Metal INT4 커널: tile 작게, threadgroup memory 활용, SIMD vector matmul, dequant unrolled. <strong>같은 idea, 다른 size, 다른 reuse 패턴</strong>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>한계와 trade-off</b><span>· 메모리 대역폭 · power · model size</span></div>
+    <h2>iPhone LLM 의 진짜 한계는 무엇인가</h2>
+  </div>
+  <p class="sec-lede">강의가 솔직하게 다뤘을 자리. on-device LLM 이 모든 use case 에 적합하지 않다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">memory bandwidth</div>
+      <div class="d">iPhone 의 70 GB/s 가 lower bound. 더 큰 모델은 비례해서 느림. 70B 모델은 iPhone 에 들어가지도 않음.</div>
+    </div>
+    <div class="term">
+      <div class="t">power / thermal</div>
+      <div class="d">지속 추론 시 thermal throttle. battery 빠르게. peak performance 는 짧은 시간만.</div>
+    </div>
+    <div class="term">
+      <div class="t">정확도 손실</div>
+      <div class="d">INT4 quantization 은 perplexity ~5–10% 증가. specific task (code, math) 에서 더 큰 손실.</div>
+    </div>
+    <div class="term">
+      <div class="t">cold start</div>
+      <div class="d">3.5 GB weight 를 mmap 한 번. iPhone 에서 ~1–3초. GPU 위 caching 도 추가.</div>
+    </div>
+    <div class="term">
+      <div class="t">large context 한계</div>
+      <div class="d">KV cache 가 메모리 차지. 8B model + 8K context + KV → iPhone 의 8 GB 거의 다 사용.</div>
+    </div>
+    <div class="term">
+      <div class="t">multi-modal 어려움</div>
+      <div class="d">vision encoder 추가하면 메모리 부담. iPhone 의 ANE 활용 (CoreML) 으로 일부 분담 가능.</div>
+    </div>
+  </div>
+
+  <div class="pull">“on-device LLM 은 cloud 의 대체가 아니다 — 보완이다. privacy-sensitive 한 자리, network 가 비싼 자리, latency 가 핵심인 자리. 모든 use case 가 아니다.”<span class="by">학습 노트 · 적용 자리 정리</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 자료</b><span>· key takeaways</span></div>
+
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">Apple GPU = SIMD group</div>
+      <div class="d">32 thread. NVIDIA warp 와 비슷. simd_shuffle / reduce 활용.</div>
+    </div>
+    <div class="term">
+      <div class="t">tensor core 없음</div>
+      <div class="d">Apple GPU 는 SIMD vector matmul. dequant 후 FP16 SIMD 가 표준 path.</div>
+    </div>
+    <div class="term">
+      <div class="t">unified memory</div>
+      <div class="d">CPU/GPU 같은 DRAM. copy 없음. mmap 으로 weight 직접 load. 단, 대역폭 낮음.</div>
+    </div>
+    <div class="term">
+      <div class="t">dequant inner loop</div>
+      <div class="d">unpack + signed convert + scale × 1 byte 당 2 weight. 매 inner iteration 마다.</div>
+    </div>
+    <div class="term">
+      <div class="t">memory bandwidth bound</div>
+      <div class="d">iPhone: 70 GB/s, M3 Max: 400, H100: 3350. lower bound = weight size / bandwidth.</div>
+    </div>
+    <div class="term">
+      <div class="t">ExecuTorch + torchao</div>
+      <div class="d">PyTorch → quantize → export → .pte → iPhone app. backend partition 이 핵심.</div>
+    </div>
+    <div class="term">
+      <div class="t">prefill vs decode</div>
+      <div class="d">prefill 은 compute bound, decode 는 memory bound. 두 phase 다른 최적화.</div>
+    </div>
+    <div class="term">
+      <div class="t">CoreML vs Metal direct</div>
+      <div class="d">CoreML 은 ANE 까지. Metal 은 GPU 만. trade-off — 사용 편의 vs 성능 통제.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=PaPuu73wowE" target="_blank" rel="noopener">youtube.com/watch?v=PaPuu73wowE</a> · 길이 미상</span>
+    </div>
+    <div class="row">
+      <span class="k">ExecuTorch</span>
+      <span class="v"><a href="https://github.com/pytorch/executorch" target="_blank" rel="noopener">github.com/pytorch/executorch</a></span>
+    </div>
+    <div class="row">
+      <span class="k">torchao</span>
+      <span class="v"><a href="https://github.com/pytorch/ao" target="_blank" rel="noopener">github.com/pytorch/ao</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Metal docs</span>
+      <span class="v"><a href="https://developer.apple.com/metal/" target="_blank" rel="noopener">developer.apple.com/metal</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Llama on iPhone</span>
+      <span class="v"><a href="https://github.com/pytorch/executorch/tree/main/examples/models/llama" target="_blank" rel="noopener">executorch/examples/models/llama</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>Metal Hello kernel</strong> — Xcode 또는 metalcpp 로 가장 단순한 vector_add 커널. CUDA 와의 추상 1:1 대응 손에 잡기.</li>
+    <li><strong>FP16 matmul</strong> — Metal MSL 로 simple matmul. threadgroup memory tiling. CUDA 의 tiled matmul 직역.</li>
+    <li><strong>INT4 dequant 단독 커널</strong> — packed byte → 2 FP16 의 dequant 만. CPU 와 정확성 비교.</li>
+    <li><strong>INT4 dequant + matmul fusion</strong> — 위 두 단계 합치기. inner loop 안 dequant.</li>
+    <li><strong>ExecuTorch 의 INT4 backend 코드 읽기</strong> — <code>executorch/backends/apple/metal</code> 의 실제 구현. 본 노트의 추상이 어떻게 코드화 되어 있는지.</li>
+    <li><strong>iPhone 위 Llama 빌드</strong> — ExecuTorch 의 example 따라가기. .pte 만들고 iOS app 에서 호출.</li>
+    <li><strong>throughput 측정</strong> — token/sec, memory bandwidth 사용률, thermal throttle 시작 시점.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">같은 INT4 커널을 NVIDIA + Triton 으로. 본 강의는 그 Apple 버전</div>
+    </a>
+    <a class="conn" href="lecture_043.html">
+      <div class="n">L043</div>
+      <div class="ti">int8 tensorcore matmul</div>
+      <div class="by">Erik Schultheis — INT8 의 NVIDIA 표준 도구. 본 강의의 비교 자료</div>
+    </a>
+    <a class="conn" href="lecture_017.html">
+      <div class="n">L017</div>
+      <div class="ti">Quantization</div>
+      <div class="by">torchao 의 quantization recipe. 본 강의의 input</div>
+    </a>
+    <a class="conn" href="lecture_038.html">
+      <div class="n">L038</div>
+      <div class="ti">Mobile / Edge inference</div>
+      <div class="by">on-device 추론의 일반론. 본 강의는 그 Apple 부분</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA Profiling</div>
+      <div class="by">profiling 워크플로. Apple 은 Xcode GPU frame capture 가 대응</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+
+  </div>
+  <p class="sec-lede">transcript 가 없어 강의의 정확한 강조점은 추정. 영상 직접 확인이 필요한 사항들.</p>
+
+  <ul>
+    <li><strong>구체적 throughput 수치</strong> — 본 노트의 token/sec 추정은 도메인 지식 기반. 강의가 보여준 정확한 측정값은 영상 직접 확인 필요.</li>
+    <li><strong>구체적 Metal 코드</strong> — 본 노트의 INT4 커널은 ExecuTorch 공개 코드 + 일반 패턴 조합. 강의의 정확한 코드는 다를 수 있음.</li>
+    <li><strong>Apple Neural Engine (ANE) 의 자리</strong> — Apple 의 specialized matmul accelerator. 본 강의가 GPU (Metal) 만 다뤘는지, ANE 와의 비교를 했는지 확인 필요.</li>
+    <li><strong>M3 Dynamic Caching</strong> — M3 부터 새로 들어간 GPU feature. 본 강의가 활용했는지 확인 필요.</li>
+    <li><strong>KV cache quantization</strong> — long context 에서 KV cache 도 4-bit 양자화. 본 강의가 다뤘는지 미확인.</li>
+    <li><strong>prefill 최적화의 자리</strong> — decode 에 집중했는지, prefill 의 large batch matmul 도 다뤘는지.</li>
+    <li><strong>다른 quantization recipe</strong> — GPTQ vs AWQ vs SmoothQuant 의 비교. 본 강의가 어느 알고리즘을 사용했는지 확인.</li>
+    <li><strong>ExecuTorch 의 backend partition 디테일</strong> — 어느 op 가 Metal, 어느 op 가 CPU 인지의 결정. 본 강의가 이 자리를 다뤘는지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 수치 (메모리 대역폭, throughput 추정, register file 크기) 는 Apple 공식 자료 + 도메인 지식 베이스. 강의의 실제 측정값은 영상 직접 확인 필요. INT4 dequant 코드는 ExecuTorch 의 공개 구현 + 일반 패턴의 조합으로, 강의에서 보여준 정확한 코드는 다를 수 있다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_048.html">
+    <span class="lbl">← Lecture 048</span>
+    <span class="nm">Ultra Scale Playbook</span>
+  </a>
+  <a class="nxt" href="lecture_050.html">
+    <span class="lbl">Lecture 050 →</span>
+    <span class="nm">CUDA / Triton / FlashAttention 학습 여정</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L049 · transcript-failed · domain-knowledge supplement · 2026</span>
+</footer>
+
+</body>
+</html>

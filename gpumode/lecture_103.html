@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L103 · Fundamentals of CuTe Layout Algebra · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l103-grid{display:grid;grid-template-columns:repeat(8,18px);gap:2px;width:max-content;font-family:'JetBrains Mono',monospace;font-size:9.5px}
+.l103-grid .c{width:18px;height:18px;display:grid;place-items:center;color:var(--ink);background:var(--bg-soft);border-radius:2px;font-weight:600}
+.l103-grid .c.h{background:var(--accent);color:var(--paper)}
+.l103-grid .c.b{background:var(--cool);color:var(--paper)}
+
+.l103-frame{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l103-frame .blk{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l103-frame .blk .ax{color:var(--accent);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.l103-frame .blk .nm{color:var(--ink);font-weight:700;font-size:13px;font-family:'Pretendard',sans-serif;margin-bottom:6px}
+.l103-frame .blk .d{color:var(--ink-soft);line-height:1.55}
+.l103-frame .blk pre{margin:8px 0;background:var(--bg-soft);padding:8px;border-radius:4px;font-size:11px;overflow-x:auto}
+
+.l103-ops{display:grid;grid-template-columns:1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l103-ops .op{display:grid;grid-template-columns:120px 1fr 220px;gap:14px;padding:13px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:start}
+.l103-ops .op .nm{color:var(--accent);font-weight:700;font-size:14px;font-family:'JetBrains Mono',monospace}
+.l103-ops .op .d{color:var(--ink-soft);line-height:1.55}
+.l103-ops .op .ex{color:var(--ink);font-weight:700;font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--bg-soft);padding:7px 9px;border-radius:4px}
+
+.l103-cat{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l103-cat .c{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l103-cat .c .ax{color:var(--accent);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.l103-cat .c .nm{color:var(--ink);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif;margin-bottom:6px}
+.l103-cat .c .d{color:var(--ink-soft);line-height:1.55}
+
+.l103-swiz{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px}
+.l103-swiz .row{display:grid;grid-template-columns:90px 1fr;gap:10px;align-items:center;margin:6px 0}
+.l103-swiz .nm{color:var(--ink-soft)}
+.l103-swiz .cells{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.l103-swiz .cells .c{height:18px;display:grid;place-items:center;color:var(--paper);font-weight:700;font-size:9px;border-radius:2px}
+.l103-swiz .cells .b0{background:var(--cool)}
+.l103-swiz .cells .b1{background:var(--accent)}
+.l103-swiz .cells .b2{background:var(--accent-2)}
+.l103-swiz .cells .b3{background:var(--warn)}
+.l103-swiz .cells .b4{background:var(--good)}
+.l103-swiz .cells .b5{background:#806060}
+.l103-swiz .cells .b6{background:#508050}
+.l103-swiz .cells .b7{background:#605080}
+
+@media (max-width:760px){
+  .l103-frame{grid-template-columns:1fr}
+  .l103-cat{grid-template-columns:1fr}
+  .l103-ops .op{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_102.html">← L102</a>
+    <a href="lecture_104.html">L104 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L103</span>
+    <span>2025 · CuTe Layout Algebra</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>Fundamentals of CuTe Layout Algebra and Category-theoretic Interpretation</h1>
+  <p class="dek">CuTe 의 layout 추상이 — “좌표를 index 로 보내는 함수” — 라는 단순한 정의 위에서, <strong>composition · divide · product · complement</strong> 의 algebraic 인 패턴이 어떻게 자연스럽게 나오는가. 그리고 그 algebra 가 <em>category</em> 의 morphism 으로 보일 때 mainloop / epilogue / swizzle / thread mapping 이 같은 언어로 통합된다는 시각. Jack Carlisle 과 Jay Shah (FlashAttention-3 author) 가 NVIDIA / Colfax 의 정리 위에서 같은 자료를 — paper-level 의 정확성으로 — 풀어가는 학습 노트. <a href="lecture_103/layout_algebra.pdf">슬라이드</a>는 repo 에 동반.</p>
+
+  <div class="chips">
+    <span class="chip hi">CuTe</span>
+    <span class="chip hi">Layout</span>
+    <span class="chip hi">Shape · Stride</span>
+    <span class="chip hi">composition</span>
+    <span class="chip hi">divide</span>
+    <span class="chip">product</span>
+    <span class="chip">complement</span>
+    <span class="chip">swizzle</span>
+    <span class="chip">category</span>
+    <span class="chip">functor</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">JC</div>
+      <div>
+        <div class="role">Speakers</div>
+        <div class="nm">Jack Carlisle · Jay Shah</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Colfax Research · FlashAttention-3 author lineage</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L103</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Jack Carlisle · Jay Shah</div></div>
+    <div class="cell warn"><div class="lbl">자막</div><div class="val">failed · slide 기반</div></div>
+    <div class="cell good"><div class="lbl">priority</div><div class="val">High · 정독</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 layout 을 algebra 로</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">layout = 함수</span><span class="em">Shape × Stride → ℕ</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">mode / divide / coalesce</span><span class="em">기본 연산의 의미</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">hierarchical layout</span><span class="em">중첩 좌표</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">swizzle 의 표현</span><span class="em">XOR-based 와 함수합성</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">thread mapping</span><span class="em">partition_S/D · TiledMMA</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">mathematical correctness</span><span class="em">category 의 시각</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">학습 자료</span><span class="em">읽는 순서</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">한계</span><span class="em">algebra 가 못 잡는 자리</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의와 잇기</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 layout 을 algebra 로</span></div>
+    <h2>“tile size 를 바꿨더니 swizzle 이 깨진다” 는 왜 일어나는가</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 3.x / CuTe 의 코드를 처음 만나면 — <em>layout 이 곳곳에 퍼져 있다</em>. mainloop 의 SMEM tile, epilogue 의 store, threadblock 의 partition, MMA 의 thread layout. 같은 추상이지만 매번 모양이 달라 보인다. 이 강의가 풀려는 문제 — <strong>이 모든 자리에서의 layout 이 “같은 algebra” 로 통합된다는 사실</strong>을 정확히 보이는 것.</p>
+
+  <p>강의가 던지는 두 개의 질문.</p>
+  <ol>
+    <li><strong>layout 의 algebra 가 정확히 무엇인가</strong> — 함수의 합성과 분해라는 frame 이 어디까지 정확하게 적용되는가.</li>
+    <li><strong>그 algebra 가 “수학적으로 옳다” 는 것의 의미는 무엇인가</strong> — category-theoretic 시각이 어떻게 layout algebra 의 일관성을 보장하는가.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>CuTe 의 코드는 — 일견 ad-hoc 한 type-level template 의 모음으로 보이지만 — <strong>한 일관된 algebra 의 표현</strong>이다. 그 algebra 를 명시적으로 정리하면, 매번 헷갈리는 “mode”, “coalesce”, “divide” 가 모두 자연스럽게 자리잡는다.</p>
+  </div>
+
+  <div class="pull">“CuTe 가 어렵다고 느끼는 사람의 90% 는 — code 를 보고 algebra 를 보지 않는다. algebra 가 잡히면 code 는 표기일 뿐.”<span class="by">학습 노트</span></div>
+
+  <p>강의의 두 부분. 첫 번째 — <strong>algebra 자체</strong> (§ 02–06). 두 번째 — <strong>category 의 시각</strong> (§ 07). 첫 부분이 충분히 가치 있으므로 두 번째에 압도되지 않고 따라가는 게 좋은 학습 전략.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>layout = 함수</b><span>· Shape × Stride → ℕ</span></div>
+    <h2>모든 layout 추상의 출발점 한 줄</h2>
+  </div>
+  <p class="sec-lede">CuTe 의 한 줄 정의 — <strong>Layout = (Shape, Stride)</strong>. Shape 가 좌표 공간, Stride 가 좌표를 자연수로 mapping 하는 가중치. <em>Layout(c)</em> 는 좌표 c 를 받아 메모리 index 를 돌려주는 함수.</p>
+
+  <div class="l103-frame">
+    <div class="blk">
+      <div class="ax">EX 01 · row-major 4×8</div>
+      <div class="nm">Layout = (4,8) : (8,1)</div>
+      <div class="d">좌표 (i, j) ↦ 8·i + 1·j. 자연 좌표 그대로 row-major.</div>
+<pre>(0,0) → 0   (0,1) → 1   ...  (0,7) → 7
+(1,0) → 8   (1,1) → 9   ...  (1,7) → 15
+...
+(3,0) → 24  ...           (3,7) → 31</pre>
+      <div class="d">stride 표기는 <em>각 mode 별 곱셈 가중치</em>. 함수는 inner product.</div>
+    </div>
+    <div class="blk">
+      <div class="ax">EX 02 · col-major 4×8</div>
+      <div class="nm">Layout = (4,8) : (1,4)</div>
+      <div class="d">좌표 (i, j) ↦ 1·i + 4·j. 같은 shape, 다른 stride. col-major.</div>
+<pre>(0,0) → 0   (1,0) → 1   ...  (3,0) → 3
+(0,1) → 4   (1,1) → 5   ...  (3,1) → 7
+...
+(0,7) → 28  ...           (3,7) → 31</pre>
+      <div class="d">메모리 안의 같은 32 element 가 — 두 layout 의 시점에서 다르게 보인다. 함수가 다를 뿐.</div>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 32 element, 두 layout 의 좌표 grid</span><span>row-major (left) · col-major (right)</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">row-major (4,8):(8,1)</div>
+        <div class="l103-grid">
+          <div class="c h">0</div><div class="c">1</div><div class="c">2</div><div class="c">3</div><div class="c">4</div><div class="c">5</div><div class="c">6</div><div class="c">7</div>
+          <div class="c">8</div><div class="c">9</div><div class="c">10</div><div class="c">11</div><div class="c">12</div><div class="c">13</div><div class="c">14</div><div class="c">15</div>
+          <div class="c">16</div><div class="c">17</div><div class="c">18</div><div class="c">19</div><div class="c">20</div><div class="c">21</div><div class="c">22</div><div class="c">23</div>
+          <div class="c">24</div><div class="c">25</div><div class="c">26</div><div class="c">27</div><div class="c">28</div><div class="c">29</div><div class="c">30</div><div class="c">31</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">col-major (4,8):(1,4)</div>
+        <div class="l103-grid">
+          <div class="c h">0</div><div class="c">4</div><div class="c">8</div><div class="c">12</div><div class="c">16</div><div class="c">20</div><div class="c">24</div><div class="c">28</div>
+          <div class="c">1</div><div class="c">5</div><div class="c">9</div><div class="c">13</div><div class="c">17</div><div class="c">21</div><div class="c">25</div><div class="c">29</div>
+          <div class="c">2</div><div class="c">6</div><div class="c">10</div><div class="c">14</div><div class="c">18</div><div class="c">22</div><div class="c">26</div><div class="c">30</div>
+          <div class="c">3</div><div class="c">7</div><div class="c">11</div><div class="c">15</div><div class="c">19</div><div class="c">23</div><div class="c">27</div><div class="c">31</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">메모리는 같다. 좌표 (1, 2) 가 — 왼쪽에서는 10, 오른쪽에서는 9 — 다른 index 를 가리킨다. <strong>layout 은 좌표의 의미를 결정한다.</strong></div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">정의의 형식적 형태</div>
+    <p>Shape <code>S = (s₁, s₂, ..., sₖ)</code> 와 Stride <code>D = (d₁, d₂, ..., dₖ)</code> 가 주어졌을 때 — Layout <code>L: ∏ ℤ_{sᵢ} → ℕ</code>, <code>L(c₁, ..., cₖ) = Σ cᵢ · dᵢ</code>. 모든 algebra 는 이 함수의 합성과 분해.</p>
+  </div>
+
+  <p>Shape 와 Stride 자체가 <em>tuple</em> 이라는 점이 중요. 단순한 정수가 아니라 — nested tuple — 도 가능. 그 자리가 hierarchical layout 의 entry point (§ 04).</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>mode / divide / coalesce 의 의미</b><span>· 기본 연산</span></div>
+    <h2>algebra 의 5 가지 기본 연산</h2>
+  </div>
+  <p class="sec-lede">layout 의 algebra 는 — <em>5 개의 핵심 연산</em>으로 거의 모두 표현된다. 각 연산이 함수의 합성/분해/제한 중 어느 것의 표현인지를 명시적으로 잡으면 직관이 단단해진다.</p>
+
+  <div class="l103-ops">
+    <div class="op">
+      <span class="nm">mode</span>
+      <span class="d">layout 의 한 차원. <code>(M, N) : (sM, sN)</code> 의 M 차원과 N 차원이 각자 mode. mode 단위로 따로 연산할 수 있는 수준의 분리.</span>
+      <span class="ex">layout&lt;0&gt;((4,8):(8,1)) = 4:8</span>
+    </div>
+    <div class="op">
+      <span class="nm">coalesce</span>
+      <span class="d">호환 가능한 mode 들을 합쳐 더 단순한 layout 으로. 함수는 그대로지만 표기가 단순해짐. (s₁, s₂):(d₁, d₂) 가 d₂ = s₁ · d₁ 이면 (s₁·s₂):d₁ 로.</span>
+      <span class="ex">(_2,_4):(_1,_2) → _8:_1</span>
+    </div>
+    <div class="op">
+      <span class="nm">composition</span>
+      <span class="d">함수의 합성. <code>R(c) = A(B(c))</code>. layout B 를 먼저 적용해 좌표를 layout A 의 좌표로 보내고, A 가 index 를 돌려준다. 기하학적으로 — <em>“B 의 모양을 A 위에 놓는다”</em>.</span>
+      <span class="ex">A ∘ B</span>
+    </div>
+    <div class="op">
+      <span class="nm">complement</span>
+      <span class="d">한 layout 이 채우지 않은 자리. 전체 size N 안에서 layout B 가 차지한 stride 위치 외의 stride 를 채우는 layout. divide 의 짝.</span>
+      <span class="ex">B* = complement(B, N)</span>
+    </div>
+    <div class="op">
+      <span class="nm">logical_divide</span>
+      <span class="d">tile 로 자르기. <code>A ÷ B := A ∘ (B, B*)</code>. layout A 안에서 B 의 모양을 “건드리는 좌표” 로 분리, 나머지를 “안 건드리는 좌표” 로. <em>tiling 의 정식 정의</em>.</span>
+      <span class="ex">A ÷ B</span>
+    </div>
+    <div class="op">
+      <span class="nm">logical_product</span>
+      <span class="d">한 layout 을 다른 layout 의 모양대로 복제. <code>A ⊗ B := (A, A* ∘ B)</code>. tile 의 grid 를 만들 때.</span>
+      <span class="ex">A ⊗ B</span>
+    </div>
+  </div>
+
+  <p>실전에서 자주 쓰는 wrapper — <code>blocked_product</code>, <code>raked_product</code>, <code>zipped_divide</code>, <code>tiled_divide</code>. 모두 logical_product / logical_divide 의 변형으로, mode 의 순서나 grouping 만 다르다.</p>
+
+  <div class="callout">
+    <div class="label">학습 trick</div>
+    <p>각 연산이 <em>“layout 함수의 무엇을 변경하는가”</em> 를 한 줄로 정리한다. coalesce — 표기만 변경, 함수 동일. composition — 함수 합성. divide — 좌표 공간을 두 직교 부분으로 분해. product — 좌표 공간을 외적으로 확장. complement — 빈 자리.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>hierarchical layout</b><span>· 중첩 좌표</span></div>
+    <h2>“tile of tiles” 가 자연스럽게 나오는 자리</h2>
+  </div>
+  <p class="sec-lede">CuTe 의 가장 큰 unique selling point — <strong>hierarchical layout</strong>. Shape 가 단순 tuple 이 아니라 nested tuple 일 수 있다. <code>((2,2), (2,2)) : ((4,1), (8,2))</code> 같은 모양. 좌표도 같은 모양으로 nested.</p>
+
+  <div class="l103-frame">
+    <div class="blk">
+      <div class="ax">예시 · 4×4 의 두 가지 hierarchical 표현</div>
+      <div class="nm">flat: (4,4):(4,1)</div>
+      <div class="d">단순 row-major. 좌표 (i, j), index = 4i + j.</div>
+      <div class="nm" style="margin-top:8px">hier: ((2,2),(2,2)):((8,2),(4,1))</div>
+      <div class="d">2×2 의 outer block 안에 2×2 의 inner block. 좌표 ((I, i), (J, j)), index = 8I + 2i + 4J + j.</div>
+<pre>이걸 8 으로 나눠 보면:
+8I  + 4J + 2i + j
+↑outer↑      ↑inner↑</pre>
+    </div>
+    <div class="blk">
+      <div class="ax">왜 hierarchical 이 필요한가</div>
+      <div class="nm">tile of tiles · WGMMA shape</div>
+      <div class="d">Hopper 의 WGMMA 는 — m64n*k16 같은 native shape 가 있다. 하나의 GEMM 의 큰 tile 안에 — WGMMA 의 작은 tile 이 — 그 안에 thread layout 이 — 다층으로 들어간다.</div>
+      <div class="d" style="margin-top:8px">flat layout 으로는 이 nesting 을 표현하지 못한다. hierarchical 좌표가 자연스럽다.</div>
+      <div class="d" style="margin-top:8px"><strong>algebra 의 일관성</strong> — divide, product 모두 hierarchical layout 위에서 정의가 그대로. 추상이 깨지지 않는다.</div>
+    </div>
+  </div>
+
+  <p>hierarchical layout 의 좌표 형태는 — <em>natural coordinate</em> (nested tuple, 모양이 Shape 를 따름) 또는 — <em>1-D coordinate</em> (단일 정수, colexicographic 순서). 두 형태가 자유롭게 변환 가능. 실전 코드에서 한 자리에 한 형태로 통일.</p>
+
+  <div class="pull">“hierarchical layout 은 <em>같은 algebra 의 더 풍부한 도메인</em> 일 뿐. 새 추상이 아니라 같은 추상의 자연스러운 확장.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>swizzle 의 표현</b><span>· XOR-based 와 함수합성</span></div>
+    <h2>SMEM bank conflict 회피의 algebra 적 의미</h2>
+  </div>
+  <p class="sec-lede">SMEM 의 32-bank 구조는 — 같은 bank 의 32 thread access 가 동시에 일어나면 32× slowdown. 이걸 피하기 위한 <strong>swizzle</strong> 은 — <em>좌표를 “섞는” 함수</em>. CuTe 에서는 swizzle 도 layout 의 합성으로 표현된다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 8×8 SMEM tile 위 두 시나리오 (8 bank simulation)</span><span>row-access pattern</span></div>
+    <div class="l103-swiz">
+      <div class="row">
+        <span class="nm">naive layout<br><span style="color:var(--muted);font-size:9px">bank id mod 8</span></span>
+        <div class="cells">
+          <div class="c b0">0</div><div class="c b1">1</div><div class="c b2">2</div><div class="c b3">3</div><div class="c b4">4</div><div class="c b5">5</div><div class="c b6">6</div><div class="c b7">7</div>
+        </div>
+      </div>
+      <div class="row">
+        <span class="nm">naive col<br><span style="color:var(--muted);font-size:9px">8 thread → 같은 bank 0</span></span>
+        <div class="cells">
+          <div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div><div class="c b0">0</div>
+        </div>
+      </div>
+      <div class="row">
+        <span class="nm">swizzled<br><span style="color:var(--muted);font-size:9px">addr ⊕ (row[lo3])&lt;&lt;0</span></span>
+        <div class="cells">
+          <div class="c b0">0</div><div class="c b1">1</div><div class="c b2">2</div><div class="c b3">3</div><div class="c b4">4</div><div class="c b5">5</div><div class="c b6">6</div><div class="c b7">7</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">naive 에서 column access 가 모두 bank 0 으로 collide (32× slowdown). swizzled 에서는 같은 column 이 — XOR 으로 — 서로 다른 bank 로 분산. <strong>swizzle 은 좌표를 비트 XOR 로 permute 하는 함수.</strong></div>
+  </div>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">CuTe 의 Swizzle 표현</h3>
+      <p>CuTe 는 swizzle 을 — <code>Swizzle&lt;B, M, S&gt;</code> 의 type 으로 표현. <em>B</em> = swizzle bits, <em>M</em> = mask 비트 시작, <em>S</em> = shift. 이 셋이 하나의 XOR 연산을 정의.</p>
+      <p>핵심 — <strong>Swizzle 도 layout 함수</strong>. 좌표 → 좌표 (또는 index → index) 의 함수. 일반 layout 과 합성 가능.</p>
+      <p>가장 흔한 setup — <code>Swizzle&lt;3, 0, 3&gt;</code> 또는 <code>Swizzle&lt;5, 0, 5&gt;</code> (8-bank, 32-bank). 32-bank 는 modern NVIDIA SM 의 표준.</p>
+    </div>
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">왜 합성이 깔끔한가</h3>
+      <p>SMEM 위에 layout 을 둘 때 — <em>logical layout (사용자가 보는 좌표)</em> ∘ <em>swizzle (bank conflict 해결)</em> 의 합성으로 본다. 사용자는 logical 좌표만 신경 쓰고, hardware 는 swizzle 을 흡수.</p>
+      <p>이 합성이 — algebra 안에서 <em>그저 한 layout 의 다른 layout 과의 composition</em> 일 뿐. 새 추상이 추가되지 않는다.</p>
+      <div class="callout">
+        <div class="label">L101 § 05 와의 연결</div>
+        <p>Hopper mainloop 의 SMEM tile 은 거의 항상 swizzled. CuTe algebra 안에서 — <em>tile shape × swizzle 의 composed layout</em> 으로 한 자리에 표현된다. 이 시각이 잡히면 mainloop 코드의 <code>SmemLayoutA</code> 류 type 이 자연스럽게 읽힌다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>thread mapping</b><span>· partition_S/D · TiledMMA</span></div>
+    <h2>같은 algebra 가 thread 분배에서도 그대로 쓰인다</h2>
+  </div>
+  <p class="sec-lede">SMEM tile 의 layout 만 algebra 의 자리가 아니다. <strong>thread 가 tile 의 어느 element 를 담당하는가</strong> 도 같은 algebra. <code>partition_S</code> (source-partition), <code>partition_D</code> (destination-partition) 가 그 표현.</p>
+
+  <div class="l103-frame">
+    <div class="blk">
+      <div class="ax">tile 위 thread mapping</div>
+      <div class="nm">tile = 16×16, threads = 32</div>
+      <div class="d">한 warp (32 thread) 가 16×16 = 256 element 를 담당. 한 thread 가 8 element. <em>thread layout</em> 이 어떻게 element 를 분배하는가가 layout 으로 표현.</div>
+<pre>ThreadLayout = (32) : (1)
+TiledShape   = (16, 16)
+partition    = TiledShape ÷ ThreadLayout
+             = ((4, 16), 32)
+             = thread 안 좌표 4×16 = 8/thread × 8 (?) </pre>
+      <div class="d">실제 partition 의 결과는 <em>(thread, value) 쌍의 hierarchical layout</em>. divide 의 직접 응용.</div>
+    </div>
+    <div class="blk">
+      <div class="ax">TiledMMA · TiledCopy</div>
+      <div class="nm">collective MMA 와 copy 의 layout 합성</div>
+      <div class="d">CuTe 의 <code>TiledMMA</code> 는 — atom MMA (작은 native instruction) 위에 — 사용자 tile 을 어떻게 분배할지를 layout 합성으로 표현.</div>
+      <div class="d" style="margin-top:8px">예: <code>TiledMMA = MMAAtom ⊗ AtomLayout</code> — MMA atom 을 atom layout 의 모양대로 외적 product.</div>
+      <div class="d" style="margin-top:8px"><strong>thread mapping, MMA tiling, copy tiling 모두 같은 algebra (divide / product)</strong>. 한 번 algebra 가 잡히면 세 자리가 동시에 풀린다.</div>
+    </div>
+  </div>
+
+  <p>이 시각이 잡히면 — <code>local_tile</code>, <code>partition_S</code>, <code>tiled_divide</code> 같은 CuTe API 들이 모두 <em>같은 algebra 의 다른 사용자 친화 wrapper</em> 라는 사실이 명확해진다. 새 함수마다 외울 게 아니라 — <em>“이 함수는 divide 의 무엇을 wrap 한 것인가”</em> 의 시각으로.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>mathematical correctness</b><span>· category 의 시각</span></div>
+    <h2>“수학적으로 옳다” 는 구체적으로 무슨 뜻인가</h2>
+  </div>
+  <p class="sec-lede">강의의 두 번째 절반. layout 의 algebra 가 — <strong>category (범주) 의 morphism</strong> 으로 보일 때 — 모든 연산의 일관성이 자연스럽게 따라온다는 시각. 카테고리 이론 백그라운드 없는 사람도 핵심만 잡을 수 있도록 절제된 정리.</p>
+
+  <div class="l103-cat">
+    <div class="c">
+      <div class="ax">CATEGORY</div>
+      <div class="nm">Layouts as objects</div>
+      <div class="d">layout 자체가 한 object. 한 layout 은 좌표 공간 (Shape) + 그 위의 함수 (Stride 결정).</div>
+    </div>
+    <div class="c">
+      <div class="ax">MORPHISM</div>
+      <div class="nm">Composition</div>
+      <div class="d">layout A 에서 layout B 로의 morphism = composition. <code>A ∘ B</code> 가 결합법칙 성립. identity 가 <code>L₀ = (1):(0)</code>.</div>
+    </div>
+    <div class="c">
+      <div class="ax">FUNCTOR</div>
+      <div class="nm">Tile / partition</div>
+      <div class="d">한 layout 카테고리에서 — divide 와 product 가 — 카테고리간의 functor 처럼 작동. divide(L, _) 가 한 functor.</div>
+    </div>
+    <div class="c">
+      <div class="ax">ADJUNCTION</div>
+      <div class="nm">Divide ⊣ Product</div>
+      <div class="d">divide 와 product 가 dual 관계. <em>“잘랐다 다시 합치면 원본”</em> 의 algebra 적 표현. complement 가 그 사이의 연결.</div>
+    </div>
+    <div class="c">
+      <div class="ax">UNIVERSAL PROP.</div>
+      <div class="nm">Coalesce</div>
+      <div class="d">coalesce 가 <em>가장 단순한 동치 layout</em> 을 만든다. categorical 의미에서 — 한 동치류의 normal form 또는 “initial / canonical” representative.</div>
+    </div>
+    <div class="c">
+      <div class="ax">NATURALITY</div>
+      <div class="nm">Hierarchical 의 일관성</div>
+      <div class="d">flat layout 에서 정의된 algebra 가 hierarchical 로 자연스럽게 lift. 추상이 “자연스럽게 호환” 한다는 게 categorical 의미에서 natural transformation.</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 이 시각이 가치 있는가</div>
+    <p>두 가지 — (1) <strong>일관성의 보장</strong>: 새 연산이 추가될 때, 그것이 카테고리의 의미에서 well-defined 인가를 묻는 게 — implementation 의 corner case 를 사전에 잡는 길. (2) <strong>학습의 절제</strong>: ad-hoc 한 trick 의 모음이 아니라 — 작은 universal property 로부터 모두 따라온다는 시각이 학습 부담을 줄인다.</p>
+  </div>
+
+  <p>주의 — 이 시각이 implementation 을 더 빠르게 만들지는 않는다. CuTe 의 implementation 은 type-level template 으로 정해진 형태가 있고, category 시각은 그 형태가 <em>왜 그러한지</em> 의 답일 뿐. 강의의 메시지도 동일 — “code 를 짤 때 카테고리를 항상 의식할 필요는 없지만, 막혔을 때 카테고리 시각이 길을 보여준다”.</p>
+
+  <div class="pull">“이 algebra 가 단순히 ‘잘 정의됨’ 의 의미를 넘어 — 어떻게 통합되는가의 답이 카테고리 안에 있다.”<span class="by">학습 노트 · 강의의 입장 추정</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>학습 자료</b><span>· 읽는 순서</span></div>
+    <h2>이 강의 + 자료들의 읽는 path</h2>
+  </div>
+  <p class="sec-lede">L103 자체가 자료의 합성이고 — 그 자료들을 어떤 순서로 읽으면 가장 효율적인지가 강의의 부수적 가치.</p>
+
+  <ol class="ex-list">
+    <li><strong>CUTLASS 의 cute/00_quickstart.md</strong> — Layout = (Shape, Stride) 의 30분 자료. 가장 작은 entry.</li>
+    <li><strong>cute/01_layout.md</strong> — coordinate mapping, hierarchical, integer types. 1 시간.</li>
+    <li><strong>cute/02_layout_algebra.md</strong> — composition / divide / product / complement 의 정의. 1–2 시간.</li>
+    <li><strong>L103 슬라이드 (layout_algebra.pdf)</strong> — 같은 자료의 정리, category 시각 추가.</li>
+    <li><strong>Colfax — Tutorial: Matrix Transpose in CUTLASS</strong> — algebra 가 swizzle 위에서 어떻게 작동하는가의 구체.</li>
+    <li><strong>Jay Shah — “A note on the algebra of CuTe Layouts”</strong> — paper-level 정리. category 시각의 깊이 보충.</li>
+    <li><strong><a href="lecture_057.html">L057 — CuTe</a></strong> — 다른 발표자 (Jay Shah) 의 더 가벼운 introduction. 보충 시각.</li>
+    <li><strong><a href="lecture_086.html">L086 — FlashAttention 3</a></strong> — algebra 가 production 코드에 어떻게 들어가는가. 응용.</li>
+    <li><strong><a href="lecture_101.html">L101 — Learning CUTLASS</a></strong> — algebra 위에 build 된 mainloop 의 hierarchy.</li>
+    <li><strong>NVIDIA cutlass example/cute</strong> — 실제 코드. transpose / sgemm / FA3.</li>
+  </ol>
+
+  <div class="callout cool">
+    <div class="label">학습 함정</div>
+    <p>L103 의 category 부분만 따로 떼어내서 — “category theory 부터” 시작하면 어렵다. <strong>algebra 를 먼저 (§ 02–06), category 는 마지막 (§ 07)</strong>. 강의 자체도 같은 순서.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>한계</b><span>· algebra 가 못 잡는 자리</span></div>
+    <h2>“layout algebra 가 모든 GPU 코드를 표현하는가” — 답은 No</h2>
+  </div>
+  <ul>
+    <li><strong>data dependent control flow</strong> — predication 이 <em>compile-time</em> 으로 결정되지 않으면 layout algebra 의 표현 영역 밖. attention 의 causal mask 같은 자리가 부분적으로 해당.</li>
+    <li><strong>dynamic shape</strong> — Shape 가 compile-time constant 가 아니면 — 같은 algebra 가 그대로 적용되지만 <em>type-level 의 모든 결정이 runtime 으로 옮겨가</em> 효율이 떨어진다.</li>
+    <li><strong>async pipeline 의 sequencing</strong> — “이 stage 가 끝나면 다음 stage 가 시작” 같은 dependency 는 layout 의 영역이 아니라 <em>scheduling</em> 의 영역.</li>
+    <li><strong>register allocation</strong> — 같은 layout 이라도 — register 에 어떻게 매핑되는가는 — compiler / SASS 의 결정. layout algebra 가 직접 통제하지 않는다.</li>
+    <li><strong>numerical correctness</strong> — algebra 는 “좌표 → index” 의 일관성만 보장. 결과의 numerics 는 algebra 밖.</li>
+    <li><strong>cross-CTA collective</strong> — TMA multicast 같은 cross-CTA 통신은 — layout 의 stride 만으로 표현하기 어렵다. 추가 추상이 필요.</li>
+  </ul>
+
+  <p>이 한계들은 <em>“algebra 가 잘못됐다” 는 의미가 아니라 — “이 algebra 는 layout 의 자리만 다룬다” 는 사실</em>. mainloop 의 dependency, async barrier, scheduling 은 다른 추상의 영역이고, 그 영역들과 layout algebra 가 합쳐져 한 GEMM kernel 을 이룬다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모</b><span>· key takeaways · refs</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">Layout = 함수</div>
+      <div class="d">(Shape, Stride) → ℕ. 좌표를 받아 index 를 돌려준다. 모든 algebra 는 이 함수의 합성/분해.</div>
+    </div>
+    <div class="term">
+      <div class="t">5 기본 연산</div>
+      <div class="d">coalesce (표기 단순화), composition (∘), complement (빈 자리), logical_divide (tile 자르기), logical_product (tile grid).</div>
+    </div>
+    <div class="term">
+      <div class="t">Hierarchical</div>
+      <div class="d">Shape 가 nested tuple 가능. tile of tiles 가 자연스럽게 표현. algebra 가 변형 없이 lift.</div>
+    </div>
+    <div class="term">
+      <div class="t">Swizzle = layout</div>
+      <div class="d">SMEM bank 충돌 회피의 XOR-based 함수. 일반 layout 과 합성. SmemLayout = LogicalLayout ∘ Swizzle.</div>
+    </div>
+    <div class="term">
+      <div class="t">Thread mapping</div>
+      <div class="d">partition_S / partition_D / TiledMMA. 같은 algebra 의 thread 분배 응용. divide 의 직접 응용.</div>
+    </div>
+    <div class="term">
+      <div class="t">Category 시각</div>
+      <div class="d">layout 이 object, composition 이 morphism, divide ⊣ product 의 adjunction. 일관성의 수학적 보장.</div>
+    </div>
+    <div class="term">
+      <div class="t">Algebra 의 한계</div>
+      <div class="d">data-dependent flow, async sequencing, register allocation, cross-CTA collective 는 영역 밖. 다른 추상과 결합.</div>
+    </div>
+    <div class="term">
+      <div class="t">학습 path</div>
+      <div class="d">algebra 먼저, category 마지막. quickstart → 01_layout → 02_algebra → L057 → L103 → FA3 example.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=MVh_guNbWMA" target="_blank" rel="noopener">youtube.com/watch?v=MVh_guNbWMA</a> · transcript failed</span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_103/layout_algebra.pdf" target="_blank" rel="noopener">layout_algebra.pdf</a> · 강의 동반</span>
+    </div>
+    <div class="row">
+      <span class="k">CuTe docs</span>
+      <span class="v"><a href="https://github.com/NVIDIA/cutlass/tree/main/media/docs/cpp/cute" target="_blank" rel="noopener">cutlass/media/docs/cpp/cute</a> · 00, 01, 02, …</span>
+    </div>
+    <div class="row">
+      <span class="k">Jay Shah note</span>
+      <span class="v"><a href="https://leimao.github.io/article/CuTe-Layout-Algebra/" target="_blank" rel="noopener">CuTe Layout Algebra (Lei Mao)</a> · 풀이 자료 · 확인 필요</span>
+    </div>
+    <div class="row">
+      <span class="k">Colfax tutorials</span>
+      <span class="v"><a href="https://research.colfax-intl.com/" target="_blank" rel="noopener">research.colfax-intl.com</a> · transpose · TMA · pingpong</span>
+    </div>
+    <div class="row">
+      <span class="k">L057</span>
+      <span class="v"><a href="lecture_057.html">L057 — CuTe</a> · 가벼운 introduction</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>좌표 → index 직접 계산</strong> — 5 개 layout (flat / hier / swizzled) 각각의 좌표를 손으로 메모리 grid 에 그려본다. 함수의 직관 형성.</li>
+    <li><strong>composition 손계산</strong> — A=(4,4):(4,1), B=(2,2):(2,1) 의 A ∘ B 를 손으로. crd2idx 로 검증.</li>
+    <li><strong>logical_divide 의 결과 파악</strong> — A=(8,8):(8,1), B=(4,4):(8,1) 의 A ÷ B 가 어떤 모양인지. CuTe 의 <code>print_layout</code> 으로 검증.</li>
+    <li><strong>swizzle 의 효과 시각화</strong> — 8×8 SMEM 위 naive vs Swizzle&lt;3,0,3&gt; 의 bank id 분포를 직접 그린다.</li>
+    <li><strong>partition_S 의 결과 따라가기</strong> — 16×16 tile 위 32 thread layout 의 partition 결과가 (thread, value) 쌍으로 어떻게 나오는지 손으로.</li>
+    <li><strong>TiledMMA 코드 읽기</strong> — CUTLASS example 의 한 GEMM 의 TiledMMA 를 — atom + atom_layout 의 product 로 분해해 읽기.</li>
+    <li><strong>category 의 한 ax. 검증</strong> — divide 후 product 가 원본을 복원하는 한 케이스를 손으로 확인. adjunction 의 직관.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>L103 의 algebra 가 다른 강의들에서 어떻게 활용되는가</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_057.html">
+      <div class="n">L057</div>
+      <div class="ti">CuTe</div>
+      <div class="by">같은 토픽의 더 가벼운 introduction. 같은 자료의 다른 시각</div>
+    </a>
+    <a class="conn" href="lecture_101.html">
+      <div class="n">L101</div>
+      <div class="ti">Learning CUTLASS</div>
+      <div class="by">layout algebra 가 mainloop / epilogue 에서 어떻게 활용되는가</div>
+    </a>
+    <a class="conn" href="lecture_086.html">
+      <div class="n">L086</div>
+      <div class="ti">FlashAttention 3</div>
+      <div class="by">algebra 가 attention kernel 에서 swizzle / partition 으로 어떻게 작동하는가</div>
+    </a>
+    <a class="conn" href="lecture_104.html">
+      <div class="n">L104</div>
+      <div class="ti">Gluon · Linear Layouts</div>
+      <div class="by">Triton 측의 layout 추상 — CuTe 와 다른 algebra (𝔽₂ 위) 의 시각</div>
+    </a>
+    <a class="conn" href="lecture_102.html">
+      <div class="n">L102</div>
+      <div class="ti">Quartet v2 · QuTLASS</div>
+      <div class="by">block-scale reordering 이 layout algebra 로 표현되는 자리</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">Triton 의 layout 결정 — CuTe 와의 비교 시각</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>category 시각의 정확한 statement</strong> — 강의에서 어떤 universal property / functoriality 를 정확하게 statement 했는지 — slide 본문 확인 필요. (확인 필요)</li>
+    <li><strong>divide 와 product 의 adjunction 의 정식 형태</strong> — 강의가 categorical adjunction 을 정식으로 statement 했는지, 또는 metaphor 로만 사용했는지. (확인 필요)</li>
+    <li><strong>complement 의 universal property</strong> — “unique up to iso” 류의 정식 statement 가 있었는지. (확인 필요)</li>
+    <li><strong>구체적 worked example</strong> — Hopper WGMMA 의 한 case 를 슬라이드에서 직접 풀었는지. (확인 필요)</li>
+    <li><strong>L057 vs L103 의 분담</strong> — Jay Shah 가 두 강의에 모두 참여했다는 가정 하에, 두 강의의 깊이 차이의 정확한 형태. (확인 필요)</li>
+    <li><strong>Layout 위 operation 의 complete list</strong> — 강의에서 정리한 operation 의 정확한 갯수 / 분류. (확인 필요)</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 algebra 정의 (§ 02–06) 는 <strong>CUTLASS 의 cute/00–02 docs 와 Colfax tutorial 시리즈</strong>로부터 정리. category 시각 (§ 07) 은 — 강의 슬라이드의 category-theoretic interpretation 부분과 일반적 category 의 vocabulary 를 합쳐 일반화. 강의의 정확한 statement (universal property, adjunction 의 정식 형태) 는 slide PDF 본문 정독 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_102.html">
+    <span class="lbl">← Lecture 102</span>
+    <span class="nm">Quartet v2 — FP4 training</span>
+  </a>
+  <a class="nxt" href="lecture_104.html">
+    <span class="lbl">Lecture 104 →</span>
+    <span class="nm">Gluon and Linear Layouts</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L103 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

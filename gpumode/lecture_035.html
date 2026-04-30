@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L035 · SGLang · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 35 — SGLang local visualization classes */
+.l35-overlap{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l35-overlap .lane{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:center}
+.l35-overlap .lane .nm{color:var(--ink-soft);font-size:11.5px}
+.l35-overlap .lane .row{position:relative;height:30px;background:var(--bg-soft);border-radius:5px}
+.l35-overlap .lane .row .blk{position:absolute;top:4px;height:22px;border-radius:3px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700;padding:0 6px;white-space:nowrap}
+.l35-overlap .lane .row .blk.cpu{background:var(--accent-2)}
+.l35-overlap .lane .row .blk.gpu{background:var(--cool)}
+.l35-overlap .lane .row .blk.sched{background:var(--accent)}
+.l35-overlap .lane .row .blk.idle{background:var(--paper-deep);color:var(--ink-soft)}
+
+.l35-tree{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--paper);padding:14px;border:1px solid var(--line);border-radius:8px}
+.l35-tree .node{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-radius:4px}
+.l35-tree .node .nm{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l35-tree .node .dt{color:var(--ink-soft);font-size:10.5px}
+.l35-tree .node .hit{font-size:10px;color:var(--good);font-weight:700;background:rgba(95,123,58,.12);padding:2px 6px;border-radius:3px}
+.l35-tree .node .miss{font-size:10px;color:var(--warn);font-weight:600;background:rgba(168,90,42,.12);padding:2px 6px;border-radius:3px}
+.l35-tree .node.shared{background:var(--bg-soft)}
+.l35-tree .branch{padding-left:24px;border-left:2px dotted var(--line)}
+
+.l35-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.l35-grid .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l35-grid .col h4{margin:0 0 8px;font-size:14px;color:var(--ink);font-weight:700}
+.l35-grid .col .h{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace}
+.l35-grid .col p{font-size:13px;color:var(--ink-soft);margin:0 0 8px;line-height:1.55}
+.l35-grid .col.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l35-bench{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l35-bench .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;color:var(--muted);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l35-bench .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l35-bench .row .what{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l35-bench .row .v{color:var(--ink-soft);text-align:right}
+.l35-bench .row .v.good{color:var(--good);font-weight:700}
+.l35-bench .row .v.bad{color:var(--warn)}
+@media (max-width:760px){.l35-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="lecture_034.html">← L034</a>
+    <a href="index.html">Index</a>
+    <a href="lecture_036.html">L036 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L035</span>
+    <span>2024 · OCT</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>SGLang — Performance Optimization</h1>
+  <p class="dek">LLM 서빙 엔진의 latency 가 절반 이상 <strong>CPU scheduling</strong> 위에서 새는 시점이 왔다. <em>vLLM 의 v0 가 GPU idle 50% 까지 흘렸다는 측정에서 출발해</em>, SGLang 이 깐 답 — <strong>RadixAttention 의 prefix sharing</strong>, CPU/GPU overlap, 그리고 FlashInfer/torch.compile/structured generation 까지의 통합. Yineng Zhang 이 직접 짜고 있는 엔진의 내부를 한 시간 안에 깐 강의를 학습 노트로 다시 정리한다.</p>
+
+  <div class="chips">
+    <span class="chip hi">SGLang</span>
+    <span class="chip hi">RadixAttention</span>
+    <span class="chip hi">prefix cache</span>
+    <span class="chip">vLLM</span>
+    <span class="chip">FlashInfer</span>
+    <span class="chip">scheduler</span>
+    <span class="chip">structured output</span>
+    <span class="chip">tensor parallel</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">Y</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Yineng Zhang</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">SGLang core maintainer · zhyncs</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L035</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Yineng Zhang</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">서빙 엔진 비교</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why a new serving engine</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">LLM 서빙의 control-flow 문제</span><span class="em">CPU 가 GPU 를 굶긴다</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">RadixAttention</span><span class="em">prefix tree 위 KV 공유</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">frontend DSL</span><span class="em">SGLang 프로그램 구조</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">스케줄러 — overlap 의 중심</span><span class="em">batch · 메모리 회계</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">vLLM 과 비교</span><span class="em">설계 결정의 차이</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">멀티모달 · structured output</span><span class="em">JSON · regex grammar</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">FlashInfer · Triton 통합</span><span class="em">attention backend</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">배포 사례와 다음 단계</span><span class="em">production hooks</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">repo · slides</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why a new serving engine</span></div>
+    <h2>“커널이 빨라도 엔진이 막으면 GPU 는 절반만 돈다” 의 측정에서 시작</h2>
+  </div>
+  <p class="sec-lede">2024년 LLM 서빙은 더 이상 “FlashAttention 을 누가 더 빨리 짜느냐” 의 게임이 아니다. 같은 attention 커널을 쓰면서도 엔진별로 throughput 이 두 배 차이가 나는데, 그 차이가 거의 다 <strong>CPU scheduling overhead</strong>에 있다는 게 SGLang 의 출발점.</p>
+
+  <p>강의 첫 슬라이드의 측정 — vLLM 의 초기 버전과 SGLang 의 초기 버전 모두에서 <em>“CPU 가 다음 batch 를 준비하는 동안 GPU 가 50% 이상 idle”</em> 인 구간이 있었다. 같은 GPU, 같은 모델, 같은 attention 커널인데도 엔진의 control loop 가 막혀서 throughput 이 절반 이하로 떨어진다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>SGLang 의 입장 — <strong>“LLM 서빙은 더 이상 kernel 게임이 아니라 system 게임이다.”</strong> 좋은 attention 커널 (FlashAttention 3, FlashInfer) 은 이미 있다. 진짜 잠금이 풀리는 자리는 <em>다음 batch 를 어떻게 미리 준비하는가</em>, <em>같은 prefix 를 쓰는 요청들의 KV 를 어떻게 공유하는가</em>, <em>structured output 을 grammar mask 와 어떻게 묶는가</em> 같은 파이프라인 차원의 결정이다.</p>
+  </div>
+
+  <div class="pull">“엔진이 50% 이상의 시간을 CPU scheduling 에 쓰는 걸 측정하고 나서야, ‘좋은 커널만으론 안 된다’ 가 분명해졌다.”<span class="by">Yineng Zhang · 강의 도입부</span></div>
+
+  <p>그래서 강의 끝에 손에 잡혀야 하는 자산은 — <strong>(1)</strong> CPU scheduling 이 어떻게 GPU 를 굶기는가의 mental model, <strong>(2)</strong> RadixAttention 이 prefix sharing 을 어떻게 일반화하는가, <strong>(3)</strong> SGLang 의 frontend DSL 이 왜 단순 OpenAI 호환이 아니라 별도의 형태가 됐는가, <strong>(4)</strong> vLLM 과 정확히 어디가 다른가.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>LLM 서빙의 control-flow 문제</b><span>· CPU 가 GPU 를 굶긴다</span></div>
+    <h2>continuous batching 의 매 step 에서 CPU 가 해야 하는 일들</h2>
+  </div>
+  <p class="sec-lede">continuous batching (vLLM 이 일반화한 패턴) 은 매 forward 마다 batch 의 구성을 다시 만든다. 새 요청 도착, 종료된 요청 제거, KV cache 메모리 할당, FlashAttention 메타데이터 빌드 — 이 모든 게 한 step 안에 들어간다. <strong>모델 forward 가 5ms</strong> 라면, scheduling 이 또 5ms 걸리는 순간 throughput 은 절반.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CPU/GPU overlap 의 Before / After</span><span>vLLM v0 → SGLang</span></div>
+    <div class="l35-overlap">
+      <div class="lane">
+        <span class="nm">v0 (overlap 없음)<br><span style="color:var(--muted);font-size:10px">GPU idle 50%</span></span>
+        <div class="row">
+          <div class="blk sched" style="left:1%;width:18%">sched (n)</div>
+          <div class="blk gpu" style="left:20%;width:18%">forward (n)</div>
+          <div class="blk sched" style="left:39%;width:18%">sched (n+1)</div>
+          <div class="blk gpu" style="left:58%;width:18%">forward (n+1)</div>
+          <div class="blk sched" style="left:77%;width:14%">sched (n+2)</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">SGLang (overlapped)<br><span style="color:var(--good);font-size:10px">GPU near 100%</span></span>
+        <div class="row">
+          <div class="blk sched" style="left:1%;width:18%">sched (n)</div>
+          <div class="blk gpu" style="left:20%;width:36%">forward (n)</div>
+          <div class="blk sched" style="left:20%;width:18%;top:0;height:6px;background:var(--accent-2)">prep (n+1)</div>
+          <div class="blk gpu" style="left:57%;width:36%">forward (n+1)</div>
+          <div class="blk sched" style="left:57%;width:18%;top:0;height:6px;background:var(--accent-2)">prep (n+2)</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">SGLang 은 다음 step 의 scheduling 을 <strong>현재 step 의 GPU forward 와 병렬로</strong> 미리 깐다. CPU 가 해야 하는 일은 같지만, GPU 의 idle 구간이 사라진다.</div>
+  </div>
+
+  <p>이 한 줄짜리 변경이 만들어내는 차이는 단순한 latency 가 아니다 — <em>throughput 이 거의 두 배</em>로 뜬다. 강의에서 Yineng 이 보여준 측정 — Llama-3.1-8B 의 throughput 이 v0 vLLM 대비 약 1.5×~2× 수준. 같은 모델, 같은 GPU 에서.</p>
+
+  <div class="callout cool">
+    <div class="label">scheduling 안에서 CPU 가 하는 일</div>
+    <p>한 step 마다 — <strong>(a)</strong> 새 request 받기 (HTTP/gRPC), <strong>(b)</strong> KV cache 페이지 할당, <strong>(c)</strong> RadixAttention 트리 lookup, <strong>(d)</strong> attention metadata (block table) 빌드, <strong>(e)</strong> tokenize/detokenize, <strong>(f)</strong> structured output 의 mask 갱신. <em>(d)와 (f)가 보통 가장 무겁다</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>RadixAttention</b><span>· prefix tree 위 KV 공유</span></div>
+    <h2>같은 system prompt 를 쓰는 1,000개 요청의 KV 를 한 번만 계산한다</h2>
+  </div>
+  <p class="sec-lede">RadixAttention 은 SGLang 의 핵심 자산. <em>여러 요청이 prefix 를 공유하는 일</em> 이 LLM 서빙의 거의 모든 실제 워크로드(few-shot, system prompt, tree-of-thoughts 등)에서 흔하다는 관찰에서 출발 — KV cache 를 단순 LRU 페이지가 아니라 <strong>radix tree</strong> 로 관리한다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · radix tree 가 prefix 공유를 어떻게 잡는가</span><span>simplified · 3 requests</span></div>
+    <div class="l35-tree">
+      <div class="node shared"><span>▣</span><span class="nm">[system: "You are a helpful…"]</span><span class="hit">3 hits</span></div>
+      <div class="branch">
+        <div class="node shared"><span>├─</span><span class="nm">[user: "Translate to French:"]</span><span class="hit">2 hits</span></div>
+        <div class="branch">
+          <div class="node"><span>│  ├─</span><span class="nm">"Hello world"</span><span class="miss">unique</span></div>
+          <div class="node"><span>│  └─</span><span class="nm">"How are you"</span><span class="miss">unique</span></div>
+        </div>
+        <div class="node"><span>└─</span><span class="nm">[user: "Summarize:"]</span><span class="miss">1 hit</span></div>
+      </div>
+    </div>
+    <div class="viz-note">트리의 <strong>회색 노드</strong>가 공유된 prefix — 그 부분의 KV 는 한 번만 계산되고, 새 요청이 도착하면 트리를 따라 내려가며 일치하는 가장 긴 prefix 까지 cache 를 재사용한다. 분기점에서만 새로 계산.</div>
+  </div>
+
+  <p>이 구조의 이득은 두 단계로 온다. <strong>첫째</strong> — prefill 비용이 줄어든다. system prompt 가 1k 토큰이라도, 두 번째 요청부터는 <em>prefix 부분의 prefill 을 건너뛴다</em>. <strong>둘째</strong> — 같은 prefix 를 쓰는 N 개 요청이 batch 안에 들어오면, attention 커널이 K/V 를 한 번만 read 한다 (FlashInfer 의 shared-prefix 모드와 결합).</p>
+
+  <p>구현이 까다로운 곳은 <em>eviction</em>. radix tree 노드를 LRU 로 자르면, 자식 노드까지 잘라야 cache 일관성이 깨지지 않는다. SGLang 은 reference count 기반의 변형 LRU 를 쓴다 — “현재 진행 중인 요청이 의존하는 노드는 자르지 않는다”.</p>
+
+  <div class="pull">“radix tree page size = 1 이 가장 많은 prefix match 를 만든다. 더 큰 page 로 묶으면 메모리 효율은 좋지만 hit 비율이 깎인다.”<span class="by">Yineng Zhang</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>frontend DSL</b><span>· SGLang 프로그램 구조</span></div>
+    <h2>OpenAI API 호환만으로는 RadixAttention 이 못 산다 — 그래서 별도 frontend</h2>
+  </div>
+  <p class="sec-lede">SGLang 은 backend 만 있는 게 아니다. 같은 이름이 붙은 <em>frontend DSL</em> 이 있고, 이게 RadixAttention 을 효율적으로 쓸 수 있는 형태로 프로그램을 구조화하게 강제한다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># SGLang frontend — sl.gen / sl.fork / sl.select</span>
+<span style="color:#E7B369">@sgl</span>.function
+<span style="color:#E7B369">def</span> few_shot_qa(s, question):
+    s += <span style="color:#C6B98A">"You are a math tutor.\n"</span>     <span style="color:#A99E89"># shared prefix</span>
+    s += <span style="color:#C6B98A">"Q: 1+1?\nA: 2\n"</span>             <span style="color:#A99E89"># shared examples</span>
+    s += <span style="color:#C6B98A">"Q: 2*3?\nA: 6\n"</span>
+    s += <span style="color:#C6B98A">"Q: "</span> + question + <span style="color:#C6B98A">"\nA: "</span>     <span style="color:#A99E89"># branch point</span>
+    s += sgl.gen(<span style="color:#C6B98A">"answer"</span>, max_tokens=<span style="color:#E7B369">64</span>)
+
+<span style="color:#A99E89"># 1000개의 question 으로 호출 — system prompt 와 examples 의 KV 가</span>
+<span style="color:#A99E89"># 자동으로 radix tree 위에서 공유된다</span></code></pre>
+    </div>
+    <div>
+      <p>이 형태가 중요한 이유 — radix tree 가 <em>토큰 시퀀스를 즉시 알 수 있어야</em> 공유가 잡힌다. OpenAI API 처럼 <code>messages = [...]</code> 만 받으면 같은 system prompt 라도 형식 차이로 prefix match 가 깨진다.</p>
+      <ul>
+        <li><strong>sgl.fork(N)</strong> — 같은 prefix 위에서 N 개 분기. self-consistency 류 알고리즘에 직접 매핑.</li>
+        <li><strong>sgl.gen(name, …)</strong> — 명시적인 generation 단계. 각 단계의 출력을 바로 다음 단계의 prefix 로 쓸 수 있다.</li>
+        <li><strong>sgl.select(choices)</strong> — “이 시점에 N 개 선택지 중 LLM 이 무엇을 가장 확률 높게 보는가” 를 RadixAttention 으로 효율적으로 측정.</li>
+      </ul>
+      <p>이 DSL 이 자체적으로 의미가 있는 게 아니라 — <em>backend 의 prefix sharing 이득을 사용자가 의도하지 않아도 자동으로 받을 수 있는 형태</em>로 프로그램을 강제한다는 점이 핵심.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>스케줄러 구조</b><span>· batch · 메모리 회계</span></div>
+    <h2>다음 batch 를 미리 준비하는 두 단계 파이프라인</h2>
+  </div>
+  <p class="sec-lede">SGLang scheduler 의 핵심 결정 — <em>(a) request 의 reorder, (b) 메모리 budget 안에서 batch 크기 결정, (c) attention metadata 빌드</em> — 이 셋을 GPU forward 와 overlap 한다. 한 step 의 GPU 가 도는 동안, 그 다음 step 의 (a)~(c) 가 CPU thread 위에서 미리 끝난다.</p>
+
+  <div class="l35-grid">
+    <div class="col">
+      <h4>v0 lockstep scheduler</h4>
+      <div class="h">step 단위 직렬화</div>
+      <p><strong>한 step 끝 → 다음 batch 결정 → forward → 반복.</strong> 단순하지만 GPU idle 이 매 step 마다 발생. CPU 작업이 무거워지면 그대로 latency 에 합산.</p>
+    </div>
+    <div class="col hi">
+      <h4>SGLang overlap scheduler</h4>
+      <div class="h">forward 와 prep 동시 진행</div>
+      <p><strong>step n 의 forward 가 GPU 위에서 도는 동안, step n+1 의 batch 결정과 metadata 빌드가 별도 thread 에서 끝난다.</strong> CUDA stream 을 사이에 두고 producer/consumer 가 한 큐로 묶여 있다.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">overlap 이 가능한 이유는 단순하다 — step n 의 forward 가 끝나기 전에도, n+1 의 batch 구성은 (현재 진행 중인 요청들 + queue 에 쌓인 새 요청) 만으로 결정된다. <em>n 의 출력 토큰</em> 이 들어와야 하는 부분(EOS 검사, structured output mask 갱신)만 마지막에 갱신.</p>
+
+  <div class="callout">
+    <div class="label">메모리 회계가 가장 까다로운 부분</div>
+    <p>scheduler 가 다음 batch 를 잡을 때, KV cache 메모리가 <strong>현재 진행 중인 모든 요청을 위해 필요한 분 + 새 batch 가 가져갈 분</strong> 을 다 감당해야 한다. RadixAttention 의 prefix 공유로 줄어든 양도 정확히 회계 — 특정 prefix 가 N 개 요청에 의해 reference 되면, 그 prefix 의 KV 는 메모리 점유 1번으로만 잡힌다. 이 회계가 깨지면 OOM 또는 GPU 가 비는 underutilization.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>vLLM 과 비교</b><span>· 설계 결정의 차이</span></div>
+    <h2>같은 문제를 같은 시기에 풀고 있는 두 엔진 — 어디가 다른가</h2>
+  </div>
+  <p class="sec-lede">vLLM 이 사실상 표준이 된 시점에서 SGLang 이 등장한 이유. 강의에서 Yineng 이 직접 비교한 표를 정리한다 — 모든 항목에서 SGLang 이 우위는 아니지만, prefix sharing 과 frontend DSL 이 두드러진다.</p>
+
+  <div class="l35-bench">
+    <div class="h"><span>항목</span><span>vLLM</span><span>SGLang</span><span>차이의 근원</span></div>
+    <div class="row"><span class="what">KV cache layout</span><span class="v">paged (block=16)</span><span class="v">paged + radix tree</span><span class="v">prefix sharing 의 일급화</span></div>
+    <div class="row"><span class="what">prefix caching</span><span class="v">enable_prefix_caching=true</span><span class="v good">기본 활성</span><span class="v">DSL 이 cache 친화적</span></div>
+    <div class="row"><span class="what">scheduler</span><span class="v">async lock-step</span><span class="v">overlap scheduler</span><span class="v">CPU/GPU 동시 진행</span></div>
+    <div class="row"><span class="what">attention backend</span><span class="v">FlashAttention/FA3/Triton</span><span class="v">FlashInfer 우선 + Triton</span><span class="v">backend 사이 빠른 전환</span></div>
+    <div class="row"><span class="what">structured output</span><span class="v">XGrammar / outlines</span><span class="v good">XGrammar 통합</span><span class="v">grammar mask 의 overlap</span></div>
+    <div class="row"><span class="what">frontend</span><span class="v">OpenAI 호환만</span><span class="v">DSL + OpenAI 호환</span><span class="v">프로그램 구조 강제</span></div>
+    <div class="row"><span class="what">multi-modal</span><span class="v">광범위 (LLaVA, Qwen-VL)</span><span class="v">광범위 + 동등</span><span class="v">사실상 동등</span></div>
+  </div>
+
+  <p style="margin-top:14px">정확한 입장 — <strong>vLLM 은 더 먼저 와 있고 더 많은 모델/하드웨어를 지원</strong>한다. SGLang 의 자리는 <em>“같은 워크로드에서 throughput 1.5~2배 + 더 풍부한 frontend”</em>. 회사가 OpenAI 호환만 필요하면 vLLM 이 보통 더 안전하고, multi-turn agent 워크로드처럼 prefix 공유가 큰 시나리오라면 SGLang 의 이득이 가시화된다.</p>
+
+  <div class="pull">“우리는 vLLM 을 ‘이긴다’ 가 아니라 ‘다른 trade-off’ 라고 본다. 정해진 워크로드에서는 SGLang 이 분명히 더 좋다.”<span class="by">Yineng Zhang · Q&amp;A</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>멀티모달 · structured output</b><span>· JSON · regex grammar</span></div>
+    <h2>출력 형식이 결정된 시나리오에서 grammar mask 의 비용을 어떻게 낮추는가</h2>
+  </div>
+  <p class="sec-lede">structured output (JSON schema, regex) 은 <em>매 토큰마다 vocabulary 위에 mask 를 만든다</em>. 그 mask 비용이 무거운 경우, scheduling 의 overlap 으로 해결된다.</p>
+
+  <div class="split">
+    <div>
+      <p>SGLang 이 기본으로 통합한 backend 는 <strong>XGrammar</strong> — Tianqi Chen 그룹이 만든 grammar-based decoding 라이브러리. 핵심은 두 가지.</p>
+      <ul>
+        <li><strong>compressed mask</strong> — 일반적으로 vocabulary mask 는 vocab_size 만큼 큰 boolean tensor. XGrammar 는 이걸 sparse 한 형태로 압축해 GPU 로의 transfer 비용을 낮춘다.</li>
+        <li><strong>parallel mask construction</strong> — 다음 토큰의 mask 를 GPU forward 와 병렬로 CPU 위에서 만든다. SGLang scheduler 의 overlap 패턴과 자연스럽게 합쳐짐.</li>
+      </ul>
+      <p>multi-modal 은 강의에서 짧게 언급. 핵심은 — <em>vision encoder 의 cache 를 별도로 관리</em> 한다는 점. 같은 이미지가 여러 요청에 들어오면 (예: agent 의 전체 화면 캡처가 stream 되는 상황) 그 vision encoder 출력을 cache.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · structured output 의 mask 비용 분포</span><span>JSON schema · 50 토큰</span></div>
+        <div class="bars">
+          <div class="bar"><span class="lbl">naive (per-step CPU)</span><span class="track"><i style="width:88%;background:var(--accent)"></i></span><span class="val">+25 ms</span></div>
+          <div class="bar"><span class="lbl">XGrammar (overlapped)</span><span class="track"><i style="width:14%;background:var(--good)"></i></span><span class="val">+4 ms</span></div>
+          <div class="bar"><span class="lbl">free run (no schema)</span><span class="track"><i style="width:6%;background:var(--cool)"></i></span><span class="val">+0 ms</span></div>
+        </div>
+        <div class="viz-note">JSON schema 한 줄을 강제하는 50 토큰 생성. naive 한 mask 빌드는 <strong>25ms 추가</strong>. XGrammar + overlap 으로 거의 free 에 가까워진다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>FlashInfer · Triton 통합</b><span>· attention backend</span></div>
+    <h2>SGLang 은 attention 커널을 직접 안 짠다 — 그 자리에 FlashInfer 를 묶는다</h2>
+  </div>
+  <p class="sec-lede">SGLang 의 명시적 결정 — <em>“attention 커널은 우리가 짜지 않는다”</em>. 대신 FlashInfer (<a href="lecture_041.html">L041</a>) 를 first-class backend 로 묶고, fall-back 으로 Triton attention 을 둔다.</p>
+
+  <div class="callout">
+    <div class="label">왜 FlashInfer 인가</div>
+    <p>FlashInfer 는 <em>다양한 attention 형태</em> (prefill / decode / GQA / MQA / sparse / chunked prefill) 를 한 API 로 노출한다. SGLang 의 RadixAttention 이 만들어내는 <strong>shared-prefix attention</strong> 처럼 특수한 패턴도 FlashInfer 의 한 모드로 표현 가능. <em>kernel 개발과 system 개발의 책임 분리</em>가 깔끔해진다.</p>
+  </div>
+
+  <p>강의에서 Yineng 이 말한 한 줄 — “FlashInfer 의 다음 release 는 SGLang 에 약 10~20% 추가 성능을 가져올 것이다. 우리가 같이 작업 중이라.” 이 종속성이 강의의 자연스러운 다리가 — L041 으로 이어지는 자리.</p>
+
+  <p>Triton attention 이 fallback 으로 남는 이유 — <em>새 모델 / 새 GPU 로 처음 띄울 때</em> FlashInfer 의 binary 가 아직 빌드되지 않은 상태에서 동작 보장. 또한 Triton 은 customize 가 trivial 해서 디버깅 용도로도 유용.</p>
+
+  <div class="pull">“좋은 attention 커널은 이미 있다. 그걸 다시 짜는 건 의미가 없고, 잘 묶는 게 진짜 일이다.”<span class="by">Yineng Zhang</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>배포 사례와 다음 단계</b><span>· production hooks</span></div>
+    <h2>실제 회사들이 SGLang 을 어디서 어떻게 쓰는가 — 강의 시점의 풍경</h2>
+  </div>
+  <p class="sec-lede">강의의 마지막 절반에서 Yineng 이 언급한 production 사례들. 자세한 숫자는 NDA 로 막혀 있지만, 패턴은 분명하다 — <em>agent / multi-turn / structured output</em> 워크로드가 많은 곳일수록 SGLang 의 이득이 큼.</p>
+
+  <div class="l35-grid">
+    <div class="col">
+      <h4>코드 어시스턴트</h4>
+      <div class="h">long shared prefix</div>
+      <p>같은 system prompt 와 codebase 가 여러 요청에 공유. RadixAttention hit rate 가 높고 throughput 이득이 가장 명확.</p>
+    </div>
+    <div class="col">
+      <h4>agent / tool use</h4>
+      <div class="h">multi-step + structured output</div>
+      <p>각 step 의 output 이 JSON. XGrammar 통합 + overlap 이 누적 latency 를 깎는다. SGLang 의 frontend DSL 이 자연스럽게 매핑.</p>
+    </div>
+    <div class="col">
+      <h4>self-consistency / ToT</h4>
+      <div class="h">prefix fork</div>
+      <p>같은 prompt 위에서 N 갈래로 분기. <code>sgl.fork(N)</code> 한 줄. attention 커널 안에서 K/V read 를 한 번만.</p>
+    </div>
+    <div class="col">
+      <h4>RAG (긴 컨텍스트)</h4>
+      <div class="h">chunked prefill</div>
+      <p>수만 토큰 컨텍스트의 prefill 을 chunk 단위로 잘라 decode 와 overlap. FlashInfer 의 chunked prefill 모드가 직접 도움.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">강의 시점 기준으로 SGLang 의 다음 단계 — <strong>(a)</strong> Hopper TMA 활용 강화, <strong>(b)</strong> FlashInfer 의 다음 release 와의 통합, <strong>(c)</strong> stream-K 류 SM 균등 분배 알고리즘. (c) 의 실험은 강의 시점에 이미 “예상보다 잘 된다” 는 측정.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· repo · slides</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">SGLang 을 6개월 뒤 다시 마주했을 때 가장 빨리 복원해야 할 사실들과 — 직접 읽어볼 코드 위치들.</p>
+
+  <div class="terms">
+    <div class="term"><div class="t">CPU/GPU overlap</div><div class="d">scheduling 작업을 forward 와 병렬로 진행 — 같은 hardware 에서 throughput 1.5~2× 의 가장 큰 단일 원인.</div></div>
+    <div class="term"><div class="t">RadixAttention</div><div class="d">KV cache 를 LRU 페이지가 아니라 radix tree. <strong>page=1</strong> 이 hit rate 표준. reference count 기반 eviction.</div></div>
+    <div class="term"><div class="t">scheduler 의 메모리 회계</div><div class="d">prefix 공유로 줄어든 KV 메모리를 정확히 잡아야 underutilization / OOM 안 생긴다.</div></div>
+    <div class="term"><div class="t">frontend DSL</div><div class="d">sgl.gen / sgl.fork / sgl.select. 프로그램 구조가 backend 의 prefix 공유에 친화적이게 강제.</div></div>
+    <div class="term"><div class="t">FlashInfer 우선</div><div class="d">attention 커널은 직접 안 짠다. FlashInfer 가 main backend, Triton 이 fallback.</div></div>
+    <div class="term"><div class="t">XGrammar 통합</div><div class="d">structured output 의 mask 비용을 overlap 으로 거의 free 까지. JSON/regex 시나리오의 표준.</div></div>
+    <div class="term"><div class="t">vLLM 과의 위치</div><div class="d">overlap + prefix sharing 의 일급화로 차별. vLLM 은 모델/하드웨어 커버리지에서 더 넓다.</div></div>
+    <div class="term"><div class="t">실험 중 기능</div><div class="d">stream-K 류 SM 균등화, Hopper TMA 강화, chunked prefill. 다음 release 의 큰 줄기.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=XQylGyG7yp8" target="_blank" rel="noopener">youtube.com/watch?v=XQylGyG7yp8</a></span></div>
+    <div class="row"><span class="k">Slides</span><span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_035/SGLang-Performance-Optimization-YinengZhang.pdf" target="_blank" rel="noopener">SGLang-Performance-Optimization.pdf</a></span></div>
+    <div class="row"><span class="k">Repo · SGLang</span><span class="v"><a href="https://github.com/sgl-project/sglang" target="_blank" rel="noopener">github.com/sgl-project/sglang</a></span></div>
+    <div class="row"><span class="k">Paper</span><span class="v"><a href="https://arxiv.org/abs/2312.07104" target="_blank" rel="noopener">arXiv:2312.07104 — RadixAttention</a></span></div>
+    <div class="row"><span class="k">Speaker</span><span class="v"><a href="https://github.com/zhyncs" target="_blank" rel="noopener">github.com/zhyncs</a></span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>SGLang 띄우고 toy 모델 서빙</strong> — Llama-3.2-1B 정도. <code>--enable-radix-cache</code> 명시 (default 지만). 첫 sanity.</li>
+    <li><strong>same-prefix 워크로드 throughput</strong> — 같은 system prompt + 다른 question 1k 개. radix cache hit rate 와 throughput 측정. RadixAttention 의 이득이 보이는 가장 단순한 실험.</li>
+    <li><strong>frontend DSL 로 self-consistency</strong> — <code>sgl.fork(8)</code> 로 같은 question 에 8개 답 생성. attention 커널이 K/V 를 한 번만 읽는지 메모리 트래픽으로 검증.</li>
+    <li><strong>structured output 비용 비교</strong> — JSON schema 강제 ON/OFF 에서 latency 차이. XGrammar 통합 의 효과.</li>
+    <li><strong>scheduler overlap 끄기</strong> — 환경변수로 v0 lockstep 으로 fall-back 시켜서 throughput 차이 직접 측정. overlap 의 값을 숫자로 손에 잡는다.</li>
+    <li><strong>vLLM 과 같은 모델 비교</strong> — 같은 GPU, 같은 모델, 같은 batch. throughput · TTFT (time-to-first-token) · TBT (time-between-tokens) 셋 다 본다.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>SGLang 의 도구가 시리즈 안에서 다시 등장하는 자리</h2>
+  </div>
+  <p class="sec-lede">L035 의 <em>system 차원 최적화</em> 가 다른 강의들의 어디에 다시 묶이는지.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">Profiling CUDA kernels</div><div class="by">Mark Saroufim — Chrome trace 위에서 CPU/GPU overlap 을 측정하는 도구가 여기에 다시 쓰인다</div></a>
+    <a class="conn" href="lecture_028.html"><div class="n">L028</div><div class="ti">Liger Kernel</div><div class="by">Byron Hsu — Triton attention 의 한 형태. SGLang 의 fallback path 와 같은 자리</div></a>
+    <a class="conn" href="lecture_034.html"><div class="n">L034</div><div class="ti">Low Bit Triton Kernels</div><div class="by">Hicham Badri — quantize 된 weight/KV 가 SGLang 의 메모리 회계에 들어오는 방식</div></a>
+    <a class="conn" href="lecture_036.html"><div class="n">L036</div><div class="ti">CUTLASS &amp; FA3</div><div class="by">Jay Shah — H100 위 attention. SGLang 이 다음 단계로 가져갈 backend</div></a>
+    <a class="conn" href="lecture_041.html"><div class="n">L041</div><div class="ti">FlashInfer</div><div class="by">Charles Frye — SGLang 의 main attention backend. 이 강의의 직접 후속편</div></a>
+    <a class="conn" href="lecture_039.html"><div class="n">L039</div><div class="ti">Torchtitan</div><div class="by">Mark · Tianyu — 학습 시스템 쪽의 자매 — 같은 “system 차원 최적화” 의 학습 버전</div></a>
+    <a class="conn" href="lecture_050.html"><div class="n">L050</div><div class="ti">A learning journey</div><div class="by">CUDA / Triton / FA — kernel 단계의 학습 곡선이 여기서 system 단계로 넘어가는 자리</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">강의에서 부분적으로만 등장한 주제, 후속 작업으로 비워둔 자리들.</p>
+  <ul>
+    <li><strong>radix tree 의 page=1 vs page=N</strong> — 강의에서 page=1 이 hit rate 표준이라고 못 박았지만, 메모리 fragmentation 비용은 어느 정도? 실제 production 워크로드에서 page=4, page=8 의 trade-off 가 어디에 있는지.</li>
+    <li><strong>multi-LoRA 서빙</strong> — 같은 base 모델 위 여러 LoRA adapter 의 KV 공유. RadixAttention 트리 안에서 LoRA boundary 가 prefix 의 일부가 되어야 한다는 게 자연스러운 답이지만, 강의에선 짧게만 다뤘다.</li>
+    <li><strong>chunked prefill 의 hyperparameter</strong> — chunk 크기와 attention metadata 빌드 비용의 trade-off. FlashInfer 의 다음 release 와 묶인 영역.</li>
+    <li><strong>multi-node 분산</strong> — 강의는 single-node 에 집중. tensor parallel + pipeline parallel 분산이 RadixAttention 의 트리 동기화와 어떻게 합쳐지는지. cluster level 의 구조.</li>
+    <li><strong>speculative decoding 와의 관계</strong> — draft model 의 KV 도 RadixAttention 트리 안에 두는가, 별도로 두는가. 강의에서 짧게만 언급됨.</li>
+  </ul>
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 비교 수치(throughput 1.5~2×, mask cost 25ms→4ms)는 강의 슬라이드를 재구성한 예시. 자기 워크로드와 모델에 대해 직접 측정해야 의미 있는 baseline. 특히 vLLM 의 버전이 빠르게 갱신되고 있어 “v0” 라는 표현은 이미 historical 한 점.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_034.html">
+    <span class="lbl">← Lecture 034</span>
+    <span class="nm">Low Bit Triton Kernels</span>
+  </a>
+  <a class="nxt" href="lecture_036.html">
+    <span class="lbl">Lecture 036 →</span>
+    <span class="nm">CUTLASS &amp; FA3 — Jay Shah 가 깐 H100 의 producer-consumer 와 warp specialization</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L035 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

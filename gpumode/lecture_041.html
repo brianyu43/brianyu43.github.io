@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L041 · FlashInfer · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 41 — FlashInfer */
+.l41-shapes{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l41-shapes .panel{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l41-shapes .panel h4{margin:0 0 8px;font-size:14px;color:var(--ink);font-weight:700}
+.l41-shapes .panel .h{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.l41-shapes .panel.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l41-shapes .panel .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin:6px 0}
+.l41-shapes .panel .grid .c{padding:6px 0;text-align:center;font-size:9px;border-radius:2px}
+.l41-shapes .panel .grid .c.q{background:var(--accent);color:var(--paper);font-weight:700}
+.l41-shapes .panel .grid .c.kv{background:var(--cool);color:var(--paper)}
+.l41-shapes .panel .grid .c.empty{background:var(--paper-deep);color:var(--ink-soft)}
+.l41-shapes .panel p{font-size:12px;color:var(--ink-soft);margin:6px 0 0;line-height:1.55}
+
+.l41-paged{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;font-family:'JetBrains Mono',monospace;font-size:9px;margin:8px 0}
+.l41-paged .blk{padding:8px 0;text-align:center;border-radius:3px;background:var(--paper-deep);color:var(--ink-soft)}
+.l41-paged .blk.r1{background:var(--accent);color:var(--paper);font-weight:700}
+.l41-paged .blk.r2{background:var(--accent-2);color:var(--paper);font-weight:700}
+.l41-paged .blk.r3{background:var(--cool);color:var(--paper);font-weight:700}
+.l41-paged .blk.r4{background:var(--cool-2);color:var(--paper);font-weight:700}
+.l41-paged .blk.shared{background:var(--good);color:var(--paper);font-weight:700}
+
+.l41-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l41-grid .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l41-grid .col .h{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.l41-grid .col .nm{font-family:'Pretendard',sans-serif;font-weight:700;color:var(--ink);font-size:14px;margin-bottom:6px}
+.l41-grid .col .dt{color:var(--ink-soft);font-size:12.5px;line-height:1.55}
+.l41-grid .col.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l41-bench{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l41-bench .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;color:var(--muted);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l41-bench .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l41-bench .row .what{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l41-bench .row .v{color:var(--ink-soft);text-align:right}
+.l41-bench .row .v.good{color:var(--good);font-weight:700}
+.l41-bench .row .v.bad{color:var(--warn)}
+
+.l41-stack{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l41-stack .step{display:grid;grid-template-columns:130px 1fr 110px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l41-stack .step .lvl{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em}
+.l41-stack .step .nm{color:var(--ink);font-weight:700;font-family:'Pretendard',sans-serif;font-size:13.5px}
+.l41-stack .step .nm em{font-style:normal;color:var(--ink-soft);font-weight:500;font-size:12px;display:block;margin-top:3px}
+.l41-stack .step .what{font-size:11px;color:var(--ink-soft);text-align:right;line-height:1.4}
+.l41-stack .step.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+@media (max-width:760px){.l41-shapes,.l41-grid{grid-template-columns:1fr}.l41-paged{grid-template-columns:repeat(6,1fr)}.l41-stack .step{grid-template-columns:1fr}.l41-stack .step .what{text-align:left}.l41-bench .h,.l41-bench .row{grid-template-columns:1.2fr 1fr 1fr}.l41-bench .h span:nth-child(4),.l41-bench .row .v:nth-child(4){display:none}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="lecture_040.html">← L040</a>
+    <a href="index.html">Index</a>
+    <a href="lecture_042.html">L042 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L041</span>
+    <span>2024 · DEC</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>FlashInfer — Customizable kernels for LLM inference</h1>
+  <p class="dek">LLM 추론의 attention 은 <em>한 모양이 아니다</em>. <strong>prefill</strong> 은 long Q × long KV 의 GEMM 류, <strong>decode</strong> 는 short Q × long KV 의 GEMV 류. 거기에 GQA / MQA / paged KV / sparse / chunked prefill 같은 변종이 더해진다. <strong>FlashInfer</strong> 의 답 — <em>이 모든 attention 을 한 통일 API + 한 generator 가 만든다</em>. Zihao Ye 가 깐 unified attention engine 의 내부 — query tile 의 다양한 크기, paged KV cache 와 shared prefix, sparse attention, JIT compilation, vLLM/SGLang 통합까지.</p>
+
+  <div class="chips">
+    <span class="chip hi">FlashInfer</span>
+    <span class="chip hi">paged KV</span>
+    <span class="chip hi">prefill / decode</span>
+    <span class="chip hi">GQA / MQA</span>
+    <span class="chip">sparse attention</span>
+    <span class="chip">JIT</span>
+    <span class="chip">vLLM</span>
+    <span class="chip">SGLang</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">Z</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Zihao Ye</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">UW · NVIDIA · FlashInfer 저자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L041</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Zihao Ye</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">vLLM/SGLang 코드와</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">attention 의 다양성</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">prefill / decode / GQA / MQA</span><span class="em">shape 의 분기</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">unified attention API</span><span class="em">한 함수가 모든 모양</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">paged attention 통합</span><span class="em">vLLM table 구조</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">sparse attention</span><span class="em">column-sparse · block-sparse</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">chunked prefill</span><span class="em">긴 컨텍스트 분할</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">통합 사례 (vLLM · SGLang)</span><span class="em">backend 표준화</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">성능 사례</span><span class="em">FA3 와 비교</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">JIT / DSL 다음 방향</span><span class="em">CUDA · CUTLASS · TileLang</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">repo · paper</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· attention 의 다양성</span></div>
+    <h2>“attention” 한 단어가 inference 에서 N 개 다른 모양을 가리킨다</h2>
+  </div>
+  <p class="sec-lede">L036 의 FlashAttention 3 는 <em>학습</em> 의 attention 을 풀었다. inference 에서는 attention 의 모양이 학습 시점보다 훨씬 다양하다. <strong>prefill</strong> 의 long-Q-long-KV, <strong>decode</strong> 의 short-Q-long-KV, <strong>GQA / MQA</strong> 의 head 비대칭, <strong>paged KV</strong> 의 비연속 메모리, <strong>sparse</strong> 의 토큰 부분 — 이게 모두 attention.</p>
+
+  <p>이전까지의 답 — <em>각 변종마다 별도 커널</em>. vLLM 이 자기 paged attention, FA repo 가 다른 변종, Triton 이 또 다른 변종. <strong>FlashInfer 의 답</strong> — 한 통일 API 가 이 모든 변종을 받아들이고, 내부에서 가장 적합한 커널을 dispatch / generate 한다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>Zihao 의 입장 — <strong>“inference 의 attention 은 ‘shape 의 cartesian 곱’ 이다. (prefill/decode) × (GQA/MQA) × (paged/contiguous) × (sparse/dense) × (chunked/full). 이 곱을 사람이 한 본씩 짤 수 없다 — 코드 generation 으로 푼다.”</strong> FlashInfer 는 그 generation 의 추상.</p>
+  </div>
+
+  <div class="pull">“같은 attention 인데 inference 에서는 너무 많은 변종이 있다. 한 함수 + JIT 으로 그 cartesian 곱을 표현하는 게 이 라이브러리의 정체성.”<span class="by">Zihao Ye · 강의 도입부</span></div>
+
+  <p>그래서 강의 끝에 손에 잡혀야 할 자산 — <strong>(1)</strong> attention shape 의 차원들에 대한 mental model, <strong>(2)</strong> paged KV 의 table 구조와 shared prefix 의 결합, <strong>(3)</strong> JIT 가 코드 양을 어떻게 줄이는지, <strong>(4)</strong> vLLM / SGLang 같은 엔진과의 표준화.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>prefill / decode / GQA / MQA</b><span>· shape 의 분기</span></div>
+    <h2>같은 “attention” 의 두 극단 — prefill 과 decode 가 사실상 다른 알고리즘</h2>
+  </div>
+
+  <div class="l41-shapes">
+    <div class="panel">
+      <h4>prefill</h4>
+      <div class="h">long Q × long KV — GEMM 류</div>
+      <div class="grid">
+        <div class="c q">q0</div><div class="c q">q1</div><div class="c q">q2</div><div class="c q">q3</div><div class="c q">q4</div><div class="c q">q5</div><div class="c q">q6</div><div class="c q">q7</div>
+        <div class="c kv">k0</div><div class="c kv">k1</div><div class="c kv">k2</div><div class="c kv">k3</div><div class="c kv">k4</div><div class="c kv">k5</div><div class="c kv">k6</div><div class="c kv">k7</div>
+      </div>
+      <p><strong>FA-style tiled</strong>. tile size 128 이 자연스러움. compute-bound. tensor core 점유율 결정적. FA3 forward 의 직접 적용.</p>
+    </div>
+    <div class="panel hi">
+      <h4>decode</h4>
+      <div class="h">short Q (=1 token) × long KV — GEMV 류</div>
+      <div class="grid">
+        <div class="c q">q</div><div class="c empty">·</div><div class="c empty">·</div><div class="c empty">·</div><div class="c empty">·</div><div class="c empty">·</div><div class="c empty">·</div><div class="c empty">·</div>
+        <div class="c kv">k0</div><div class="c kv">k1</div><div class="c kv">k2</div><div class="c kv">k3</div><div class="c kv">k4</div><div class="c kv">k5</div><div class="c kv">k6</div><div class="c kv">k7</div>
+      </div>
+      <p><strong>memory-bound</strong>. K/V read 가 latency 의 거의 전부. tile size 16 도 큼. tensor core 활용 어려움 — 대신 <em>여러 request 의 query 를 한 batch 로 묶어 GEMV 의 M 을 키우는</em> 트릭.</p>
+    </div>
+    <div class="panel">
+      <h4>MHA (full)</h4>
+      <div class="h">Q heads = K heads = V heads</div>
+      <div class="grid">
+        <div class="c q">qH0</div><div class="c q">qH1</div><div class="c q">qH2</div><div class="c q">qH3</div>
+        <div class="c kv">kH0</div><div class="c kv">kH1</div><div class="c kv">kH2</div><div class="c kv">kH3</div>
+      </div>
+      <p>대칭. 표준 transformer 의 형태. KV cache 가 가장 큼.</p>
+    </div>
+    <div class="panel">
+      <h4>GQA / MQA</h4>
+      <div class="h">Q heads &gt; K/V heads</div>
+      <div class="grid">
+        <div class="c q">qH0</div><div class="c q">qH1</div><div class="c q">qH2</div><div class="c q">qH3</div>
+        <div class="c kv">kH0</div><div class="c kv">kH0</div><div class="c kv">kH1</div><div class="c kv">kH1</div>
+      </div>
+      <p>Llama-3 / Mistral 등의 표준. <em>여러 Q head 가 같은 K/V head 를 공유</em>. <strong>K/V cache 가 작아진다</strong> — decode 의 메모리 bandwidth 큰 절약.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">강의에서 Zihao 가 강조한 사실 — <em>“prefill 과 decode 는 같은 attention 이지만 hardware 위 dispatch 가 다르다.”</em> prefill 은 큰 tile 의 GEMM kernel, decode 는 작은 tile 의 GEMV kernel. FlashInfer 의 unified API 는 사용자가 어느 모드인지 명시적으로 알리고, 내부에서 다른 코드로 dispatch.</p>
+
+  <div class="callout cool">
+    <div class="label">왜 “하나의 통일 함수” 가 가능한가</div>
+    <p>둘이 같은 algorithm — online softmax 위 tiled attention. 다르게 보이는 건 <em>tile 크기 / 병렬화 단위 / KV layout</em>. 같은 표현 위에서 다른 instantiation. CUTLASS 의 layout algebra (L036 §08) 와 비슷한 정신.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>unified attention API</b><span>· 한 함수가 모든 모양</span></div>
+    <h2>한 wrapper 가 prefill / decode / paged / sparse 를 모두 받는다</h2>
+  </div>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># FlashInfer — 한 wrapper, 다양한 모드</span>
+<span style="color:#E7B369">import</span> flashinfer
+
+<span style="color:#A99E89"># 1) prefill (paged KV)</span>
+prefill = flashinfer.BatchPrefillWithPagedKVCacheWrapper(
+    workspace_buffer, kv_layout=<span style="color:#C6B98A">"NHD"</span>)
+prefill.plan(qo_indptr, paged_kv_indptr,
+             paged_kv_indices, paged_kv_last_page_len,
+             num_qo_heads, num_kv_heads,
+             head_dim, page_size)
+out = prefill.run(q, paged_kv_cache)
+
+<span style="color:#A99E89"># 2) decode</span>
+decode = flashinfer.BatchDecodeWithPagedKVCacheWrapper(...)
+decode.plan(...)
+out = decode.run(q, paged_kv_cache)
+
+<span style="color:#A99E89"># 3) prefill + decode 동시 (chunked prefill)</span>
+mixed = flashinfer.BatchPrefillWithPagedKVCacheWrapper(...)
+out = mixed.run(q, paged_kv_cache, causal=<span style="color:#E7B369">True</span>)</code></pre>
+    </div>
+    <div>
+      <p>API 의 핵심 결정 두 가지.</p>
+      <ul>
+        <li><strong>plan / run 분리</strong> — 한 batch 의 metadata (어떤 sequence 가 얼마나 긴지, paged table 의 layout) 가 plan 에서 미리 처리. 그 결과는 cache 가능. 다음 forward 에서 같은 metadata 면 plan 재호출 안 함.</li>
+        <li><strong>indptr / indices 의 표준</strong> — variable-length batch 를 표현하는 두 vector. SGLang/vLLM 의 batch 표현과 자연스럽게 연결.</li>
+      </ul>
+      <p>이 추상의 실제 효과 — <em>커널 dispatch 가 한 함수 호출</em>. 사용자는 “이 batch 가 어떤 sequence 들을 가지고 있는가” 만 plan 에 넘기고, 내부에서 적합한 attention kernel 이 골라진다.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">plan / run 의 구조적 의미</div>
+    <p>plan 단계에서 <strong>scheduling 정보</strong> (block 별 work assignment, SM 분배) 까지 미리 결정한다. SGLang 같은 엔진의 overlap scheduler 가 GPU forward 와 병렬로 다음 batch 의 plan 을 미리 호출하면, run 의 실제 latency 가 거의 GPU 시간만 됨. <em>이게 SGLang 의 throughput 이득 (L035) 의 한 축</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>paged attention 통합</b><span>· vLLM table 구조</span></div>
+    <h2>page=1 의 KV 가 비연속이어도 attention 이 빠르다</h2>
+  </div>
+  <p class="sec-lede">vLLM 의 PagedAttention paper 가 도입한 표준 — KV cache 를 작은 page (보통 16 토큰) 로 잘라 메모리에 비연속적으로 둔다. attention kernel 은 page table (block table) 을 따라가며 K/V 를 gather. FlashInfer 는 이 page table 을 first-class 로 받음.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · paged KV cache + shared prefix</span><span>4 requests</span></div>
+    <div class="l41-paged">
+      <div class="blk shared">P0 sys</div>
+      <div class="blk shared">P1 sys</div>
+      <div class="blk shared">P2 sys</div>
+      <div class="blk r1">P3 r1</div>
+      <div class="blk r2">P4 r2</div>
+      <div class="blk r3">P5 r3</div>
+      <div class="blk r4">P6 r4</div>
+      <div class="blk">·</div>
+      <div class="blk r1">P8 r1</div>
+      <div class="blk r2">P9 r2</div>
+      <div class="blk">·</div>
+      <div class="blk r1">P11 r1</div>
+    </div>
+    <div class="viz-note">초록색 page (P0~P2) 는 4 request 가 모두 공유하는 system prompt. 각 색은 한 request 의 unique 부분. <strong>같은 page 가 여러 request 의 attention 에서 한 번만 read 되어야</strong> 메모리 bandwidth 의 이득이 산다 (RadixAttention §03 in L035).</p>
+  </div>
+
+  <p>FlashInfer 의 결정 — <strong>page_size = 1</strong> 도 first-class 로 지원. SGLang 이 RadixAttention 의 prefix match 를 더 정밀하게 하려고 page=1 을 쓰는데, page=1 의 paged attention 은 <em>“메모리 access 가 매 토큰마다 indirect”</em> 이라 일반 paged kernel 이 잘 다루기 어렵다. FlashInfer 는 이 케이스를 위한 별도 kernel path.</p>
+
+  <div class="callout cool">
+    <div class="label">contiguous KV vs paged KV</div>
+    <p>contiguous 는 TMA 2D 를 직접 쓸 수 있다 (한 thread 가 큰 tile 을 비동기 load). paged (page=1) 는 TMA 2D 가 안 통하니 register 단위 gather 로 fall-back. 강의에서 Zihao 가 짚은 한 줄 — <em>“성능 차이는 의외로 크지 않다 — 메인 비용은 register pressure 이고, 그건 둘 다 비슷하다.”</em></p>
+  </div>
+
+  <p>shared prefix 를 활용하는 mode — <strong>shared-prefix attention</strong>. 같은 prefix 를 가진 N 개 request 의 attention 에서 K/V 를 한 번만 read. SGLang 이 이 mode 를 적극 활용 — 그래서 SGLang + FlashInfer 의 결합이 자연스러움.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>sparse attention</b><span>· column-sparse · block-sparse</span></div>
+    <h2>토큰의 부분만 attend 한다 — 같은 attention API 안에서</h2>
+  </div>
+  <p class="sec-lede">긴 컨텍스트의 LLM 에서 모든 토큰이 모든 토큰을 attend 할 필요가 없다는 가정. <strong>sparse attention</strong> — 일부 (key, query) 쌍만 계산. FlashInfer 가 이 mode 를 attention API 안에 통합한다.</p>
+
+  <ul>
+    <li><strong>column-sparse</strong> — 일부 K column 만 본다. 가변 column 수. 강의에서 Zihao 가 명시 — <em>“우리는 매우 flexible 한 column 수를 지원한다.”</em> Tri Dao 의 efficient tensor core sparsity paper 영향.</li>
+    <li><strong>block-sparse</strong> — block 단위 sparse mask. 큰 block 으로 묶이면 dense attention kernel 을 그대로 사용 가능. 작은 block 은 hardware-managed sparse 가 필요.</li>
+    <li><strong>composition</strong> — 같은 sequence 의 가까운 token 은 dense, 먼 token 은 sparse. <em>“가까운 부분은 큰 block, 먼 부분은 작은 block”</em> 의 자연스러운 결합.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">block size 결정의 trade-off</div>
+    <p>Zihao 의 한 줄 — <em>“larger block 이면 K cache 를 SMEM/register 까지 stage 해 tensor core 를 쓴다. smaller block 이면 hardware-managed sparse fall-back.”</em> 그래서 sparse attention 을 위한 attention API 는 single block size 가 아니라 <em>block size 의 mixture</em> 를 받는다.</p>
+  </div>
+
+  <p>이 자리는 강의의 가장 흥미로운 자리 중 하나 — <strong>sparse attention 이 실용적이려면 attention API 가 그걸 자연스럽게 받아들여야 한다</strong>. 별도 kernel 로 두면 사람이 안 쓴다. FlashInfer 의 unified API 가 그 진입 장벽을 낮춘다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>chunked prefill</b><span>· 긴 컨텍스트 분할</span></div>
+    <h2>prefill 한 forward 의 KV 를 작은 chunk 로 잘라 decode 와 섞는다</h2>
+  </div>
+  <p class="sec-lede">long-context LLM (32k, 128k 토큰) 의 prefill 은 한 번에 너무 무겁다. 그동안 다른 request 의 decode 가 GPU idle 로 기다린다. <strong>chunked prefill</strong> 이 답 — prefill 을 N 조각으로 잘라, 각 chunk 사이사이 다른 request 의 decode 를 끼워넣는다.</p>
+
+  <p>FlashInfer 가 이걸 지원하는 방식 — <strong>BatchPrefill API 에서 prefill chunk + decode 를 한 batch 안에서 처리</strong>. 같은 forward 안에 “이 sequence 는 prefill 의 chunk 5/10, 저 sequence 는 decode 한 토큰” 을 동시에. attention kernel 이 두 모드를 한 dispatch 로.</p>
+
+  <div class="callout cool">
+    <div class="label">왜 일반 attention kernel 로 안 되는가</div>
+    <p>chunked prefill 의 query 는 prefill chunk 의 토큰들이고, key 는 그 chunk 까지의 모든 KV. 즉 query length 는 chunk size, key length 는 지금까지의 누적 prefix. 이 모양이 일반 prefill 이나 decode 와도 다른 별개 case. <em>“variable Q-length” attention</em> 으로 일반화하면 자연스럽게 들어맞는다.</p>
+  </div>
+
+  <p>SGLang / vLLM 이 chunked prefill 을 채용한 이유는 — long-context request 의 prefill 이 다른 request 의 decode latency 를 망가뜨리지 않게 하는 것. <strong>throughput + latency 의 동시 균형</strong>. FlashInfer 가 이걸 하나의 attention API 호출로 expose.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>통합 사례 (vLLM · SGLang)</b><span>· backend 표준화</span></div>
+    <h2>두 inference engine 이 같은 attention library 를 쓰는 시점</h2>
+  </div>
+
+  <div class="l41-grid">
+    <div class="col">
+      <div class="h">vLLM</div>
+      <div class="nm">FlashInfer 는 옵션 backend</div>
+      <div class="dt"><code>VLLM_ATTENTION_BACKEND=FLASHINFER</code>. FA, FA3, Triton 과 함께 선택 가능. 특정 워크로드(MQA / paged page=1)에서 FlashInfer 가 더 좋음.</div>
+    </div>
+    <div class="col hi">
+      <div class="h">SGLang</div>
+      <div class="nm">FlashInfer 가 main backend</div>
+      <div class="dt">RadixAttention + shared-prefix attention 의 결합이 자연. SGLang 의 throughput 이득의 한 축이 FlashInfer 의 plan/run 분리에서 옴.</div>
+    </div>
+    <div class="col">
+      <div class="h">research</div>
+      <div class="nm">새 attention 변종 prototyping</div>
+      <div class="dt">JIT 으로 새 변종을 빠르게. paper 단계의 attention 알고리즘이 production engine 에 빠르게 흡수되는 길.</div>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">강의에서 Zihao 가 명시한 — <em>“우리는 SGLang 팀과 매우 가깝게 작업한다. 다음 release 에서 SGLang 에 10~20% 추가 throughput 이 들어올 예정.”</em> 이 통합이 단순한 dependency 가 아니라 active co-development.</p>
+
+  <div class="pull">“같은 hardware 에서 두 inference engine 이 같은 attention library 를 쓴다는 건 — attention 의 표준화 시대의 시작.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>성능 사례</b><span>· FA3 와 비교</span></div>
+    <h2>같은 hardware 에서 FA3 의 forward 정도 + inference 시나리오 우위</h2>
+  </div>
+
+  <div class="l41-bench">
+    <div class="h"><span>시나리오 · H100</span><span>FA3</span><span>FlashInfer</span><span>차이의 근원</span></div>
+    <div class="row"><span class="what">prefill (4k Q, 4k KV, MHA)</span><span class="v">~85% peak</span><span class="v good">~85% peak</span><span class="v">동등 — FA3 path</span></div>
+    <div class="row"><span class="what">decode (1 Q, 4k KV, GQA)</span><span class="v">limited</span><span class="v good">memory-bw bound</span><span class="v">decode 전용 path</span></div>
+    <div class="row"><span class="what">paged page=1, shared prefix</span><span class="v">미지원</span><span class="v good">first-class</span><span class="v">SGLang fit</span></div>
+    <div class="row"><span class="what">chunked prefill</span><span class="v">제한</span><span class="v good">native</span><span class="v">variable Q</span></div>
+    <div class="row"><span class="what">sparse attention</span><span class="v bad">없음</span><span class="v good">column · block</span><span class="v">unified API</span></div>
+    <div class="row"><span class="what">FP8 KV cache</span><span class="v">진행</span><span class="v">기본 지원</span><span class="v">inference 전용</span></div>
+  </div>
+
+  <p style="margin-top:14px">두 자리에 분명한 차이 — FA3 가 <em>학습 forward/backward</em> 의 표준이고 FlashInfer 가 <em>inference 의 다양성</em> 의 표준. 한 라이브러리가 모두를 다 잘하는 건 아니고, 자기 자리가 다르다. SGLang/vLLM 이 두 backend 를 모두 wrap.</p>
+
+  <div class="callout">
+    <div class="label">tile size 의 다양성</div>
+    <p>강의의 specific 한 사실 — <em>“우리는 query tile size 16 / 32 / 64 / 128 을 모두 가지고 있고, batch 의 평균 query length 같은 statistic 으로 best tile 을 선택한다.”</em> 이게 가능한 이유는 JIT — 모든 tile size 의 kernel 을 미리 컴파일하지 않고 필요시 생성.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>JIT / DSL 다음 방향</b><span>· CUDA · CUTLASS · TileLang</span></div>
+    <h2>한 spec 에서 여러 backend 코드 — generation 의 다음 단계</h2>
+  </div>
+  <p class="sec-lede">FlashInfer 의 다음 release 가 흥미로운 자리. 강의에서 Zihao 가 짧게 언급 — <strong>JIT generator 가 하나의 attention spec 으로부터 CUDA / CUTLASS / TileLang 코드를 모두 생성</strong>한다는 방향.</p>
+
+  <div class="l41-stack">
+    <div class="step">
+      <span class="lvl">L0 · spec</span>
+      <span class="nm">attention variant specification<em>variable Q-length, GQA ratio, page size, sparse mask, dtype 등을 한 spec 객체로</em></span>
+      <span class="what">사용자 입력</span>
+    </div>
+    <div class="step">
+      <span class="lvl">L1 · generator</span>
+      <span class="nm">JIT code synthesizer<em>spec 을 파싱하고 dispatch 결정 + kernel template 인스턴스화</em></span>
+      <span class="what">FlashInfer 내부</span>
+    </div>
+    <div class="step hi">
+      <span class="lvl">L2 · backend</span>
+      <span class="nm">CUDA · CUTLASS · TileLang<em>같은 spec 이 여러 backend 의 코드로 펴진다. 각 backend 의 trade-off 가 다름.</em></span>
+      <span class="what">multi-backend</span>
+    </div>
+    <div class="step">
+      <span class="lvl">L3 · binary</span>
+      <span class="nm">.cubin · ahead-of-time 또는 just-in-time<em>cache 가능. 다음 호출에서 같은 spec 이면 binary 재사용.</em></span>
+      <span class="what">runtime</span>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">이 방향의 의미 — <em>“새 attention 변종이 paper 로 나오면, 한 spec 추가 + generator 의 한 분기로 production 라이브러리에 흡수”</em>. CUTLASS 가 GEMM 에서 한 일을 attention 에서 하는 자리. 강의 시점에 진행형.</p>
+
+  <div class="pull">“JIT 의 진짜 가치는 컴파일 시간이 아니라 — 하나의 spec 에서 여러 hardware 의 코드를 생성한다는 점.”<span class="by">Zihao Ye · Q&amp;A</span></div>
+
+  <p>TileLang 은 강의 시점에 새 DSL — Triton 과 CUTLASS 사이의 자리. 더 표현력 있는 high-level DSL 위에서 attention 을 표현, 컴파일러가 backend 별로 lowering. FlashInfer 가 그 generation pipeline 의 frontend 역할을 할 수 있는지가 강의의 마지막 흥미 자리.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· repo · paper</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">attention shape 의 cartesian 곱</div><div class="d">prefill/decode × MHA/GQA/MQA × paged/contig × dense/sparse × full/chunked. 한 본씩 짤 수 없음.</div></div>
+    <div class="term"><div class="t">unified API</div><div class="d">하나의 wrapper 가 모든 변종. plan / run 분리. metadata 는 cache.</div></div>
+    <div class="term"><div class="t">paged page=1</div><div class="d">SGLang 의 RadixAttention 이 요구하는 layout. FlashInfer 의 first-class.</div></div>
+    <div class="term"><div class="t">shared-prefix attention</div><div class="d">같은 prefix 의 N request 가 K/V 를 한 번만 read. SGLang 의 throughput 이득의 한 축.</div></div>
+    <div class="term"><div class="t">chunked prefill</div><div class="d">prefill 을 N 조각 + decode 와 섞기. variable Q-length attention 으로 표현.</div></div>
+    <div class="term"><div class="t">sparse attention 통합</div><div class="d">column-sparse · block-sparse · composition. 별도 kernel 안 두고 같은 API.</div></div>
+    <div class="term"><div class="t">vLLM · SGLang 통합</div><div class="d">SGLang 이 main, vLLM 은 옵션. 두 engine 이 같은 attention library 를 공유.</div></div>
+    <div class="term"><div class="t">JIT generator</div><div class="d">spec → CUDA / CUTLASS / TileLang. 다음 release 의 큰 줄기.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=iOLBJwENuvA" target="_blank" rel="noopener">youtube.com/watch?v=iOLBJwENuvA</a></span></div>
+    <div class="row"><span class="k">Repo</span><span class="v"><a href="https://github.com/flashinfer-ai/flashinfer" target="_blank" rel="noopener">github.com/flashinfer-ai/flashinfer</a></span></div>
+    <div class="row"><span class="k">Docs</span><span class="v"><a href="https://docs.flashinfer.ai/" target="_blank" rel="noopener">docs.flashinfer.ai</a></span></div>
+    <div class="row"><span class="k">Paper</span><span class="v"><a href="https://arxiv.org/abs/2501.01005" target="_blank" rel="noopener">arXiv:2501.01005 — FlashInfer</a></span></div>
+    <div class="row"><span class="k">vLLM 통합</span><span class="v"><a href="https://docs.vllm.ai/en/latest/" target="_blank" rel="noopener">vLLM docs</a> — VLLM_ATTENTION_BACKEND</span></div>
+    <div class="row"><span class="k">SGLang 통합</span><span class="v"><a href="https://github.com/sgl-project/sglang" target="_blank" rel="noopener">SGLang repo</a> — main backend</span></div>
+    <div class="row"><span class="k">Speaker</span><span class="v"><a href="https://github.com/yzh119" target="_blank" rel="noopener">github.com/yzh119</a> · Zihao Ye</span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>FlashInfer 한 줄 hello</strong> — pip install flashinfer + decode wrapper 한 batch. variable-length 의 indptr 표현 손에.</li>
+    <li><strong>plan / run 분리 직접 측정</strong> — 같은 metadata 로 run 만 반복 호출. plan 비용이 한 번이고 run 이 가벼운지 latency 로 확인.</li>
+    <li><strong>paged page=1 vs page=16</strong> — 같은 sequence 를 두 page size 로 cache 하고 attention latency 비교. 의외로 차이 적은 게 정상.</li>
+    <li><strong>shared-prefix attention</strong> — 같은 system prompt 에 4 개 request. shared mode on/off 의 K/V read 트래픽 측정.</li>
+    <li><strong>chunked prefill 한 batch</strong> — 한 batch 안에 prefill chunk + decode 동시. 한 forward 의 GPU util 이 얼마나 채워지는지 NCU.</li>
+    <li><strong>SGLang backend 직접 교체</strong> — SGLang 에 FlashInfer / Triton 두 backend 모두로 같은 모델 띄우고 throughput 비교.</li>
+    <li><strong>vLLM backend 비교</strong> — 같은 모델 / 같은 batch 로 FlashInfer / FA3 / Triton 세 backend. 어느 시나리오가 누구의 자리인지 표 만들기.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>FlashInfer 가 시리즈 안 다른 강의들과 만나는 자리</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">Profiling CUDA kernels</div><div class="by">Mark Saroufim — async pattern · NCU 사다리. plan/run latency 측정의 도구</div></a>
+    <a class="conn" href="lecture_008.html"><div class="n">L008</div><div class="ti">CUDA Performance Checklist</div><div class="by">Mark Saroufim — register / occupancy. paged kernel 의 register pressure 자리</div></a>
+    <a class="conn" href="lecture_009.html"><div class="n">L009</div><div class="ti">Reductions</div><div class="by">online softmax 의 알고리즘적 배경</div></a>
+    <a class="conn" href="lecture_034.html"><div class="n">L034</div><div class="ti">Low Bit Triton Kernels</div><div class="by">Hicham Badri — quantize 된 weight + KV cache 가 attention 에 들어오는 자리</div></a>
+    <a class="conn" href="lecture_035.html"><div class="n">L035</div><div class="ti">SGLang</div><div class="by">Yineng Zhang — FlashInfer 의 main consumer. plan/run overlap 의 효과</div></a>
+    <a class="conn" href="lecture_036.html"><div class="n">L036</div><div class="ti">CUTLASS &amp; FA3</div><div class="by">Jay Shah — H100 attention 의 알고리즘. inference 에 옮길 때 어떻게 펴지는가</div></a>
+    <a class="conn" href="lecture_037.html"><div class="n">L037</div><div class="ti">SASS &amp; uarch</div><div class="by">Arun Demeure — paged kernel 의 SASS 가 contiguous 와 어떻게 다른가</div></a>
+    <a class="conn" href="lecture_040.html"><div class="n">L040</div><div class="ti">CUDA Docs for Humans</div><div class="by">Charles Frye — 다음 사용자가 FlashInfer 를 학습할 때 필요한 docs 자리</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>JIT generation 의 진행 상태</strong> — CUDA / CUTLASS / TileLang 의 multi-backend code generation 이 어디까지 와 있는가. 강의 시점에 진행형이라 release 노트 추적 가치.</li>
+    <li><strong>FP4 / FP6 의 KV cache 지원</strong> — Blackwell 의 새 dtype 들이 attention 의 K/V cache 에 어떻게 들어오는가. INT4 cache 의 정확도 / latency trade-off.</li>
+    <li><strong>multi-LoRA 와 attention</strong> — 같은 base 모델 + 여러 LoRA 의 attention 이 한 batch 에 섞일 때. FlashInfer 가 이 case 를 어떻게 표현하는가.</li>
+    <li><strong>cross-architecture 의 일반화</strong> — AMD ROCm, Intel GPU 위에 같은 attention 추상이 옮겨지는가. CUDA-only 일지, multi-vendor 로 갈지의 갈림길.</li>
+    <li><strong>speculative decoding 의 attention</strong> — draft model 의 KV 와 main model 의 KV 가 한 attention call 에서 처리되는 형태. variable Q-length 의 또 다른 변종.</li>
+    <li><strong>FA3 와의 정확한 분기점</strong> — 학습은 FA3, inference 는 FlashInfer 가 점점 표준화. 그 경계가 정확히 어디 (예: prefill 만 하는 inference 시나리오) 인가.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>FlashInfer 는 매우 빠르게 갱신되는 라이브러리. 이 노트의 API signature, 성능 수치, JIT 의 상태는 강의 시점 기준. 자기 시점의 release 노트와 docs 로 갱신 확인 필수. <em>plan/run 분리</em> 같은 핵심 추상은 안정적이나, 구체적 wrapper 이름은 변할 수 있음.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_040.html">
+    <span class="lbl">← Lecture 040</span>
+    <span class="nm">CUDA Docs for Humans</span>
+  </a>
+  <a class="nxt" href="lecture_042.html">
+    <span class="lbl">Lecture 042 →</span>
+    <span class="nm">다음 강의로</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L041 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

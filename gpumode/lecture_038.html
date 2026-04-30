@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L038 · Low Bit ARM kernels · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 38 — Low Bit ARM kernels */
+.l38-tile{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l38-tile .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l38-tile .col .h{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.l38-tile .col .nm{font-family:'Pretendard',sans-serif;font-weight:700;color:var(--ink);font-size:14px;margin-bottom:6px}
+.l38-tile .col .dt{color:var(--ink-soft);font-size:12.5px;line-height:1.55}
+.l38-tile .col.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l38-stack{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l38-stack .step{display:grid;grid-template-columns:140px 1fr 110px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l38-stack .step .lvl{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em}
+.l38-stack .step .nm{color:var(--ink);font-weight:700;font-family:'Pretendard',sans-serif;font-size:13.5px}
+.l38-stack .step .nm em{font-style:normal;color:var(--ink-soft);font-weight:500;font-size:12px;display:block;margin-top:3px}
+.l38-stack .step .what{font-size:11px;color:var(--ink-soft);text-align:right;line-height:1.4}
+.l38-stack .step.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l38-bench{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l38-bench .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;color:var(--muted);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l38-bench .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l38-bench .row .what{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l38-bench .row .v{color:var(--ink-soft);text-align:right}
+.l38-bench .row .v.good{color:var(--good);font-weight:700}
+.l38-bench .row .v.bad{color:var(--warn)}
+
+.l38-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;font-family:'JetBrains Mono',monospace;font-size:9.5px;margin:8px 0}
+.l38-grid .c{padding:6px 0;text-align:center;border-radius:2px;background:var(--paper-deep);color:var(--ink-soft)}
+.l38-grid .c.M{background:var(--accent-2);color:var(--paper);font-weight:700}
+.l38-grid .c.N{background:var(--cool);color:var(--paper);font-weight:700}
+.l38-grid .c.K{background:var(--accent);color:var(--paper);font-weight:700}
+.l38-grid .c.t{background:var(--good);color:var(--paper)}
+@media (max-width:760px){.l38-tile{grid-template-columns:1fr}.l38-stack .step{grid-template-columns:1fr}.l38-stack .step .what{text-align:left}.l38-bench .h,.l38-bench .row{grid-template-columns:1.2fr 1fr 1fr}.l38-bench .h span:nth-child(4),.l38-bench .row .v:nth-child(4){display:none}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="lecture_037.html">← L037</a>
+    <a href="index.html">Index</a>
+    <a href="lecture_039.html">L039 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L038</span>
+    <span>2024 · NOV</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Low Bit ARM kernels</h1>
+  <p class="dek">Llama 3 8B 가 <strong>맥북에서 토큰 당 50ms</strong> 로 도는 시점이 왔다. NVIDIA GPU 가 아니라 <em>ARM CPU 위에서</em>. Scott Roy 가 ExecuTorch / torchao 의 일부로 짜고 있는 <strong>1~8 bit ARM kernels</strong> 의 내부 — NEON · SVE 의 활용, K=8 / 16 / 32 group quant 의 packing 이 register 와 cache 위에서 어떻게 펴지는가, 그리고 <em>“같은 weight-only quant 인데 NVIDIA 와 모바일은 왜 모양이 다른가”</em> 의 답.</p>
+
+  <div class="chips">
+    <span class="chip hi">ARM</span>
+    <span class="chip hi">NEON</span>
+    <span class="chip hi">SVE</span>
+    <span class="chip hi">low-bit</span>
+    <span class="chip">ExecuTorch</span>
+    <span class="chip">torchao</span>
+    <span class="chip">tile</span>
+    <span class="chip">unpacking</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">S</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Scott Roy</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · github.com/metascroy · ExecuTorch / torchao</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L038</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Scott Roy</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">macOS · iPhone 측정</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">on-device LLM</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">모바일 / edge 의 compute 모델</span><span class="em">CPU 위주, GPU 부수</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">ARM NEON / SVE</span><span class="em">128-bit · 가변 vector</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">INT8 GEMM / GEMV 패턴</span><span class="em">smmla / sdot</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">cache-friendly tiling</span><span class="em">L1 · register</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">정확도 처리</span><span class="em">group · zero point</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">ExecuTorch 통합</span><span class="em">custom op · pthreadpool</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">LLM 모바일 사례</span><span class="em">M1 Pro · iPhone</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">NVIDIA 와 trade-off</span><span class="em">cloud vs edge</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">torchao · llama.cpp</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· on-device LLM</span></div>
+    <h2>“데이터센터 GPU 가 아닌 device 에서 LLM 을 돌릴 수 있는가” 의 답을 ARM 위에서</h2>
+  </div>
+  <p class="sec-lede">데스크탑 / 폰 / 임베디드 — NVIDIA GPU 가 없는 환경. 이 자리에서 LLM 추론을 돌리려면 거의 모든 결정이 다르게 내려진다. CPU 위주 compute, 적은 메모리, 강력한 cache hierarchy, 저전력 제약. Scott 의 일은 그 자리에 맞는 <strong>low-bit kernel set</strong> 을 짜는 것.</p>
+
+  <p>강의의 첫 측정 — <strong>Llama 3.1 8B 가 M1 Pro 맥북에서 토큰 당 약 50ms</strong>. 4-bit weight + INT8 activation. 이게 <em>llama.cpp</em> 의 길을 따라가지 않고 PyTorch 생태계 안에서 (torchao + ExecuTorch) 직접 짠 결과. macOS / Linux / iOS 의 같은 stack 으로 동작.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“Triton/CUDA 의 mental model 이 그대로 옮겨오지 않는다” — 이게 강의의 출발. ARM 의 vector ISA(NEON/SVE)는 GPU SIMT 와 다르다. <em>tile 의 단위, register 의 양, cache 의 layer, 병렬화의 방향</em> 이 통째로 다르다. 그래서 같은 “4-bit weight-only GEMM” 라도 NVIDIA 위 코드와 ARM 위 코드는 닮은 점이 거의 없다.</p>
+  </div>
+
+  <div class="pull">“같은 알고리즘이지만 hardware 가 너무 달라서 — kernel 코드는 거의 다른 우주에서 살게 된다.”<span class="by">학습 노트</span></div>
+
+  <p>강의 끝에 손에 잡혀야 할 자산 — <strong>(1)</strong> ARM CPU 의 compute 단위(NEON / SVE) 와 GPU SM 의 직관적 매핑, <strong>(2)</strong> low-bit kernel 의 “register-level tiling + cache-level tiling” 이라는 두 단계 구조, <strong>(3)</strong> ExecuTorch 의 custom op 가 어떻게 모델 안에 들어가는지, <strong>(4)</strong> 같은 1~8 bit 범위에서 정확도와 latency 의 trade-off 가 GPU 와 어떻게 다른지.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>모바일 / edge 의 compute 모델</b><span>· CPU 위주, GPU 부수</span></div>
+    <h2>왜 모바일에서 GPU 가 “부수적” 인가</h2>
+  </div>
+  <p class="sec-lede">데스크탑/모바일 환경에서 LLM 의 자연스러운 compute target 이 CPU 인 이유는 단순하다 — <em>가장 통합된, 가장 큰, 가장 호환되는 unit</em> 이기 때문.</p>
+
+  <div class="l38-tile">
+    <div class="col hi">
+      <div class="h">CPU (ARM)</div>
+      <div class="nm">표준 통합 unit</div>
+      <div class="dt">모든 device 에 있고 메모리 일관 (unified memory). NEON/SVE 가 vector compute. <em>LLM weight 를 그대로 적재하기 가장 쉽다</em>.</div>
+    </div>
+    <div class="col">
+      <div class="h">GPU (Adreno · Mali · Apple)</div>
+      <div class="nm">크지만 dispatch 비용 큼</div>
+      <div class="dt">제조사마다 다른 ISA. compute API 도 Metal/Vulkan/OpenCL 분열. GPU/CPU 메모리 공유 양상도 device 마다 다름.</div>
+    </div>
+    <div class="col">
+      <div class="h">NPU / DSP</div>
+      <div class="nm">전용 가속기</div>
+      <div class="dt">전력 효율 best 이지만 SDK 별 호환성 모자람. 모델 형태가 NPU 가 받아들일 수 있어야 하고, 일반 LLM 은 아직 잘 안 맞는 경우 많음.</div>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">강의에서 Scott 이 명시한 한 줄 — <em>“CPU 가 가장 portable 하고 가장 통합된 target. 모바일 GPU/NPU 는 좋지만 fragmentation 이 심해서 한 stack 으로 모든 device 를 cover 하기 어렵다.”</em> 그래서 ExecuTorch 는 CPU backend 를 main 으로 두고, GPU/NPU 는 가능한 device 에서 추가로 넘긴다.</p>
+
+  <div class="callout cool">
+    <div class="label">unified memory 의 의미</div>
+    <p>Apple Silicon, 최근 ARM SoC 들은 <em>CPU 와 GPU 가 같은 메모리</em>를 본다. NVIDIA 처럼 PCIe 위 분리된 HBM 이 아니다. 그래서 “memcpy H→D” 같은 비용이 없거나 낮다. 그 대신 <strong>memory bandwidth 가 절대량으로 작다</strong> — M1 Pro 가 ~200GB/s, A100 이 ~2TB/s 로 10배 차이. 이 차이가 모든 후속 결정을 끌고 간다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>ARM NEON / SVE</b><span>· 128-bit · 가변 vector</span></div>
+    <h2>SIMT 가 아니라 SIMD — 한 instruction 이 여러 lane 을 동시에 친다</h2>
+  </div>
+  <p class="sec-lede">NVIDIA GPU 는 SIMT (한 thread 가 한 element, 32 thread = warp). ARM 은 SIMD (한 thread 가 여러 element 동시). 이 차이가 mental model 의 첫 번째 갈림길.</p>
+
+  <ul>
+    <li><strong>NEON (ARMv8)</strong> — 128-bit fixed-width vector. fp32 lane 4 개, int8 lane 16 개, int16 lane 8 개. 모든 ARM 기기에 있다.</li>
+    <li><strong>SVE / SVE2 (ARMv9)</strong> — vector 폭이 가변 (128~2048 bit). compile 한 번으로 다양한 폭의 hardware 에서 동작. ARMv9 에서 점차 표준.</li>
+    <li><strong>I8MM 확장</strong> — int8 matrix multiply (smmla). 한 instruction 이 4×4 int8 GEMM block 을 한 번에. low-bit kernel 의 중심.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">smmla 가 왜 결정적인가</div>
+    <p><strong>SMMLA</strong> instruction 은 <em>두 8×16 int8 matrix 를 곱해 4×4 int32 acc 에 누적</em>. 한 줄로 16개 mac 연산. NVIDIA 의 mma.sync 와 비슷한 자리지만 단위가 더 작고 thread 단위에서 매번 발행. <em>이 instruction 이 ARM low-bit GEMM 의 “tensor core”</em>.</p>
+  </div>
+
+  <p>강의에서 Scott 이 짚은 사실 — <strong>FMLA</strong> (vector FMA) 는 fp16/fp32 lane 별 곱셈+누적이고, <strong>SMMLA</strong> 는 int8 matrix 곱. low-bit kernel 의 inner loop 는 거의 SMMLA. dequant 결과를 int8 형태로 쥐고 있다가 SMMLA 로 던진다.</p>
+
+  <div class="pull">“NVIDIA 는 thread 가 element 한 개. ARM 은 thread 가 vector 한 개. 그 차이가 코드 구조 전체를 다르게 만든다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>INT8 GEMM / GEMV 패턴</b><span>· smmla / sdot</span></div>
+    <h2>decode 의 batch=1 GEMV 가 사실상 모바일 LLM 의 hot path</h2>
+  </div>
+  <p class="sec-lede">decode 는 batch=1 → activation 이 vector 한 줄, weight 가 matrix. <strong>GEMV</strong> (matrix-vector). prefill 만 GEMM. 모바일 LLM 의 latency 는 거의 GEMV 가 결정.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GEMV tile 한 개 · M=1 (decode)</span><span>NEON · BLOCK_N=8, BLOCK_K=16</span></div>
+    <div class="l38-grid">
+      <div class="c M">a0</div><div class="c M">a1</div><div class="c M">a2</div><div class="c M">a3</div><div class="c M">a4</div><div class="c M">a5</div><div class="c M">a6</div><div class="c M">a7</div>
+    </div>
+    <div class="l38-grid">
+      <div class="c K">w00</div><div class="c K">w01</div><div class="c K">w02</div><div class="c K">w03</div><div class="c K">w04</div><div class="c K">w05</div><div class="c K">w06</div><div class="c K">w07</div>
+      <div class="c K">w10</div><div class="c K">w11</div><div class="c K">w12</div><div class="c K">w13</div><div class="c K">w14</div><div class="c K">w15</div><div class="c K">w16</div><div class="c K">w17</div>
+    </div>
+    <div class="l38-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="c t">acc0</div><div class="c t">acc1</div><div class="c t">acc2</div><div class="c t">acc3</div>
+    </div>
+    <div class="viz-note">M=1 의 decode GEMV. activation row 한 개 + weight tile 8×16 → output 4 개. SMMLA 한 두 발행으로 inner step. <strong>tile 크기 = 8</strong> 이 NEON 128-bit / int8 16-lane 의 자연스러운 단위.</div>
+  </div>
+
+  <p>강의에서 Scott 이 명시한 — <em>“mcal=1, ncal=8, kcal=16 가 GEMV 의 표준 tile.”</em> M=1 인 이유는 decode batch=1, N=8 은 NEON int32 acc 4 개 × 2 SMMLA, K=16 은 SMMLA 한 발행이 받는 단위.</p>
+
+  <div class="callout cool">
+    <div class="label">prefill 의 다른 tile</div>
+    <p>prefill 은 M 이 큰 GEMM. tile 이 M=8 / N=8 / K=16 같은 직사각형 형태. <em>코드는 비슷한데 outer loop 가 추가</em>. ARM low-bit kernel 보통 GEMV / GEMM 두 본을 따로 둔다 — Scott 이 강의에서 “24개 GEMV kernel + 별도 GEMM kernel” 이라고 표현한 자리.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>cache-friendly tiling</b><span>· L1 · register</span></div>
+    <h2>register tile / L1 tile / threading tile — 세 단계 분할</h2>
+  </div>
+  <p class="sec-lede">CPU kernel 의 tiling 은 GPU 와 다르게 명확한 hierarchy 가 있다. <strong>register</strong> tile (가장 안쪽), <strong>L1 cache</strong> tile (중간), <strong>thread</strong> tile (가장 바깥). Scott 의 ARM kernel 도 같은 구조.</p>
+
+  <div class="l38-stack">
+    <div class="step">
+      <span class="lvl">L0 · 표준 layer</span>
+      <span class="nm">linear (M × K weight, K × 1 activation)<em>모델 안 한 layer 의 일</em></span>
+      <span class="what">PyTorch op</span>
+    </div>
+    <div class="step">
+      <span class="lvl">L1 · thread tile</span>
+      <span class="nm">N 차원 분할 → 각 thread 가 자기 row block<em>pthreadpool 로 dispatch. parallel 1D</em></span>
+      <span class="what">N/cores 행</span>
+    </div>
+    <div class="step hi">
+      <span class="lvl">L2 · L1 cache tile</span>
+      <span class="nm">N=수십, K=수백 단위 sub-block<em>weight 와 activation 의 working set 이 L1 (~64KB) 안에</em></span>
+      <span class="what">메모리 밴드 절약</span>
+    </div>
+    <div class="step hi">
+      <span class="lvl">L3 · register tile</span>
+      <span class="nm">M=1 / N=8 / K=16 inner kernel<em>SMMLA 와 dequant 가 register 위에서</em></span>
+      <span class="what">vectorized inner</span>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">이 hierarchy 가 GPU 의 “grid → block → warp → thread” 와 닮아 보이지만 의미가 다르다 — CPU 에서는 <em>cache layer 의 명시성</em> 이 강하다. L1 / L2 / L3 의 크기가 분명하고, working set 이 cache 안에 들어가는지 안 들어가는지가 latency 를 직접 결정.</p>
+
+  <div class="callout">
+    <div class="label">tile 크기 결정의 휴리스틱</div>
+    <p>강의에서 Scott 이 명시한 한 줄 — <em>“우리는 tile size 를 cache size 에 맞춰 정밀하게 tuning 하지 않았다. 가장 큰 효과는 register tile 의 SIMD 활용에서 왔다.”</em> L1 의 fragmentation 보다 register 의 SMMLA 활용이 우선. 그게 의외로 모바일 LLM 의 sweet spot.</p>
+  </div>
+
+  <p>weight 는 보통 <em>한 번 load 되면 그 thread 동안 여러 번 reuse</em>. activation 은 한 번 load + 한 번 use. 그래서 <em>weight 의 cache 친화성</em> 이 더 결정적. weight 를 미리 packing 단계에서 cache-friendly layout 으로 적어둔다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>정확도 처리</b><span>· group · zero point</span></div>
+    <h2>weight 1~8 bit 모두 같은 패턴 — group + scale + (옵션) zero point</h2>
+  </div>
+  <p class="sec-lede">L034 의 GPU 와 마찬가지로, ARM low-bit 도 핵심은 <em>group-wise scale</em>. 다만 group_size 의 단위가 더 작다 (32~128). 그리고 ARM 쪽은 <strong>zero point</strong> (asymmetric quant) 도 더 자주 쓴다.</p>
+
+  <ul>
+    <li><strong>symmetric</strong> — scale 만. zero point = 0. 빠르지만 weight 분포가 한쪽으로 치우치면 손해.</li>
+    <li><strong>asymmetric</strong> — scale + zero point. 한 group 마다 fp16 scale + int8 zp. dequant 코드가 한 줄 늘어나지만 정확도가 안정.</li>
+    <li><strong>group_size 표준</strong> — 32, 64, 128. 32 가 정확도 best, latency cost 약 5~10%. ExecuTorch 표준은 보통 32.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">unpacking routine 의 범위</div>
+    <p>Scott 의 라이브러리 — <strong>1, 2, 3, 4, 5, 6, 7, 8 bit</strong> 모두 대응. 각 bit-width 마다 별도 unpacking routine. <em>3-bit / 5-bit / 7-bit 처럼 byte alignment 가 안 맞는 bit-width</em> 도 다룰 수 있게 byte-stream packing. 8 개 unpacking routine × N tile size = 24개의 inner kernel.</p>
+  </div>
+
+  <p>강의에서 흥미로운 사실 — <strong>3-bit</strong> 가 4-bit 와 거의 같은 정확도를 주는 케이스가 의외로 많다. weight 의 effective bits 를 1 bit 줄이는 게 모바일 메모리 절약에 큰 의미. 다만 unpacking 코드가 4-bit 보다 복잡해서 latency 는 비슷하거나 약간 더 느림.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>ExecuTorch 통합</b><span>· custom op · pthreadpool</span></div>
+    <h2>kernel 한 본을 PyTorch 모델 안의 한 op 로 만드는 길</h2>
+  </div>
+  <p class="sec-lede">kernel 이 빠른 것만으로는 의미가 없다 — 실제 모델 안에 들어가야. 강의 후반부는 <strong>ExecuTorch</strong> 의 custom op pipeline 위에 어떻게 이 kernel 들이 박히는지를 깐다.</p>
+
+  <p>핵심은 두 가지 — <strong>(a)</strong> kernel 이 일반 C++ 함수, 즉 추가 컴파일러나 DSL 안 필요. <code>torch.ops.{namespace}</code> 로 등록되며 PyTorch / ExecuTorch 모두에서 호출 가능. <strong>(b)</strong> 병렬화는 <strong>pthreadpool</strong> (XNNPACK 의 thread pool wrapper) 를 그대로 빌려 씀. ExecuTorch / PyTorch / XNNPACK 가 같은 thread pool 을 공유.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89">// torchao 의 ARM kernel — C++ 그대로</span>
+<span style="color:#E7B369">struct</span> UKernelConfig {
+  <span style="color:#E7B369">int</span> mcal, ncal, kcal;             <span style="color:#A99E89">// register tile</span>
+  <span style="color:#E7B369">int</span> n_tiles_per_thread;
+  KernelFn kernel;                  <span style="color:#A99E89">// 함수 포인터</span>
+  UnpackFn unpack;                  <span style="color:#A99E89">// 1~8 bit 별</span>
+};
+
+<span style="color:#A99E89">// 24 개 GEMV kernel + 8 개 unpacking routine</span>
+<span style="color:#A99E89">// 의 lookup table — bitwidth × tile</span>
+extern UKernelConfig kernels[8][3];</code></pre>
+    </div>
+    <div>
+      <p>이 layout 의 의미 — <em>kernel 의 모양</em>이 (bitwidth, tile size, asymmetric 여부) 의 cartesian 곱. lookup table 한 개로 모든 dispatch.</p>
+      <ul>
+        <li><strong>kernel</strong> — register tile 의 SMMLA loop. asm intrinsic 직접.</li>
+        <li><strong>unpack</strong> — packed weight 를 int8 register 로 펴는 함수. bitwidth 별.</li>
+        <li><strong>parallel_1d</strong> — pthreadpool 위에서 N 차원 thread 분할.</li>
+      </ul>
+      <p>모델 layer (Linear) 한 개를 <strong>quantize</strong> → packing → custom op 호출 의 시퀀스로 바꾼다. PyTorch 의 graph mode (torch.export) 가 이 op 을 그대로 받아들여 ExecuTorch binary 로 export.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">heterogeneous core 처리는 단순</div>
+    <p>강의 Q&amp;A 에서 — “모바일 SoC 의 P-core / E-core 비대칭성을 parallel_1d 가 handle 하는가?” 답은 <em>“아니, parallel_1d 는 그냥 N 등분.”</em> 더 정교한 work-stealing 은 향후 작업. 현재는 균등 분할이 충분히 좋게 나오는 일이 많음 — weight tile 자체가 동일하므로.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>LLM 모바일 사례</b><span>· M1 Pro · iPhone</span></div>
+    <h2>같은 stack 으로 맥북 · iPhone · Linux 위 LLM</h2>
+  </div>
+  <p class="sec-lede">강의에서 보여준 측정 — 같은 모델 (Llama 3.1 8B), 같은 quant (4-bit weight + dynamic INT8 act, group=32), 같은 stack (torchao + ExecuTorch + ARM kernels) 의 device 별 latency.</p>
+
+  <div class="l38-bench">
+    <div class="h"><span>device · context</span><span>tok/s decode</span><span>memory · model</span><span>참고</span></div>
+    <div class="row"><span class="what">M1 Pro · macOS</span><span class="v good">~20 tok/s</span><span class="v">~5 GB</span><span class="v">CPU only</span></div>
+    <div class="row"><span class="what">M2 Ultra · macOS</span><span class="v good">~30 tok/s</span><span class="v">~5 GB</span><span class="v">CPU only</span></div>
+    <div class="row"><span class="what">iPhone 15 Pro</span><span class="v">~6 tok/s</span><span class="v">~5 GB</span><span class="v">8GB RAM 한계 근처</span></div>
+    <div class="row"><span class="what">Raspberry Pi 5</span><span class="v bad">~1 tok/s</span><span class="v">~5 GB</span><span class="v">참고용</span></div>
+    <div class="row"><span class="what">A100 (참고)</span><span class="v">~120 tok/s</span><span class="v">~5 GB</span><span class="v">batch=1</span></div>
+  </div>
+
+  <p style="margin-top:14px">두 가지 사실. 첫째 — <strong>맥북에서도 사용 가능한 속도</strong>가 나온다. 20 tok/s 면 사람이 읽기 따라잡는 속도. 둘째 — <strong>iPhone 은 메모리가 hard limit</strong>. 8GB RAM 의 디바이스에서 5GB 모델은 OS 와의 경쟁에서 swapping 위험.</p>
+
+  <div class="pull">“같은 stack 한 본으로 맥북 · iPhone · Linux 위 LLM 추론. 그게 이 프로젝트의 한 줄 결과.”<span class="by">Scott Roy · 강의 후반</span></div>
+
+  <p>3B 클래스 모델 (Llama 3.2 3B) 으로 가면 iPhone 에서도 20+ tok/s 가 나오는 영역. 모바일 LLM 의 sweet spot 이 1B~4B 인 이유 — 메모리 limit + latency 의 두 제약이 합쳐서.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>NVIDIA 와 trade-off</b><span>· cloud vs edge</span></div>
+    <h2>같은 알고리즘이 두 hardware 에서 “같은 일을 하지 않는다”</h2>
+  </div>
+
+  <div class="l38-bench">
+    <div class="h"><span>축</span><span>NVIDIA H100</span><span>ARM (M1/iPhone)</span><span>의미</span></div>
+    <div class="row"><span class="what">memory bw</span><span class="v">~3 TB/s</span><span class="v">~200 GB/s</span><span class="v">15× 차</span></div>
+    <div class="row"><span class="what">tile core 단위</span><span class="v">WGMMA (warp group)</span><span class="v">SMMLA (vector)</span><span class="v">단위 100× 차</span></div>
+    <div class="row"><span class="what">parallel 단위</span><span class="v">SM × SIMT</span><span class="v">core × SIMD</span><span class="v">cores 8~16개</span></div>
+    <div class="row"><span class="what">memory model</span><span class="v">분리 HBM</span><span class="v">unified</span><span class="v">memcpy free</span></div>
+    <div class="row"><span class="what">전력</span><span class="v">~700W</span><span class="v">~10W</span><span class="v">edge 전용</span></div>
+    <div class="row"><span class="what">target latency</span><span class="v">throughput</span><span class="v">single-user latency</span><span class="v">batch=1 만</span></div>
+  </div>
+
+  <p style="margin-top:14px">표가 보여주는 것 — 두 hardware 는 <em>완전히 다른 trade-off space</em> 위에 있다. cloud GPU 는 <strong>throughput 게임</strong>(batching, prefix sharing, 대량 동시 요청), edge 는 <strong>latency / privacy / offline 게임</strong>(batch=1, 모델 작아야 함). 같은 quantization 이라도 hardware 의 다른 제약이 코드를 다르게 펴게 만든다.</p>
+
+  <div class="callout cool">
+    <div class="label">미래의 만남 자리</div>
+    <p>Apple Silicon 의 unified memory + 강력한 NPU + 점점 빨라지는 GPU. 모바일 SoC 가 작은 LLM 을 GPU 에서 크게, 큰 LLM 을 CPU 에서 일부 — 같은 device 안에서 layer 별 다른 unit 으로 dispatch 하는 방향이 자연스러움. 이미 ExecuTorch 가 이 일을 부분적으로 함.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· torchao · llama.cpp</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">CPU 의 자리</div><div class="d">모바일/edge 의 “표준 통합 unit”. unified memory + 모든 device 에 존재.</div></div>
+    <div class="term"><div class="t">NEON / SVE</div><div class="d">128-bit SIMD / 가변 폭. SMMLA 가 int8 matrix mac instruction.</div></div>
+    <div class="term"><div class="t">register tile</div><div class="d">M=1 N=8 K=16 — GEMV 의 표준. NEON 128-bit + int8 16-lane 의 자연스러운 단위.</div></div>
+    <div class="term"><div class="t">cache-friendly tiling</div><div class="d">register / L1 / thread 세 단계. weight reuse 가 cache 친화성의 중심.</div></div>
+    <div class="term"><div class="t">1~8 bit 모두</div><div class="d">scale + (옵션) zero point + group_size = 32 표준. 8개 unpacking routine.</div></div>
+    <div class="term"><div class="t">ExecuTorch 통합</div><div class="d">C++ kernel 이 그대로 PyTorch custom op. pthreadpool 로 병렬.</div></div>
+    <div class="term"><div class="t">모바일 sweet spot</div><div class="d">1B~4B 모델. 8B 도 맥북은 가능. iPhone 은 메모리 hard limit.</div></div>
+    <div class="term"><div class="t">GPU 와 trade-off</div><div class="d">batch=1 latency 게임. throughput 안 따짐. unified memory · 적은 bandwidth.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=2iNGuZxe1ms" target="_blank" rel="noopener">youtube.com/watch?v=2iNGuZxe1ms</a></span></div>
+    <div class="row"><span class="k">Slides</span><span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_038/lowbit_kernels.pdf" target="_blank" rel="noopener">lowbit_kernels.pdf</a></span></div>
+    <div class="row"><span class="k">Code · torchao</span><span class="v"><a href="https://github.com/pytorch/ao/tree/main/torchao/experimental" target="_blank" rel="noopener">pytorch/ao · experimental</a></span></div>
+    <div class="row"><span class="k">Code · ExecuTorch</span><span class="v"><a href="https://github.com/pytorch/executorch" target="_blank" rel="noopener">pytorch/executorch</a></span></div>
+    <div class="row"><span class="k">Speaker</span><span class="v"><a href="https://github.com/metascroy" target="_blank" rel="noopener">github.com/metascroy</a></span></div>
+    <div class="row"><span class="k">Reference</span><span class="v"><a href="https://github.com/ggerganov/llama.cpp" target="_blank" rel="noopener">llama.cpp</a> — 모바일 LLM 추론의 사실상 표준 비교</span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>NEON intrinsic 한 줄</strong> — <code>vfmaq_f32</code>, <code>vmmlaq_s32</code>. C++ 한 함수로 vectorized fp32 dot product. 결과를 일반 코드와 비교.</li>
+    <li><strong>SMMLA loop</strong> — int8 weight + int8 act 의 8×16 tile 한 발행. 결과를 reference 와 비교. 이게 ARM low-bit 의 “tensor core hello world”.</li>
+    <li><strong>register tile 만 단독</strong> — pthreadpool 없이 single thread 에서 GEMV inner kernel. M1 Pro 에서 ~10 tok/s 는 single thread 에서 이미 가능.</li>
+    <li><strong>parallel_1d 추가</strong> — pthreadpool 띄우고 N 차원 분할. core 수만큼 throughput 곱 — 8 core 면 ~80 tok/s 까지 toy GEMV 에서.</li>
+    <li><strong>torchao 의 quantize → packing</strong> — Llama 3 한 layer 를 quantize 해서 ARM kernel 에 넘긴다. round-trip 으로 정확도 검증.</li>
+    <li><strong>ExecuTorch export</strong> — <code>torch.export</code> + ExecuTorch binary. 그 binary 를 iPhone 또는 raspberry pi 로 옮겨 동작 확인.</li>
+    <li><strong>llama.cpp 와 같은 모델 비교</strong> — 같은 weight, 같은 quant 에 대해 두 stack 의 latency. ARM kernel 이 어디서 더 빠른지/느린지.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>같은 도구가 시리즈 안에서 어디에 다시 등장하는가</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">Profiling CUDA kernels</div><div class="by">Mark Saroufim — async timing 패턴이 ARM 에서는 어떻게 다른가</div></a>
+    <a class="conn" href="lecture_007.html"><div class="n">L007</div><div class="ti">Advanced Quantization</div><div class="by">Charles Hernandez — quantization 알고리즘. asymmetric 의 수학적 배경</div></a>
+    <a class="conn" href="lecture_008.html"><div class="n">L008</div><div class="ti">CUDA Performance Checklist</div><div class="by">Mark Saroufim — register / cache 사고의 GPU 버전. ARM 과 비교</div></a>
+    <a class="conn" href="lecture_034.html"><div class="n">L034</div><div class="ti">Low Bit Triton Kernels</div><div class="by">Hicham Badri — 같은 quant 가 GPU 위에서 다른 모양. 자매편</div></a>
+    <a class="conn" href="lecture_035.html"><div class="n">L035</div><div class="ti">SGLang</div><div class="by">Yineng Zhang — cloud 서빙의 throughput 차원. edge 와의 대비</div></a>
+    <a class="conn" href="lecture_039.html"><div class="n">L039</div><div class="ti">Torchtitan</div><div class="by">Mark · Tianyu — PyTorch 의 학습/추론 스택. ExecuTorch 와의 위치</div></a>
+    <a class="conn" href="lecture_056.html"><div class="n">L056</div><div class="ti">Kernel Benchmarking Tales</div><div class="by">CPU/GPU benchmarking 의 함정과 모범</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>SVE2 의 본격 활용</strong> — ARMv9 가 모바일 SoC 에 본격 보급되면 가변 vector 폭의 이득은 어디서 나오는가. NEON 만 쓰는 코드와 latency 차이.</li>
+    <li><strong>NPU / DSP 통합</strong> — Apple Neural Engine, Qualcomm Hexagon. ExecuTorch 가 이 backend 들을 표준화하는 방향. 정확히 어느 op 가 NPU 로 갈 수 있는가.</li>
+    <li><strong>P-core / E-core 비대칭 work scheduling</strong> — 강의 시점의 parallel_1d 는 균등 분할. 그게 정확히 얼마나 손해를 보고 있는지.</li>
+    <li><strong>모바일 GPU (Mali/Adreno/Apple) 와의 fallback</strong> — 같은 모델을 device 에 따라 CPU/GPU/NPU 로 분기. 그 dispatch 결정의 휴리스틱은 어디에 있는가.</li>
+    <li><strong>bit-width 와 정확도의 거의 정확한 곡선</strong> — 1, 2, 3, 4, 5, 6, 7, 8 bit 별 perplexity 곡선. 어떤 모델에서 3-bit 가 4-bit 와 거의 같은지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 latency 수치는 강의 시점의 measurement 를 재구성한 예시. ARM hardware 가 빠르게 갱신되고 있고 (M3, M4, A18 …) torchao 의 kernel 도 진행형. 자기 device 에서 직접 측정해야 baseline.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_037.html">
+    <span class="lbl">← Lecture 037</span>
+    <span class="nm">SASS &amp; uarch</span>
+  </a>
+  <a class="nxt" href="lecture_039.html">
+    <span class="lbl">Lecture 039 →</span>
+    <span class="nm">Torchtitan — Mark · Tianyu 가 깐 PyTorch 분산 학습 스택</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L038 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

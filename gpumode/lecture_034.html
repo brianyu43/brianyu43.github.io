@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L034 · Low Bit Triton Kernels · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 34 — Low Bit Triton Kernels — local visualization classes */
+.l34-pack{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;font-family:'JetBrains Mono',monospace;font-size:10px;margin:8px 0}
+.l34-pack .b{padding:6px 0;text-align:center;border-radius:3px;background:var(--paper-deep);color:var(--ink-soft)}
+.l34-pack .b.hi{background:var(--accent);color:var(--paper);font-weight:700}
+.l34-pack .b.lo{background:var(--cool);color:var(--paper);font-weight:700}
+.l34-pack .b.s{background:var(--accent-2);color:var(--paper)}
+
+.l34-tile{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l34-tile .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l34-tile .col .h{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.l34-tile .col .nm{font-family:'Pretendard',sans-serif;font-weight:700;color:var(--ink);font-size:14px;margin-bottom:6px}
+.l34-tile .col .dt{color:var(--ink-soft);font-size:12px;line-height:1.55}
+.l34-tile .col.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l34-flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l34-flow .step{padding:12px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px;text-align:center}
+.l34-flow .step .s{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.1em;margin-bottom:4px}
+.l34-flow .step .nm{font-weight:600;color:var(--ink);font-size:12.5px;font-family:'Pretendard',sans-serif}
+.l34-flow .step .dt{color:var(--muted);font-size:10.5px;margin-top:4px}
+.l34-flow .step.hi{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.l34-flow .step.hi .s,.l34-flow .step.hi .nm,.l34-flow .step.hi .dt{color:var(--paper)}
+
+.l34-bench{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l34-bench .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;color:var(--muted);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l34-bench .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l34-bench .row .what{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l34-bench .row .v{color:var(--ink-soft);text-align:right}
+.l34-bench .row .v.good{color:var(--good);font-weight:700}
+.l34-bench .row .v.bad{color:var(--warn);font-weight:600}
+
+.l34-stages{display:grid;grid-template-columns:80px 1fr 1fr;gap:0;font-family:'JetBrains Mono',monospace;font-size:11.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.l34-stages .hd{padding:10px 14px;background:var(--paper-deep);color:var(--ink);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.l34-stages .c{padding:12px 14px;background:var(--paper);border-top:1px solid var(--line-soft);color:var(--ink-soft)}
+.l34-stages .c .nm{color:var(--ink);font-weight:600;display:block;margin-bottom:3px;font-family:'Pretendard',sans-serif}
+.l34-stages .c.k{background:var(--bg-soft);font-family:'Pretendard',sans-serif;font-weight:700;color:var(--accent)}
+
+@media (max-width:760px){
+  .l34-tile,.l34-flow{grid-template-columns:1fr}
+  .l34-bench .h,.l34-bench .row{grid-template-columns:1.2fr 1fr 1fr}
+  .l34-bench .h span:nth-child(4),.l34-bench .row .v:nth-child(4){display:none}
+  .l34-pack{grid-template-columns:repeat(8,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="lecture_033.html">← L033</a>
+    <a href="index.html">Index</a>
+    <a href="lecture_035.html">L035 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L034</span>
+    <span>2024 · OCT</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Low Bit Triton Kernels</h1>
+  <p class="dek">CUTLASS / cuBLAS 가 다 가져간 <strong>4-bit weight-only GEMM</strong> 의 자리에서, <em>Triton 만으로</em> 비슷한 성능을 짜내려면 어떤 트릭이 필요한가. <code>HQQ</code> 의 저자 Hicham Badri 가 BitBLAS / Marlin / vLLM 의 in-house 커널들을 한 줄로 비교하면서 — Triton tile 안에서 dequantize-then-multiply 패턴을 어떻게 펴는지, group-wise scale 이 왜 헤더로 따로 packing 되어야 하는지, 같은 코드가 BLOCK_K 한 줄로 두 배 빨라지는 이유까지 깐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">Triton</span>
+    <span class="chip hi">INT4</span>
+    <span class="chip hi">weight-only</span>
+    <span class="chip hi">dequantize</span>
+    <span class="chip">HQQ</span>
+    <span class="chip">Marlin</span>
+    <span class="chip">BitBLAS</span>
+    <span class="chip">TMA</span>
+    <span class="chip">autotune</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">H</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Hicham Badri</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Mobius Labs · HQQ 저자 · github.com/mobicham</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L034</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Hicham Badri</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독 + 구현</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">Triton 직접 짜며</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why Triton, why low-bit</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">weight-only 4-bit 의 배경</span><span class="em">memory-bound decode</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">dequantize-then-multiply 패턴</span><span class="em">tile 안에서 펴기</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">group-wise vs per-channel scale</span><span class="em">정확도 · packing</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">Triton tile 안 dequant</span><span class="em">tl.shift, tl.bitwise_and</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">BLOCK_K 와 register 트레이드오프</span><span class="em">launch sweep</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">정확도 검증과 numerical drift</span><span class="em">FP16 reference</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">cuBLAS · Marlin 대비 성능</span><span class="em">batch size 별 그래프</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">INT4 / NF4 / FP4 비교</span><span class="em">표현 공간의 갈래</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">HQQ · gemlite</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why Triton, why low-bit</span></div>
+    <h2>“CUTLASS 만 잘하던 일” 을 Triton 으로 끌어오는 작업</h2>
+  </div>
+  <p class="sec-lede">LLM 추론에서 4-bit weight-only GEMM 이 표준 도구가 됐다. 그런데 빠른 커널은 거의 다 <strong>CUTLASS / cuBLAS / Marlin</strong> 처럼 깊은 C++ 위에 있다. Hicham 의 질문은 단순하다 — <em>Triton 으로도 같은 성능을 짤 수 있을까. 짤 수 있다면, 어디까지 봐야 하는가.</em></p>
+
+  <p>이 강의는 그 질문에 대한 진행형 답이다. 강의 시점에 Hicham 이 직접 만들고 있는 라이브러리는 <strong>HQQ</strong>(Half-Quadratic Quantization) 와 그 위에 얹은 Triton 커널 모음 <strong>gemlite</strong>. <em>“BitBLAS 는 TVM 에 묶여 있어 손대기 어렵고, Marlin 은 4-bit 만, Triton 은 짜기는 쉽지만 성능이 떨어진다”</em> 는 표가 강의 첫 장이다 — 그 빈 자리를 Triton 으로 메운다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>Hicham 의 일관된 입장 — <strong>“Triton 의 성능은 코드의 길이가 아니라 <em>tile 안에서 dequant 를 어떻게 펴는가</em> 와 <em>BLOCK 설정</em> 에 달렸다.”</strong> 이 두 축으로 강의 전체가 정렬된다. Triton 이 자동으로 tensor core 까지 끌어주는 시점에서, 사람의 일은 <em>register 안에서 unpack/scale 의 시퀀스를 줄이는 것</em>으로 좁혀진다.</p>
+  </div>
+
+  <div class="pull">“Cutlass 는 GEMM 을 정말 잘한다. 그런데 customize 가 쉽지 않다. Triton 은 customize 가 trivial 한데 성능이 떨어졌다 — 그 사이를 메우는 게 이 작업이다.”<span class="by">Hicham Badri · 강의 도입부</span></div>
+
+  <p>그래서 강의 끝에 손에 잡혀야 할 자산은 세 개. <strong>(1)</strong> dequantize-then-multiply 패턴이 Triton tile 안에서 어떻게 펼쳐지는지의 mental model, <strong>(2)</strong> group-wise scale 이 왜 packing 단계에서 이미 들어가야 하는지의 이유, <strong>(3)</strong> 새 GPU(Hopper) 의 TMA 를 Triton 에서 끌어 쓸 때 어디가 막히는지의 한계.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>weight-only 4-bit 의 배경</b><span>· memory-bound decode</span></div>
+    <h2>왜 weight 만 quantize 하는가 — decode 가 메모리 밴드 위에서 도니까</h2>
+  </div>
+  <p class="sec-lede">LLM 추론은 두 단계로 나뉜다 — <strong>prefill</strong>(프롬프트 처리, batch=long) 과 <strong>decode</strong>(토큰 한 개씩 생성, batch=1). decode 한 step 의 비용은 거의 100% <em>weight 를 HBM 에서 읽는 시간</em>이다. weight 를 4-bit 로 줄이면 같은 GPU 에서 4배 더 빠르게 읽힌다 — 이게 weight-only 의 출발점.</p>
+
+  <div class="split">
+    <div>
+      <p>강의에서 Hicham 이 도식으로 보여준 비교 — 16-bit 와 4-bit 같은 layer 의 메모리 트래픽.</p>
+      <ul>
+        <li><strong>16-bit</strong> — 7B 모델의 한 linear 가 약 130MB. decode 한 토큰 당 모든 layer 의 weight 를 한 번씩 본다.</li>
+        <li><strong>4-bit + group-wise scale (g=128)</strong> — weight 32MB + scale ~1MB ≈ 33MB. 거의 4배 줄음.</li>
+        <li><strong>activation</strong> — batch=1 에서 작아서 <em>quantize 안 해도 무시 가능</em>. 다만 <em>긴 context</em> 의 KV cache 는 별도 quantize 가 또 필요해진다(L041 으로 이어짐).</li>
+      </ul>
+      <p>그래서 weight-only 가 <em>“가장 싼 압축으로 가장 큰 latency 이득”</em> 의 자리. activation 까지 같이 quantize 하는 W8A8 / W4A8 같은 방식은 prefill 이 dominant 한 throughput-bound 시나리오에서 다시 의미가 생긴다.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · decode 한 step 의 HBM 트래픽 분해</span><span>7B · GQA</span></div>
+        <div class="bars">
+          <div class="bar"><span class="lbl">FP16 weight</span><span class="track"><i style="width:96%;background:var(--accent)"></i></span><span class="val">~130 MB</span></div>
+          <div class="bar"><span class="lbl">INT4 weight</span><span class="track"><i style="width:24%;background:var(--cool)"></i></span><span class="val">~33 MB</span></div>
+          <div class="bar"><span class="lbl">activation (b=1)</span><span class="track"><i style="width:3%;background:var(--paper-deep)"></i></span><span class="val">~0.5 MB</span></div>
+          <div class="bar"><span class="lbl">KV cache (1k ctx)</span><span class="track"><i style="width:18%;background:var(--accent-2)"></i></span><span class="val">~24 MB</span></div>
+        </div>
+        <div class="viz-note">decode 한 token 당 GPU 가 읽어야 하는 데이터의 비율. weight 가 압도적이라 <strong>weight-only 만 줄여도 latency 가 거의 4배</strong> 빨라진다.</div>
+      </div>
+    </div>
+  </div>
+
+  <p>강의의 이 슬라이드가 끝나면, 다음 한 줄이 자연스럽게 따라온다 — <em>“그러면 4-bit weight 를 어떻게 packing 하고, 어떻게 GEMM 안에서 16-bit 로 펴서 tensor core 에 먹이는가.”</em> 그게 §03 의 본론.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>dequantize-then-multiply 패턴</b><span>· tile 안에서 펴기</span></div>
+    <h2>매 BLOCK_K 마다 unpack → scale → MMA 가 register 위에서 도는 한 사이클</h2>
+  </div>
+  <p class="sec-lede">low-bit GEMM 의 핵심 패턴 — 4-bit packed weight 를 HBM 에서 읽어 SMEM 에 올린 뒤, <strong>register 위에서</strong> nibble 을 펴고 group scale 을 곱해서 16-bit tile 로 복원, 그걸 그대로 tensor core 에 넘긴다. 이 시퀀스가 BLOCK_K 단위로 반복된다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 한 BLOCK_K iteration 동안 register 위에서 일어나는 일</span><span>weight-only INT4 GEMM</span></div>
+    <div class="l34-flow">
+      <div class="step"><div class="s">L0</div><div class="nm">HBM</div><div class="dt">packed nibbles</div></div>
+      <div class="step"><div class="s">L1</div><div class="nm">SMEM</div><div class="dt">cp.async / TMA</div></div>
+      <div class="step hi"><div class="s">L2</div><div class="nm">register unpack</div><div class="dt">shift &amp; mask</div></div>
+      <div class="step hi"><div class="s">L3</div><div class="nm">scale 곱하기</div><div class="dt">group-wise</div></div>
+      <div class="step"><div class="s">L4</div><div class="nm">MMA (FP16)</div><div class="dt">tensor core</div></div>
+    </div>
+    <div class="viz-note">중요한 건 <strong>L2 와 L3 가 register 위에서</strong> 끝나야 한다는 점. SMEM 에 dequant 결과를 다시 적으면 SMEM 트래픽이 두 배가 된다 — 그 시점에서 low-bit 의 메모리 이득이 깨진다.</div>
+  </div>
+
+  <p>그림은 단순하지만 실제로는 두 가지 결정이 묶여 있다. 첫째는 <strong>packing layout</strong> — 4-bit 두 개를 한 byte 에 넣는 방식이 cuBLAS/Marlin/Triton 모두 다르다. 둘째는 <strong>scale 의 위치</strong> — 매 group 마다 한 번 scale 을 곱하는데, 이걸 K 축의 어느 시점에 끼워넣느냐가 register 압박을 결정한다.</p>
+
+  <div class="callout cool">
+    <div class="label">두 라이브러리의 packing 차이가 강의 본문의 골치 거리</div>
+    <p>Hicham 이 강의에서 명시적으로 말한 한 줄 — <em>“Marlin 의 4-bit packing 과 Triton 의 packing 이 다르다. 같은 weight 라도 둘은 호환되지 않고, repack 코드를 따로 짜야 한다.”</em> CUTLASS 가 정한 사실상의 표준이 있고, Triton 은 자기만의 layout 을 쓴다. <em>fast Triton kernel</em> 과 <em>fast CUDA kernel</em> 을 한 모델에 같이 쓰려면 weight 를 두 번 packing 해서 디스크에 저장해야 한다.</p>
+  </div>
+
+  <div class="pull">“Triton 안에서 한 컴포넌트만 customize 하고 싶다면 packing 단계를 손대야 한다. 코드 한 줄이 아니라 <em>weight 디스크 형식 전체</em> 가 따라 움직인다.”<span class="by">Hicham Badri</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>group-wise vs per-channel scale</b><span>· 정확도 · packing</span></div>
+    <h2>group_size = 64 / 128 가 사실상 표준이 된 이유</h2>
+  </div>
+  <p class="sec-lede">4-bit 만으로 정확도를 유지하려면 <em>한 weight matrix 에 scale 하나</em> 로는 부족하다. K 축 방향으로 일정 group 단위로 scale 을 따로 가지면 정확도가 살아난다. <strong>group_size = 128</strong> 이 GPTQ / AWQ / HQQ 모두에서 사실상 표준.</p>
+
+  <div class="l34-tile">
+    <div class="col">
+      <div class="h">Per-tensor scale</div>
+      <div class="nm">전체에 scale 하나</div>
+      <div class="dt">메모리 추가 비용 0. <em>4-bit 정확도 손실이 큼</em>. weight 분포가 outlier 많으면 quantization range 가 망가진다.</div>
+    </div>
+    <div class="col">
+      <div class="h">Per-channel scale</div>
+      <div class="nm">N 차원마다 scale</div>
+      <div class="dt">N 개 scale (~수천 개 fp16). PTQ 의 baseline. 정확도 일부 회복하지만 K 방향 outlier 는 여전.</div>
+    </div>
+    <div class="col hi">
+      <div class="h">Group-wise scale (g=128)</div>
+      <div class="nm">K 차원 group 마다 scale</div>
+      <div class="dt"><strong>K/g × N</strong> 개 scale. ~1MB 추가. INT4 의 perplexity 가 거의 FP16 수준까지 올라감 — 표준.</div>
+    </div>
+  </div>
+
+  <p>강의에서 Hicham 이 강조한 사실 — group-wise scale 은 <em>정확도</em> 의 문제만이 아니라 <em>커널 구현</em> 의 문제이기도 하다. K 방향으로 BLOCK_K 만큼 진행할 때마다 scale 을 다시 읽어와야 한다. <strong>BLOCK_K 와 group_size 가 정렬되지 않으면</strong> 한 iteration 안에서 scale 이 바뀌는 경우가 생기고 — 그러면 dequant 의 분기가 늘어나며 register 압박이 폭발한다.</p>
+
+  <div class="callout">
+    <div class="label">실전 규칙</div>
+    <p><strong>BLOCK_K = group_size</strong> 또는 <strong>BLOCK_K 가 group_size 의 배수</strong>가 되도록 launch 설정을 잡는다. 둘이 어긋나면 같은 코드라도 30~50% 느려진다. autotune config 에서도 이 제약을 잡아두는 게 첫 단계.</p>
+  </div>
+
+  <p>다음 그림은 16개 4-bit weight 가 한 byte 8 개에 packing 된 모습 — 그리고 그 위에 어떻게 group scale 이 묶이는지.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 4-bit packing 한 row (16개 weight = 8 byte)</span><span>group_size=8 simplified</span></div>
+    <div class="l34-pack">
+      <div class="b lo">w0</div><div class="b hi">w1</div>
+      <div class="b lo">w2</div><div class="b hi">w3</div>
+      <div class="b lo">w4</div><div class="b hi">w5</div>
+      <div class="b lo">w6</div><div class="b hi">w7</div>
+      <div class="b lo">w8</div><div class="b hi">w9</div>
+      <div class="b lo">w10</div><div class="b hi">w11</div>
+      <div class="b lo">w12</div><div class="b hi">w13</div>
+      <div class="b lo">w14</div><div class="b hi">w15</div>
+    </div>
+    <div class="l34-pack" style="margin-top:4px">
+      <div class="b s" style="grid-column:span 8">scale group 0 (FP16)</div>
+      <div class="b s" style="grid-column:span 8">scale group 1 (FP16)</div>
+    </div>
+    <div class="viz-note">한 byte 안에 두 개의 4-bit weight (lo nibble · hi nibble). group_size = 8 의 예시이므로 두 group 이 행에 들어 있고, 각 group 별 scale 한 개씩이 별도 buffer 에 저장된다. 실제 표준은 <strong>g=128</strong>.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>Triton tile 안 dequant</b><span>· tl.shift, tl.bitwise_and</span></div>
+    <h2>shift &amp; mask 두 줄로 nibble 을 분리한다 — 그 자리가 register 압박의 시작</h2>
+  </div>
+  <p class="sec-lede">Triton 안에서 packing 된 byte 를 두 nibble 로 펴는 코드는 짧다. 어려운 건 그게 <strong>BLOCK_M × BLOCK_K</strong> tile 단위로 동시에 일어난다는 사실 — 그래서 unpack 결과 텐서가 register 위에서 두 배 크기로 늘어난다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># gemlite 류 Triton 커널의 BLOCK_K iteration 안 — 핵심부</span>
+<span style="color:#A99E89"># a: FP16 activation tile [BLOCK_M, BLOCK_K]</span>
+<span style="color:#A99E89"># b_packed: INT8 weight tile [BLOCK_K // 2, BLOCK_N]</span>
+<span style="color:#A99E89"># scales: FP16 scale [num_groups, BLOCK_N]</span>
+
+<span style="color:#A99E89"># 1) packed byte 한 장 load — half size 만 읽는다</span>
+b_q = tl.load(b_ptr + offs_pk, mask=...)        <span style="color:#A99E89"># int8</span>
+
+<span style="color:#A99E89"># 2) two-nibble unpack — register 위에서 두 배로 펼친다</span>
+b_lo = (b_q &amp; <span style="color:#E7B369">0xF</span>).to(tl.int8) - <span style="color:#E7B369">8</span>            <span style="color:#A99E89"># signed shift</span>
+b_hi = ((b_q &gt;&gt; <span style="color:#E7B369">4</span>) &amp; <span style="color:#E7B369">0xF</span>).to(tl.int8) - <span style="color:#E7B369">8</span>
+
+<span style="color:#A99E89"># 3) group scale broadcast 후 곱 — FP16 으로 복원</span>
+g  = (offs_k // GROUP_SIZE)
+sc = tl.load(s_ptr + g * stride_sg + offs_n)
+b_lo = b_lo.to(tl.float16) * sc
+b_hi = b_hi.to(tl.float16) * sc
+
+<span style="color:#A99E89"># 4) MMA — Triton 이 tensor core 로 dispatch</span>
+acc += tl.dot(a, tl.cat(b_lo, b_hi, axis=<span style="color:#E7B369">0</span>))</code></pre>
+    </div>
+    <div>
+      <p>이 짧은 시퀀스가 한 BLOCK_K iteration 안에서 <em>매번</em> 돈다. 강의에서 Hicham 이 짚은 압박 포인트는 세 개.</p>
+      <ul>
+        <li><strong>register footprint</strong> — unpack 결과 <code>b_lo</code>, <code>b_hi</code> 둘 다 register 에 살아 있는다. <em>scales</em> 까지 더하면 BLOCK_K, BLOCK_N 이 커질수록 register spill 위험.</li>
+        <li><strong>dequant 와 MMA 의 overlap</strong> — Triton 은 자동으로 software pipelining (<code>num_stages</code>) 을 깐다. 다음 K-step 의 unpack 이 현재 step 의 MMA 와 겹쳐야 효율이 산다.</li>
+        <li><strong>group boundary</strong> — group 이 BLOCK_K 안에서 바뀌면 scale broadcast 코드가 분기 처리되며 SASS 가 한 단계 더 복잡해진다 (§04 와 같은 얘기).</li>
+      </ul>
+      <div class="callout cool">
+        <div class="label">한 줄 더 짚을 것</div>
+        <p>Triton 은 <code>tl.dot</code> 의 두 피연산자에 대해 알아서 <strong>tensor core MMA</strong> 로 dispatch 한다. 사람이 <code>wmma::*</code> 를 직접 쓸 필요는 없다 — 다만 piece 가 FP16/BF16 으로 cast 되어야 dispatch 가 일어남. INT8 까지 내릴 거면 <code>tl.dot(..., out_dtype=tl.int32)</code> 형태로 명시.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>BLOCK_K 와 register 트레이드오프</b><span>· launch sweep</span></div>
+    <h2>같은 코드가 BLOCK_K 한 줄로 두 배 빨라진다 — 그 자리에 autotune 이 산다</h2>
+  </div>
+  <p class="sec-lede">Triton 의 launch 설정이 성능을 결정한다는 §06(L001) 의 일반 원리가, low-bit 에서는 <em>group_size 와의 정렬</em> 이라는 추가 제약과 합쳐지며 더 좁아진다.</p>
+
+  <div class="l34-bench">
+    <div class="h"><span>BLOCK_M × BLOCK_N × BLOCK_K · num_warps · num_stages</span><span>register/thread</span><span>occupancy</span><span>4090 · 4096×4096</span></div>
+    <div class="row"><span class="what">128×128×32 · 4 · 2</span><span class="v">~96</span><span class="v">38%</span><span class="v bad">1.7 ms</span></div>
+    <div class="row"><span class="what">128×128×64 · 4 · 3</span><span class="v">~128</span><span class="v">31%</span><span class="v">1.3 ms</span></div>
+    <div class="row"><span class="what">128×128×128 · 4 · 3</span><span class="v">~168</span><span class="v">25%</span><span class="v good">0.92 ms</span></div>
+    <div class="row"><span class="what">128×128×128 · 8 · 4</span><span class="v">~232</span><span class="v">19% (spill)</span><span class="v bad">1.5 ms</span></div>
+    <div class="row"><span class="what">256×64×128 · 4 · 4</span><span class="v">~196</span><span class="v">22%</span><span class="v">1.05 ms</span></div>
+  </div>
+  <p style="margin-top:14px">위 표의 메시지 — <strong>BLOCK_K = group_size = 128</strong> 이 sweet spot. 거기서 더 키우면 register spill, 거기서 줄이면 group scale broadcast 비용이 매 iteration 마다 누적. <code>num_stages</code> 도 3 이 균형점이고 4 로 키우면 software pipeline 을 위한 SMEM 이 부족해진다.</p>
+
+  <div class="callout">
+    <div class="label">autotune 패턴</div>
+    <p>강의의 gemlite 가 깐 autotune config 는 약 <strong>20개</strong> — BLOCK 셋의 곱과 num_warps ∈ {2,4,8}, num_stages ∈ {2,3,4} 의 부분집합. 새 모델/새 GPU 에 처음 띄울 때 이 config 가 한 번 도는 데 수십 초가 걸리지만, 그 결과는 <code>~/.triton/cache</code> 에 박힌다.</p>
+  </div>
+
+  <div class="pull">“Triton 의 성능은 코드의 길이가 아니라 BLOCK 설정과 group_size 의 정렬에 달렸다. 같은 코드, 다른 launch — 두 배 차이가 보통이다.”<span class="by">Hicham Badri · 강의 후반</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>정확도 검증과 numerical drift</b><span>· FP16 reference</span></div>
+    <h2>커널이 빠른 게 아니라 <em>맞는</em> 게 먼저다</h2>
+  </div>
+  <p class="sec-lede">low-bit GEMM 의 첫 검증은 reference matmul (FP16 cuBLAS) 와의 결과 차이. 단순한 max-abs-diff 로는 모자라다 — quantization 의 error 는 분포 형태로 본다.</p>
+
+  <div class="split">
+    <div>
+      <p>Hicham 이 추천한 검증 시퀀스.</p>
+      <ol>
+        <li><strong>round-trip 무손실 확인</strong> — quantize → dequantize 가 group_size 만큼의 분해능 안에서 정확히 복원되는지. 코드 버그가 있으면 여기서부터 깨짐.</li>
+        <li><strong>per-output relative error</strong> — <code>(y_q - y_ref) / (|y_ref| + ε)</code>. mean 과 max 둘 다 본다. 4-bit + g=128 이면 mean ~1e-3, max ~5e-3 정도가 정상.</li>
+        <li><strong>downstream perplexity</strong> — toy GEMM 이 통과해도 모델 perplexity 가 깨질 수 있다. wikitext-103 같은 작은 set 으로 sanity.</li>
+      </ol>
+      <p>특히 group_size 와 BLOCK_K 가 어긋난 버그는 <strong>random input 에는 안 잡히고 실제 모델 weight 에서만 깨진다</strong> — outlier 가 group boundary 위에 정확히 떨어질 때만 보이는 패턴.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · INT4 vs FP16 출력 분포 비교</span><span>HQQ + g=128</span></div>
+        <div class="bars">
+          <div class="bar"><span class="lbl">mean rel.err</span><span class="track"><i style="width:6%;background:var(--good)"></i></span><span class="val">~8e-4</span></div>
+          <div class="bar"><span class="lbl">p99 rel.err</span><span class="track"><i style="width:18%;background:var(--cool)"></i></span><span class="val">~3e-3</span></div>
+          <div class="bar"><span class="lbl">max rel.err</span><span class="track"><i style="width:35%;background:var(--accent-2)"></i></span><span class="val">~7e-3</span></div>
+          <div class="bar"><span class="lbl">PPL drift (wikitext)</span><span class="track"><i style="width:8%;background:var(--good)"></i></span><span class="val">+0.05</span></div>
+        </div>
+        <div class="viz-note">정상 INT4 + g=128 의 error 분포. <strong>mean 이 작아도 max 가 큰 이유</strong> 는 outlier 채널 — 그래서 group-wise 가 per-tensor 보다 늘 낫다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>cuBLAS · Marlin 대비 성능</b><span>· batch size 별 그래프</span></div>
+    <h2>batch=1 에서는 cuBLAS 보다 빠르다 — Marlin 만큼은 아니지만 근접</h2>
+  </div>
+  <p class="sec-lede">강의의 마지막 절반은 같은 weight, 같은 GPU 에서 라이브러리별 latency 비교. Triton(gemlite) / Marlin / BitBLAS / cuBLAS FP16 / vLLM 의 GPTQ kernel 을 같은 매트릭스에 올린다.</p>
+
+  <div class="l34-bench">
+    <div class="h"><span>library · kernel</span><span>batch=1</span><span>batch=16</span><span>customizable</span></div>
+    <div class="row"><span class="what">cuBLAS FP16</span><span class="v">3.6 ms</span><span class="v">3.7 ms</span><span class="v bad">no</span></div>
+    <div class="row"><span class="what">Marlin INT4</span><span class="v good">0.55 ms</span><span class="v">0.78 ms</span><span class="v bad">limited</span></div>
+    <div class="row"><span class="what">BitBLAS INT4</span><span class="v">0.62 ms</span><span class="v">0.85 ms</span><span class="v bad">TVM 묶임</span></div>
+    <div class="row"><span class="what">gemlite Triton INT4</span><span class="v">0.78 ms</span><span class="v">1.02 ms</span><span class="v good">full</span></div>
+    <div class="row"><span class="what">vLLM GPTQ kernel</span><span class="v">0.95 ms</span><span class="v">1.3 ms</span><span class="v">partial</span></div>
+  </div>
+
+  <p style="margin-top:14px">표가 보여주는 두 가지. 첫째 — <strong>Triton 이 cuBLAS 보다 5~6배 빠르다</strong>. weight 를 4-bit 로 줄였으니 당연하다. 둘째 — <strong>Marlin / BitBLAS 와 30% 정도 차이</strong>. 이게 “Triton 이 거의 따라잡았다” 의 의미. 강의 시점 기준으로, customize 가능성을 포기하지 않으면서 Marlin 의 80% 까지 와 있다.</p>
+
+  <div class="callout cool">
+    <div class="label">Hopper TMA 활용 시 다음 단계</div>
+    <p>Triton 도 <code>tl.experimental.descriptor_load</code> 로 TMA 를 끌어 쓸 수 있다. Hicham 의 실험에서 GEMM 부분은 reference 와 동일한 성능이 나왔지만 — 빌드가 까다롭고 <em>30분 정도 직접 컴파일</em>이 필요. H100 위에서 Triton 의 격차가 더 줄어들 것이라는 게 강의의 전망.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>INT4 / NF4 / FP4 비교</b><span>· 표현 공간의 갈래</span></div>
+    <h2>같은 4-bit 라도 “어느 16개 값을 쓰는가” 가 다르다</h2>
+  </div>
+  <p class="sec-lede">4-bit quantization 은 <em>한 weight 당 16개의 가능한 값</em> 을 정해두는 일이다. 그 16개를 어떻게 고르느냐 — uniform grid (INT4) / non-uniform (NF4) / FP-style (FP4) — 가 정확도와 커널 단순도를 동시에 결정한다.</p>
+
+  <div class="l34-stages">
+    <div class="hd">type</div><div class="hd">grid</div><div class="hd">trade-off</div>
+    <div class="c k">INT4</div>
+    <div class="c"><span class="nm">uniform · 16 levels</span> -8 .. +7. 일정 간격.</div>
+    <div class="c">dequant 이 단순(shift &amp; mask). 표준 weight 분포(가우시안)에 잘 안 맞음.</div>
+    <div class="c k">NF4</div>
+    <div class="c"><span class="nm">non-uniform · 정규분포 quantile</span> 가운데 빽빽, 양 끝 sparse.</div>
+    <div class="c">정확도 best (QLoRA 표준). dequant 가 LUT lookup 이라 SASS 비용 늘어남.</div>
+    <div class="c k">FP4 (E2M1)</div>
+    <div class="c"><span class="nm">floating-point · 2-bit exp + 1-bit mantissa</span></div>
+    <div class="c">H100 의 hardware 지원. dequant 이 hardware path 면 거의 free. 정확도 INT4 와 비슷.</div>
+  </div>
+
+  <p style="margin-top:14px">Hicham 의 입장 — <strong>실용 라이브러리는 INT4 를 표준</strong>으로 두고 NF4 를 옵션으로 둔다. 이유는 dequant 비용. NF4 는 LUT 가 register 에 살아 있어야 해서 register 압박이 더 심하고, INT4 의 <code>shift &amp; mask</code> 두 줄과 비교하면 SASS 길이가 두 배 가까워진다. 정확도 차이가 작은 모델에서는 INT4 가 균형 있다.</p>
+
+  <div class="pull">“NF4 는 정확도가 약간 더 높지만 dequant 가 무거워서 — 결국 같은 latency 예산 안에서는 INT4 + g=64 가 NF4 + g=128 보다 좋게 나오는 케이스가 많다.”<span class="by">Hicham Badri · Q&amp;A</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· HQQ · gemlite</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">강의에서 6개월 뒤에 돌아왔을 때 가장 빨리 복원해야 하는 사실들과 — 직접 손에 박아야 하는 코드 자료들.</p>
+
+  <div class="terms">
+    <div class="term"><div class="t">weight-only 의 자리</div><div class="d">decode latency 의 거의 100% 가 weight HBM read. 4-bit 로 줄이면 거의 4배 빨라진다.</div></div>
+    <div class="term"><div class="t">group-wise scale (g=128)</div><div class="d">K 차원 group 마다 scale 한 개. 정확도 회복 + packing 표준. <strong>BLOCK_K 와 정렬</strong> 필수.</div></div>
+    <div class="term"><div class="t">dequant-then-MMA on register</div><div class="d">unpack/scale 결과는 register 위에 두고 그대로 <code>tl.dot</code>. SMEM 다시 적으면 메모리 이득 깨진다.</div></div>
+    <div class="term"><div class="t">packing 호환성 함정</div><div class="d">Marlin packing ≠ Triton packing. 두 라이브러리를 같이 쓰려면 weight 두 번 packing.</div></div>
+    <div class="term"><div class="t">shift &amp; mask 두 줄</div><div class="d"><code>(b_q &amp; 0xF) - 8</code>, <code>((b_q &gt;&gt; 4) &amp; 0xF) - 8</code> 가 INT4 unpack 의 표준 형태.</div></div>
+    <div class="term"><div class="t">launch sweet spot</div><div class="d">BLOCK_K = group_size = 128, num_warps=4, num_stages=3 이 4090/A100 의 좋은 출발점.</div></div>
+    <div class="term"><div class="t">정확도 검증 시퀀스</div><div class="d">round-trip → per-output rel.err (mean·p99·max) → downstream PPL. random input 만으로는 못 잡는 버그가 있다.</div></div>
+    <div class="term"><div class="t">표현 공간 선택</div><div class="d">실용 표준은 <strong>INT4</strong>. NF4 는 dequant 비용으로 손해, FP4 는 H100 hardware 지원이 본격화되며 미래 선택지.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=7c3c3bCGzKU" target="_blank" rel="noopener">youtube.com/watch?v=7c3c3bCGzKU</a></span></div>
+    <div class="row"><span class="k">Slides</span><span class="v"><a href="https://docs.google.com/presentation/d/1R9B6RLOlAblyVVFPk9FtAq6MXR1ufj1NaT0bjjib7Vc/edit" target="_blank" rel="noopener">Google Slides</a></span></div>
+    <div class="row"><span class="k">Code · HQQ</span><span class="v"><a href="https://github.com/mobiusml/hqq" target="_blank" rel="noopener">github.com/mobiusml/hqq</a> — Hicham 의 quantization 라이브러리</span></div>
+    <div class="row"><span class="k">Code · gemlite</span><span class="v"><a href="https://github.com/mobiusml/gemlite" target="_blank" rel="noopener">github.com/mobiusml/gemlite</a> — Triton low-bit GEMM 모음</span></div>
+    <div class="row"><span class="k">Speaker</span><span class="v"><a href="https://github.com/mobicham" target="_blank" rel="noopener">github.com/mobicham</a></span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>4-bit packing 함수 직접 짜기</strong> — FP16 weight → group-wise quantize → 두 nibble 을 한 byte 에. <em>자기 packing 이 gemlite 와 호환되는지</em> round-trip 으로 검증.</li>
+    <li><strong>최소 Triton GEMM 골격</strong> — fp16 ⊗ fp16 GEMM 을 먼저 짜서 <code>tl.dot</code> 의 형태와 launch 설정에 익숙해진다. 이게 다음 단계의 baseline.</li>
+    <li><strong>INT4 weight load 추가</strong> — 위 GEMM 의 weight 를 packed INT4 로 바꾸고 BLOCK_K 안에서 unpack 추가. 정확도 검증 (§07 의 시퀀스).</li>
+    <li><strong>group scale 추가</strong> — group_size=128 로 정렬해서 BLOCK_K=128 fix. mean/max rel.err 가 1e-3 / 5e-3 수준으로 떨어지는지.</li>
+    <li><strong>autotune sweep</strong> — BLOCK_M, BLOCK_N ∈ {64, 128, 256}, num_warps ∈ {4, 8}, num_stages ∈ {2, 3, 4}. 자기 GPU 의 sweet spot 표를 만든다.</li>
+    <li><strong>cuBLAS FP16 baseline 비교</strong> — batch=1, batch=16 두 점에서 latency 측정. 4배 이상 차이 나야 정상.</li>
+    <li><strong>NCU pass</strong> — Triton 커널을 NCU 로 떠본다. occupancy, register/thread, long scoreboard stall 의 세 metric 만 본다 (L001 의 사다리).</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>같은 도구가 시리즈 안에서 어디에 다시 등장하는가</h2>
+  </div>
+  <p class="sec-lede">L034 의 <em>“Triton 으로 cuBLAS 의 자리를 메운다”</em> 는 작업이 다음 강의들에서 어떻게 이어지는지.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">Profiling CUDA kernels</div><div class="by">Mark Saroufim — Triton launch 설정 sweep · NCU 사다리의 원형이 여기서 나온다</div></a>
+    <a class="conn" href="lecture_007.html"><div class="n">L007</div><div class="ti">Advanced Quantization</div><div class="by">Charles Hernandez — quantization 알고리즘 (GPTQ · AWQ · HQQ) 의 수학적 배경</div></a>
+    <a class="conn" href="lecture_014.html"><div class="n">L014</div><div class="ti">Practitioner's Guide to Triton</div><div class="by">Umer Adil — <code>tl.dot</code>, BLOCK 설정의 일반론</div></a>
+    <a class="conn" href="lecture_028.html"><div class="n">L028</div><div class="ti">Liger Kernel</div><div class="by">Byron Hsu — Triton 으로 짜는 LLM 학습 커널 모음. low-bit 이외 fused ops 의 자매편</div></a>
+    <a class="conn" href="lecture_029.html"><div class="n">L029</div><div class="ti">Triton Internals</div><div class="by">Kapil Sharma — <code>num_stages</code>, software pipelining 의 IR 단계</div></a>
+    <a class="conn" href="lecture_036.html"><div class="n">L036</div><div class="ti">CUTLASS &amp; FA3</div><div class="by">Jay Shah — H100 TMA · WGMMA, Triton 이 TMA 를 따라잡는 자리</div></a>
+    <a class="conn" href="lecture_038.html"><div class="n">L038</div><div class="ti">Low Bit ARM kernels</div><div class="by">Scott Roy — 같은 “low-bit GEMM” 이 모바일에서 어떻게 다른가</div></a>
+    <a class="conn" href="lecture_041.html"><div class="n">L041</div><div class="ti">FlashInfer</div><div class="by">Charles Frye — KV cache quantize 와 INT4 cache 의 자리</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">강의 안에서 부분적으로만 등장한 주제, 또는 후속 작업으로 비워둔 자리들.</p>
+  <ul>
+    <li><strong>FP4 (E2M1) 의 hardware path</strong> — H100 / Blackwell 에서 FP4 MMA 가 본격적으로 들어오면, INT4 의 dequant 비용 대비 어떤 입장이 되는가. Hopper 위 <code>tl.dot</code> 의 FP8 path 와 비슷한 형태로 Triton 이 받아들일 가능성.</li>
+    <li><strong>activation quantization (W4A8)</strong> — prefill 이 dominant 한 throughput 시나리오에서 activation 까지 같이 quantize 하는 게 본격적으로 의미가 생긴다. 강의에서는 weight-only 만 다뤘다.</li>
+    <li><strong>KV cache quantize 와의 합성</strong> — weight INT4 + KV INT8 가 함께 갔을 때 attention 커널 안의 dequant 가 어떻게 펴지는가. <a href="lecture_041.html">L041 (FlashInfer)</a> 가 이 자리를 본격적으로 다룬다.</li>
+    <li><strong>Triton + custom op 의 fusion 함정</strong> — Triton 커널을 PyTorch <code>torch.library.custom_op</code> 로 wrap 하면 <code>torch.compile</code> 이 그 boundary 를 못 fuse 한다는 사실. Hicham 이 지나가는 식으로 언급. 정확한 회피 패턴은 후속 강의에서.</li>
+    <li><strong>Marlin packing 과 Triton packing 의 통일</strong> — 두 layout 차이를 zero-copy 로 변환하는 인덱싱이 가능한가. 현재는 디스크에 두 번 적는 게 표준.</li>
+  </ul>
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 latency 수치(0.55ms, 0.78ms 등)는 Hicham 이 강의에서 보여준 슬라이드를 재구성한 예시. 자기 GPU 와 자기 모델 weight 에 대해 직접 측정해야 의미 있는 baseline.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_033.html">
+    <span class="lbl">← Lecture 033</span>
+    <span class="nm">이전 강의로</span>
+  </a>
+  <a class="nxt" href="lecture_035.html">
+    <span class="lbl">Lecture 035 →</span>
+    <span class="nm">SGLang — Yineng Zhang 이 깐 LLM 서빙의 control flow 와 RadixAttention</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L034 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

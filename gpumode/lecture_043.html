@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L043 · int8 tensorcore matmul for Turing · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l43-mma{display:grid;grid-template-columns:auto auto auto;gap:18px;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;margin:14px 0}
+.l43-mma .mat{background:var(--paper);border:1px solid var(--line);padding:10px;border-radius:6px;text-align:center}
+.l43-mma .mat .nm{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em;margin-bottom:6px}
+.l43-mma .mat .grid{display:grid;gap:1px;background:var(--line-soft);padding:1px;border-radius:3px}
+.l43-mma .mat .grid div{width:14px;height:14px;background:var(--paper-deep);font-size:8px;display:grid;place-items:center;color:var(--ink-soft)}
+.l43-mma .mat .grid div.hi{background:var(--accent);color:var(--paper)}
+.l43-mma .op{font-size:24px;color:var(--accent);font-weight:700}
+.l43-mma .mat .info{font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:.06em}
+
+.l43-prog{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l43-prog .row{display:grid;grid-template-columns:30px 1fr 100px 90px;gap:12px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l43-prog .row.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l43-prog .row .v{color:var(--accent);font-weight:700;font-size:12px}
+.l43-prog .row .nm{color:var(--ink);font-weight:600;font-size:13px;font-family:'Pretendard',sans-serif}
+.l43-prog .row .nm em{display:block;font-style:normal;color:var(--ink-soft);font-weight:400;font-size:11.5px;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.l43-prog .row .ms{font-family:'JetBrains Mono',monospace;color:var(--ink);font-weight:700;text-align:right}
+.l43-prog .row .gf{color:var(--good);font-size:11px;text-align:right}
+.l43-prog .row.warn .ms{color:var(--warn)}
+
+.l43-stalls{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l43-stalls .row{display:grid;grid-template-columns:170px 1fr 60px;gap:10px;align-items:center}
+.l43-stalls .row .lbl{color:var(--ink-soft)}
+.l43-stalls .row .bar{height:14px;background:var(--bg-soft);border-radius:2px;position:relative}
+.l43-stalls .row .bar span{display:block;height:100%;background:var(--warn);border-radius:2px}
+.l43-stalls .row .bar.cool span{background:var(--cool-2)}
+.l43-stalls .row .v{color:var(--ink);font-weight:600;text-align:right}
+
+.l43-pyr{display:grid;grid-template-columns:1fr;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin:14px 0}
+.l43-pyr .lvl{display:grid;grid-template-columns:120px 1fr 110px;gap:14px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l43-pyr .lvl .nm{color:var(--accent);font-weight:700;font-size:12px}
+.l43-pyr .lvl .d{color:var(--ink-soft);font-size:11.5px;line-height:1.4}
+.l43-pyr .lvl .v{color:var(--ink);font-weight:700;text-align:right}
+.l43-pyr .lvl.hi{background:var(--bg-soft);border-color:var(--accent)}
+@media (max-width:760px){
+  .l43-mma{grid-template-columns:1fr;justify-items:center}
+  .l43-prog .row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_042.html">← L042</a>
+    <a href="lecture_044.html">L044 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L043</span>
+    <span>2025 · FEB · 09</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · 약 80분 · available</span>
+  </div>
+  <h1>int8 tensorcore matmul for Turing</h1>
+  <p class="dek"><strong>RTX 2060 같은 Turing GPU</strong> 위에서 INT8 tensor core 만으로 matmul 을 단계별로 빠르게 — naive → column-major → shared memory → register tiling. <em>같은 NCU diff 화면을 매번 다시 보면서</em> 어떤 transformation 이 어떤 stall 을 무슨 비율로 바꾸는지 추적한 <em>educational</em> 기획. Erik Schultheis 의 직접 CUDA 작성 시퀀스 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">Turing INT8</span>
+    <span class="chip hi">IMMA</span>
+    <span class="chip hi">mma_sync</span>
+    <span class="chip hi">NCU diff</span>
+    <span class="chip">shared memory</span>
+    <span class="chip">register tiling</span>
+    <span class="chip">column-major</span>
+    <span class="chip">warp stalls</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">E</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Erik Schultheis</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">GPU Mode core contributor · LMC 개발자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L043</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Erik Schultheis</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">NCU diff 를 직접 재현</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why educational int8 on Turing</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">왜 INT8 인가</span><span class="em">CPU vs GPU · DP4A · IMMA</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">Turing 의 mma.sync 와 fragment</span><span class="em">16×16×16 · m16n8k16</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">naive 결과와 첫 NCU 진단</span><span class="em">4 TFLOPs · L1↔L2 630 GB</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">column-major 의 효과</span><span class="em">uncoalesced 제거</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">shared memory tile</span><span class="em">SMEM 위에 stage</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">register tiling</span><span class="em">thread 당 더 많은 출력</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">warp stall 카테고리</span><span class="em">long scoreboard · LG throttle</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">Turing 과 H100 의 차이</span><span class="em">no TMA · no WGMMA</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why educational int8 on Turing</span></div>
+    <h2>“peak 빠르게 짜는 법” 이 아니라 “느린 데서 빠른 데로 가는 사다리”</h2>
+  </div>
+  <p class="sec-lede">강의 도입에서 Erik 이 분명히 한 자리 — <em>"this is not state-of-the-art fast or even close. it's about getting the basics right."</em> 같은 시리즈 두 주 뒤에 H100 cuBLAS-beat 강의가 잡혀 있는 자리에서, 일부러 고른 <strong>old GPU(Turing) + 가장 작은 도구셋(CUDA C++ 만, no CUTLASS, no inline asm)</strong>. 추상이 다 걷힌 자리에서 <em>tensor core 가 어떻게 도는지</em>를 손에 잡히게 만드는 게 목표다.</p>
+
+  <p>그래서 이 강의는 한 큰 결과를 보여주는 게 아니라 — <strong>점진적으로 빨라지는 5개의 커널과 그 사이의 NCU diff</strong>를 본다. naive (~4 TFLOPs) → column-major → SMEM tile → register tile → ... 의 단계마다 어떤 metric 이 무엇 때문에 어떻게 변하는지를 같은 도구(Nsight Compute) 의 같은 화면에서 본다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>모든 단계의 진단은 한 질문으로 회수된다 — <strong>“where's my data?”</strong> Steven Jones 의 GTC 슬라이드에서 빌려온 표현. row-major 가 strided read 를 만든다, SMEM 으로 stage 가 안 되어 L1-L2 traffic 이 폭발한다, register tile 이 부족해서 같은 데이터를 반복해서 fetch 한다 — 모두 데이터가 잘못된 자리에 있어서 생기는 stall.</p>
+  </div>
+
+  <div class="pull">“tensor core 만 쓴다고 빨라지지 않는다. 1.5초에서 1초로 줄이는 첫 걸음은 column-major 한 줄 — 그 다음부터 SMEM, register, occupancy 의 사다리.”<span class="by">Erik Schultheis · 32:00 정리</span></div>
+
+  <p>이 강의의 가치 — <em>같은 도구</em>(NCU)가 <em>같은 코드</em>의 5개 변형에서 <strong>어떻게 다른 hint 를 주는지</strong>의 reading 자료. NCU 를 처음 본 사람에게 가장 좋은 1시간짜리 worked example 이다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>왜 INT8 인가</b><span>· CPU vs GPU · DP4A · IMMA</span></div>
+    <h2>integer matmul 이 floating-point matmul 과 어떻게 다른지부터</h2>
+  </div>
+  <p class="sec-lede">강의 첫 5분이 집중한 자리. INT8 matmul 이 단순히 “float 을 int 로 바꾼” 게 아니라는 것 — <strong>register width 가 안 맞는다</strong>. INT8 두 개를 곱하면 결과는 INT16, accumulator 는 INT32. 즉 input 폭과 output 폭이 다르다. 이게 hardware instruction 의 모양을 결정한다.</p>
+
+  <div class="split">
+    <div>
+      <p>강의에서 깐 비교점.</p>
+      <ul>
+        <li><strong>CPU (AVX-512 VNNI)</strong> — <code>VPDPBUSD</code> 같은 4-way INT8 dot product instruction. 부호 있는/없는 INT8 의 조합이 한 instruction 안에 박혀 있다.</li>
+        <li><strong>CUDA non-tensor core</strong> — <code>__dp4a</code> intrinsic. INT8×4 vs INT8×4 → INT32 dot product 누적. CPU 의 VNNI 와 사실상 동치.</li>
+        <li><strong>CUDA tensor core (Turing+)</strong> — <code>mma.sync</code> with INT8 inputs. 한 warp 가 같이 내는 16×16×16 matmul. Turing 부터 지원되어 — “정말 오래된 GPU 가 아니어도 시도 가능” — 가 강의가 Turing 을 고른 이유.</li>
+      </ul>
+      <p>강의의 Erik 이 강조 — <em>integer matmul 의 추가 미덕 한 가지</em>는 <strong>deterministic</strong>. floating point 의 reordering 따라 결과가 미세하게 변하는 문제가 없다. 그래서 testing 이 단순하다 — “정확한 일치 여부” 만 보면 된다.</p>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">한 발 더 — 산업 환경</div>
+        <p>INT8 matmul 은 <strong>quantized inference</strong>의 backbone. LLM weight 를 INT8 로 quantize 하면 메모리 사용량이 절반, bandwidth 절반, INT8 tensor core throughput 이 FP16 의 2배 (Turing 기준). 이 강의의 결과가 직접 production 가는 건 아니지만 — <em>pyramid 의 첫 칸</em>이 어떻게 동작하는지 파악되어야 위 칸 (smoothquant, AWQ, INT4 GPTQ) 이 눈에 들어온다.</p>
+      </div>
+      <pre><code><span style="color:#A99E89">// CPU (AVX-512 VNNI) — 한 instruction</span>
+<span style="color:#E7B369">__m512i</span> acc = _mm512_dpbusd_epi32(acc, a, b);
+<span style="color:#A99E89">//        ^^^^ accumulate INT32</span>
+<span style="color:#A99E89">//             dot product of 4×INT8</span>
+
+<span style="color:#A99E89">// CUDA non-tensor core (DP4A)</span>
+<span style="color:#E7B369">int</span> acc = __dp4a(a4, b4, acc);
+
+<span style="color:#A99E89">// CUDA tensor core (Turing+)</span>
+nvcuda::wmma::fragment&lt;...&gt; a_frag, b_frag, c_frag;
+mma_sync(c_frag, a_frag, b_frag, c_frag);</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>Turing 의 mma.sync 와 fragment</b><span>· 16×16×16 · m16n8k16</span></div>
+    <h2>tensor core 가 한 번에 무엇을 처리하는가</h2>
+  </div>
+  <p class="sec-lede">Turing 의 INT8 tensor core 는 <strong>warp 단위 instruction</strong> 이다. 32개 thread 가 같이 호출해야 한다. 한 번의 호출이 16×16×16 matmul 을 처리. 16 = M, 16 = N, 16 = K.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · m16n16k16 INT8 tensor core 호출 한 번</span><span>warp = 32 thread</span></div>
+    <div class="l43-mma">
+      <div class="mat">
+        <div class="nm">A · 16×16</div>
+        <div class="grid" style="grid-template-columns:repeat(16,1fr)">
+          <div class="hi">a</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div class="hi">a</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div>·</div><div class="hi">a</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div>·</div><div>·</div><div class="hi">a</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+        </div>
+        <div class="info">INT8 · row-major 일 때 strided</div>
+      </div>
+      <div class="op">×</div>
+      <div class="mat">
+        <div class="nm">B · 16×16</div>
+        <div class="grid" style="grid-template-columns:repeat(16,1fr)">
+          <div class="hi">b</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div class="hi">b</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div>·</div><div class="hi">b</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div>·</div><div>·</div><div>·</div><div class="hi">b</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+        </div>
+        <div class="info">INT8 · column-major 가 자연</div>
+      </div>
+      <div class="op">+</div>
+      <div class="mat">
+        <div class="nm">C · 16×16</div>
+        <div class="grid" style="grid-template-columns:repeat(16,1fr)">
+          <div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+          <div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div class="hi">c</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div><div>·</div>
+        </div>
+        <div class="info">INT32 accumulator</div>
+      </div>
+    </div>
+    <div class="viz-note">한 warp 가 모든 fragment 를 분담해서 들고 있는다. <code>load_matrix_sync</code> 가 input 을 GMEM/SMEM 에서 register fragment 로 분산 적재. <code>mma_sync</code> 가 32 thread 의 register 위에서 직접 matmul. <code>store_matrix_sync</code> 로 결과를 출력.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>강의에서 직접 인용한 사실들.</p>
+      <ul>
+        <li><strong>fragment 안 layout 은 “unspecified”</strong> — NVIDIA docs 가 이렇게 표시한다. 즉 thread → register 매핑이 architecture 별로 다를 수 있다. 사용자는 fragment 를 직접 인덱스 하지 않는다 — load/store/mma sync 만 부른다.</li>
+        <li><strong>fragment 는 일반 register 다</strong> — “special” 한 register 가 아니다. 일반적인 register pressure 가 그대로 적용. 한 warp 가 너무 많은 fragment 를 들고 있으면 occupancy 떨어진다.</li>
+        <li><strong>load_matrix_sync 의 access 가 곧 일반 GPU load</strong> — 즉 <em>coalescing</em> 이 그대로 중요하다. row-major B 행렬은 K 차원 따라 strided read 가 된다 = 큰 문제.</li>
+      </ul>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// 강의의 첫 tensor core kernel — 약식</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> tc_matmul(
+    <span style="color:#E7B369">const</span> int8_t* A, <span style="color:#E7B369">const</span> int8_t* B,
+    <span style="color:#E7B369">int</span>* C, <span style="color:#E7B369">int</span> M, <span style="color:#E7B369">int</span> N, <span style="color:#E7B369">int</span> K)
+{
+    <span style="color:#A99E89">// 16x16 fragments</span>
+    fragment&lt;matrix_a, 16,16,16, int8_t, row_major&gt; aF;
+    fragment&lt;matrix_b, 16,16,16, int8_t, row_major&gt; bF;  <span style="color:#A99E89">// ← row major B = strided</span>
+    fragment&lt;accumulator, 16,16,16, <span style="color:#E7B369">int</span>&gt;          cF;
+
+    fill_fragment(cF, 0);
+
+    <span style="color:#E7B369">for</span> (<span style="color:#E7B369">int</span> k = 0; k &lt; K; k += 16) {
+        load_matrix_sync(aF, &amp;A[i*K + k], K);
+        load_matrix_sync(bF, &amp;B[k*N + j], N);
+        mma_sync(cF, aF, bF, cF);
+    }
+
+    store_matrix_sync(&amp;C[i*N + j], cF, N, mem_row_major);
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>naive 결과와 첫 NCU 진단</b><span>· 4 TFLOPs · L1↔L2 630 GB</span></div>
+    <h2>tensor core 만으로는 빠르지 않다 — 어디로 가야 하는지를 NCU 가 가리킨다</h2>
+  </div>
+  <p class="sec-lede">강의 첫 큰 surprise. 위의 코드를 <em>15000×15000</em> 크기 입력으로 돌리면 — 1.5초, 약 4 TFLOPs. Turing 의 INT8 tensor core peak 가 60+ TFLOPs 이므로 <strong>일 자릿수 utilization</strong>. 이유를 NCU 가 가리킨다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · naive INT8 tensor core 커널의 NCU 메모리 그래프</span><span>15000² · Turing</span></div>
+    <div class="l43-pyr">
+      <div class="lvl"><span class="nm">device → L2</span><span class="d">device memory ↔ L2 cache 통신량</span><span class="v">206 GB</span></div>
+      <div class="lvl hi"><span class="nm">L2 → L1</span><span class="d">L2 ↔ L1 통신량 — <strong>같은 데이터가 수십 번 다시 fetched</strong></span><span class="v">630 GB</span></div>
+      <div class="lvl"><span class="nm">register</span><span class="d">실제 사용된 register footprint</span><span class="v">small</span></div>
+    </div>
+    <div class="viz-note">device memory 가 8–16 GB 인 GPU 에서 <strong>이미 device→L2 가 206 GB</strong>. L2→L1 은 그 3배. 같은 데이터를 <em>수십 번</em> 다시 가져온다는 뜻. cache reuse 가 거의 0.</div>
+  </div>
+
+  <p>그리고 NCU 가 같이 보여주는 두번째 화면 — <strong>warp stall reasons</strong>.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · NCU warp stall 분포 (naive)</span><span>높을수록 cycle 낭비</span></div>
+    <div class="l43-stalls">
+      <div class="row"><span class="lbl">Stall LG Throttle</span><div class="bar"><span style="width:78%"></span></div><span class="v">~28%</span></div>
+      <div class="row"><span class="lbl">Stall Long Scoreboard</span><div class="bar"><span style="width:60%"></span></div><span class="v">~22%</span></div>
+      <div class="row"><span class="lbl">Stall Math Pipe</span><div class="bar cool"><span style="width:25%"></span></div><span class="v">~9%</span></div>
+      <div class="row"><span class="lbl">Stall Selected (productive)</span><div class="bar cool"><span style="width:15%"></span></div><span class="v">~5%</span></div>
+    </div>
+    <div class="viz-note"><strong>LG throttle</strong> = load 명령이 <em>너무 많아서</em> in-flight load queue 가 가득 차서 새 load 를 발행조차 못 함. <strong>Long scoreboard</strong> = load 는 발행됐는데 결과가 도착하기 전에 다음 instruction 이 그 데이터를 기다림. 둘 다 “데이터가 제때 안 와서” stall.</div>
+  </div>
+
+  <div class="callout">
+    <div class="label">진단의 핵심</div>
+    <p>NCU 가 가리키는 두 stall 모두 <strong>memory traffic 자체가 너무 많다</strong>는 신호. tensor core 는 거의 idle. 다음 단계의 모든 transformation 은 이 두 metric 을 줄이는 방향으로만 진행된다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>column-major 의 효과</b><span>· uncoalesced 제거</span></div>
+    <h2>한 줄 변경 — B 를 column-major 로 — 1.5s → 1.0s</h2>
+  </div>
+  <p class="sec-lede">강의의 첫 fix. row-major 두 행렬에서 K 차원으로 sum 을 돌면, B 의 access 는 <em>K 만큼 strided</em> = uncoalesced. column-major 로 두면 K 차원이 contiguous = coalesced. 변경은 fragment 의 layout flag 한 줄과 — B 를 미리 column-major 로 transpose 하는 별도 kernel.</p>
+
+  <div class="split">
+    <div>
+      <p>“transpose 비용은?” 청중 질문. Erik 의 답.</p>
+      <ul>
+        <li>matmul 은 O(N³) compute, transpose 는 O(N²) memory.</li>
+        <li>15000² → transpose 는 약 6 ms, matmul 은 1.5 s. <strong>0.4%</strong> 비용.</li>
+        <li>memory bound transpose 도 어차피 빨리 끝난다 — 그리고 한 번만 돌면 된다.</li>
+      </ul>
+      <p>결과적으로 <em>한 줄 변경 + 미리 transpose</em> 의 비용으로 1초로 단축. NCU 의 두 metric 도 변한다.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · column-major 적용 후 NCU diff</span><span>previous vs current</span></div>
+        <div class="l43-prog">
+          <div class="row warn"><span class="v">v0</span><span class="nm">naive row-major B<em>uncoalesced strided reads on K</em></span><span class="ms">1.50 s</span><span class="gf">4 TFLOPs</span></div>
+          <div class="row hi"><span class="v">v1</span><span class="nm">column-major B<em>coalesced K-stride loads</em></span><span class="ms">0.97 s</span><span class="gf">7 TFLOPs</span></div>
+        </div>
+        <div class="viz-note">memory request 수 <strong>−60%</strong>, L1↔L2 traffic <strong>−30%</strong>, device→L2 <strong>−40%</strong>. 기본 access pattern 한 줄로 잡힌 자리.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">청중 질문 — 카운터 직관</div>
+    <p>“stall ratio 가 줄어들 거라 기대했는데, 오히려 비슷하거나 늘었다”. Erik 의 설명 — <strong>stall 은 normalized metric</strong>. 분모(=실제 instruction issue cycle) 도 같이 줄었다. instruction count 가 <strong>−45%</strong> 줄어서 (index 계산 instruction 이 사라져서), ratio 가 큰 변화 없이 보일 뿐 — 절대 cycle 수는 줄었다. <em>"NCU diff 는 절대값과 상대값을 같이 봐야 한다"</em> 의 교훈.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>shared memory tile</b><span>· SMEM 위에 stage</span></div>
+    <h2>HBM 까지 안 가도 되도록 — block 안에서 reuse</h2>
+  </div>
+  <p class="sec-lede">다음 fix. block 안의 여러 warp 가 같은 A 행, 같은 B 열을 반복해서 읽는다. 한 번 SMEM 에 올려두면 — 그 block 안에선 register 로 stage 가능. PMPP 책의 표준 tiling 패턴이 그대로.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GPU 메모리 계층 — “데이터가 어디 있는가”</span><span>크기 ↓ · 속도 ↑</span></div>
+    <div class="l43-pyr">
+      <div class="lvl"><span class="nm">HBM (device)</span><span class="d">8–16 GB · 수백 GB/s · 모든 데이터</span><span class="v">~500 GB/s</span></div>
+      <div class="lvl"><span class="nm">L2 cache</span><span class="d">~5 MB · device 전체에서 공유</span><span class="v">~2 TB/s</span></div>
+      <div class="lvl hi"><span class="nm">SMEM / L1</span><span class="d">SM 당 ~96 KB · block 단위로 stage</span><span class="v">~10 TB/s</span></div>
+      <div class="lvl"><span class="nm">register</span><span class="d">thread 당 직접 접근 · 가장 빠름</span><span class="v">peak</span></div>
+    </div>
+    <div class="viz-note">naive 커널은 모든 fragment 가 directly HBM ↔ register. SMEM tile 을 끼우면 <em>block 안의 warp 들이 같은 데이터를 SMEM 에서 공유</em>. HBM 까지 가는 횟수가 tile 크기에 비례해서 감소.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>강의의 SMEM 추가 시퀀스.</p>
+      <ol>
+        <li>block 단위 tile size 결정 — 보통 128×128.</li>
+        <li>K 차원을 BLOCK_K (예: 32) 로 쪼개서 stage.</li>
+        <li>warp 들이 협력해서 GMEM → SMEM 으로 한 stage 분량 load.</li>
+        <li>warp 별로 자기 부분 SMEM → fragment register 로 load.</li>
+        <li><code>__syncthreads()</code> 로 stage 사이 동기화.</li>
+      </ol>
+      <p>결과: 0.97s → ~0.6s. NCU 가 다시 가리키는 다음 자리는 register pressure.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">SMEM 도입 시 함정</div>
+        <p>SMEM bank conflict — INT8 8개 element 가 한 word 에 들어간다. row 별로 4 byte stride 면 같은 bank 에 걸린다. 강의에서 Erik 이 한 코드 비교에서 보여준 — <em>padding 으로 stride 어긋남</em>(예: shared memory array 의 한 차원에 +4 padding) 으로 conflict 회피.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>register tiling</b><span>· thread 당 더 많은 출력</span></div>
+    <h2>같은 데이터를 register 에 더 오래 잡아두기 — 한 thread 가 여러 출력 계산</h2>
+  </div>
+  <p class="sec-lede">SMEM 으로 block 안에서 reuse 했지만, <em>warp 안의 같은 register fragment</em> 는 여전히 여러 번 다시 load 된다. 한 warp 가 더 큰 출력 tile (예: 32×32 또는 32×64) 를 계산하면 — 같은 A fragment 를 여러 B fragment 와 곱한다 = register reuse.</p>
+
+  <div class="callout">
+    <div class="label">강의에서 직접 인용 — 두 관점이 같다</div>
+    <p>Erik 가 강조한 자리. <em>"in registers and the only way you can do that is if each thread handles more of the output ... so in that sense both these strategies kind of are the same thing from different perspectives"</em>. SMEM tile 키우기 vs register tile 키우기는 <strong>같은 reuse 를 다른 메모리 계층에서 보는 것</strong>이다.</p>
+  </div>
+
+  <div class="split">
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · 5단계 커널의 누적 효과</span><span>15000² · Turing INT8</span></div>
+        <div class="l43-prog">
+          <div class="row warn"><span class="v">v0</span><span class="nm">naive<em>tensor core 호출만</em></span><span class="ms">1.50 s</span><span class="gf">4 TFLOPs</span></div>
+          <div class="row"><span class="v">v1</span><span class="nm">column-major B<em>coalesced K loads</em></span><span class="ms">0.97 s</span><span class="gf">7 TFLOPs</span></div>
+          <div class="row"><span class="v">v2</span><span class="nm">SMEM tile<em>block-level reuse</em></span><span class="ms">~0.6 s</span><span class="gf">11 TFLOPs</span></div>
+          <div class="row"><span class="v">v3</span><span class="nm">register tile<em>thread 당 더 많은 출력</em></span><span class="ms">~0.3 s</span><span class="gf">22 TFLOPs</span></div>
+          <div class="row hi"><span class="v">v4</span><span class="nm">double buffering<em>SMEM stage 와 compute overlap</em></span><span class="ms">~0.2 s</span><span class="gf">33 TFLOPs</span></div>
+        </div>
+        <div class="viz-note">강의의 <em>orders of magnitude</em> 표현은 절대값보다 <em>NCU diff 의 양상</em>을 본다. 각 단계마다 “직전 대비” 어떤 metric 이 어떻게 변하는지가 핵심.</div>
+      </div>
+    </div>
+    <div>
+      <p>register tiling 의 trade-off — register 더 많이 쓰면 <strong>occupancy 가 떨어진다</strong>. 즉 SM 위에 동시에 띄울 수 있는 warp 가 줄어든다. 그래서 무한정 키울 수 없다.</p>
+      <p>강의에서 Erik 가 강조 — <em>"두 효과가 균형 맞춰지는 자리가 있다"</em>. NCU 의 <strong>achieved occupancy</strong> 와 <strong>tensor core utilization</strong> 두 metric 을 같이 보면서 sweet spot 을 찾는다. Turing 의 register file (256 KB per SM, 64 KB per warp 에서 시작) 한계 안에서.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>warp stall 카테고리</b><span>· long scoreboard · LG throttle · math pipe</span></div>
+    <h2>NCU 의 stall reasons 가 무엇을 의미하는지 — 5분 정리</h2>
+  </div>
+  <p class="sec-lede">강의에서 별도 섹션처럼 풀어준 자리. NCU 의 “Warp State Statistics” 가 보여주는 stall 카테고리들의 의미. 매 단계 NCU diff 를 읽을 때 이 어휘가 손에 있어야 한다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">Stall Long Scoreboard</div>
+      <div class="d">load 가 발행됐고, 결과가 와야 다음이 진행될 수 있는데 안 옴. <strong>memory latency</strong>가 hide 되지 않는 상태. 보통 SMEM/register reuse 부족.</div>
+    </div>
+    <div class="term">
+      <div class="t">Stall LG Throttle</div>
+      <div class="d">너무 많은 load 가 in-flight 라 새 load 를 발행 못 함. queue 가 꽉 참. <strong>traffic 자체가 너무 많다</strong>는 신호. coalescing / tile 부족.</div>
+    </div>
+    <div class="term">
+      <div class="t">Stall Short Scoreboard</div>
+      <div class="d">SMEM access 또는 비교적 짧은 latency 의 dependency. SMEM bank conflict 의 흔적이 여기에 잡히기도 한다.</div>
+    </div>
+    <div class="term">
+      <div class="t">Stall Math Pipeline</div>
+      <div class="d">tensor core 또는 ALU 가 이미 일하고 있어서 다음 instruction 이 못 들어감. <strong>좋은 stall</strong> — 여기 비중이 크면 compute bound 에 가깝다.</div>
+    </div>
+    <div class="term">
+      <div class="t">Stall Barrier</div>
+      <div class="d"><code>__syncthreads()</code> 또는 fence 에서 다른 warp 를 기다림. tile size 와 warp 수의 균형 문제.</div>
+    </div>
+    <div class="term">
+      <div class="t">Stall Selected (eligible)</div>
+      <div class="d">stall 이 아닌 자리. 이 비율이 곧 productive cycle. NCU 의 “warp 가 일하고 있는 비율”.</div>
+    </div>
+  </div>
+
+  <p>강의에서 Erik 가 한 정리 — <em>"naive 에서 column-major 로 가면 LG throttle 이 가장 많이 줄고, SMEM tile 추가하면 long scoreboard 가 줄고, register tile 추가하면 short scoreboard 까지 줄어든다. math pipeline stall 이 늘어나면 compute bound 에 다가가는 것"</em>.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>Turing 과 H100 의 차이</b><span>· no TMA · no WGMMA · no async copy</span></div>
+    <h2>이 강의의 결과가 어디까지 직접 transfer 되고 어디부터 안 되는가</h2>
+  </div>
+  <p class="sec-lede">다음 주 강의(L045 H100 cuBLAS 격파)와 이 강의의 코드 시퀀스가 같은 도구로 풀리지 않는 이유 — Hopper 가 <strong>새로운 hardware 의 자리</strong>를 추가했기 때문.</p>
+
+  <div class="l43-prog">
+    <div class="row"><span class="v">A</span><span class="nm">async copy<em>cp.async (Ampere+) · TMA (Hopper+)</em></span><span class="ms">Turing X</span><span class="gf">H100 ✓</span></div>
+    <div class="row"><span class="v">B</span><span class="nm">WGMMA<em>warp-group MMA · Hopper</em></span><span class="ms">Turing X</span><span class="gf">H100 ✓</span></div>
+    <div class="row"><span class="v">C</span><span class="nm">tensor memory accelerator<em>SMEM bulk transfer descriptor</em></span><span class="ms">Turing X</span><span class="gf">H100 ✓</span></div>
+    <div class="row"><span class="v">D</span><span class="nm">block cluster<em>SM 간 SMEM 통신</em></span><span class="ms">Turing X</span><span class="gf">H100 ✓</span></div>
+    <div class="row hi"><span class="v">E</span><span class="nm">mma.sync<em>warp 단위 MMA · 본 강의의 도구</em></span><span class="ms">Turing ✓</span><span class="gf">H100 ✓</span></div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>그래서 두 강의의 관계는 — <strong>이 강의의 5단계 사다리 (column-major → SMEM → register tile → double buffering)</strong> 가 H100 강의의 <em>출발점</em> 이다. Hopper 위에서는 그 위에 producer-consumer warp specialization, TMA descriptor 사용, cluster multicast 같은 새 도구가 추가된다.</p>
+      <p>즉 이 강의의 도구를 손에 익히고 H100 강의로 가는 게 자연스러운 학습 곡선.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">Turing 을 일부러 고른 이유</div>
+        <p><em>"on a more recent GPU you have a lot more confounding factors"</em>. Turing 은 새 도구가 적어서 — async copy 도 없고, cluster 도 없다 — 결과를 확인할 변수가 적다. <strong>old GPU = clearer signal</strong>. 같은 5단계 분석을 H100 에서 하면 async copy 가 같이 변해서 “어느 변경이 무엇을 잡았는지” 분리하기 어렵다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">강의에서 6개월 뒤 다시 돌아왔을 때 가장 빨리 복원해야 하는 사실들과 — 직접 손에 박아야 할 코드 자료들.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">tensor core peak 만으로는 부족</div>
+      <div class="d">naive 는 peak 의 5–10%. column-major + SMEM + register tile 의 3단계가 모두 들어가야 30%+.</div>
+    </div>
+    <div class="term">
+      <div class="t">where's my data?</div>
+      <div class="d">Steven Jones 의 GTC 표현. naive→x10 의 모든 transformation 이 이 한 질문의 변형.</div>
+    </div>
+    <div class="term">
+      <div class="t">column-major B</div>
+      <div class="d">두 행렬이 다 row-major 면 K 차원 sum 에서 strided. transpose 는 O(N²) 라 무료. 첫 fix.</div>
+    </div>
+    <div class="term">
+      <div class="t">SMEM tile</div>
+      <div class="d">block 안의 warp 들이 같은 데이터 reuse. <code>__syncthreads()</code> 로 stage 동기화.</div>
+    </div>
+    <div class="term">
+      <div class="t">register tile</div>
+      <div class="d">warp 당 출력 tile 키우기. fragment reuse 늘리되 register pressure / occupancy trade-off.</div>
+    </div>
+    <div class="term">
+      <div class="t">NCU diff 보는 법</div>
+      <div class="d">stall ratio 와 절대 instruction count 둘 다. 분모가 같이 줄면 ratio 만 보면 잘못된 결론.</div>
+    </div>
+    <div class="term">
+      <div class="t">long scoreboard vs LG throttle</div>
+      <div class="d">전자 = latency 미해소, 후자 = traffic 과다. fix 방향이 다르다.</div>
+    </div>
+    <div class="term">
+      <div class="t">integer = deterministic</div>
+      <div class="d">test 가 단순. tolerance 결정 안 해도 됨. exact-match.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=BgGe_erJB1A" target="_blank" rel="noopener">youtube.com/watch?v=BgGe_erJB1A</a> · 약 80분</span>
+    </div>
+    <div class="row">
+      <span class="k">관련 슬라이드</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_042" target="_blank" rel="noopener">lecture_042/int8_mm_turing.pdf</a> (slides 가 lecture_042 폴더에 있음)</span>
+    </div>
+    <div class="row">
+      <span class="k">참고 코드</span>
+      <span class="v">CUDA toolkit samples · <code>cudaTensorCoreGemm</code> · <code>immaTensorCoreGemm</code></span>
+    </div>
+    <div class="row">
+      <span class="k">PMPP 참조</span>
+      <span class="v">Ch. 5 (Memory architecture) · Ch. 7 (Tiled matrix multiplication) — 같은 패턴</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>naive INT8 mma.sync 커널 베이스라인</strong> — wmma fragment 로 16×16×16 호출. 5000² 정도로 작게 시작. <code>cuda.Event</code> 로 ms 측정.</li>
+    <li><strong>NCU 한 번 돌리기</strong> — <code>ncu --set full -o trace ./naive</code>. 메모리 그래프와 warp stall 분포 확인. <em>특히 LG Throttle / Long Scoreboard 비율</em>.</li>
+    <li><strong>column-major B</strong> — 별도 transpose 커널 작성, B 를 column-major 로 변환 후 fragment 의 layout flag 변경. NCU diff 로 traffic 감소 확인.</li>
+    <li><strong>SMEM tile 추가</strong> — block tile size 128×128, K-stage 32. <code>__shared__ int8_t As[128][32]</code> 같은 declare. bank conflict 회피용 padding 한 줄 추가.</li>
+    <li><strong>register tile 키우기</strong> — warp 당 출력 32×32 또는 32×64. fragment 여러 개를 한 warp 가 들고 있게.</li>
+    <li><strong>NCU diff 5단계 모두 비교</strong> — <code>ncu compare</code> 또는 같은 trace 두 개를 GUI 에서 열기. stall 분포 변화의 양상을 보고서로 정리.</li>
+    <li><strong>cuBLAS INT8 baseline 측정</strong> — 같은 크기로 cuBLAS 의 INT8 GEMM. 본 강의의 결과가 cuBLAS 의 몇 % 인지 확인. <em>완벽 격차가 아니라 격차의 origin</em> 이 학습 목표.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 다음에 어디에 다시 등장하는지</h2>
+  </div>
+  <p class="sec-lede">L043 의 5단계 사다리 (column-major → SMEM → register tile → double buffering) 가 시리즈 안에서 어디에 다시 호출되는지 묶어둔다.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA Profiling</div>
+      <div class="by">Mark Saroufim — NCU 의 hint 들을 처음 만나는 자리. 본 강의의 stall 카테고리가 여기서 첫 등장</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">본 강의의 단계가 곧 체크리스트의 항목들 — coalescing, tiling, register pressure</div>
+    </a>
+    <a class="conn" href="lecture_009.html">
+      <div class="n">L009</div>
+      <div class="ti">Reductions</div>
+      <div class="by">SMEM stage / register reuse 의 동일 reasoning 이 reduction 에 적용</div>
+    </a>
+    <a class="conn" href="lecture_016.html">
+      <div class="n">L016</div>
+      <div class="ti">On Hands Profiling</div>
+      <div class="by">Taylor Robbie — 본 강의의 NCU diff 워크플로의 본격 워크숍</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">같은 INT8/INT4 로직의 Triton 표현. 직접 CUDA vs Triton 비교</div>
+    </a>
+    <a class="conn" href="lecture_042.html">
+      <div class="n">L042</div>
+      <div class="ti">Mosaic GPU</div>
+      <div class="by">Adam Paszke — 같은 tensor core 를 JAX DSL 위에서 (Hopper 기준)</div>
+    </a>
+    <a class="conn" href="lecture_045.html">
+      <div class="n">L045</div>
+      <div class="ti">Outperforming cuBLAS on H100</div>
+      <div class="by">본 강의 끝 + Hopper 도구. 같은 사다리의 다음 칸</div>
+    </a>
+    <a class="conn" href="lecture_056.html">
+      <div class="n">L056</div>
+      <div class="ti">Kernel Benchmarking Tales</div>
+      <div class="by">benchmark 정확도의 미세 함정. NCU diff 와 wall-clock 의 차이</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">학습 노트로 정리하면서 의도적으로 비워둔 자리들 — 강의 안에서 부분적으로만 등장한 주제, 또는 후속 자료가 더 깊게 다룰 주제.</p>
+  <ul>
+    <li><strong>cuBLAS INT8 GEMM 의 절대 격차</strong> — 본 강의는 의도적으로 SOTA 와 비교하지 않는다. 동일 사이즈에서 본 강의의 끝 커널이 cuBLAS 의 몇 % 인지는 직접 측정 필요.</li>
+    <li><strong>SMEM bank conflict 의 정확한 패턴</strong> — INT8 8개가 한 word 인 layout 에서 어느 stride 가 conflict 를 만드는지의 일반화. NCU 의 <em>shared store/load stalls</em> 를 직접 본다.</li>
+    <li><strong>double buffering 단계의 자세한 코드</strong> — 강의 시간 부족으로 마지막 변형은 스킵. async copy 가 없는 Turing 에서 어떻게 SMEM stage / compute overlap 을 구현하는지 — 별도 자료로 확인.</li>
+    <li><strong>다양한 행렬 크기에서의 sweep</strong> — 본 강의는 15000² 만 본다. 1024², 4096² 등 작은 크기에서 launch overhead / tail effect 가 어떻게 변하는지 미확인.</li>
+    <li><strong>occupancy 가 떨어지는 자리의 정확한 register count</strong> — Turing 의 64K register file 안에서 한 warp 가 몇 개 이상 fragment 를 들면 occupancy 가 깨지는지 — <code>--ptxas-options=-v</code> 로 확인.</li>
+    <li><strong>signed vs unsigned INT8 의 성능 차이</strong> — VNNI / DP4A 모두 mixed-sign instruction. tensor core 도 동일한지, 별도 instruction 인지 확인 필요.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 절대 수치 (1.5s, 1.0s, 0.6s 등)는 강의 transcript 에서 인용. 실제 GPU 모델 (RTX 2060? T4?) 을 캡션이 명시하지 않은 부분이 있다. <em>"Turing"</em> 이라는 말만 분명. 정확한 hardware 베이스라인은 영상 직접 확인 권장. NCU 의 metric 명칭(stall LG throttle 등)은 NVIDIA 표준 명칭으로 확정.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_042.html">
+    <span class="lbl">← Lecture 042</span>
+    <span class="nm">Mosaic GPU — Adam Paszke</span>
+  </a>
+  <a class="nxt" href="lecture_044.html">
+    <span class="lbl">Lecture 044 →</span>
+    <span class="nm">NVIDIA Profiling — speaker TBD</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L043 · transcript-grounded · 2026</span>
+</footer>
+
+</body>
+</html>

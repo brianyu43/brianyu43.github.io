@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L026 · SYCL Mode (Intel GPU) · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l26-stack{display:grid;grid-template-columns:1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l26-stack .layer{display:grid;grid-template-columns:140px 1fr 130px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l26-stack .layer .nm{color:var(--accent);font-weight:700}
+.l26-stack .layer .what{color:var(--ink-soft);font-size:12.5px;line-height:1.5}
+.l26-stack .layer .vend{color:var(--muted);text-align:right;font-size:11px}
+.l26-stack .layer.hi{background:var(--bg-soft);border-color:var(--accent)}
+.l26-back{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l26-back .b{padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l26-back .b .t{color:var(--ink);font-weight:700;font-family:'Pretendard',sans-serif;font-size:14px;margin-bottom:6px}
+.l26-back .b .d{color:var(--ink-soft);font-size:12.5px;line-height:1.5}
+.l26-back .b.intel{border-color:var(--accent)}
+.l26-back .b.intel .t{color:var(--accent)}
+.l26-mem{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l26-mem .pair{display:grid;grid-template-columns:160px 1fr 1fr;gap:14px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-bottom:6px;align-items:center}
+.l26-mem .pair .who{color:var(--muted);font-size:11px;letter-spacing:.1em}
+.l26-mem .pair .cuda{color:var(--ink);font-size:13px}
+.l26-mem .pair .sycl{color:var(--accent);font-weight:600;font-size:13px}
+@media (max-width:760px){
+  .l26-stack .layer{grid-template-columns:1fr}
+  .l26-back{grid-template-columns:1fr}
+  .l26-mem .pair{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_025.html">← L025</a>
+    <a href="lecture_027.html">L027 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L026</span>
+    <span>2024 · JUL · 06</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>SYCL Mode (Intel GPU)</h1>
+  <p class="dek">CUDA 가 사실상 표준이 된 시대에 <strong>Intel GPU 위에서 같은 일을 하는 길</strong>은 어떻게 생겼는가 — Patric Zhao 가 GPU Mode 첫 SYCL 강의에서 깐 <em>이종 컴퓨팅 모델, 커널 작성, 메모리 모델, 그리고 LLM inference 에 적용한 fused operator 들</em>의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">SYCL</span>
+    <span class="chip hi">DPC++</span>
+    <span class="chip hi">oneAPI</span>
+    <span class="chip hi">Intel GPU</span>
+    <span class="chip hi">heterogeneous compute</span>
+    <span class="chip">USM · buffer</span>
+    <span class="chip">SLM</span>
+    <span class="chip">SYCL graph</span>
+    <span class="chip">vendor portability</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">P</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Patric Zhao</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Intel · oneAPI · LLM inference 가속 담당</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L026</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Patric Zhao</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">SYCL 커널 손으로 짜본다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">CUDA 너머의 GPU 코드</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">NVIDIA 너머의 GPU 모델</span><span class="em">heterogeneous compute</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">SYCL 의 추상</span><span class="em">queue · accessor · USM</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">Intel GPU 백엔드</span><span class="em">Xe · slice · EU · SLM</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">oneAPI 와의 관계</span><span class="em">DPC++ · MKL · oneDNN</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">PyTorch 위 SYCL</span><span class="em">XPU backend · IPEX</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">CUDA 와 비교</span><span class="em">stream · launch · sync</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">성능 사례 — fused LLM ops</span><span class="em">flash attention · MHA</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">SYCL 의 portability 약속</span><span class="em">NVIDIA · AMD · Intel</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· CUDA 너머의 GPU 코드</span></div>
+    <h2>“CUDA mode” 가 사실상 표준이 된 자리에서 <em>SYCL mode</em> 를 다시 묻는다</h2>
+  </div>
+  <p class="sec-lede">GPU Mode 시리즈는 이름부터 <strong>CUDA mode</strong> 로 출발했다. 그런데 25강을 넘어서면서 — Mark 가 이름을 굳이 <em>GPU Mode</em> 로 바꾼 다음 첫 외부 백엔드 강의로 — Intel 의 Patric Zhao 를 불렀다. 강의의 이름이 일부러 “SYCL mode” 다.</p>
+
+  <p>강의가 답하려는 질문은 두 줄로 압축된다.</p>
+  <ol>
+    <li><strong>NVIDIA 가 아닌 GPU 위에서 같은 종류의 커널을 짜려면 어떤 모델이 있는가</strong> — 그리고 그 모델이 CUDA 와 정확히 어디가 같고 어디가 다른가.</li>
+    <li><strong>그 모델로 LLM inference 같은 실전 워크로드를 어디까지 짜냈는가</strong> — Intel GPU 위에서 fused MHA 와 flash attention 을 어떻게 구현했는지.</li>
+  </ol>
+
+  <p>그래서 강의의 구조도 정확히 그 두 축이다. 전반부는 SYCL 의 <em>이종 컴퓨팅 모델</em>(host + device, queue, accessor, parallel_for) 을 CUDA 의 친숙한 모델 위에 mapping 한다. 후반부는 Intel oneAPI 위에서 SYCL 로 짠 <em>fused operator</em> 들 — RMSNorm + matmul, flash attention, MHA fusion — 의 실측 결과를 보여준다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>SYCL 은 <strong>“C++ 표준 위에 single-source 로 GPU 커널을 짠다”</strong>는 약속의 결과물이다. CUDA 가 NVIDIA 의 독점적 ISA 위에 묶여 있다면, SYCL 은 vendor 가 만든 backend 만 있으면 같은 코드가 NVIDIA · AMD · Intel · CPU 위에서 모두 돈다는 위치에 서 있다. 즉 <em>“이 GPU 의 프로그래밍 모델이 무엇인가” 가 아니라, 모든 가속기를 추상화한 한 layer 가 무엇인가</em> 의 질문에 답한다.</p>
+  </div>
+
+  <div class="pull">“오늘은 CUDA mode 가 아니라 SYCL mode 입니다. NVIDIA 만이 아니라 Intel GPU, AMD GPU, 심지어 NPU 까지 — 같은 코드 베이스가 어떻게 도는지 보여드리려고 합니다.”<span class="by">Patric Zhao · 04:21</span></div>
+
+  <p>그래서 강의의 끝에 손에 잡혀 있어야 할 것은 — <strong>SYCL 의 핵심 개념 4개</strong>(queue, parallel_for/handler, USM, accessor), <strong>Intel GPU 의 메모리/스레드 모델</strong>(EU, slice, SLM), 그리고 <strong>이 모델이 CUDA 와 어디서 다른가</strong> 의 한 페이지짜리 mapping 이다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>NVIDIA 너머의 GPU 모델</b><span>· heterogeneous compute</span></div>
+    <h2>가속기 ≠ NVIDIA — “이종 컴퓨팅” 이라는 더 큰 frame 안에 GPU 를 다시 위치시킨다</h2>
+  </div>
+  <p class="sec-lede">강의의 첫 30분은 의도적으로 <em>“heterogeneous computing”</em> 이라는 더 넓은 단어로 시작한다. host + device 의 분리된 메모리, latency hiding 을 위한 SIMT 모델, async dispatch — 이 다섯 가지는 <strong>아키텍처 선택과 무관하게</strong> 모든 가속기에 공통이다.</p>
+
+  <div class="split">
+    <div>
+      <p>Patric 의 출발점은 — <em>“GPU 라는 단어가 NVIDIA 와 동의어처럼 쓰이지만, 그 안에는 더 일반적인 모델이 있다”</em> 는 것. 그 모델을 명시적으로 깐다.</p>
+      <ul>
+        <li><strong>Host 와 device 의 분리</strong> — CPU 가 control flow 와 memory transfer 를 결정하고, device 는 dispatched kernel 을 SIMT 로 돈다.</li>
+        <li><strong>대량 병렬 + latency hiding</strong> — work-item(스레드)이 메모리에서 막히면 SM/EU 가 다른 work-item 으로 swap. occupancy 라는 단어의 일반화.</li>
+        <li><strong>비동기 디스패치</strong> — host 는 kernel 을 enqueue 하고 즉시 돌아온다. dependency 는 queue 가 추적.</li>
+        <li><strong>메모리 계층</strong> — register → on-chip SRAM(NVIDIA: shared mem · Intel: SLM) → device global(HBM/GDDR) → host RAM. 단어만 다르다.</li>
+        <li><strong>Tensor 가속</strong> — 각 vendor 가 자체 matrix 명령 (NVIDIA Tensor Core · Intel XMX · AMD Matrix Core). 모양은 같다.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · 같은 추상이 vendor 별로 어떤 단어로 구체화되는가</span><span>4 vendors · 5 axes</span></div>
+        <div class="l26-back">
+          <div class="b"><div class="t">NVIDIA</div><div class="d">SM · warp(32) · shared memory · CUDA core / Tensor Core · CUDA stream</div></div>
+          <div class="b intel"><div class="t">Intel GPU</div><div class="d">slice · EU · sub-group(8/16) · SLM · XMX · SYCL queue</div></div>
+          <div class="b"><div class="t">AMD</div><div class="d">CU · wavefront(32/64) · LDS · Matrix Core · HIP stream</div></div>
+        </div>
+        <div class="viz-note">강의에서 Patric 이 강조한 mapping. 단어가 달라도 <strong>같은 위치에서 같은 일</strong>을 한다. 이 mapping 만 손에 박아두면 이름 전환이 빠르다.</div>
+      </div>
+    </div>
+  </div>
+
+  <p>이 frame 위에서 SYCL 이 등장하는 위치가 자연스러워진다 — <strong>이 mapping 자체를 한 번에 묶는 single-source C++ layer</strong>. 같은 <code>parallel_for</code> 가 NVIDIA · Intel · AMD · CPU 위에서 backend 만 바꿔 돈다는 약속.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>SYCL 의 추상</b><span>· queue · accessor · USM</span></div>
+    <h2>네 개의 단어로 끝나는 SYCL — <code>queue</code>, <code>handler</code>, <code>accessor/USM</code>, <code>parallel_for</code></h2>
+  </div>
+  <p class="sec-lede">SYCL 의 spec 자체는 두꺼운 문서지만, 강의에서 Patric 이 잡은 진입점은 <strong>네 개의 추상</strong>이다. 이 넷만 알면 vector add 부터 GEMM 까지 다 짤 수 있다.</p>
+
+  <div class="split rev">
+    <div>
+      <div class="terms">
+        <div class="term">
+          <div class="t">queue</div>
+          <div class="d">device 와 연결되는 비동기 실행 채널. CUDA 의 stream 에 대응. <code>sycl::queue q{gpu_selector_v}</code>.</div>
+        </div>
+        <div class="term">
+          <div class="t">handler · cgh</div>
+          <div class="d"><code>q.submit([&amp;](handler&amp; cgh){ ... })</code> 안에서 한 dispatch 의 dependency 와 launch 를 묶는다. command group.</div>
+        </div>
+        <div class="term">
+          <div class="t">USM (Unified Shared Memory)</div>
+          <div class="d"><code>malloc_device</code> · <code>malloc_shared</code> · <code>malloc_host</code>. CUDA 의 cudaMalloc / managed memory 와 같은 자리.</div>
+        </div>
+        <div class="term">
+          <div class="t">accessor</div>
+          <div class="d">buffer-based 코드의 메모리 핸들. read/write/RW mode 가 dependency tracking 의 단서가 된다.</div>
+        </div>
+        <div class="term">
+          <div class="t">parallel_for + nd_range</div>
+          <div class="d">SIMT 본체. <code>nd_range&lt;3&gt;(global, local)</code> 의 (global, local) 이 CUDA 의 (grid×block, block) 과 동치.</div>
+        </div>
+        <div class="term">
+          <div class="t">item · nd_item</div>
+          <div class="d">커널 안에서 자기 좌표를 읽는다. <code>item.get_global_id(0)</code> · <code>item.get_local_id(0)</code>. CUDA 의 <code>blockIdx · threadIdx</code>.</div>
+        </div>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// SYCL vector add — 강의의 첫 코드</span>
+<span style="color:#E7B369">#include</span> <span style="color:#C6B98A">&lt;sycl/sycl.hpp&gt;</span>
+<span style="color:#E7B369">using namespace</span> sycl;
+
+<span style="color:#E7B369">int</span> main(){
+  <span style="color:#E7B369">constexpr int</span> N = 1024;
+  queue q{gpu_selector_v};
+
+  <span style="color:#A99E89">// 1. USM 으로 device 메모리 할당</span>
+  <span style="color:#E7B369">float</span>* a = malloc_shared&lt;<span style="color:#E7B369">float</span>&gt;(N, q);
+  <span style="color:#E7B369">float</span>* b = malloc_shared&lt;<span style="color:#E7B369">float</span>&gt;(N, q);
+  <span style="color:#E7B369">float</span>* c = malloc_shared&lt;<span style="color:#E7B369">float</span>&gt;(N, q);
+
+  <span style="color:#A99E89">// 2. submit + parallel_for</span>
+  q.submit([&amp;](handler&amp; cgh){
+    cgh.parallel_for(range&lt;<span style="color:#E7B369">1</span>&gt;{N}, [=](id&lt;<span style="color:#E7B369">1</span>&gt; i){
+      c[i] = a[i] + b[i];
+    });
+  }).wait();
+
+  free(a, q); free(b, q); free(c, q);
+}</code></pre>
+      <p style="margin-top:14px">CUDA 와 비교했을 때 — <code>cudaMalloc</code> 대신 <code>malloc_shared</code>, <code>kernel&lt;&lt;&lt;...&gt;&gt;&gt;</code> 대신 <code>q.submit + parallel_for</code>, <code>cudaDeviceSynchronize()</code> 대신 <code>.wait()</code>. 모양은 다른데 <strong>역할은 정확히 같은 자리</strong>를 차지한다.</p>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">USM 의 핵심 변종 3</div>
+    <p><code>malloc_device</code> = device 만 접근 (cudaMalloc 동치). <code>malloc_shared</code> = host/device 양쪽 가시 (managed memory). <code>malloc_host</code> = pinned host (zero-copy 후보). 강의에서 Patric 이 첫 데모는 <code>malloc_shared</code> 로 깔끔하게 시작 — 그 다음 GEMM 같은 perf 코드는 <code>malloc_device</code> + 명시적 <code>memcpy</code> 로 옮겨간다.</p>
+  </div>
+
+  <div class="pull">“CUDA 에 익숙한 사람이 SYCL 코드를 처음 봤을 때 가장 헷갈리는 건 <em>kernel 호출이 lambda 안에 박혀 있다</em>는 것. 그게 single-source 의 출발점입니다.”<span class="by">Patric Zhao · 14:55</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>Intel GPU 백엔드</b><span>· Xe · slice · EU · SLM</span></div>
+    <h2>Intel GPU 가 SM/warp 의 자리에 박는 단어들 — <code>slice</code>, <code>EU</code>, <code>sub-group</code>, <code>SLM</code></h2>
+  </div>
+  <p class="sec-lede">SYCL 자체는 vendor 중립이지만, Intel GPU(Arc, Data Center GPU Max, Ponte Vecchio) 위에서는 <strong>Xe architecture</strong> 의 단어들을 다시 만난다. 이 자리에 익숙해져야 SYCL 커널의 launch 설정이 직관적으로 잡힌다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · NVIDIA 와 Intel GPU 의 메모리/스레드 모델 mapping</span><span>두 vendor · 같은 위치</span></div>
+    <div class="l26-mem">
+      <div class="pair">
+        <span class="who">EXEC unit</span>
+        <span class="cuda">SM (Streaming Multiprocessor)</span>
+        <span class="sycl">slice / sub-slice 안의 EU(Execution Unit)</span>
+      </div>
+      <div class="pair">
+        <span class="who">WARP</span>
+        <span class="cuda">warp = 32 threads</span>
+        <span class="sycl">sub-group = 8 / 16 / 32 (Xe-HPC 는 16)</span>
+      </div>
+      <div class="pair">
+        <span class="who">BLOCK</span>
+        <span class="cuda">CTA / thread block</span>
+        <span class="sycl">work-group</span>
+      </div>
+      <div class="pair">
+        <span class="who">on-chip SRAM</span>
+        <span class="cuda">shared memory (per-block)</span>
+        <span class="sycl">SLM (Shared Local Memory) — work-group 단위</span>
+      </div>
+      <div class="pair">
+        <span class="who">tensor 가속</span>
+        <span class="cuda">Tensor Core (mma · wgmma)</span>
+        <span class="sycl">XMX (Xe Matrix Extension)</span>
+      </div>
+      <div class="pair">
+        <span class="who">DEVICE memory</span>
+        <span class="cuda">HBM (A100/H100)</span>
+        <span class="sycl">HBM2e (Data Center GPU Max) · GDDR6 (Arc)</span>
+      </div>
+    </div>
+    <div class="viz-note">강의에서 Patric 이 강조 — <strong>SLM 은 NVIDIA shared memory 와 똑같이 program-managed</strong>. flash attention 의 K/V tile 을 SLM 에 올리는 것이 fused MHA 의 핵심.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>Xe 아키텍처의 한 단계 더 — <strong>Data Center GPU Max(Ponte Vecchio)</strong> 의 단위 분해.</p>
+      <ul>
+        <li><strong>Stack</strong> — 칩렛 단위. 한 칩이 여러 stack 으로 나뉘고 internal interconnect 으로 묶임.</li>
+        <li><strong>Slice</strong> — stack 안에 여러 slice. 각 slice 가 sub-slice 들을 묶고 L1/L2 를 공유.</li>
+        <li><strong>EU (Execution Unit)</strong> — sub-slice 안의 단일 SIMT 실행 단위. SM 의 한 partition 에 대응.</li>
+        <li><strong>Thread per EU</strong> — 7~8 hardware thread. 각 thread 가 SIMD 8 / 16 work-item 을 동시에 실행.</li>
+      </ul>
+      <p>NVIDIA SM = (Intel slice 안 sub-slice 의 EU 묶음) 으로 대략 끼워 맞을 수 있다. 정확한 ratio 는 chip 별로 다르지만, <em>occupancy 를 결정하는 단위가 EU 의 active hardware thread 수</em>라는 게 가장 중요하다.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// sub-group 사용 — Intel GPU 의 native warp 폭 활용</span>
+q.submit([&amp;](handler&amp; cgh){
+  cgh.parallel_for(
+    nd_range&lt;<span style="color:#E7B369">1</span>&gt;{global, local},
+    [=](nd_item&lt;<span style="color:#E7B369">1</span>&gt; it)
+      [[<span style="color:#E7B369">intel</span>::reqd_sub_group_size(<span style="color:#E7B369">16</span>)]] {
+        <span style="color:#E7B369">auto</span> sg = it.get_sub_group();
+        <span style="color:#E7B369">int</span> id  = sg.get_local_id();
+        <span style="color:#A99E89">// sub-group 내 reduce — CUDA shfl_xor 동치</span>
+        <span style="color:#E7B369">float</span> v   = data[it.get_global_id(<span style="color:#E7B369">0</span>)];
+        <span style="color:#E7B369">float</span> sum = reduce_over_group(sg, v, plus&lt;&gt;{});
+        <span style="color:#E7B369">if</span> (id == <span style="color:#E7B369">0</span>) atomic_ref(out[<span style="color:#E7B369">0</span>])
+          .fetch_add(sum);
+      });
+});</code></pre>
+      <p style="margin-top:14px"><code>reqd_sub_group_size(16)</code> 이 Xe-HPC 의 native sub-group 폭. 이 attribute 가 빠지면 컴파일러가 8 / 16 / 32 사이에서 자동 선택하는데, perf 코드에서는 항상 명시한다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>oneAPI 와의 관계</b><span>· DPC++ · MKL · oneDNN</span></div>
+    <h2>SYCL 의 Intel 구현 = DPC++ — 그 위에 라이브러리 stack 이 한 층</h2>
+  </div>
+  <p class="sec-lede">SYCL 은 Khronos 표준이고, <strong>DPC++ (Data Parallel C++)</strong> 는 Intel 이 그 표준을 구현한 컴파일러 + 확장이다. oneAPI 는 DPC++ 위에 쌓인 vendor 라이브러리 묶음 — 정확히 CUDA 위의 cuBLAS / cuDNN / NCCL 자리다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · oneAPI 스택 — SYCL 부터 LLM 까지</span><span>NVIDIA stack 과 한 행씩 비교</span></div>
+    <div class="l26-stack">
+      <div class="layer"><span class="nm">L4 · Framework</span><span class="what">PyTorch (XPU backend) · IPEX · TensorFlow · DeepSpeed</span><span class="vend">≡ PyTorch CUDA</span></div>
+      <div class="layer"><span class="nm">L3 · NN library</span><span class="what">oneDNN — conv · attention · norm · GEMM 의 vendor 커널</span><span class="vend">≡ cuDNN</span></div>
+      <div class="layer hi"><span class="nm">L2 · Math · CCL</span><span class="what">oneMKL (BLAS · LAPACK · FFT) · oneCCL (collective · all-reduce)</span><span class="vend">≡ cuBLAS / NCCL</span></div>
+      <div class="layer"><span class="nm">L1 · DPC++</span><span class="what">SYCL spec 의 Intel 구현체. extension 으로 sub-group · ESIMD · joint_matrix 추가</span><span class="vend">≡ nvcc · CUDA C++</span></div>
+      <div class="layer"><span class="nm">L0 · Level Zero</span><span class="what">low-level vendor driver API. SYCL runtime 이 그 위에 얹힘</span><span class="vend">≡ CUDA driver API</span></div>
+    </div>
+    <div class="viz-note">한 행씩 NVIDIA stack 에 거의 일대일로 맞물린다. <strong>oneDNN 의 attention 커널이 강의 후반의 fused MHA 의 베이스</strong> — Intel 입장에서 cuDNN 같은 “튜닝된 vendor 커널” 이 있어야 PyTorch 가 의미 있게 빠르게 돈다.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">중요한 분리</div>
+    <p>SYCL 은 vendor 중립의 <em>spec</em>이고, DPC++ 는 그 spec 의 <em>Intel 구현</em>이다. NVIDIA GPU 위에서도 SYCL 코드를 돌릴 수 있는데, 그 경로는 보통 — DPC++ → SPIR-V → CUDA backend (Codeplay / oneAPI plugin) — 으로 깔린다. 즉 <strong>최종적으로는 PTX 가 나온다</strong>. AMD 도 비슷하게 ROCm 위에 plugin.</p>
+  </div>
+
+  <div class="pull">“NVIDIA gpus 에서도 SYCL 은 결국 LLVM 을 거쳐 PTX 로 나갑니다 — interface 는 SYCL 이지만 머신 코드는 같은 자리에 도착합니다.”<span class="by">Patric Zhao · 38:12</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>PyTorch 위 SYCL</b><span>· XPU backend · IPEX</span></div>
+    <h2>PyTorch 안에서 Intel GPU 를 부르는 두 길 — <code>torch.xpu</code> 와 IPEX</h2>
+  </div>
+  <p class="sec-lede">2024 년 후반부터 PyTorch 본체에 <strong>XPU backend</strong> 가 합류했다. CUDA 의 <code>torch.cuda</code> 처럼 <code>torch.xpu.is_available()</code> 가 동작한다. 그 이전 길은 <strong>IPEX (Intel Extension for PyTorch)</strong> — 같은 작업을 plug-in 형태로 했다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># PyTorch XPU backend (≥ 2.4)</span>
+<span style="color:#E7B369">import</span> torch
+
+<span style="color:#E7B369">assert</span> torch.xpu.is_available()
+device = <span style="color:#C6B98A">"xpu:0"</span>
+
+x = torch.randn(<span style="color:#E7B369">8192</span>, <span style="color:#E7B369">8192</span>, device=device)
+y = torch.randn(<span style="color:#E7B369">8192</span>, <span style="color:#E7B369">8192</span>, device=device)
+z = x @ y                       <span style="color:#A99E89"># oneDNN GEMM 호출됨</span>
+torch.xpu.synchronize()</code></pre>
+<pre><code><span style="color:#A99E89"># IPEX 로 inference 가속 — fused op 자동 매칭</span>
+<span style="color:#E7B369">import</span> intel_extension_for_pytorch <span style="color:#E7B369">as</span> ipex
+model = ipex.optimize(model, dtype=torch.float16)
+out   = model(x.to(<span style="color:#C6B98A">"xpu"</span>))</code></pre>
+    </div>
+    <div>
+      <p>강의에서 Patric 이 데모로 보여준 작업 순서.</p>
+      <ol>
+        <li><strong>Vanilla PyTorch + XPU</strong> — 정확도 검증의 기준선. <code>device="xpu"</code> 만 바꾸고 모델이 도는지 본다.</li>
+        <li><strong>IPEX optimize</strong> — fused linear+gelu, fused attention, fp16/bf16 자동 캐스팅을 한 번에. inference latency 가 보통 1.5–3× 빨라진다.</li>
+        <li><strong>SYCL kernel 직접 끼워넣기</strong> — 모델의 hot path 를 oneDNN 도 IPEX 도 못 잡으면 직접 SYCL 로. <code>torch.utils.cpp_extension</code> 의 SYCL 변형이 등장 (DPC++ 기반).</li>
+      </ol>
+      <p>이 셋의 <strong>관계</strong>는 CUDA 쪽 <code>torch.cuda</code> + <code>torch.compile</code> + <code>load_inline</code> 의 관계와 정확히 평행한다. 강의의 한 메시지 — <em>“CUDA 코드 쓰는 마음으로 SYCL 을 쓸 수 있다”</em> 는 게 인지적 frame.</p>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">PyTorch device dispatch 의 실제</div>
+    <p>PyTorch 안에서 <code>x.to("xpu")</code> 를 부르면 — ATen op 의 XPU dispatch 키가 호출되고, oneDNN 또는 oneMKL 의 vendor 커널이 실행된다. 즉 같은 <code>torch.matmul</code> 한 줄이 device 키에 따라 cuBLAS / oneMKL / Apple MPS / ROCm 으로 갈린다. <strong>Frontend 는 같고, dispatch 가 갈라진다</strong>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>CUDA 와 비교</b><span>· stream · launch · sync</span></div>
+    <h2>CUDA 사용자가 SYCL 코드를 읽을 때 손에 들고 가야 할 mapping 표</h2>
+  </div>
+  <p class="sec-lede">강의의 큰 지렛대 중 하나는 — Patric 이 청중을 “CUDA 알고 있다” 로 가정한다는 것. 그래서 곳곳에서 <em>CUDA → SYCL 직역</em> 을 던진다. 한 페이지로 정리해두면 코드 읽기가 즉시 빨라진다.</p>
+
+  <div class="terms">
+    <div class="term"><div class="t">cudaStream_t</div><div class="d"><code>sycl::queue</code>. 둘 다 비동기 실행 채널. queue 가 dependency 추적까지 한다는 점이 다르다.</div></div>
+    <div class="term"><div class="t">cudaMalloc / cudaMemcpy</div><div class="d"><code>malloc_device</code> + <code>q.memcpy(...)</code>. 또는 <code>malloc_shared</code> 로 한 번에.</div></div>
+    <div class="term"><div class="t">__global__ void kernel(...)</div><div class="d"><code>cgh.parallel_for(range, [=](id i){ ... })</code>. lambda body 가 device code.</div></div>
+    <div class="term"><div class="t">kernel&lt;&lt;&lt;grid,block&gt;&gt;&gt;(...)</div><div class="d"><code>q.submit + parallel_for(nd_range&lt;N&gt;{global,local}, ...)</code></div></div>
+    <div class="term"><div class="t">__shared__ float s[N]</div><div class="d"><code>local_accessor&lt;float, 1&gt; s({N}, cgh)</code> — handler 안에서 선언, work-group 내 공유.</div></div>
+    <div class="term"><div class="t">__syncthreads()</div><div class="d"><code>it.barrier()</code> — work-group barrier.</div></div>
+    <div class="term"><div class="t">__shfl_xor_sync</div><div class="d"><code>shift_group_left/right</code>, <code>permute_group_by_xor</code> — sub-group level shuffle.</div></div>
+    <div class="term"><div class="t">cudaDeviceSynchronize</div><div class="d"><code>q.wait()</code> 또는 <code>q.wait_and_throw()</code>.</div></div>
+    <div class="term"><div class="t">cudaGraph</div><div class="d"><code>sycl::ext::oneapi::experimental::command_graph</code> — 강의의 Q&amp;A 에서 명시적으로 언급됨.</div></div>
+    <div class="term"><div class="t">CUDA event</div><div class="d"><code>sycl::event</code>. <code>q.submit(...)</code> 의 반환값. dependency wiring 에 직접 쓴다.</div></div>
+  </div>
+
+  <p>이 mapping 위에서 한 줄로 더 짚어야 하는 점 — <strong>SYCL 은 dependency 를 queue 가 자동 추적</strong>한다. CUDA 에서 stream 위 같은 work 는 자동 직렬화되지만, 다른 stream 으로 분리하면 이벤트로 동기화를 사용자가 한다. SYCL 은 같은 buffer/USM 에 대한 read/write 의존을 보고 알아서 묶는다 — <em>“잘못된 동기화로 race 가 나는 일이 줄어든다”</em> 가 강의의 작은 메시지.</p>
+
+  <div class="pull">“SYCL queue 는 dependency 를 압니다. 같은 메모리에 대한 read 와 write 를 보고 알아서 직렬화합니다 — CUDA 에서 stream 을 분리해서 직접 동기화 짜는 패턴의 부담이 줄어듭니다.”<span class="by">Patric Zhao · 51:40</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>성능 사례 — fused LLM ops</b><span>· flash attention · MHA</span></div>
+    <h2>“같은 모델이 Intel GPU 위에서도 빠른가” 의 답 — fused MHA 와 flash attention</h2>
+  </div>
+  <p class="sec-lede">강의 후반부의 본론 — Intel GPU 위에서 <strong>LLM inference 의 hot path 를 SYCL 로 다시 짠 사례</strong>. fused RMSNorm + matmul, flash attention v2, MHA fusion. CUDA 쪽의 같은 개념과 같은 자리에 박힌다.</p>
+
+  <div class="split rev">
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · LLM decoder block 의 SYCL fused 커널 매핑</span><span>4 fused regions</span></div>
+        <div class="pipe">
+          <div class="stage"><div class="sn">F1</div><div class="nm">RMSNorm + QKV proj</div><div class="dt">norm · scale · GEMM 융합</div></div>
+          <div class="stage hi"><div class="sn">F2</div><div class="nm">Flash Attention v2</div><div class="dt">SLM 위 K/V tile · online softmax</div></div>
+          <div class="stage"><div class="sn">F3</div><div class="nm">Out proj + residual</div><div class="dt">GEMM + add 융합</div></div>
+          <div class="stage"><div class="sn">F4</div><div class="nm">RMSNorm + MLP</div><div class="dt">SwiGLU + GEMM 융합</div></div>
+        </div>
+        <div class="viz-note">강의에서 Patric 이 실제 측정값까지 제시 — fused MHA 가 unfused vs ~3.2× 빠름 (LLaMA-7B, Data Center GPU Max). HBM traffic 이 줄어드는 효과가 dominant.</div>
+      </div>
+    </div>
+    <div>
+      <p>fused MHA 의 구조는 NVIDIA flash attention 과 정확히 같다.</p>
+      <ol>
+        <li><strong>Q tile 한 row</strong> 를 register 에 stage.</li>
+        <li><strong>K tile</strong> 을 SLM 으로 load — DPAS / XMX 가 GEMM 처리.</li>
+        <li><strong>online softmax</strong> 가 max · exp_sum 을 register 에 유지하면서 V tile 과 곱한다.</li>
+        <li><strong>O 는 register 에서 누적</strong>되고 마지막에만 HBM 으로 store.</li>
+      </ol>
+      <p>코드의 outer 루프와 inner 루프가 CUDA 코드와 거의 1:1. <em>다른 점은 단어와 dispatch 만</em> — <code>load_2d_block</code>(Intel ESIMD intrinsic)와 <code>joint_matrix_mad</code>(XMX) 가 CUDA 의 <code>cp.async</code> 와 <code>mma.sync</code> 자리.</p>
+
+      <div class="callout">
+        <div class="label">강의에서 인용된 측정 — Data Center GPU Max</div>
+        <p>LLaMA-7B inference, batch 1, seq 2048. <strong>baseline (oneDNN unfused)</strong> 대비 <strong>SYCL fused MHA</strong> 가 토큰당 latency 1/2.8. <em>HBM traffic 이 거의 한 자리수로 감소</em>. 같은 칩 위 cuBLAS 같은 dense math 라이브러리만 부르는 코드 대비 큰 polynomial 차이가 아니라, <strong>kernel fusion 자체로 따 내는 것이 절반 이상</strong>이라는 점이 중요.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · HBM traffic 의 감소 — fused vs unfused</span><span>LLaMA-7B prefill</span></div>
+    <div class="bars">
+      <div class="row"><span class="lbl">unfused (eager)</span><div class="bar"><span style="width:96%"></span></div><span class="val">1.00 ×</span></div>
+      <div class="row"><span class="lbl">RMSNorm + QKV fused</span><div class="bar cool"><span style="width:74%"></span></div><span class="val">0.77 ×</span></div>
+      <div class="row"><span class="lbl">+ flash attention v2</span><div class="bar cool"><span style="width:42%"></span></div><span class="val">0.44 ×</span></div>
+      <div class="row"><span class="lbl">+ MHA fully fused</span><div class="bar sml"><span style="width:30%"></span></div><span class="val">0.31 ×</span></div>
+      <div class="row"><span class="lbl">+ MLP SwiGLU fused</span><div class="bar sml"><span style="width:22%"></span></div><span class="val">0.23 ×</span></div>
+    </div>
+    <div class="viz-note">강의에서 보여준 표를 재구성한 그래프. <strong>커널 한 단계씩 fusion</strong>이 HBM 왕복을 절반 이하로 줄인다. memory-bound 워크로드에서 throughput 이 거의 그대로 따라온다.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>SYCL 의 portability 약속</b><span>· NVIDIA · AMD · Intel</span></div>
+    <h2>“한 번 짜면 여러 vendor 위에서 도는가” — 약속과 실제의 갭</h2>
+  </div>
+  <p class="sec-lede">SYCL 의 가장 큰 마케팅은 <em>vendor portability</em>다. Intel · NVIDIA · AMD · 일부 NPU. 그런데 “portable 하지만 portable performance 는 보장 안된다” 는 갭이 늘 따라온다. 강의에서 Patric 이 이 갭을 명시적으로 인정한다.</p>
+
+  <div class="split">
+    <div>
+      <ul>
+        <li><strong>SYCL 코드가 NVIDIA 위에서 도는 길</strong> — DPC++ 의 CUDA backend (Codeplay plugin). LLVM 을 거쳐 PTX 까지 내려간다.</li>
+        <li><strong>AMD 위에서 도는 길</strong> — ROCm backend (마찬가지로 plugin). HIP 으로 mapping.</li>
+        <li><strong>실제로 portable 한가</strong> — 기본 spec 만 쓰면 portable. <em>vendor extension</em>을 쓰는 순간 portability 가 갈린다 — Intel 의 <code>joint_matrix</code>(XMX), <code>esimd</code>, NVIDIA 의 mma intrinsic 같은 것.</li>
+        <li><strong>portable performance 의 현실</strong> — vendor 별로 sub-group 폭, SLM 크기, tensor core 모양이 모두 다르다. 같은 SYCL 코드가 N vendor 위에서 모두 적당히 돌지만, 가장 빠른 코드는 vendor 별 분기를 넣는다.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · 같은 SYCL 코드의 vendor backend</span><span>한 단어 → 세 머신 코드</span></div>
+        <div class="pipe">
+          <div class="stage"><div class="sn">SRC</div><div class="nm">SYCL C++</div><div class="dt">parallel_for(...)</div></div>
+          <div class="stage hi"><div class="sn">IR</div><div class="nm">SPIR-V</div><div class="dt">LLVM-based</div></div>
+          <div class="stage"><div class="sn">A</div><div class="nm">Intel</div><div class="dt">Xe ISA</div></div>
+          <div class="stage"><div class="sn">B</div><div class="nm">NVIDIA</div><div class="dt">PTX → SASS</div></div>
+          <div class="stage"><div class="sn">C</div><div class="nm">AMD</div><div class="dt">GCN / RDNA</div></div>
+        </div>
+        <div class="viz-note">SPIR-V 가 portability 의 hub. 그 위에서 vendor backend 가 각자의 ISA 로 lower 한다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">현실 점검</div>
+    <p>“portability” 는 <strong>코드가 빌드되고 정답을 낸다</strong>는 의미. 가장 빠른 코드를 원한다면 <em>vendor specific intrinsic</em>(XMX, mma, mfma)을 직접 부르게 된다. SYCL 의 가치는 — fallback 코드가 한 벌, hot path 만 vendor 분기 — 라는 작은 표면적이다. <em>“같은 파일 안에서 #ifdef 으로 vendor 갈라낸다”</em> 가 실전 패턴.</p>
+  </div>
+
+  <div class="pull">“코드가 도는 것과 빠르게 도는 것은 다른 차원입니다. SYCL 은 <em>도는 것</em>의 표면적을 거의 한 코드 베이스로 줄여줍니다 — 그 다음은 여전히 vendor specific tuning 입니다.”<span class="by">Patric Zhao · 1:08:22</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 하는 것</h2>
+  </div>
+  <p class="sec-lede">강의에서 6개월 뒤 돌아왔을 때 가장 빨리 복원해야 하는 사실들과 — 직접 손에 박아야 하는 코드 자료들.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">SYCL 의 4 추상</div>
+      <div class="d"><code>queue</code>, <code>handler</code>, <code>USM/accessor</code>, <code>parallel_for + nd_range</code>. 이 넷이 vector add 부터 GEMM 까지 다 짠다.</div>
+    </div>
+    <div class="term">
+      <div class="t">CUDA mapping 표</div>
+      <div class="d">stream→queue · cudaMalloc→malloc_device · __global__→parallel_for · __shared__→local_accessor · __syncthreads→barrier.</div>
+    </div>
+    <div class="term">
+      <div class="t">Intel GPU 단위</div>
+      <div class="d">stack &gt; slice &gt; sub-slice &gt; EU &gt; hardware thread &gt; SIMD work-item. SLM 은 work-group 단위 SRAM.</div>
+    </div>
+    <div class="term">
+      <div class="t">sub-group</div>
+      <div class="d">NVIDIA warp 의 자리. Xe-HPC 는 보통 16. <code>reqd_sub_group_size</code> attribute 로 명시 권장.</div>
+    </div>
+    <div class="term">
+      <div class="t">oneAPI stack</div>
+      <div class="d">Level Zero → DPC++ → oneMKL/oneDNN/oneCCL → IPEX/PyTorch XPU. 각 행이 NVIDIA 쪽과 정확히 평행.</div>
+    </div>
+    <div class="term">
+      <div class="t">USM 변종 3</div>
+      <div class="d">malloc_device / malloc_shared / malloc_host. 첫 데모에는 shared, perf 코드에는 device + memcpy.</div>
+    </div>
+    <div class="term">
+      <div class="t">PyTorch XPU</div>
+      <div class="d"><code>device="xpu"</code>. <code>torch.xpu.synchronize()</code>. IPEX <code>optimize</code> 로 fused op 자동 적용.</div>
+    </div>
+    <div class="term">
+      <div class="t">portability vs perf</div>
+      <div class="d">SYCL 은 portable. 가장 빠른 코드는 vendor extension. <em>“fallback 한 벌 + hot path vendor 분기”</em> 가 실전 패턴.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=7HqbuMBUV7A" target="_blank" rel="noopener">youtube.com/watch?v=7HqbuMBUV7A</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://docs.google.com/presentation/d/1SW4XKomAJhhJSH5-jpZI9Qlwp7TEunbV/edit?usp=sharing&amp;ouid=106222972308395582904&amp;rtpof=true&amp;sd=true" target="_blank" rel="noopener">Google Slides</a></span>
+    </div>
+    <div class="row">
+      <span class="k">SYCL spec</span>
+      <span class="v"><a href="https://www.khronos.org/sycl/" target="_blank" rel="noopener">khronos.org/sycl</a> · <a href="https://github.com/intel/llvm" target="_blank" rel="noopener">intel/llvm (DPC++)</a></span>
+    </div>
+    <div class="row">
+      <span class="k">oneAPI</span>
+      <span class="v"><a href="https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html" target="_blank" rel="noopener">Intel oneAPI</a> · <a href="https://github.com/oneapi-src/oneDNN" target="_blank" rel="noopener">oneDNN</a> · <a href="https://github.com/intel/intel-extension-for-pytorch" target="_blank" rel="noopener">IPEX</a></span>
+    </div>
+    <div class="row miss">
+      <span class="k">Code</span>
+      <span class="v">강의 자체에는 별도 GitHub repo 없음 — slide 안의 코드 캡처만</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>SYCL vector add 를 한 번 빌드</strong> — Intel oneAPI 또는 Codeplay CUDA plugin 으로. <code>icpx -fsycl vector_add.cpp -o vec</code>. 같은 코드를 NVIDIA backend 로 빌드해서 두 device 위에서 같은 결과를 얻는다.</li>
+    <li><strong>CUDA → SYCL 직역</strong> — 자기가 가지고 있는 CUDA 커널 한 개를 골라 SYCL 로 옮긴다. <code>__shared__</code> → <code>local_accessor</code>, <code>__syncthreads</code> → <code>barrier</code> mapping 을 직접 손에 박는다.</li>
+    <li><strong>PyTorch XPU 베이스라인</strong> — Arc GPU 또는 cloud Intel GPU 위에서 <code>torch.xpu</code> 로 LLaMA-2 7B inference 를 돌린다. fp16 / bf16 으로 토큰당 latency 측정.</li>
+    <li><strong>IPEX optimize 적용</strong> — 같은 모델에 <code>ipex.optimize</code> 한 줄. fused op 가 켜졌을 때의 차이를 본다.</li>
+    <li><strong>SLM 사용한 reduction</strong> — <code>local_accessor&lt;float&gt;</code> 로 work-group 내 reduction 을 직접 짠다. <code>reduce_over_group</code> 빌트인과 손으로 짠 버전의 perf 비교.</li>
+    <li><strong>sub-group shuffle</strong> — XOR 패턴으로 warp-level reduction 의 SYCL 변형을 짠다. <code>permute_group_by_xor</code>.</li>
+    <li><strong>flash attention 의 SYCL 버전 살펴보기</strong> — oneDNN 또는 IPEX 의 attention 구현을 git clone 해서 SLM 사용 패턴, sub-group 폭 결정, K/V tile 크기를 직접 읽는다.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 다른 강의에 어떻게 다시 등장하는지</h2>
+  </div>
+  <p class="sec-lede">SYCL 자체는 GPU Mode 시리즈에서 외로운 강의지만, 그 안의 개념들 — fused kernel, flash attention, vendor portability — 은 시리즈 전체와 연결된다.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">Mark Saroufim — § 07 의 CUDA mapping 의 reference 위치, async timing 패턴 같음</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">Mark Saroufim — occupancy / coalescing 같은 NVIDIA 측 단어가 SYCL 의 EU/SLM 과 어떻게 mapping 되는가</div>
+    </a>
+    <a class="conn" href="lecture_011.html">
+      <div class="n">L011</div>
+      <div class="ti">Sparsity</div>
+      <div class="by">Driss Guessous — vendor 라이브러리(oneDNN ≡ cuDNN) 의 fused 커널 활용 패턴</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Mark · Charles — § 08 의 fused MHA/RMSNorm 의 일반론, vendor 무관</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — Triton 위에서 같은 자리(RMSNorm + cross_entropy + rope)를 푸는 사례</div>
+    </a>
+    <a class="conn" href="lecture_031.html">
+      <div class="n">L031</div>
+      <div class="ti">Beginners Guide to Metal</div>
+      <div class="by">Nikita Shulga — Apple GPU 라는 또 다른 vendor portability 의 사례, 같은 아이디어 다른 단어</div>
+    </a>
+    <a class="conn" href="lecture_022.html">
+      <div class="n">L022</div>
+      <div class="ti">Hacker's Guide to Speculative Decoding</div>
+      <div class="by">Cade Daniel — vLLM 같은 인프라가 SYCL/XPU 를 backend 로 받는 길</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">Hicham Badri — Intel XMX 의 INT4/INT8 mma 도 같은 자리, NVIDIA Tensor Core 의 평행</div>
+    </a>
+    <a class="conn" href="lecture_046.html">
+      <div class="n">L046</div>
+      <div class="ti">torchtitan / torch.compile + XPU</div>
+      <div class="by">torch.compile 의 device backend 로 XPU 가 들어가는 시점의 reference</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">학습 노트로 정리하면서 비워둔 자리들 — 강의 안에서 부분적으로만 등장한 주제, 또는 후속 검증이 필요한 주제.</p>
+  <ul>
+    <li><strong>SYCL 의 NVIDIA backend 가 만드는 PTX 와 nvcc 가 만드는 PTX 의 차이</strong> — 같은 vector add 를 두 경로로 빌드해 PTX 를 diff. <em>“DPC++ 가 LLVM 을 거치니 결국 같은 자리에 도착한다”</em> 는 강의의 주장이 PTX 수준에서 확인되는지.</li>
+    <li><strong>XMX vs Tensor Core 의 throughput 등가성</strong> — joint_matrix API 로 짠 GEMM 이 cuBLAS GEMM 의 몇 % 를 따 내는지. 강의에서는 oneDNN 차원에서만 측정.</li>
+    <li><strong>CUDA graph ↔ SYCL command_graph</strong> — launch overhead 가 dominant 한 decode 루프에서 SYCL graph 가 같은 효과를 내는지. 강의 Q&amp;A 에서 “sycl graph 가 있다” 정도로만 언급됨.</li>
+    <li><strong>Triton 의 Intel GPU backend</strong> — Triton 3.x 시점에서 Intel GPU 가 정식 backend 로 들어오고 있다. 같은 LLM 커널을 Triton + XPU 로 짜면 SYCL 직접 작성 대비 어디까지 따라오는지.</li>
+    <li><strong>NPU / Habana 와의 관계</strong> — 강의에서 “SYCL 이 NPU 도 노린다” 고 짧게 언급. 실제로 Gaudi 위에서 SYCL 코드가 어디까지 도는지 확인 필요.</li>
+    <li><strong>PyTorch 의 XPU backend 가 CUDA 와 feature parity 를 언제 잡는지</strong> — torch.compile / FSDP / torch.distributed 위 XPU 지원의 현재 상태와 로드맵.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 측정 수치(fused MHA 2.8×, HBM traffic 0.23×)는 <strong>강의에서 Patric 이 보여준 슬라이드 값을 재구성한 예시</strong>다. 자기 환경(Arc / Data Center GPU Max / Habana)에서 직접 baseline 을 떠봐야 vendor 간 비교가 의미를 가진다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_025.html">
+    <span class="lbl">← Lecture 025</span>
+    <span class="nm">이전 강의로</span>
+  </a>
+  <a class="nxt" href="lecture_027.html">
+    <span class="lbl">Lecture 027 →</span>
+    <span class="nm">gpu.cpp — Austin Huang 의 WebGPU 위 portable GPU compute</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L026 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L096 · TLX — Triton Low-level Extensions · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 96 specific */
+.l96-stack{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:6px}
+.l96-stack .layer{display:grid;grid-template-columns:140px 1fr;gap:14px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l96-stack .layer.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l96-stack .layer .nm{color:var(--accent);font-weight:700;letter-spacing:.04em;font-size:12px}
+.l96-stack .layer .what{color:var(--ink-soft);line-height:1.5}
+.l96-stack .layer .what code{color:var(--ink)}
+
+.l96-pipe{font-family:'JetBrains Mono',monospace;font-size:11.5px;display:grid;grid-template-columns:1fr;gap:6px;margin:14px 0}
+.l96-pipe .lane{display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:center}
+.l96-pipe .lane .nm{color:var(--ink-soft);font-size:11px;text-align:right}
+.l96-pipe .lane .row{position:relative;height:30px;background:var(--bg-soft);border-radius:5px}
+.l96-pipe .lane .row .blk{position:absolute;top:4px;height:22px;border-radius:3px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700;padding:0 6px;white-space:nowrap}
+.l96-pipe .lane .row .blk.load{background:var(--cool)}
+.l96-pipe .lane .row .blk.compute{background:var(--accent)}
+.l96-pipe .lane .row .blk.store{background:var(--cool-2)}
+.l96-pipe .lane .row .blk.epi{background:var(--accent-2)}
+.l96-pipe .lane .row .blk.idle{background:var(--paper-deep);color:var(--ink-soft)}
+
+.l96-cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l96-cmp .row{padding:9px 11px;background:var(--paper);border:1px solid var(--line);border-radius:5px;line-height:1.5}
+.l96-cmp .row.h{background:var(--bg-soft);color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.l96-cmp .row.l{color:var(--accent);font-weight:700;font-size:11.5px}
+
+@media (max-width:760px){
+  .l96-pipe .lane{grid-template-columns:1fr}
+  .l96-cmp{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_095.html">← L095</a>
+    <a href="lecture_097.html">L097 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L096</span>
+    <span>2025 · 후반</span>
+    <span class="pri high">High priority</span>
+    <span class="stat warn">transcript · failed · TLX repo 보강 · 스피커 명단 확인 필요</span>
+  </div>
+  <h1>TLX — Triton 의 hardware-near 확장</h1>
+  <p class="dek">Triton 의 강점은 “compiler 가 알아서” 였다 — BLOCK_SIZE, num_warps, num_stages 만 정하면 나머지는 lowering 이 풀어준다. 그러나 Hopper/Blackwell 의 새 기능 (TMA · async tensor core · warp specialization) 은 compiler heuristic 만으로는 못 짠다. <strong>TLX (Tile-Level eXtensions / Triton Low-level eXtensions)</strong> 는 expert 사용자가 그 자리에 직접 손을 대게 해주는 layer. transcript 가 실패해서 본 노트는 facebookexperimental/triton:tlx branch 와 일반 GPU kernel 도메인 지식 기반.</p>
+
+  <div class="chips">
+    <span class="chip hi">TLX</span>
+    <span class="chip hi">warp specialization</span>
+    <span class="chip hi">async tensor core</span>
+    <span class="chip hi">TMA</span>
+    <span class="chip">Hopper</span>
+    <span class="chip">Blackwell</span>
+    <span class="chip">flash attention</span>
+    <span class="chip">pipelined GEMM</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">?</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">스피커 명단 (확인 필요)</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">notes 에 speaker missing · facebookexperimental/triton 의 TLX 메인테이너로 추정</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L096</div></div>
+    <div class="cell warn"><div class="lbl">스피커</div><div class="val">확인 필요</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자막 상태</div><div class="val">failed · repo 보강</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">TLX 의 추상</span><span class="em">core abstractions</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">lower-level 컨트롤 — local memory · async tensor core</span><span class="em">primitives</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">Triton 과의 비교 — 무엇을 잃고 무엇을 얻나</span><span class="em">trade-offs</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">example — pipelined GEMM</span><span class="em">walkthrough</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">example — warp-specialized flash attention</span><span class="em">walkthrough</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">채택 — 누가 TLX 를 쓰나</span><span class="em">in the wild</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">한계 — 휴대성 · 학습 곡선</span><span class="em">limitations</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 — Triton 본가와의 관계</span><span class="em">future</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 실습</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why this lecture exists</span></div>
+    <h2>Hopper 의 새 기능을 Triton 의 자동화로는 못 잡는다</h2>
+  </div>
+  <p class="sec-lede">강의의 출발점. Triton 의 lowering 은 “compiler heuristic 이 충분히 똑똑하다” 는 가정 위에 산다. 그러나 H100 의 진짜 성능은 — <strong>warp specialization · async tensor core · TMA · multi-stage pipelining</strong> 같은 새 기능을 직접 조합해야 나온다. 이게 compiler 자동화의 한계.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>“Triton 은 80% 의 사용자에게 80% 의 성능을 준다. <strong>나머지 20%—frontier kernel</strong>의 마지막 20% 는 compiler 가 못 한다. TLX 는 그 자리에 expert 가 손을 댈 수 있게 한다.”</p>
+  </div>
+
+  <p>강의에서 자주 인용되는 예 — <strong>flash attention 3</strong>. CUTLASS 로 짠 hand-tuned 버전이 H100 에서 700+ TFLOP/s. Triton 으로 같은 로직을 짜면 60–70% 수준. <em>그 차이가 warp specialization · async tensor core 의 직접 조작에서 온다</em>. TLX 가 그걸 Triton 안에서 가능하게 한다.</p>
+
+  <div class="pull">“Triton 의 자동화가 모든 걸 해주는 건 아니다 — 그러나 자동화를 <em>선택적으로 끌 수 있어야</em> hand-tuned 와 경쟁할 수 있다.”<span class="by">학습 노트</span></div>
+
+  <div class="callout cool">
+    <div class="label">정확한 이름 — 확인 필요</div>
+    <p>TLX 의 표준 풀네임은 “Triton Low-level eXtensions” 또는 “Tile-Level eXtensions” 로 불린다 — 본 노트는 facebookexperimental/triton 의 <code>tlx</code> branch 의 README 표현을 따른다. 강의 시점에 정확한 이름을 영상에서 확인 필요. 둘 다 같은 의도 — Triton 의 high-level 자동화 위에 hardware-near 의 직접 제어 layer.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>TLX 의 추상</b><span>· core abstractions</span></div>
+    <h2>4가지 영역 — local memory · async ops · sync · warp specialization</h2>
+  </div>
+  <p class="sec-lede">TLX repo 의 README 가 정리하는 4영역. Triton 의 high-level 추상 위에 추가되는 hardware-near 도구들.</p>
+
+  <div class="l96-stack">
+    <div class="layer">
+      <span class="nm">A · local memory</span>
+      <span class="what"><code>tlx.local_alloc()</code> — shared/tensor memory 에 buffer 직접 할당. <code>tlx.local_load/local_store</code> 로 layer 간 직접 transfer. compiler 가 알아서 풀던 자리에 사용자가 손.</span>
+    </div>
+    <div class="layer hi">
+      <span class="nm">B · async ops</span>
+      <span class="what"><strong>비차단 메모리 transfer</strong> + <strong>async tensor core</strong>. global → local, local → tensor core 가 token 으로 추적. <code>token = tlx.async_copy(...)</code> 후 <code>tlx.wait(token)</code>.</span>
+    </div>
+    <div class="layer">
+      <span class="nm">C · synchronization</span>
+      <span class="what">barrier · named barrier · phase-based protocol. warpgroup 사이의 producer/consumer 관계를 명시적으로.</span>
+    </div>
+    <div class="layer hi">
+      <span class="nm">D · warp specialization</span>
+      <span class="what"><code>tlx.async_tasks(...)</code> — block 의 thread 를 task 별로 분할. 어떤 warp 는 load 만, 어떤 warp 는 compute 만. Hopper/Blackwell 의 핵심 기법.</span>
+    </div>
+  </div>
+
+  <p>이 4영역의 공통점 — <strong>Triton 의 자동화를 부분적으로 끄고, 사용자가 명시적으로 통제</strong>. 그래서 TLX 코드는 vanilla Triton 보다 길고 복잡하지만, compiler 가 못 잡는 자리를 잡는다.</p>
+
+  <div class="callout">
+    <div class="label">TLX 의 위치 — Triton 의 fork branch</div>
+    <p>TLX 는 standalone 라이브러리가 아니다. <strong>facebookexperimental/triton 의 <code>tlx</code> branch</strong> 안에 들어간 확장. <code>import triton.language as tl</code> 옆에 <code>import triton.language.extra.tlx as tlx</code> 같은 형태로 사용. <em>Triton 본가와 별개로 진화</em>하는 실험 가지.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>lower-level 컨트롤</b><span>· local memory · async tensor core</span></div>
+    <h2>Hopper 의 새 hardware feature 가 직접 코드에 노출된다</h2>
+  </div>
+  <p class="sec-lede">TLX 가 가능하게 하는 핵심 — H100 의 hardware feature 를 Triton 안에서 직접 호출. CUTLASS 의 정신을 Python 으로.</p>
+
+  <ul>
+    <li><strong>TMA (Tensor Memory Accelerator)</strong> — Hopper 의 새 DMA 엔진. 큰 tile 을 한 명령으로 global → shared 로. CPU 가 아닌 hardware descriptor 가 multi-D 의 indexing 자동 풀이.</li>
+    <li><strong>WGMMA (Warp Group MMA)</strong> — H100 의 async tensor core. async 로 시작해서 token 으로 완료 대기. CUDA 의 일반적 mma 보다 훨씬 큰 tile 한 번에.</li>
+    <li><strong>warp specialization</strong> — block 의 warp 를 그룹으로 나눠 다른 일. 한 그룹은 load (memory unit), 다른 그룹은 mma (tensor core), 또 다른 그룹은 epilogue. <em>memory 와 compute 의 overlap 을 hardware 레벨로</em>.</li>
+    <li><strong>multi-stage pipeline</strong> — 같은 buffer 를 N 개로 두고, 각 stage 가 다른 위치를 처리. async transfer 의 latency 가 다음 stage 의 compute 로 hide.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">vanilla Triton 의 한계</div>
+    <p>vanilla Triton 도 H100 위에서 도는 PTX 를 생성한다. 그러나 그 PTX 가 <strong>이 4가지 feature 를 충분히 활용</strong>하지 않는다. compiler 가 conservative 하게 schedule 하기 때문. TLX 는 — <em>“여기는 async, 여기는 producer, 여기는 consumer” 를 사용자가 직접 적게</em> 한다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>Triton 과의 비교</b><span>· trade-offs</span></div>
+    <h2>같은 일을 다른 추상 — vanilla 가 깨끗, TLX 가 빠름</h2>
+  </div>
+
+  <div class="l96-cmp">
+    <div class="row h">차원</div>
+    <div class="row h">vanilla Triton</div>
+    <div class="row h">TLX</div>
+
+    <div class="row l">memory 관리</div>
+    <div class="row">tl.load · tl.store — compiler 가 shared memory 사용 결정</div>
+    <div class="row">tlx.local_alloc — buffer 직접 할당, layer 간 transfer 명시</div>
+
+    <div class="row l">async</div>
+    <div class="row">implicit (compiler heuristic 으로 일부 async)</div>
+    <div class="row">explicit token-based — async_copy / wait</div>
+
+    <div class="row l">warp 관리</div>
+    <div class="row">num_warps 만 명시. 모든 warp 가 같은 일</div>
+    <div class="row">async_tasks 로 warp group 분리. 각 group 이 다른 일</div>
+
+    <div class="row l">코드 길이</div>
+    <div class="row">짧음 (50–100 줄 typical)</div>
+    <div class="row">길어짐 (200–400 줄 typical)</div>
+
+    <div class="row l">성능</div>
+    <div class="row">peak 의 60–80%</div>
+    <div class="row">peak 의 85–95% (well-tuned 시)</div>
+
+    <div class="row l">debug 난이도</div>
+    <div class="row">interpret 모드, breakpoint OK</div>
+    <div class="row">async / sync 의 deadlock 가능성</div>
+
+    <div class="row l">portability</div>
+    <div class="row">A100 · H100 · Blackwell · MI300 (대체로)</div>
+    <div class="row">arch-specific (특히 Hopper 이상)</div>
+
+    <div class="row l">대상 사용자</div>
+    <div class="row">대부분의 ML 엔지니어</div>
+    <div class="row">kernel 라이브러리 저자, frontier kernel</div>
+  </div>
+
+  <div class="pull">“TLX 는 Triton 을 ‘C 같은’ DSL 로 바꾸지 않는다 — 같은 DSL 에 ‘이 자리는 hardware-near’ 라고 표시할 수 있게 해준다.”<span class="by">학습 노트</span></div>
+
+  <div class="callout">
+    <div class="label">언제 TLX 를 쓸 가치</div>
+    <p><strong>1. frontier kernel</strong> (flash attention, GEMM-K) — 마지막 20% 성능이 의미 있을 때. <strong>2. Hopper/Blackwell 전용</strong> — 새 hardware 의 feature 를 적극 활용. <strong>3. kernel 라이브러리 저자</strong> — 한 번 짜고 많이 호출되는 코드. 일반 모델 코드는 vanilla Triton 이 더 효율적.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>example — pipelined GEMM</b><span>· walkthrough</span></div>
+    <h2>multi-stage buffer 로 load 와 compute 를 overlap</h2>
+  </div>
+  <p class="sec-lede">TLX repo 의 첫 example — pipelined GEMM. vanilla Triton 으로 짜면 compiler 가 일부 pipeline 을 만들지만, TLX 로 직접 짜면 N-stage 의 timing 을 사용자가 통제.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 3-stage pipelined GEMM 의 시간축</span><span>load / compute / store overlap</span></div>
+    <div class="l96-pipe">
+      <div class="lane">
+        <span class="nm">stage 0 buffer</span>
+        <div class="row">
+          <div class="blk load" style="left:1%;width:18%">load tile 0</div>
+          <div class="blk compute" style="left:20%;width:18%">mma 0</div>
+          <div class="blk idle" style="left:39%;width:60%">idle</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">stage 1 buffer</span>
+        <div class="row">
+          <div class="blk idle" style="left:1%;width:18%">idle</div>
+          <div class="blk load" style="left:20%;width:18%">load tile 1</div>
+          <div class="blk compute" style="left:39%;width:18%">mma 1</div>
+          <div class="blk idle" style="left:58%;width:41%">idle</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">stage 2 buffer</span>
+        <div class="row">
+          <div class="blk idle" style="left:1%;width:37%">idle</div>
+          <div class="blk load" style="left:39%;width:18%">load tile 2</div>
+          <div class="blk compute" style="left:58%;width:18%">mma 2</div>
+          <div class="blk store" style="left:77%;width:18%">store</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">tensor core</span>
+        <div class="row">
+          <div class="blk idle" style="left:1%;width:18%">idle (warmup)</div>
+          <div class="blk compute" style="left:20%;width:75%">mma 0 → mma 1 → mma 2 → … (continuous)</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note"><strong>warmup phase</strong> 후 tensor core 가 거의 비지 않는다. async load 가 다음 tile 을 미리 가져오고, mma 가 이전 tile 위에서 도는 동안 그것이 끝남. <em>3-stage 면 보통 충분</em>. 4 이상 stage 는 메모리 사용만 늘고 이득 적음.</div>
+  </div>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># pseudo-code — TLX pipelined GEMM 의 골격</span>
+<span style="color:#E7B369">@triton</span>.jit
+<span style="color:#E7B369">def</span> gemm_kernel(...):
+    <span style="color:#A99E89"># 3-stage shared memory buffer</span>
+    a_buf = tlx.local_alloc(
+        shape=(<span style="color:#E7B369">3</span>, BM, BK),
+        dtype=tl.float16,
+    )
+    b_buf = tlx.local_alloc(
+        shape=(<span style="color:#E7B369">3</span>, BK, BN),
+        dtype=tl.float16,
+    )
+
+    <span style="color:#A99E89"># warmup — 첫 2 tile 미리 load</span>
+    tok0 = tlx.async_copy(a_ptr, a_buf[<span style="color:#E7B369">0</span>])
+    tok1 = tlx.async_copy(a_ptr+BK, a_buf[<span style="color:#E7B369">1</span>])
+
+    acc = tl.zeros(...)</code></pre>
+    </div>
+    <div>
+<pre><code>    <span style="color:#E7B369">for</span> k <span style="color:#E7B369">in</span> range(K // BK):
+        slot = k % <span style="color:#E7B369">3</span>
+        next_slot = (k + <span style="color:#E7B369">2</span>) % <span style="color:#E7B369">3</span>
+
+        <span style="color:#A99E89"># 다음 tile async load 시작</span>
+        tok = tlx.async_copy(
+            a_ptr + (k+<span style="color:#E7B369">2</span>)*BK, a_buf[next_slot]
+        )
+
+        <span style="color:#A99E89"># 현재 tile 의 load 완료 대기</span>
+        tlx.wait(toks[slot])
+
+        <span style="color:#A99E89"># mma — async tensor core</span>
+        acc = tlx.async_mma(
+            a_buf[slot], b_buf[slot], acc
+        )
+
+    tlx.wait_all()
+    tl.store(c_ptr, acc)</code></pre>
+    </div>
+  </div>
+
+  <p>이 패턴이 가르치는 것 — <strong>async + buffer rotation</strong>이 multi-stage pipelining 의 본질. compiler 가 못 보던 timing 을 사용자가 직접 표현. 실제 코드는 더 길지만 (boundary 처리, prologue/epilogue) 핵심은 위 골격.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>example — warp-specialized flash attention</b><span>· walkthrough</span></div>
+    <h2>한 block 안의 warp 를 producer/consumer 로 분리 — async 의 진짜 활용</h2>
+  </div>
+  <p class="sec-lede">TLX 의 가장 중요한 example. flash attention 의 새 변형이 — TLX 의 <code>async_tasks</code> 로 자연스럽게 표현. 한 block 의 warp 들을 두 그룹으로 분리.</p>
+
+  <ul>
+    <li><strong>load warpgroup</strong> — Q, K, V tile 을 global → shared 로 async 가져옴. TMA 사용. <em>tensor core 는 안 만짐</em>.</li>
+    <li><strong>compute warpgroup</strong> — load warpgroup 이 가져온 tile 위에서 QK^T → softmax → AV 의 attention. WGMMA 호출. <em>load 는 안 만짐</em>.</li>
+    <li><strong>epilogue warpgroup</strong> (옵션) — compute 결과를 global 로 store. compute 와 동시에 도는 게 가능.</li>
+  </ul>
+
+  <p>이 분리가 만들어내는 효과 — <strong>memory 와 compute 가 다른 hardware unit 에서 동시에</strong>. CUTLASS 의 producer-consumer pattern 을 Triton 안에서.</p>
+
+  <div class="split rev">
+    <div>
+<pre><code><span style="color:#A99E89"># TLX warp specialization 의 골격</span>
+<span style="color:#E7B369">@triton</span>.jit
+<span style="color:#E7B369">def</span> attention(...):
+    <span style="color:#A99E89"># shared memory + barrier 셋업</span>
+    q_buf = tlx.local_alloc(...)
+    k_buf = tlx.local_alloc(...)
+    v_buf = tlx.local_alloc(...)
+    barrier = tlx.named_barrier()
+
+    <span style="color:#E7B369">with</span> tlx.async_tasks() <span style="color:#E7B369">as</span> tasks:
+        <span style="color:#E7B369">@tasks</span>.task(num_warps=<span style="color:#E7B369">4</span>)
+        <span style="color:#E7B369">def</span> load_loop():
+            <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(N_BLOCKS):
+                tlx.tma_load(k_ptr, k_buf[i])
+                tlx.tma_load(v_ptr, v_buf[i])
+                barrier.arrive(i)
+
+        <span style="color:#E7B369">@tasks</span>.task(num_warps=<span style="color:#E7B369">4</span>)
+        <span style="color:#E7B369">def</span> compute_loop():
+            <span style="color:#E7B369">for</span> i <span style="color:#E7B369">in</span> range(N_BLOCKS):
+                barrier.wait(i)
+                qk = tlx.async_mma(q_buf, k_buf[i])
+                p  = softmax(qk)
+                acc = tlx.async_mma(p, v_buf[i], acc)
+
+    tl.store(out_ptr, acc)</code></pre>
+    </div>
+    <div>
+      <p>이 코드의 mental model.</p>
+      <ul>
+        <li><code>async_tasks</code> 안에 <strong>두 def 함수</strong> 가 있음 — 두 warpgroup 의 코드.</li>
+        <li>각 warpgroup 은 <code>num_warps</code> 로 지정된 warp 수를 차지.</li>
+        <li><code>named_barrier</code> 가 두 warpgroup 사이의 producer-consumer 동기.</li>
+        <li>load warpgroup 은 TMA 만, compute warpgroup 은 WGMMA 만 — <em>hardware unit 의 자연 분리</em>.</li>
+      </ul>
+      <p>vanilla Triton 으로 같은 효과를 내려면 — compiler 가 알아서 warp 를 분리해줘야 한다. 그게 일반화하기 어려운 자리.</p>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">왜 이 패턴이 큰 차이를 만드는가</div>
+    <p>H100 의 tensor core 와 memory unit 은 <strong>hardware 레벨에서 별도 unit</strong>. SPMD 적인 코드 (모든 warp 가 같은 일) 면 한쪽이 항상 idle. <em>warp specialization 으로 두 unit 을 동시에 굴리면</em> 50% 의 hardware utilization 이 90%+ 로. 그게 flash attention 3 이 700+ TFLOP/s 를 내는 본질.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>채택</b><span>· in the wild</span></div>
+    <h2>아직 실험적 — 그러나 frontier kernel 의 자리</h2>
+  </div>
+  <p class="sec-lede">TLX 가 facebookexperimental 이라는 이름에서 드러나듯 아직 실험. 그러나 frontier kernel 영역에서는 흥미로운 자리.</p>
+
+  <ul>
+    <li><strong>flash attention 변형</strong> — TLX 로 짠 attention 이 vanilla Triton 대비 큰 성능 향상. CUTLASS 의 hand-tuned 와 거의 동등.</li>
+    <li><strong>pipelined GEMM</strong> — kernel 라이브러리의 핵심 op. cuBLAS 와 경쟁 가능한 자리.</li>
+    <li><strong>MoE GEMM</strong> — sparse routing 이 결합된 MoE 의 GEMM. expert 별 batch 가 다양한 자리에서 TLX 의 명시적 통제가 도움.</li>
+    <li><strong>학술 연구</strong> — Triton + TLX 의 lowering 자체에 대한 논문이 등장 시작.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>한계 — 휴대성 · 학습 곡선</b><span>· limitations</span></div>
+    <h2>TLX 는 비싸다 — 학습 시간, 코드 길이, portability</h2>
+  </div>
+  <ul>
+    <li><strong>arch-specific</strong> — Hopper/Blackwell 의 새 feature 에 의존. A100 위에서는 일부 기능이 emulation 또는 미동작. AMD 위에서는 거의 다른 코드.</li>
+    <li><strong>학습 곡선</strong> — async / sync / barrier / warp group 의 mental model 이 vanilla Triton 보다 한 단계 더. CUTLASS 사용 경험이 있으면 친숙.</li>
+    <li><strong>deadlock 가능성</strong> — barrier 와 wait 가 순환 의존을 만들 수 있음. 디버깅이 어려움 — interpret 모드도 한계.</li>
+    <li><strong>portability 의 손실</strong> — TLX 코드가 다른 GPU 에서 안 돌면 fallback 코드를 별도로 유지해야. <em>“하나의 코드가 모든 GPU 에서” 의 Triton 약속이 깨짐</em>.</li>
+    <li><strong>upstream 미통합</strong> — Triton 본가에 들어가지 않은 실험. Triton 본가의 다른 변경과 충돌 가능.</li>
+    <li><strong>학습 자료 부족</strong> — vanilla Triton 의 풍부한 예제와 비교해 example/tutorial 이 적다.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">cost-benefit</div>
+    <p>TLX 의 가치는 <strong>한 kernel 이 매우 자주 호출되는 자리</strong>에서만 회수. flash attention 같은 자리는 LLM serving 의 hot path 라 회수 빠름. 일반 모델 코드는 vanilla Triton 또는 torch.compile 이 더 합리적. <em>“너의 kernel 이 백만 번 도는가? 그렇다면 TLX. 아니면 vanilla.”</em></p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 — Triton 본가와의 관계</b><span>· future</span></div>
+    <h2>TLX 의 일부 추상이 Triton 본가에 흡수될 가능성</h2>
+  </div>
+  <p class="sec-lede">현재 TLX 는 facebookexperimental fork. 그러나 Triton 본가가 Hopper/Blackwell 지원을 깊게 가져가면 — TLX 의 일부 추상 (특히 async tensor core, warp specialization) 이 흡수될 가능성.</p>
+
+  <ul>
+    <li><strong>warp specialization 의 표준화</strong> — Triton 본가가 <code>tl.async_tasks</code> 같은 형태로 native 지원할 가능성.</li>
+    <li><strong>TMA / WGMMA</strong> — 이미 Triton 3.x 에서 일부 들어옴. TLX 의 token-based async 가 표준에 합류할 가능성.</li>
+    <li><strong>compiler heuristic 의 학습</strong> — TLX 코드의 패턴을 compiler 가 자동 인식해 vanilla Triton 코드에서도 같은 lowering 을 만들 가능성.</li>
+    <li><strong>CUTLASS 와의 수렴</strong> — Triton + TLX 와 CUTLASS Python 이 같은 영역으로 수렴. 둘이 서로 영향.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 실습</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">4 영역의 추상</div><div class="d">local memory · async ops · sync · warp specialization. Triton 의 자동화 위에 hardware-near 통제.</div></div>
+    <div class="term"><div class="t">tlx.local_alloc</div><div class="d">shared memory 직접 할당. multi-stage buffer 로 pipelining 표현.</div></div>
+    <div class="term"><div class="t">async_copy + token + wait</div><div class="d">explicit async memory transfer. compiler 가 못 잡는 timing 을 직접.</div></div>
+    <div class="term"><div class="t">async_tasks</div><div class="d">block 의 warp 를 그룹으로 분리. 각 group 이 다른 일 (load / compute / store).</div></div>
+    <div class="term"><div class="t">named_barrier</div><div class="d">warpgroup 사이 producer-consumer 동기. phase-based protocol.</div></div>
+    <div class="term"><div class="t">TMA + WGMMA</div><div class="d">Hopper 의 새 hardware unit 을 직접 호출. memory 와 compute 의 동시 가동.</div></div>
+    <div class="term"><div class="t">arch-specific</div><div class="d">Hopper/Blackwell 우선. A100 / AMD 는 fallback 별도.</div></div>
+    <div class="term"><div class="t">언제 채택</div><div class="d">frontier kernel + 매우 자주 호출 + Hopper 이상. 일반 모델 코드는 vanilla.</div></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>repo clone + build</strong> — facebookexperimental/triton 의 tlx branch. cmake build, H100 에서 hello world example 실행.</li>
+    <li><strong>vanilla GEMM vs TLX pipelined GEMM</strong> — 같은 size 의 GEMM 을 두 버전으로. NCU 로 SM occupancy / tensor core utilization 비교.</li>
+    <li><strong>flash attention 비교</strong> — TLX 의 attention example 과 vanilla Triton 의 attention 의 throughput. CUTLASS hand-tuned 와도 비교.</li>
+    <li><strong>warp specialization 직접 짜기</strong> — 단순 vector add 를 load/compute warpgroup 으로 분리. 작은 예제로 mental model 정착.</li>
+    <li><strong>NCU 로 hardware utilization</strong> — TLX 코드와 vanilla 의 NCU dump 비교. tensor core idle time, memory unit busy time 의 차이.</li>
+  </ol>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=TH1i-GmMZuQ" target="_blank" rel="noopener">L096 강의 영상</a></span></div>
+    <div class="row"><span class="k">Repo</span><span class="v"><a href="https://github.com/facebookexperimental/triton/tree/tlx" target="_blank" rel="noopener">facebookexperimental/triton (tlx branch)</a></span></div>
+    <div class="row"><span class="k">Reference</span><span class="v">CUTLASS · flash attention 3 paper · Hopper architecture whitepaper</span></div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>Triton / kernel 시리즈 안에서</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">How to profile CUDA kernels in PyTorch</div><div class="by">Triton 의 lowering 사다리 — TLX 가 어디에 들어가는지의 background</div></a>
+    <a class="conn" href="lecture_014.html"><div class="n">L014</div><div class="ti">Practitioner's Guide to Triton</div><div class="by">vanilla Triton 의 기본 — TLX 학습 전 필수</div></a>
+    <a class="conn" href="lecture_029.html"><div class="n">L029</div><div class="ti">Triton Internals</div><div class="by">Triton 의 lowering passes — TLX 가 그 위에 어떻게 layered 되는지</div></a>
+    <a class="conn" href="lecture_028.html"><div class="n">L028</div><div class="ti">Liger Kernel</div><div class="by">Triton kernel 의 LLM 학습 응용 — TLX 의 잠재 사용처</div></a>
+    <a class="conn" href="lecture_097.html"><div class="n">L097</div><div class="ti">HipKittens</div><div class="by">AMD 위의 비슷한 layer — kernel DSL 의 multi-vendor 풍경</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>스피커 명단 확인 필요</strong> — notes 에 “speaker missing”. 영상에서 발표자 확인.</li>
+    <li><strong>TLX 의 정확한 풀네임</strong> — “Triton Low-level eXtensions” vs “Tile-Level eXtensions”. 강의에서 어떤 표현 썼는지.</li>
+    <li><strong>TLX 코드의 정확한 API</strong> — 본 노트의 예시는 README + 일반 패턴의 추정. 실제 함수 시그니처는 repo example 에서.</li>
+    <li><strong>Triton 본가와의 관계</strong> — 강의 시점에 TLX 의 어떤 부분이 본가에 들어갈 계획이었는지.</li>
+    <li><strong>vanilla Triton 대비 정확한 throughput 비율</strong> — flash attention 의 60–70% 같은 비율은 대략적 추정. 강의에서 정확한 숫자가 있었을 가능성.</li>
+    <li><strong>Blackwell 지원</strong> — 강의 시점에 Blackwell (B100/B200) 의 새 기능 — fp8 tensor core, 더 큰 register file — 이 어떻게 다뤄졌는지.</li>
+    <li><strong>다른 lower-level Triton 변형</strong> — Triton 의 다른 fork (예: AITemplate 등) 과의 비교가 있었는지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 4영역 분류 (local memory · async ops · sync · warp specialization) 와 코드 예시는 facebookexperimental/triton 의 tlx branch README 의 정리를 기반으로 한다. 강의에서 다른 framing 이나 이름이 등장했을 수 있다 — 영상 직접 확인 후 보강 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_095.html"><span class="lbl">← Lecture 095</span><span class="nm">Single controller programming with Monarch</span></a>
+  <a class="nxt" href="lecture_097.html"><span class="lbl">Lecture 097 →</span><span class="nm">HipKittens — William Hu</span></a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L096 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

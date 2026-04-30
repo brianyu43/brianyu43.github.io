@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L037 · Introduction to SASS &amp; GPU Microarchitecture · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 37 — SASS & GPU Microarchitecture */
+.l37-stack{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l37-stack .step{display:grid;grid-template-columns:120px 1fr 130px;gap:14px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l37-stack .step .lvl{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em}
+.l37-stack .step .nm{color:var(--ink);font-weight:700;font-family:'Pretendard',sans-serif;font-size:14px}
+.l37-stack .step .nm em{font-style:normal;color:var(--ink-soft);font-weight:500;font-size:12px;display:block;margin-top:3px}
+.l37-stack .step .what{font-size:11px;color:var(--muted);text-align:right;line-height:1.4}
+.l37-stack .step.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l37-sm{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l37-sm .panel{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l37-sm .panel h4{margin:0 0 10px;font-size:14px;color:var(--ink);font-weight:700}
+.l37-sm .panel .row{display:grid;grid-template-columns:1fr auto;padding:5px 0;border-bottom:1px dotted var(--line-soft);font-size:12px}
+.l37-sm .panel .row:last-child{border-bottom:none}
+.l37-sm .panel .row .k{color:var(--ink-soft)}
+.l37-sm .panel .row .v{color:var(--ink);font-weight:600}
+
+.l37-sched{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l37-sched .lane{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center}
+.l37-sched .lane .nm{color:var(--ink-soft);font-size:11.5px}
+.l37-sched .lane .row{position:relative;height:26px;background:var(--bg-soft);border-radius:4px}
+.l37-sched .lane .row .blk{position:absolute;top:3px;height:20px;border-radius:3px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700;padding:0 5px;white-space:nowrap}
+.l37-sched .lane .row .blk.fma{background:var(--accent)}
+.l37-sched .lane .row .blk.ld{background:var(--cool)}
+.l37-sched .lane .row .blk.tc{background:var(--accent-2)}
+.l37-sched .lane .row .blk.idle{background:var(--paper-deep);color:var(--ink-soft)}
+
+.l37-arch{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l37-arch .gen{padding:12px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l37-arch .gen .nm{font-family:'Pretendard',sans-serif;font-weight:700;color:var(--ink);font-size:13px;margin-bottom:4px}
+.l37-arch .gen .yr{color:var(--accent);font-size:10.5px;letter-spacing:.08em;margin-bottom:6px}
+.l37-arch .gen ul{margin:0;padding-left:14px;color:var(--ink-soft);font-size:11.5px;line-height:1.5}
+.l37-arch .gen.hi{background:var(--bg-soft);border-color:var(--accent)}
+
+.l37-asm{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--code-bg);color:var(--code-fg);padding:14px;border-radius:8px;overflow-x:auto;line-height:1.55}
+.l37-asm .a{color:#E7B369}
+.l37-asm .b{color:#A99E89}
+.l37-asm .c{color:#C6B98A}
+.l37-asm .d{color:#9FBFB0}
+
+@media (max-width:760px){.l37-sm,.l37-arch{grid-template-columns:1fr}.l37-stack .step{grid-template-columns:1fr}.l37-stack .step .what{text-align:left}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="lecture_036.html">← L036</a>
+    <a href="index.html">Index</a>
+    <a href="lecture_038.html">L038 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L037</span>
+    <span>2024 · NOV</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Introduction to SASS &amp; GPU Microarchitecture</h1>
+  <p class="dek">PTX 가 NVIDIA 의 “virtual ISA” 라면, <strong>SASS</strong> 는 진짜 칩 위에서 도는 머신코드. <em>NVIDIA 가 공식 문서를 안 내는 이 layer 를 어떻게 읽고, 그게 왜 마지막 30% 의 성능을 결정하는지</em> — Arun Demeure 가 cuobjdump 화면 위에서 한 줄씩 따라가며 깐다. SM 의 issue slot 과 functional unit, ILP 의 의미, warp scheduler 의 세 가지 stall 원인, 그리고 “Triton 도 결국 SASS 까지 내려간다” 의 진짜 의미.</p>
+
+  <div class="chips">
+    <span class="chip hi">SASS</span>
+    <span class="chip hi">PTX</span>
+    <span class="chip hi">SM uarch</span>
+    <span class="chip hi">warp scheduler</span>
+    <span class="chip">ILP</span>
+    <span class="chip">cuobjdump</span>
+    <span class="chip">issue slot</span>
+    <span class="chip">scoreboard</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">A</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Arun Demeure</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">github.com/ademeure · GPU uarch researcher</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L037</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Arun Demeure</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">cuobjdump 같이</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 SASS 까지 보는가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">PTX vs SASS 의 위치</span><span class="em">컴파일 사다리</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">SM 별 ISA 차이</span><span class="em">sm_80 ~ sm_90</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">warp scheduler 의 결정</span><span class="em">ready warp pool</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">issue slot · functional unit</span><span class="em">FMA · MUFU · LSU · TC</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">SASS 읽기 트릭</span><span class="em">cuobjdump · godbolt</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">스케줄링이 보이는 자리</span><span class="em">.B0 wait, scoreboard</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">ILP — 마지막 30%</span><span class="em">latency × throughput</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">마이크로아키 변천</span><span class="em">Volta → Hopper</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">cuobjdump 실습</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 SASS 까지 보는가</span></div>
+    <h2>“Triton 으로 짠 게 왜 cuBLAS 보다 30% 느린가” 의 답이 보통 SASS 안에 있다</h2>
+  </div>
+  <p class="sec-lede">대부분의 GPU 프로그래밍은 PTX 까지만 본다 — 그게 NVIDIA 가 공식 문서를 내주는 마지막 layer 니까. 그런데 진짜 칩 위에서는 SASS 가 돈다. PTX 와 SASS 사이에는 <strong>NVIDIA 의 후처리 컴파일러</strong> 가 끼어 있고, 그게 instruction reordering, register 재할당, scoreboard 결정을 다 한다.</p>
+
+  <p>Arun 의 핵심 입장 — <strong>“Triton 으로 짠 좋은 코드도, 직접 쓴 CUDA 도, 결국 같은 SASS 로 컴파일된다. 차이를 결정하는 건 그 SASS 의 모양.”</strong> Triton 이 cuBLAS 의 80% 까지 따라잡았는데도 마지막 20% 가 안 풀리는 이유는 PTX 단계에서는 안 보이고, SASS 를 까봐야 보인다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“PTX 만 보고 성능을 추론하지 마라” — 이게 강의의 가장 큰 메시지. PTX 의 instruction 한 개가 SASS 에서 한 개로 사상되지 않는다. PTX 가 깔끔해 보여도 SASS 에서 spill, redundant load, scheduling stall 이 들어 있을 수 있다. SASS 가 진실.</p>
+  </div>
+
+  <div class="pull">“PTX 는 abstraction — 진짜 일이 어디서 어떻게 도는지 알려면 SASS 를 봐야 한다. 그게 마지막 30% 를 결정한다.”<span class="by">Arun Demeure · 강의 도입부</span></div>
+
+  <p>그래서 강의 끝에 손에 잡혀야 할 자산은 — <strong>(1)</strong> SASS 한 줄을 읽는 법, <strong>(2)</strong> SM 의 issue slot 과 functional unit 의 매핑이라는 mental model, <strong>(3)</strong> warp scheduler 가 한 cycle 마다 무슨 결정을 하는가, <strong>(4)</strong> cuobjdump / godbolt 로 자기 커널을 까보는 워크플로.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>PTX vs SASS 의 위치</b><span>· 컴파일 사다리</span></div>
+    <h2>한 사다리 위 5단계 — Triton 도, 직접 CUDA 도, 같은 길을 내려간다</h2>
+  </div>
+
+  <div class="l37-stack">
+    <div class="step">
+      <span class="lvl">L0 · 소스</span>
+      <span class="nm">CUDA C++ / Triton DSL / OpenAI Triton<em>사람이 손으로 짜는 단계</em></span>
+      <span class="what">__global__ void / @triton.jit</span>
+    </div>
+    <div class="step">
+      <span class="lvl">L1 · IR</span>
+      <span class="nm">LLVM IR / Triton-MLIR<em>각 컴파일러의 중간 형태. tile op / scalar op 분리.</em></span>
+      <span class="what">.ll / .mlir</span>
+    </div>
+    <div class="step hi">
+      <span class="lvl">L2 · PTX</span>
+      <span class="nm">virtual ISA<em>NVIDIA 가 공식 문서로 내주는 마지막 layer. arch-agnostic 한 척한다 (실제론 sm_xx 별로 일부 다르긴 함).</em></span>
+      <span class="what">.ptx · 사람이 어느 정도 읽음</span>
+    </div>
+    <div class="step hi">
+      <span class="lvl">L3 · SASS</span>
+      <span class="nm">SM 별 ISA<em>실제 hardware 가 fetch/decode 하는 머신코드. NVIDIA 가 문서를 안 줌. ptxas 의 후처리 컴파일러가 만든다.</em></span>
+      <span class="what">cuobjdump --dump-sass</span>
+    </div>
+    <div class="step">
+      <span class="lvl">L4 · scheduled SASS</span>
+      <span class="nm">SASS + scheduling control bits<em>각 instruction 옆에 latency hint, scoreboard, reuse cache 같은 메타정보가 붙어 있다. 이게 진짜 hardware 가 보는 형태.</em></span>
+      <span class="what">.B0/.B1 wait, .R cache flag</span>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">위에서 가장 흥미로운 건 <strong>L4</strong>. SASS 의 매 instruction 옆에 <em>“이 결과는 4 cycle 뒤에 ready 됨”</em> 이나 <em>“이 register 는 cache 에서 읽어라”</em> 같은 control bits 가 붙어 있다. 이게 hardware scheduler 가 stall 결정을 하는 근거. NVIDIA 의 후처리 컴파일러가 이 control bits 를 결정 — 그래서 같은 PTX 에서 다른 SASS 가 나올 수 있고, scheduling 이 다른 만큼 latency 가 다르다.</p>
+
+  <div class="callout cool">
+    <div class="label">PTX 가 거짓을 말할 수 있다</div>
+    <p>강의에서 Arun 이 짚은 한 줄 — <em>“PTX 의 instruction 수와 SASS 의 instruction 수가 다르다. PTX 한 줄이 SASS 여러 줄로 펴지기도 하고, PTX 여러 줄이 SASS 하나로 합쳐지기도 한다.”</em> 그래서 PTX 만 보고 “register 사용량이 적다” 같은 결론을 내리면 SASS 에서 다르게 나올 수 있다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>SM 별 ISA 차이</b><span>· sm_80 ~ sm_90</span></div>
+    <h2>같은 algorithm 도 SM 마다 다른 instruction 으로 컴파일된다</h2>
+  </div>
+
+  <div class="l37-arch">
+    <div class="gen"><div class="yr">2017</div><div class="nm">sm_70 · Volta</div><ul><li>tensor core 도입</li><li>indep thread sched</li><li>cp.async 없음</li></ul></div>
+    <div class="gen"><div class="yr">2020</div><div class="nm">sm_80 · Ampere</div><ul><li>BF16 / TF32</li><li>cp.async</li><li>L2 cache control</li></ul></div>
+    <div class="gen"><div class="yr">2022</div><div class="nm">sm_89 · Ada</div><ul><li>FP8 (E4M3, E5M2)</li><li>4090 / L40</li><li>tensor core 4세대</li></ul></div>
+    <div class="gen hi"><div class="yr">2022</div><div class="nm">sm_90 · Hopper</div><ul><li>TMA · WGMMA</li><li>thread block cluster</li><li>distributed shmem</li></ul></div>
+  </div>
+
+  <p style="margin-top:14px">이 표는 단순한 hardware 이력이 아니다 — <em>같은 PTX 가 어느 sm_xx 으로 컴파일되느냐에 따라 SASS 가 통째로 달라진다는 사실의 근거</em>. 예를 들어 sm_80 에서 cp.async 가 한 instruction 이지만, sm_70 에서는 일반 load 두 개로 쪼개져서 register 트래픽이 두 배가 된다.</p>
+
+  <div class="callout">
+    <div class="label">Triton 의 sm 별 자동 dispatch</div>
+    <p>Triton 은 같은 <code>tl.dot</code> 코드를 어느 sm 으로 컴파일하느냐에 따라 다른 SASS instruction 으로 매핑한다 — sm_80 이면 mma.sync, sm_90 이면 wgmma. 그래서 같은 Triton 코드의 SASS 가 GPU 마다 다른 모양이 된다는 사실이 한 번 손에 잡혀야 한다.</p>
+  </div>
+
+  <p>강의에서 Arun 이 든 구체적 예 — H100 에서 <strong>thread block cluster</strong> 가 도입되며 distributed shared memory 가 가능. 같은 PTX 의 <code>ld.shared</code> 가 cluster scope 에서는 다른 SM 의 SMEM 까지 본다. 이런 사실은 PTX manual 에는 한 줄로 적히지만, SASS 에서는 새 instruction (LDGSTS 의 변종) 으로 펴진다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>warp scheduler 의 결정</b><span>· ready warp pool</span></div>
+    <h2>한 cycle 마다 — “지금 issue 할 수 있는 warp 가 있는가?” 의 답이 곧 throughput</h2>
+  </div>
+  <p class="sec-lede">SM 안의 warp scheduler 는 매 cycle <strong>ready warp pool</strong> 을 본다. 그 pool 이 비어 있으면 그 cycle 의 functional unit 이 비워진다. 이게 <em>occupancy</em> 가 중요한 이유의 본질.</p>
+
+  <div class="l37-sm">
+    <div class="panel">
+      <h4>Ampere SM 한 개 (sm_80)</h4>
+      <div class="row"><span class="k">warp scheduler</span><span class="v">4 개</span></div>
+      <div class="row"><span class="k">FP32 unit / cycle</span><span class="v">64</span></div>
+      <div class="row"><span class="k">tensor core / cycle</span><span class="v">4 (각 4 sub-slice)</span></div>
+      <div class="row"><span class="k">LSU (load/store)</span><span class="v">16</span></div>
+      <div class="row"><span class="k">MUFU (sin/exp)</span><span class="v">4</span></div>
+      <div class="row"><span class="k">최대 거주 warp</span><span class="v">64</span></div>
+    </div>
+    <div class="panel">
+      <h4>cycle 별 결정 시퀀스</h4>
+      <div class="row"><span class="k">1 · ready warp 들 식별</span><span class="v">scoreboard ok</span></div>
+      <div class="row"><span class="k">2 · 각 warp scheduler 가 한 warp 선택</span><span class="v">round-robin / age</span></div>
+      <div class="row"><span class="k">3 · warp 의 다음 inst issue</span><span class="v">FMA/LD/TC 한 곳</span></div>
+      <div class="row"><span class="k">4 · functional unit 점유</span><span class="v">latency = 4 cycle?</span></div>
+      <div class="row"><span class="k">5 · 결과 ready 시 scoreboard 갱신</span><span class="v">B0…B5</span></div>
+      <div class="row"><span class="k">stall 이유</span><span class="v">scoreboard / no-warp / dispatch</span></div>
+    </div>
+  </div>
+
+  <p style="margin-top:14px">강의에서 Arun 이 명시한 한 줄 — <em>“warp 가 64 개 거주해도, 그중 ready 인 게 매 cycle 충분하지 않으면 occupancy 만 높고 utilization 은 낮다.”</em> 이 차이가 NCU 의 “Achieved Active Warps Per Scheduler” 와 “Warp Cycles Per Issued Instruction” 두 metric 의 차이.</p>
+
+  <div class="callout cool">
+    <div class="label">stall 의 세 종류</div>
+    <p><strong>(a) Long Scoreboard</strong> — 메모리 latency 로 register 가 ready 가 안 됨. <strong>(b) Short Scoreboard</strong> — TC / MUFU 결과 대기. <strong>(c) Dispatch Stall</strong> — issue slot 이 비어서 그 cycle 못 issue. (a) 가 가장 흔하고, 보통 더 많은 warp 또는 더 작은 footprint 로 푼다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>issue slot · functional unit</b><span>· FMA · MUFU · LSU · TC</span></div>
+    <h2>한 cycle 안에서 여러 unit 이 동시에 도는 이유</h2>
+  </div>
+  <p class="sec-lede">SM 한 개에는 <em>여러 functional unit</em> 이 있고, 그 unit 들이 <strong>동시에</strong> 돈다. FP32 FMA 가 도는 cycle 에 LSU 가 다른 warp 의 load 를 처리할 수 있고, tensor core 가 또 다른 warp 의 MMA 를 진행 중일 수 있다 — 이게 GPU 가 “bandwidth bound” 와 “compute bound” 를 동시에 다룰 수 있는 이유.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 한 cycle 동안 SM 의 여러 unit 이 동시에</span><span>idealized</span></div>
+    <div class="l37-sched">
+      <div class="lane">
+        <span class="nm">FMA pipe</span>
+        <div class="row">
+          <div class="blk fma" style="left:1%;width:18%">warp 3 · FFMA</div>
+          <div class="blk fma" style="left:20%;width:18%">warp 7 · FFMA</div>
+          <div class="blk idle" style="left:39%;width:8%">empty</div>
+          <div class="blk fma" style="left:48%;width:18%">warp 12 · FFMA</div>
+          <div class="blk fma" style="left:67%;width:31%">warp 1 · FFMA chain</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">LSU (load)</span>
+        <div class="row">
+          <div class="blk ld" style="left:1%;width:30%">warp 5 · LDG long lat</div>
+          <div class="blk ld" style="left:32%;width:30%">warp 9 · LDG</div>
+          <div class="blk idle" style="left:63%;width:35%">empty</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">tensor core</span>
+        <div class="row">
+          <div class="blk tc" style="left:5%;width:60%">warp group · WGMMA (long async)</div>
+          <div class="blk idle" style="left:66%;width:32%">wait</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">한 cycle 안에 <strong>3 개 unit 이 동시에</strong> 도 있다. 좋은 코드는 이 unit 들을 모두 점유 — 한 unit 이 비면 그 비례만큼 throughput 손해.</div>
+  </div>
+
+  <p>강의에서 Arun 이 강조한 사실 — <em>tensor core 가 매우 빠르긴 한데, 그게 “FFMA 가 비어 있다” 의 의미가 아니다</em>. softmax 같은 elementwise 연산은 FMA 와 MUFU pipe 위에서 도는데, 그게 tensor core 와 동시에 돌아야 attention 이 효율적으로 도는 (§ FA3 의 ping-pong).</p>
+
+  <div class="pull">“GPU 의 좋은 코드는 한 unit 을 100% 채우는 게 아니라 <em>여러 unit 을 동시에 돌리는</em> 코드다. 그게 ILP 의 본질.”<span class="by">Arun Demeure</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>SASS 읽기 트릭</b><span>· cuobjdump · godbolt</span></div>
+    <h2>두 도구만 있으면 SASS 를 까볼 수 있다</h2>
+  </div>
+  <p class="sec-lede">강의의 실용 부분. SASS 를 읽으려면 — <strong>(1)</strong> <code>cuobjdump --dump-sass</code> 로 binary 에서 추출, 또는 <strong>(2)</strong> <code>godbolt.org</code> 의 NVCC 모드로 소스 → SASS 한 화면. 후자가 학습용으로 압도적으로 빠르다.</p>
+
+<pre class="l37-asm"><span class="b"># Triton 으로 짠 fp32 squared sum 의 SASS 일부 (sm_80, A100)</span>
+<span class="b"># godbolt 에서 그대로 본 모양. 색은 임의 — instruction 영역만.</span>
+
+  <span class="a">/*0050*/</span> <span class="d">LDG.E.SYS</span> R6, [R2.64+0x0] ;          <span class="c">// global load · long lat</span>
+  <span class="a">/*0058*/</span> <span class="d">LDG.E.SYS</span> R7, [R2.64+0x4] ;          <span class="c">// global load · long lat</span>
+  <span class="a">/*0060*/</span> <span class="d">FMUL</span>      R8, R6, R6 ;                  <span class="c">// x * x</span>
+  <span class="a">/*0068*/</span> <span class="d">FMUL</span>      R9, R7, R7 ;                  <span class="c">// y * y</span>
+  <span class="a">/*0070*/</span> <span class="d">FFMA</span>      R10, R8, R9, R10 ;            <span class="c">// acc += x*x + y*y</span>
+  <span class="a">/*0078*/</span> <span class="d">@!P0 BRA</span>   `(.L_x_0) ;                    <span class="c">// loop branch</span>
+  <span class="a">/*0080*/</span> <span class="d">STG.E.SYS</span> [R12.64], R10 ;              <span class="c">// store result</span></pre>
+
+  <p style="margin-top:14px">읽을 때 손에 잡히는 사실들 — <code>LDG.E.SYS</code> 가 global load (E = 64-bit address). <code>FFMA</code> 가 fused multiply-add (한 cycle throughput). <code>@!P0 BRA</code> 가 predicated branch. <code>/*0050*/</code> 가 instruction 의 byte offset (8 byte 씩 증가하니 instruction 당 8 byte 인 sm_70+ 패턴).</p>
+
+  <div class="callout">
+    <div class="label">한 줄 패턴 모음</div>
+    <p><strong>R0…Rn</strong> 일반 register, <strong>P0…P6</strong> predicate. <strong>SR</strong> special register (threadIdx 등). <strong>S2R</strong> special-to-register (idx load). <strong>UR</strong> uniform register (sm_75+). <strong>BAR.SYNC</strong> barrier. <strong>NOP</strong> 진짜 비어 있는 cycle.</p>
+  </div>
+
+  <p>godbolt 의 NVCC compiler 옵션 — <code>-arch=sm_80 -O3 --ptxas-options=-v</code> — 가 SASS 를 같이 보여준다. Triton 도 같은 trick — <code>TRITON_DEBUG=1</code> 또는 <code>~/.triton/cache/</code> 의 디렉토리 안에 <code>*.cubin</code> + <code>*.ptx</code> 가 같이 떨어진다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>스케줄링이 보이는 자리</b><span>· .B0 wait, scoreboard</span></div>
+    <h2>SASS 의 옆에 붙은 메타정보 한 줄이 latency hint 다</h2>
+  </div>
+  <p class="sec-lede">진짜 hardware 가 보는 SASS 는 instruction + <strong>control bits</strong>. cuobjdump 는 기본으로 control bits 를 안 보여주는데, <code>--dump-sass-noindex</code> 류 옵션 또는 별도 도구로 까보면 — 매 instruction 옆에 “이 결과는 N cycle 뒤 ready”, “register cache 에서 읽어라”, “scoreboard B0 까지 기다려라” 같은 hint 가 박혀 있다.</p>
+
+  <p>구조적으로 hardware 는 — <strong>(1)</strong> long-latency instruction (LDG, MMA) 을 issue 할 때 어떤 scoreboard slot (B0..B5) 에 결과를 기록할지 결정, <strong>(2)</strong> 그 결과를 읽는 instruction 은 그 slot 이 ready 될 때까지 wait. 이 wait 가 명시적으로 제어 bit 로 박혀 있어 hardware scheduler 가 단순화된다.</p>
+
+  <div class="callout cool">
+    <div class="label">왜 이게 중요한가</div>
+    <p>NVIDIA 의 후처리 컴파일러가 <em>이 control bits 를 영리하게 채워 넣는다</em>. 같은 PTX 를 다른 sm_xx 으로 컴파일하면 SASS 의 control bits 가 달라진다. 그게 latency-bound 한 코드에서 결정적인 차이를 만든다 — 명시적 wait 가 길게 박힌 SASS 와, 영리하게 짧은 wait 만 박힌 SASS 사이.</p>
+  </div>
+
+  <p>강의에서 Arun 이 구체적 사례로 든 — <em>backward 가 forward 보다 느려 보일 때, PTX 는 비슷한데 SASS 의 scoreboard wait 분포가 다르다</em>. PTX 만 보고는 안 보이는 차이.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>ILP — 마지막 30%</b><span>· latency × throughput</span></div>
+    <h2>한 thread 가 여러 일을 “동시에” 시키게 만드는 트릭</h2>
+  </div>
+  <p class="sec-lede">강의의 가장 비실용적이지만 가장 흥미로운 부분. <strong>ILP</strong> (Instruction-Level Parallelism) — <em>한 thread 안에서도</em> 독립적인 instruction 들이 동시에 issue 될 수 있다. 그래서 thread 수가 많지 않아도 throughput 이 산다.</p>
+
+  <p>예시 — A100 의 FFMA pipe 의 latency 가 4 cycle, throughput 이 1/cycle. 만약 한 thread 가 매 4 cycle 마다 dependent 한 FFMA 한 개만 발행하면 throughput 의 25% 만 사용. 같은 thread 가 4개 독립 FFMA 를 매 cycle 하나씩 발행하면 — 같은 thread 만으로도 4배 이득.</p>
+
+  <div class="bars">
+    <div class="bar"><span class="lbl">naive (dependent chain)</span><span class="track"><i style="width:25%;background:var(--warn)"></i></span><span class="val">25% peak</span></div>
+    <div class="bar"><span class="lbl">ILP=2 (2-way unroll)</span><span class="track"><i style="width:50%;background:var(--accent-2)"></i></span><span class="val">50% peak</span></div>
+    <div class="bar"><span class="lbl">ILP=4 (4-way unroll)</span><span class="track"><i style="width:95%;background:var(--good)"></i></span><span class="val">~95% peak</span></div>
+    <div class="bar"><span class="lbl">multi-warp (occupancy)</span><span class="track"><i style="width:80%;background:var(--cool)"></i></span><span class="val">~80% peak</span></div>
+  </div>
+
+  <p style="margin-top:10px">강의에서 Arun 이 짚은 한 줄 — <em>“40 cycle latency / 10 cycle 마다 한 개 throughput 인 unit 은 적어도 40 개 thread/warp 가 동시에 inflight 해야 latency 를 숨긴다.”</em> 이게 occupancy + ILP 의 합. ILP 를 충분히 짜면 occupancy 를 낮춰도 됨.</p>
+
+  <div class="callout">
+    <div class="label">unform register 의 자리</div>
+    <p>sm_75+ 의 <strong>uniform register</strong> (UR) — warp 안 32 thread 가 같은 값을 가지는 register 를 별도 file 로 둔다. compiler 가 이걸 잘 활용하면 일반 register 의 압박이 줄어든다. PTX 에서는 직접 noted 안 되고 SASS 에서만 보임. <em>“같은 일을 누가 하면 좋을까” 의 결정 단위가 GPU 에서 점점 다양해진다</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>마이크로아키 변천</b><span>· Volta → Hopper</span></div>
+    <h2>하나의 SM 안에 “비동기 단위” 가 점점 많아지는 방향</h2>
+  </div>
+  <p class="sec-lede">SM 의 진화를 한 줄로 요약하면 — <em>점점 더 많은 일이 비동기로 issue 가능해진다</em>. Volta 의 tensor core 도, Ampere 의 cp.async 도, Hopper 의 TMA / WGMMA / cluster 도 모두 같은 방향. 한 thread 가 “큰 일을 시작하고 다른 일을 한다” 가 본질.</p>
+
+  <ul>
+    <li><strong>Volta (sm_70)</strong> — tensor core 도입. independent thread scheduling (warp 안 thread 가 진짜 독립적으로 갈 수 있음).</li>
+    <li><strong>Ampere (sm_80)</strong> — cp.async (load 를 비동기로). BF16/TF32. multi-stage pipeline 의 표준이 깔린 자리.</li>
+    <li><strong>Ada (sm_89)</strong> — FP8. 4세대 tensor core. 데스크탑 (4090) 까지 보급.</li>
+    <li><strong>Hopper (sm_90)</strong> — TMA · WGMMA. thread block cluster + distributed shared memory. <em>warp specialization</em> 이 이 architecture 위에서 의미가 생긴다 (FA3, L036).</li>
+    <li><strong>Blackwell (sm_100, 강의 시점 예고)</strong> — 더 큰 비동기 단위. FP4. tensor core 의 새 instruction 들.</li>
+  </ul>
+
+  <div class="pull">“각 세대마다 새 instruction 이 들어오는데, 그 instruction 의 진짜 의미는 SASS 까지 봐야 잡힌다 — 같은 PTX 가 어떻게 다른 SASS 가 되는지.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· cuobjdump 실습</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">PTX → SASS</div><div class="d">두 layer 사이에 NVIDIA 의 후처리 컴파일러. PTX 한 줄이 SASS 한 줄로 사상되지 않는다.</div></div>
+    <div class="term"><div class="t">control bits</div><div class="d">SASS 옆 latency hint, scoreboard slot, register cache. 진짜 hardware 가 보는 형태.</div></div>
+    <div class="term"><div class="t">warp scheduler</div><div class="d">SM 마다 4 개. ready warp pool 에서 한 cycle 마다 한 warp 의 다음 inst 를 issue.</div></div>
+    <div class="term"><div class="t">stall 3 종류</div><div class="d">long scoreboard (메모리), short scoreboard (TC/MUFU), dispatch (issue slot 비움).</div></div>
+    <div class="term"><div class="t">functional unit 동시성</div><div class="d">FMA · LSU · TC · MUFU 가 한 cycle 안에 동시. 좋은 코드는 여러 unit 을 같이 점유.</div></div>
+    <div class="term"><div class="t">cuobjdump</div><div class="d"><code>cuobjdump --dump-sass binary</code>. godbolt 의 NVCC 모드도 같은 일을 학습용으로 빠르게.</div></div>
+    <div class="term"><div class="t">ILP</div><div class="d">한 thread 안 독립 instruction 의 동시 발행. occupancy 가 낮아도 ILP 로 latency 를 숨김.</div></div>
+    <div class="term"><div class="t">uniform register</div><div class="d">sm_75+ . warp 안 모든 thread 가 같은 값. 일반 register 압박 완화.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=we3i5VuoPWk" target="_blank" rel="noopener">youtube.com/watch?v=we3i5VuoPWk</a></span></div>
+    <div class="row"><span class="k">Slides</span><span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_037/sass_and_gpu_uarch.pdf" target="_blank" rel="noopener">sass_and_gpu_uarch.pdf</a></span></div>
+    <div class="row"><span class="k">Speaker</span><span class="v"><a href="https://github.com/ademeure" target="_blank" rel="noopener">github.com/ademeure</a></span></div>
+    <div class="row"><span class="k">Tool</span><span class="v"><a href="https://godbolt.org/" target="_blank" rel="noopener">godbolt.org</a> — NVCC 모드로 소스 → SASS</span></div>
+    <div class="row"><span class="k">Tool</span><span class="v"><code>cuobjdump --dump-sass binary.cubin</code> · CUDA toolkit 동봉</span></div>
+    <div class="row"><span class="k">Reference</span><span class="v"><a href="https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html" target="_blank" rel="noopener">cuda-binary-utilities docs</a></span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>godbolt 위에서 한 줄 커널</strong> — <code>__global__ void k(float*x){x[0]=x[0]*x[0];}</code>. NVCC sm_80 으로 컴파일해서 SASS 한 화면. <code>LDG → FMUL → STG</code> 패턴 직접 본다.</li>
+    <li><strong>같은 코드, 다른 sm</strong> — sm_70 / sm_80 / sm_90 으로 컴파일. instruction 시퀀스의 차이를 직접 비교. cp.async / tma 가 어디서 들어오는지.</li>
+    <li><strong>Triton 의 cubin 까보기</strong> — Triton 커널을 한 번 돌리면 <code>~/.triton/cache/</code> 에 cubin. <code>cuobjdump --dump-sass</code> 로 까서 자기 Triton 코드의 진짜 모양 확인.</li>
+    <li><strong>PTX vs SASS line count</strong> — 같은 커널의 PTX 줄 수와 SASS 줄 수 비교. 보통 비슷하지 않다는 사실 손에 잡기.</li>
+    <li><strong>NCU 의 stall reasons</strong> — long scoreboard, short scoreboard, dispatch stall 의 비율을 자기 커널에서 측정. 가장 큰 stall 의 원인을 SASS 안에서 찾아 매핑.</li>
+    <li><strong>ILP 실험</strong> — dependent FFMA chain vs 4-way unroll 의 throughput 차이를 직접 측정. ILP 의 mental model 을 숫자로 박는다.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>SASS 의 시각이 시리즈 안에서 다시 등장하는 자리</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">Profiling CUDA kernels</div><div class="by">Mark Saroufim — NCU 의 stall reasons 가 본격적으로 의미를 가지는 자리</div></a>
+    <a class="conn" href="lecture_008.html"><div class="n">L008</div><div class="ti">CUDA Performance Checklist</div><div class="by">Mark Saroufim — register pressure / occupancy 의 체크리스트</div></a>
+    <a class="conn" href="lecture_028.html"><div class="n">L028</div><div class="ti">Liger Kernel</div><div class="by">Byron Hsu — Triton 코드의 SASS 가 실제 어떤 모양으로 나오는가</div></a>
+    <a class="conn" href="lecture_029.html"><div class="n">L029</div><div class="ti">Triton Internals</div><div class="by">Kapil Sharma — Triton 의 lowering 사다리. SASS 의 윗 단계를 깐다</div></a>
+    <a class="conn" href="lecture_034.html"><div class="n">L034</div><div class="ti">Low Bit Triton Kernels</div><div class="by">Hicham Badri — register 압박 / spill 의 현장</div></a>
+    <a class="conn" href="lecture_036.html"><div class="n">L036</div><div class="ti">CUTLASS &amp; FA3</div><div class="by">Jay Shah — TMA · WGMMA 가 SASS 에서 어떤 instruction 으로 보이는가</div></a>
+    <a class="conn" href="lecture_040.html"><div class="n">L040</div><div class="ti">CUDA Docs for Humans</div><div class="by">Charles Frye — PTX/SASS 의 위치를 docs 차원에서 다시 정리</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>scoreboard 의 정확한 구조</strong> — B0..B5 까지 몇 개? long-latency instruction 이 6 개 이상 inflight 일 때 어떻게? NVIDIA 가 공식 문서를 안 줘서 reverse-engineering 자료가 흩어져 있다.</li>
+    <li><strong>uniform register 의 컴파일러 휴리스틱</strong> — compiler 가 어떤 코드 패턴에서 UR 을 활용하는가. 직접 통제할 수 있는가, 아니면 컴파일러 결정.</li>
+    <li><strong>thread block cluster 의 SASS 패턴</strong> — Hopper 의 cluster scope 가 SASS 어디에 박히는가. distributed shared memory 의 LDGSTS 변종을 직접 본 적 없으면 한번 까볼 가치.</li>
+    <li><strong>backward 의 SASS 가 forward 보다 느린 이유</strong> — Arun 이 강의 후반에 짧게 언급. PTX 는 비슷한데 SASS scoreboard 분포가 다르다는 패턴. 구체적 사례를 직접 reproduce.</li>
+    <li><strong>새 SM 의 SASS reverse</strong> — Blackwell 이 release 되면 new instruction 은 어떤 모양일까. reverse engineer 커뮤니티의 자료를 추적할 가치.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 모든 SASS instruction 형태는 강의 화면을 재구성한 예시. <code>LDG.E.SYS</code>, <code>FFMA</code> 같은 mnemonic 은 sm_80 기준이고, sm_90 은 다른 변종이 있다. 자기 GPU 에서 직접 컴파일해서 본 SASS 가 진실.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_036.html">
+    <span class="lbl">← Lecture 036</span>
+    <span class="nm">CUTLASS &amp; FA3</span>
+  </a>
+  <a class="nxt" href="lecture_038.html">
+    <span class="lbl">Lecture 038 →</span>
+    <span class="nm">Low Bit ARM kernels — Scott Roy 가 깐 모바일 GPU/CPU 위 LLM 추론</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L037 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

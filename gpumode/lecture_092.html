@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L092 · Smol Training Playbook · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 92 specific */
+.l92-tree{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:6px}
+.l92-tree .node{display:grid;grid-template-columns:30px 1fr;gap:8px;padding:9px 12px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:start;line-height:1.5}
+.l92-tree .node.lvl1{margin-left:0;border-left:3px solid var(--accent)}
+.l92-tree .node.lvl2{margin-left:24px;border-left:3px solid var(--cool)}
+.l92-tree .node.lvl3{margin-left:48px;background:var(--bg-soft)}
+.l92-tree .node .ix{color:var(--muted);font-weight:700;font-size:11px}
+.l92-tree .node .body{color:var(--ink-soft)}
+.l92-tree .node .body strong{color:var(--ink);font-weight:600}
+
+.l92-stages{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:8px;margin:14px 0}
+.l92-stages .st{display:grid;grid-template-columns:120px 1fr 110px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l92-stages .st.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l92-stages .st .ph{color:var(--accent);font-weight:700;font-size:12.5px}
+.l92-stages .st .desc{color:var(--ink-soft);line-height:1.5}
+.l92-stages .st .desc strong{color:var(--ink);font-weight:600}
+.l92-stages .st .tk{text-align:right;color:var(--ink);font-weight:700;font-family:'JetBrains Mono',monospace}
+
+.l92-mix{font-family:'JetBrains Mono',monospace;font-size:11.5px;display:grid;grid-template-columns:1fr;gap:6px}
+.l92-mix .row{display:grid;grid-template-columns:120px 1fr 80px;gap:10px;align-items:center}
+.l92-mix .row .who{color:var(--ink-soft)}
+.l92-mix .row .bar{height:22px;background:var(--bg-soft);border-radius:3px;display:flex;overflow:hidden}
+.l92-mix .row .bar .seg{display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700;padding:0 4px;white-space:nowrap}
+.l92-mix .row .bar .seg.web{background:var(--cool)}
+.l92-mix .row .bar .seg.code{background:var(--accent)}
+.l92-mix .row .bar .seg.math{background:var(--accent-2)}
+.l92-mix .row .bar .seg.ml{background:var(--good);opacity:.6}
+.l92-mix .row .pct{text-align:right;color:var(--muted);font-size:10.5px}
+
+.l92-ablate{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l92-ablate .card{padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:7px}
+.l92-ablate .card .h{color:var(--accent);font-weight:700;font-size:12.5px;letter-spacing:.04em;margin-bottom:5px}
+.l92-ablate .card .v{color:var(--ink);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif}
+.l92-ablate .card .em{color:var(--ink-soft);font-size:11px;margin-top:4px;line-height:1.5}
+
+@media (max-width:760px){
+  .l92-stages .st{grid-template-columns:1fr}
+  .l92-ablate{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_091.html">← L091</a>
+    <a href="lecture_093.html">L093 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L092</span>
+    <span>2025 · 후반</span>
+    <span class="pri high">High priority</span>
+    <span class="stat warn">transcript · failed · SmolLM3 blog 로 보강</span>
+  </div>
+  <h1>Smol Training Playbook</h1>
+  <p class="dek">3B 모델로 11.2T 토큰 — SmolLM3 가 4B 급 모델과 경쟁하는 자리에 도달한 레시피. <strong>“작은 모델은 cheap 한 게 아니라 disciplined</strong>”. 데이터 큐레이션, 3-stage pretraining, ablation 워크플로, post-training 의 디테일을 Loubna Ben Allal 이 GPU Mode 청중에게 옮긴 강의. transcript 가 실패해서 본 노트는 SmolLM3 공식 blog 와 HuggingFaceTB 의 공개 ablation 자료를 기반으로 재구성.</p>
+
+  <div class="chips">
+    <span class="chip hi">SmolLM3</span>
+    <span class="chip hi">3-stage pretraining</span>
+    <span class="chip hi">ablation</span>
+    <span class="chip hi">WSD scheduler</span>
+    <span class="chip">Nanotron</span>
+    <span class="chip">FineWeb-Edu</span>
+    <span class="chip">APO</span>
+    <span class="chip">model merging</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">L</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Loubna Ben Allal</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">HuggingFace · SmolLM 팀 리더 · The Stack · StarCoder 의 데이터 작업</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L092</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Loubna Ben Allal</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자막 상태</div><div class="val">failed · blog 로 보강</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">왜 “smol” 인가</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">작은 모델 학습 자체의 가치</span><span class="em">pedagogy of small</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">데이터 큐레이션 — 3-stage 의 핵심</span><span class="em">data mixture</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">hyperparameter 결정 — WSD · GQA · NoPE</span><span class="em">arch decisions</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">ablation 워크플로 — 작게 검증, 크게 학습</span><span class="em">workflow</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">평가 metric — saturate 안 되는 척도</span><span class="em">eval design</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">chinchilla 와의 차이 — overtraining 의 의미</span><span class="em">scaling laws</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">비용 회계 — 384 H100 × 24일</span><span class="em">cost</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">reproducibility — 공개되는 모든 것</span><span class="em">openness</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 실습</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>왜 “smol” 인가</b><span>· why this lecture exists</span></div>
+    <h2>3B 모델 한 개의 학습 결정이 70B 모델의 결정보다 더 깊이 가르친다</h2>
+  </div>
+  <p class="sec-lede">강의의 출발점은 작은 모델의 <em>교육적 가치</em>다. 큰 모델은 한 번 돌리면 끝이지만, 작은 모델은 같은 GPU 시간으로 <strong>50개의 ablation</strong> 을 돌릴 수 있다. 그 50개가 큰 학습의 hyperparameter 결정을 위한 학습 자료가 된다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 정신 한 문장</div>
+    <p>“작은 모델 학습은 cheap 한 게 아니라 <strong>disciplined</strong> 하다. 작아서 ablation 이 가능하고, 그래서 모든 결정에 근거가 있다 — 큰 모델은 그 근거 위에서 도는 것뿐.”</p>
+  </div>
+
+  <p>SmolLM3 의 결과 — 3B 모델이 Llama-3.2-3B / Qwen2.5-3B 를 모두 outperform 하고 4B 급 모델과 competitive. 이게 “smol” 의 정의다. <strong>같은 파라미터 수 안에서 가능한 frontier</strong> 를 그어낸다.</p>
+
+  <div class="l92-ablate">
+    <div class="card"><div class="h">PARAMS</div><div class="v">3.0 B</div><div class="em">Qwen2.5-3B / Llama-3.2-3B 와 동급</div></div>
+    <div class="card"><div class="h">TOKENS</div><div class="v">11.2 T</div><div class="em">3-stage curriculum + mid + post</div></div>
+    <div class="card"><div class="h">CONTEXT</div><div class="v">128 k</div><div class="em">YARN extension · NoPE every 4th layer</div></div>
+    <div class="card"><div class="h">INFRA</div><div class="v">384 × H100 · 24 d</div><div class="em">Nanotron framework</div></div>
+    <div class="card"><div class="h">BATCH</div><div class="v">2.36 M tok</div><div class="em">global batch size · seq len 4096</div></div>
+    <div class="card"><div class="h">SCHED</div><div class="v">WSD</div><div class="em">warmup-stable-decay · 마지막 10% decay</div></div>
+  </div>
+
+  <div class="pull">“작은 모델로 옳은 결정을 내리는 사람이, 큰 모델로 옳은 결정을 내리는 사람이다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>작은 모델 학습 자체의 가치</b><span>· pedagogy of small</span></div>
+    <h2>training playbook 은 큰 모델 팀에도 그대로 통한다</h2>
+  </div>
+  <p class="sec-lede">강의가 가장 자주 짚는 점 — <em>SmolLM 의 모든 결정이 큰 모델 팀에도 의미 있다</em>. 단지 ablation 의 cycle time 이 다를 뿐. 같은 framework, 같은 데이터 mixture, 같은 평가 패턴.</p>
+
+  <ul>
+    <li><strong>cycle time 의 압축</strong>: 3B 모델 100B token ablation 은 H100 8장으로 며칠. 같은 ablation 을 70B × 1T 로 하려면 100배의 GPU-hour. 작은 모델은 <em>같은 결정을 50배 더 자주 검증한다</em>.</li>
+    <li><strong>scaling 의 외삽</strong>: SmolLM3 의 architecture 결정은 100B 토큰 ablation 으로 검증. 그 결정이 11.2T 까지 그대로 이어졌다. <em>“작은 모델에서 통한 게 큰 모델에서도 통한다”</em> — 모든 자리는 아니지만 architecture 차원에선 거의 항상.</li>
+    <li><strong>open weights 가 가능한 자리</strong>: 3B 는 H100 한 장에 양자화 없이 들어간다. 사람들이 실제로 갖다 쓸 수 있다. 그래서 <em>학계 기준이 아닌 실사용 기준 평가</em> 가 가능.</li>
+    <li><strong>학습 인프라 검증</strong>: 작은 모델로 Nanotron / WSD / multi-node 셋업을 안정화한 뒤 큰 모델에 들어간다. 학습 자체의 risk 가 압도적으로 줄어든다.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">팀 운영 차원</div>
+    <p>HF 의 SmolLM 팀이 BLOOM 이후 누적한 <em>학습 운영 패턴</em>을 직접 적용한 사례. 큰 학습이 비싸진 시대에, 작은 학습이 <strong>인력 onboarding</strong> 의 표준 진입점이 된다 — 신입이 3B 학습 한 cycle 을 처음부터 끝까지 굴려 본 뒤에야 큰 학습에 합류.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>데이터 큐레이션 — 3-stage 의 핵심</b><span>· data mixture</span></div>
+    <h2>같은 모델, 같은 토큰 수 — 데이터 mixture 가 final loss 를 가른다</h2>
+  </div>
+  <p class="sec-lede">SmolLM3 의 가장 큰 결정은 <strong>3-stage curriculum</strong>. 처음에는 web 위주의 다양성, 중간에 quality boost, 마지막에 decay phase 에서 code/math 를 upsample. 같은 11.2T 토큰을 “어떻게” 보여주느냐가 결과를 갈랐다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · SmolLM3 의 3-stage data mixture</span><span>token 진행에 따른 비율 변화</span></div>
+    <div class="l92-mix">
+      <div class="row">
+        <span class="who">Stage 1 · 0–8T</span>
+        <div class="bar">
+          <div class="seg web" style="width:85%">web 85% (multi 12%)</div>
+          <div class="seg code" style="width:12%">code 12%</div>
+          <div class="seg math" style="width:3%">math 3%</div>
+        </div>
+        <span class="pct">8.0 T</span>
+      </div>
+      <div class="row">
+        <span class="who">Stage 2 · 8–10T</span>
+        <div class="bar">
+          <div class="seg web" style="width:75%">web 75%</div>
+          <div class="seg code" style="width:15%">code 15%</div>
+          <div class="seg math" style="width:10%">math 10%</div>
+        </div>
+        <span class="pct">2.0 T</span>
+      </div>
+      <div class="row">
+        <span class="who">Stage 3 · 10–11.1T</span>
+        <div class="bar">
+          <div class="seg web" style="width:63%">web 63%</div>
+          <div class="seg code" style="width:24%">code 24%</div>
+          <div class="seg math" style="width:13%">math 13%</div>
+        </div>
+        <span class="pct">1.1 T</span>
+      </div>
+      <div class="row">
+        <span class="who">Mid-training</span>
+        <div class="bar">
+          <div class="seg ml" style="width:100%">long-context (32k → 64k → 128k YARN) + reasoning (140B)</div>
+        </div>
+        <span class="pct">240 B</span>
+      </div>
+    </div>
+    <div class="viz-note"><strong>decay phase</strong> 에서 비율을 급격히 옮긴다 — code/math 의 가장 진한 신호가 학습 끝에 들어가게. WSD 의 decay 와 정확히 같은 구간 — learning rate 가 줄면서 모델이 “정착” 하는 자리에 가장 좋은 데이터를.</div>
+  </div>
+
+  <p>각 stage 가 파는 의도.</p>
+
+  <div class="l92-stages">
+    <div class="st">
+      <span class="ph">Stage 1</span>
+      <span class="desc"><strong>foundation 단계</strong>. FineWeb-Edu / DCLM / FineWeb2 로 web 위주. 다양성과 representation 의 폭이 우선. 12% multilingual 로 다국어 능력의 기초.</span>
+      <span class="tk">8.0 T</span>
+    </div>
+    <div class="st hi">
+      <span class="ph">Stage 2</span>
+      <span class="desc"><strong>quality boost</strong>. Stack-Edu, FineMath4+, InfiWebMath4+, MegaMath 의 신호 진하기를 점진적으로 올림. <em>중반에 이미 code/math 의 spike</em>.</span>
+      <span class="tk">2.0 T</span>
+    </div>
+    <div class="st hi">
+      <span class="ph">Stage 3</span>
+      <span class="desc"><strong>decay phase</strong>. learning rate 가 줄면서 high-quality code/math/reasoning 데이터 upsampling. instruction-style 데이터까지 포함. <em>마지막 10% 가 결정적</em>.</span>
+      <span class="tk">1.1 T</span>
+    </div>
+    <div class="st">
+      <span class="ph">Mid 1</span>
+      <span class="desc">long-context 확장. 4k → 32k (RoPE θ=1.5M, 50B), 32k → 64k (θ=5M, 50B). NoPE + YARN 으로 inference time 128k 까지.</span>
+      <span class="tk">100 B</span>
+    </div>
+    <div class="st">
+      <span class="ph">Mid 2</span>
+      <span class="desc">reasoning mid-training. OpenThoughts3-1.2M (35B) + NVIDIA Nemotron reasoning traces. ChatML wrapped packing, 4 epoch.</span>
+      <span class="tk">140 B</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">데이터 큐레이션의 학습 — 항상 가설을 들고</div>
+    <p>“data mixing 비율을 어떻게 정하는가” 의 답은 ablation. 100B token 의 작은 학습을 4–6개 mixture 로 돌려, 동일한 평가 셋 위에서 다운스트림 metric 비교. <em>작은 모델 100B 의 cost 가 큰 모델 ablation 의 보험</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>hyperparameter 결정</b><span>· WSD · GQA · NoPE</span></div>
+    <h2>모든 architecture 결정에 ablation 근거 — “직관” 으로 정한 hyperparameter 는 없다</h2>
+  </div>
+  <p class="sec-lede">SmolLM3 의 architecture 는 <strong>3B × 100B token ablation</strong> 위에서 결정됐다. 모든 결정 — GQA · NoPE · weight decay 제거 · WSD scheduler — 의 효과가 작은 학습에서 검증된 다음 본 학습으로 진입.</p>
+
+  <div class="l92-tree">
+    <div class="node lvl1">
+      <span class="ix">A</span>
+      <span class="body"><strong>scheduler 결정</strong> — cosine vs WSD vs linear warm-decay</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">A1</span>
+      <span class="body">cosine 의 단점: 학습 도중 멈추기 어려움 — final eval 까지 LR 이 계속 변함. <em>checkpoint 의 비교 불가</em>.</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">A2</span>
+      <span class="body">WSD 의 장점: stable phase 동안 LR 일정 → checkpoint 끼리 직접 비교 가능. decay 만 바꿔서 추가 학습도 가능.</span>
+    </div>
+    <div class="node lvl3">
+      <span class="ix">→</span>
+      <span class="body"><strong>결정: WSD · warmup 2000 step · 마지막 10% decay</strong></span>
+    </div>
+
+    <div class="node lvl1">
+      <span class="ix">B</span>
+      <span class="body"><strong>attention 결정</strong> — MHA vs GQA vs MQA</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">B1</span>
+      <span class="body">3B 에서 GQA 4 그룹과 MHA 의 final loss 가 거의 동일. 그러나 KV cache 크기 4× 차이.</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">B2</span>
+      <span class="body">MQA 는 quality 손해. GQA 가 sweet spot.</span>
+    </div>
+    <div class="node lvl3">
+      <span class="ix">→</span>
+      <span class="body"><strong>결정: GQA · 4 그룹</strong></span>
+    </div>
+
+    <div class="node lvl1">
+      <span class="ix">C</span>
+      <span class="body"><strong>position embedding</strong> — RoPE vs NoPE vs ALiBi</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">C1</span>
+      <span class="body">전체 NoPE 는 short context 에서 손해. 전체 RoPE 는 long context 외삽 손해.</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">C2</span>
+      <span class="body">매 4번째 layer 만 NoPE → short context 유지하면서 long context 외삽 향상.</span>
+    </div>
+    <div class="node lvl3">
+      <span class="ix">→</span>
+      <span class="body"><strong>결정: 매 4 번째 layer 가 NoPE</strong> (이후 YARN 으로 128k 까지 외삽)</span>
+    </div>
+
+    <div class="node lvl1">
+      <span class="ix">D</span>
+      <span class="body"><strong>regularization</strong> — embedding 의 weight decay</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">D1</span>
+      <span class="body">embedding 에 weight decay 를 주면 학습 후반 embedding 이 0 으로 수렴 — 학습 instability.</span>
+    </div>
+    <div class="node lvl3">
+      <span class="ix">→</span>
+      <span class="body"><strong>결정: embedding layer 의 weight decay 제거</strong>. 다른 layer 는 0.1 유지.</span>
+    </div>
+
+    <div class="node lvl1">
+      <span class="ix">E</span>
+      <span class="body"><strong>data masking</strong> — intra-document attention</span>
+    </div>
+    <div class="node lvl2">
+      <span class="ix">E1</span>
+      <span class="body">document packing 시 cross-document attention 을 차단 — 문서 경계를 모델이 안 무시.</span>
+    </div>
+    <div class="node lvl3">
+      <span class="ix">→</span>
+      <span class="body"><strong>결정: intra-document masking 채택</strong></span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">결정의 일반화</div>
+    <p>이 다섯 결정은 <strong>SmolLM3 만의 특수성이 아니다</strong>. Llama 3 / Qwen 2.5 / DeepSeek 3 의 architecture 가 거의 같은 자리에 수렴한다. <em>“작은 모델로 검증한 결정이 큰 모델에서도 통한다”</em> 의 가장 깨끗한 증거.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>ablation 워크플로</b><span>· 작게 검증, 크게 학습</span></div>
+    <h2>한 번에 한 변수만, 항상 같은 평가 셋 위에서</h2>
+  </div>
+  <p class="sec-lede">강의가 가장 실무적으로 깔리는 자리. ablation 을 어떻게 굴리는가 — 그리고 결과를 어떻게 해석해야 의사결정이 가능한가.</p>
+
+  <ol class="ex-list">
+    <li><strong>baseline 고정</strong> — 항상 같은 architecture, 같은 100B token, 같은 평가 셋. 새 ablation 은 baseline 대비 한 변수만 바뀜.</li>
+    <li><strong>같은 LR/batch 스케일</strong> — ablation 사이에 LR/batch 가 바뀌면 결과 비교 불가. 작은 모델 ablation 도 큰 모델과 같은 effective batch 로.</li>
+    <li><strong>multiple seed</strong> — 작은 모델은 seed 노이즈가 큼. 같은 ablation 을 3 seed 평균. 차이가 seed 노이즈 안에 들어오면 “효과 없음” 으로 결론.</li>
+    <li><strong>downstream metric</strong> — final loss 가 아니라 다운스트림 평가 (HellaSwag, MMLU, ARC, GSM8K 의 작은 셋). loss 는 misleading 할 수 있음.</li>
+    <li><strong>WSD 활용</strong> — ablation 마다 cosine 을 새로 굴리지 않는다. WSD 의 stable phase 끝에서 같은 길이의 decay 를 붙여 비교. <em>cycle time 이 절반 이하로</em>.</li>
+    <li><strong>결과의 wiki 화</strong> — 모든 ablation 의 표를 wiki 에 누적. “어제 한 ablation” 이 “1년 후 누가 다시 안 한다” 는 보장.</li>
+  </ol>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · ablation 의 의사결정 트리</span><span>한 결정을 본 학습으로 옮기기까지</span></div>
+    <div class="l92-tree">
+      <div class="node lvl1"><span class="ix">Q</span><span class="body"><strong>변경하고 싶은 것이 있다</strong> — 새 architecture, 새 데이터 mixture, 새 hyperparameter</span></div>
+      <div class="node lvl2"><span class="ix">1</span><span class="body">먼저 — 같은 변경이 다른 사람의 ablation 에 이미 있는가? (paper / wiki 검색)</span></div>
+      <div class="node lvl2"><span class="ix">2</span><span class="body">없으면 — 100B token, 3 seed, baseline + 1 변수 변경 ablation</span></div>
+      <div class="node lvl3"><span class="ix">2a</span><span class="body">downstream metric 차이 < seed noise → 효과 없음 → 폐기</span></div>
+      <div class="node lvl3"><span class="ix">2b</span><span class="body">차이가 noise 보다 크고 일관 → 다음 step</span></div>
+      <div class="node lvl2"><span class="ix">3</span><span class="body">크기 외삽 — 작은 ablation 의 효과가 모델/토큰 크기 따라 어떻게 변하는가? scaling curve.</span></div>
+      <div class="node lvl2"><span class="ix">4</span><span class="body">비용 회계 — 추가되는 학습 시간/메모리 가 ablation 의 효과에 비례하는가?</span></div>
+      <div class="node lvl3"><span class="ix">→</span><span class="body"><strong>결정 — 본 학습 architecture 에 채택</strong></span></div>
+    </div>
+    <div class="viz-note">대부분의 ablation 은 <strong>2a 에서 멈춘다</strong> — 효과가 noise 안. 그게 정상이다. 진짜 의미 있는 architecture 결정은 1년에 몇 개 안 된다.</div>
+  </div>
+
+  <div class="pull">“제대로 된 ablation 한 번이 잘못된 본 학습 한 번보다 100배 싸다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>평가 metric — saturate 안 되는 척도</b><span>· eval design</span></div>
+    <h2>HellaSwag 만 보면 함정에 빠진다 — 다양성과 난이도를 함께</h2>
+  </div>
+  <p class="sec-lede">SmolLM3 의 평가는 일부러 <em>여러 차원</em> 을 다룬다. 같은 모델이 한 평가 셋에서 좋고 다른 평가 셋에서 나쁜 패턴이 자주 발견되기 때문.</p>
+
+  <ul>
+    <li><strong>knowledge</strong>: MMLU, ARC. 많은 모델이 saturate 된 영역 — 차이를 보려면 hard subset.</li>
+    <li><strong>reasoning</strong>: GSM8K, MATH, AIME. SmolLM3 가 가장 큰 효과를 본 영역 — reasoning mid-training 덕분.</li>
+    <li><strong>code</strong>: HumanEval, MBPP, LiveCodeBench. Stack-Edu / The Stack v2 가 들어오는 자리.</li>
+    <li><strong>long context</strong>: RULER. 128k 까지 정확히 retrieve 하는가의 척도.</li>
+    <li><strong>multilingual</strong>: 6개 언어의 동시 평가. 12% multilingual data 의 효과 검증.</li>
+    <li><strong>chat / instruction</strong>: post-training 후만 의미 있음. IFEval 같은 instruction following.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">saturate 된 metric 의 함정</div>
+    <p>HellaSwag · MMLU 일부 subset 은 3B 모델도 거의 천장. <strong>두 모델 모두 90% 라면 metric 이 정보를 안 준다</strong>. 항상 hard subset 또는 새 task (LiveCodeBench, AIME 2025) 를 함께. 평가는 “고정된 셋” 이 아니라 “계속 갱신되는 척도” 다.</p>
+  </div>
+
+  <p>SmolLM3 의 reasoning 결과가 특히 인상적 — <strong>AIME 2025 36.7% (vs 9.3% 비교 모델), LiveCodeBench 30.0% (vs 15.2%)</strong>. reasoning mid-training 의 효과가 이 자리에서 가장 크게 회수된다. 같은 3B 사이즈에서 단순 더 많은 데이터로는 안 나오는 차이.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>chinchilla 와의 차이</b><span>· overtraining 의 의미</span></div>
+    <h2>3B × 11.2T = chinchilla 의 60×</h2>
+  </div>
+  <p class="sec-lede">Chinchilla 는 “파라미터 1 개당 token ~20” 을 compute-optimal 로 본다. 3B 모델의 chinchilla optimal 은 60B token. SmolLM3 는 <strong>11.2T 토큰 — chinchilla 의 약 60배 overtraining</strong>.</p>
+
+  <ul>
+    <li><strong>왜 overtrain 하는가</strong> — chinchilla 는 <em>학습 비용</em> 만 본다. 추론 비용은 모델 크기에 따라 영원히 든다. 3B × 11.2T 가 7B × 1T 보다 추론이 훨씬 싸다.</li>
+    <li><strong>diminishing returns</strong> — 11T 까지 가면 token 한 단위가 주는 loss 감소가 작아진다. 그러나 0 은 아니다 — 평가 metric 으로 보면 끝까지 의미 있는 향상.</li>
+    <li><strong>3-stage 의 의미</strong> — 단순히 “더 많이 학습” 이 아니다. 후반 데이터의 quality 를 의도적으로 높여, overtraining 의 잔여 capacity 를 highest-quality 로 채움.</li>
+    <li><strong>open-source 의 자리</strong> — 큰 모델이 closed weights 인 시대에, 작은 overtrained 모델이 사용자 손에 직접 들어간다. 추론 호스팅 비용까지 따지면 이게 곧 “접근 가능한 frontier”.</li>
+  </ul>
+
+  <div class="pull">“chinchilla 는 학습자의 비용 함수다 — 사용자의 비용 함수는 다른 곳에 있다.”<span class="by">학습 노트</span></div>
+
+  <div class="callout">
+    <div class="label">over-training 의 새 trade-off</div>
+    <p>“얼마나 더 학습할 것인가” 의 답은 곧 — <em>이 모델이 추론으로 몇 token 을 처리할 것인가</em> 의 추정. 검색/챗 서비스라면 학습 비용의 1000배가 추론. 그러면 학습에 더 투자하는 게 모든 차원에서 합리적. SmolLM3 는 그 가정 위에서 11.2T 를 정당화.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>비용 회계</b><span>· 384 H100 × 24일</span></div>
+    <h2>“작은 모델” 도 GPU-month 단위 — 비용 표를 그대로 공개</h2>
+  </div>
+  <p class="sec-lede">SmolLM3 가 다른 “open source” 모델과 다른 점 — <strong>비용을 숨기지 않는다</strong>. 384 × H100 × 24일 = 약 220k GPU-hour. cloud 가격으로 환산하면 6–8억 원 규모. <em>“smol” 조차 적은 비용은 아니다</em>.</p>
+
+  <div class="l92-ablate">
+    <div class="card"><div class="h">main pretrain</div><div class="v">220k GPU-h</div><div class="em">384 H100 × 24일 · 11.2T token</div></div>
+    <div class="card"><div class="h">mid-training</div><div class="v">~40k GPU-h</div><div class="em">long-context + reasoning · 240B token (확인 필요)</div></div>
+    <div class="card"><div class="h">post-training</div><div class="v">~15k GPU-h</div><div class="em">SFT 4 epoch + APO + merging (확인 필요)</div></div>
+    <div class="card"><div class="h">ablation</div><div class="v">~50k GPU-h</div><div class="em">100B 단위 50+개 ablation (추정)</div></div>
+    <div class="card"><div class="h">디버깅 / 실패</div><div class="v">~30k GPU-h</div><div class="em">학습 재시작 · ECC · NCCL (추정)</div></div>
+    <div class="card"><div class="h">총합</div><div class="v">~360k GPU-h</div><div class="em">main pretrain 의 1.6×</div></div>
+  </div>
+
+  <p>이 표가 보여주는 사실 — main pretrain 만 GPU 시간을 잡지 않는다. <strong>ablation + 실패 + 디버깅이 1/3</strong>. L090 의 비용 회계와 같은 패턴이 작은 모델에서도 그대로 통한다.</p>
+
+  <div class="callout cool">
+    <div class="label">왜 비용을 공개하는가</div>
+    <p>SmolLM 팀의 명시적 입장 — <em>“open source LLM 의 reproducibility 는 가격까지 포함한다”</em>. 누군가가 같은 모델을 처음부터 다시 만들고 싶을 때, GPU-hour 견적 없이는 못 한다. 그래서 ablation 비용까지 표로.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>reproducibility — 공개되는 모든 것</b><span>· openness</span></div>
+    <h2>weight · data · code · config · ablation log — 다 공개</h2>
+  </div>
+  <p class="sec-lede">SmolLM3 가 “open weights” 를 넘어 “open everything” 인 자리. 같은 결과를 다른 팀이 재현 가능한 형태까지.</p>
+
+  <ul>
+    <li><strong>weight</strong>: HF Hub, base · instruct 둘 다.</li>
+    <li><strong>data</strong>: FineWeb-Edu, Stack-Edu, FineMath4+ 등 모든 mixture 의 소스 데이터셋이 Hub 위. 학습 시 mixing 비율도 공개.</li>
+    <li><strong>code</strong>: Nanotron 학습 framework + SmolLM3 학습 config 전체.</li>
+    <li><strong>training config</strong>: WSD scheduler, learning rate, warmup, decay 전부 yaml.</li>
+    <li><strong>ablation</strong>: 주요 architecture 결정의 ablation 결과를 blog 안 표로.</li>
+    <li><strong>checkpoint</strong>: stage 별 중간 checkpoint 도 공개 — 다른 팀이 mid-training 만 재현 가능.</li>
+  </ul>
+
+  <p>이 정도의 공개는 frontier 모델에서는 거의 보기 힘들다. 그게 SmolLM3 가 <em>학습 자료</em> 로 가치 있는 이유 — 공개된 정보로 다음 팀이 결정 근거를 그대로 따라갈 수 있다.</p>
+
+  <div class="callout">
+    <div class="label">post-training 의 디테일까지</div>
+    <p>SFT (4 epoch, BFD packing, user turn loss masking), APO (DPO 의 더 안정한 변형), <strong>model merging</strong> 으로 long-context 회복 (APO 가중 0.9 + mid-training 가중 0.1). 한 단계도 빠지지 않은 레시피.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 실습</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">3-stage curriculum</div><div class="d">Stage1 foundation · Stage2 quality boost · Stage3 decay (code/math upsample). decay phase 가 결정적.</div></div>
+    <div class="term"><div class="t">WSD scheduler</div><div class="d">cosine 대신 warmup-stable-decay. stable 단계의 checkpoint 가 직접 비교 가능 — ablation friendly.</div></div>
+    <div class="term"><div class="t">GQA 4 그룹</div><div class="d">MHA 와 동등 quality, KV cache 4× 작음. 추론 비용의 결정적 절약.</div></div>
+    <div class="term"><div class="t">매 4번째 NoPE</div><div class="d">long-context 외삽 향상 + short-context 손해 없음. YARN 으로 inference 시 128k.</div></div>
+    <div class="term"><div class="t">embedding weight decay 제거</div><div class="d">학습 안정성 — embedding 0 수렴 방지.</div></div>
+    <div class="term"><div class="t">overtraining 60×</div><div class="d">3B × 11.2T = chinchilla optimal 의 60×. 추론 비용을 학습에 옮긴 trade-off.</div></div>
+    <div class="term"><div class="t">ablation 의 cycle time</div><div class="d">100B token 단위, 3 seed, downstream metric. seed noise 안에 들어오면 폐기.</div></div>
+    <div class="term"><div class="t">model merging</div><div class="d">APO 의 long-context 손실을 mid-training checkpoint 와 0.9/0.1 merge 로 회복.</div></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>SmolLM3 base + instruct 직접 추론</strong> — HF Hub 에서 다운로드, 같은 prompt 에 두 모델 비교. /think · /no_think 토글 효과 확인.</li>
+    <li><strong>Nanotron 으로 작은 ablation</strong> — Nanotron 의 SmolLM3 config 를 베이스로 100B → 1B 로 줄여, GQA 그룹 수 (1, 4, 8) 변화 ablation.</li>
+    <li><strong>WSD vs cosine 비교</strong> — 같은 모델 같은 데이터, scheduler 만 바꿔서 학습. final downstream metric 비교 + 중간 checkpoint 평가 가능성 비교.</li>
+    <li><strong>data mixture ablation</strong> — FineWeb-Edu 단독 vs FineWeb-Edu + Stack-Edu 의 두 mixture 로 100B 학습. 같은 LR, 같은 step. code metric 의 차이.</li>
+    <li><strong>model merging 직접 해보기</strong> — MergeKit 으로 두 SmolLM3 checkpoint 를 0.9/0.1 merge. RULER 점수 변화 측정.</li>
+  </ol>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=PQZt5L5Mwtg" target="_blank" rel="noopener">L092 강의 영상</a></span></div>
+    <div class="row"><span class="k">Playbook</span><span class="v"><a href="https://huggingface.co/spaces/HuggingFaceTB/smol-training-playbook" target="_blank" rel="noopener">Smol Training Playbook (HF Space)</a></span></div>
+    <div class="row"><span class="k">Blog</span><span class="v"><a href="https://huggingface.co/blog/smollm3" target="_blank" rel="noopener">SmolLM3 blog post</a></span></div>
+    <div class="row"><span class="k">Model</span><span class="v"><a href="https://huggingface.co/HuggingFaceTB/SmolLM3-3B" target="_blank" rel="noopener">HuggingFaceTB/SmolLM3-3B</a></span></div>
+    <div class="row"><span class="k">Framework</span><span class="v"><a href="https://github.com/huggingface/nanotron" target="_blank" rel="noopener">huggingface/nanotron</a></span></div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>학습 레시피 시리즈 안에서</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_090.html"><div class="n">L090</div><div class="ti">Resilient ML Engineering</div><div class="by">Stas Bekman — § 08 의 비용 회계와 같은 운영 마인드</div></a>
+    <a class="conn" href="lecture_091.html"><div class="n">L091</div><div class="ti">RL · Agents · OpenEnv</div><div class="by">post-training 의 다음 단계 — RL</div></a>
+    <a class="conn" href="lecture_046.html"><div class="n">L046</div><div class="ti">Distributed training</div><div class="by">Nanotron 의 분산 학습 패턴</div></a>
+    <a class="conn" href="lecture_039.html"><div class="n">L039</div><div class="ti">Data engineering for LLMs</div><div class="by">FineWeb / Stack 의 데이터 파이프라인 본격</div></a>
+    <a class="conn" href="lecture_071.html"><div class="n">L071</div><div class="ti">GRPO and reasoning RL</div><div class="by">SmolLM3 의 reasoning mid-training 과 통하는 방법론</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>transcript 가 실패</strong>해서, 본 노트의 비율 / 토큰 수치는 SmolLM3 공식 blog 와 model card 에서 가져온 것. 강의 안에서 다른 디테일이 등장했을 가능성.</li>
+    <li><strong>ablation 의 정확한 셋업</strong> — 100B token / 3 seed / downstream metric 라는 패턴은 일반적 추정. 강의에서 정확한 셋업을 더 깊이 다뤘을 가능성.</li>
+    <li><strong>비용 표의 정확성</strong> — main pretrain 220k GPU-h 외 세부 항목은 대부분 추정값. 강의에서 정확한 break-down 을 줬을 수 있음.</li>
+    <li><strong>SmolLM3 vs SmolLM2 의 차이</strong> — playbook 에서 두 모델 사이의 결정 변화를 다뤘을 수 있음 (특히 reasoning mid-training 도입 결정).</li>
+    <li><strong>fail 한 ablation 의 사례</strong> — playbook 의 가장 가치 있는 자료는 “해봤는데 안 됐다” 의 목록. 강의에서 어떤 negative result 를 공유했는지.</li>
+    <li><strong>multilingual 12% 의 결정</strong> — 왜 12% 인가의 ablation. 강의에서 정량적 근거가 등장했을 가능성.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트는 SmolLM3 공식 blog 의 정보 + 일반 LLM 학습 도메인 지식의 결합으로 작성. 강의 영상이 복원되면 ablation 의 구체 사례 / 비용 break-down / negative result 를 추가 보강해야 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_091.html"><span class="lbl">← Lecture 091</span><span class="nm">RL, Agents & OpenEnv</span></a>
+  <a class="nxt" href="lecture_093.html"><span class="lbl">Lecture 093 →</span><span class="nm">Cornserve — Multimodal AI Serving</span></a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L092 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

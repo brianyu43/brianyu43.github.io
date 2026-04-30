@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L067 · NCCL and NVSHMEM · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* L067 specific */
+.l67-cmp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l67-cmp .col{padding:16px 18px;background:var(--paper);border:1px solid var(--line);border-radius:10px}
+.l67-cmp .col .h{font-size:13px;color:var(--accent);font-weight:700;letter-spacing:.04em;margin-bottom:6px}
+.l67-cmp .col .t{font-size:14px;color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif;margin-bottom:8px}
+.l67-cmp .col ul{margin:0;padding-left:18px;color:var(--ink-soft);font-size:12.5px}
+.l67-cmp .col li{margin:4px 0}
+.l67-cmp .col.acc{border-color:var(--accent);background:var(--bg-soft)}
+
+.l67-ring{display:flex;justify-content:center;align-items:center;padding:12px 0}
+.l67-row{display:grid;grid-template-columns:80px 1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;align-items:center;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:6px}
+.l67-row .nm{color:var(--ink);font-weight:600}
+.l67-row .v{color:var(--ink-soft)}
+.l67-row.hi{border-color:var(--accent)}
+
+.l67-tab{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l67-tab .h{display:grid;grid-template-columns:1.4fr 90px 90px 90px;gap:10px;color:var(--muted);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l67-tab .row{display:grid;grid-template-columns:1.4fr 90px 90px 90px;gap:10px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:6px;align-items:center}
+.l67-tab .row .nm{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l67-tab .row .v{text-align:right;color:var(--ink-soft)}
+.l67-tab .row .v.hi{color:var(--accent);font-weight:700}
+.l67-tab .row.hi{border-color:var(--accent)}
+
+@media (max-width:760px){.l67-cmp{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_066.html">← L066</a>
+    <a href="lecture_068.html">L068 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L067</span>
+    <span>2025 · MPI veteran</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>NCCL and NVSHMEM — two GPU communication models, side by side</h1>
+  <p class="dek">multi-GPU 시대의 communication 라이브러리 두 갈래 — <strong>NCCL</strong> 의 collective 추상과 <strong>NVSHMEM</strong> 의 PGAS put/get 추상. Jeff Hammond 가 깐 이 강의는 <em>두 모델이 같은 하드웨어 위에서 무엇을 다르게 약속하는지</em>를 정리한다. NCCL 의 <code>allreduce</code> 한 줄과 NVSHMEM 의 <code>shmem_put</code> 한 줄이 같은 NVLink 를 어떻게 다르게 사용하는지 — 그 차이가 곧 학습/추론 코드의 형태를 결정한다.</p>
+
+  <div class="chips">
+    <span class="chip hi">NCCL</span>
+    <span class="chip hi">NVSHMEM</span>
+    <span class="chip hi">PGAS</span>
+    <span class="chip">collective</span>
+    <span class="chip">ring</span>
+    <span class="chip">tree</span>
+    <span class="chip">GPU-initiated comm</span>
+    <span class="chip">RDMA</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">J</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Jeff Hammond</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">NVIDIA · MPI/PGAS 베테랑 · ParRes Kernels 저자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L067</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Jeff Hammond</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">코드</div><div class="val">ParRes/Kernels</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">two communication models</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">NCCL collective 의 추상</span><span class="em">allreduce · broadcast</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">NVSHMEM 의 PGAS 모델</span><span class="em">put · get · symmetric heap</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">두 모델의 비교</span><span class="em">when to choose what</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">ring vs tree algorithms</span><span class="em">NCCL internals</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">GPU-initiated 통신</span><span class="em">device-side calls</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">fault tolerance 와 retry</span><span class="em">resilience patterns</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">latency vs bandwidth</span><span class="em">message-size regimes</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">NCCL 3.x 의 미래</span><span class="em">where it heads</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Two communication models, one hardware</span></div>
+    <h2>“NCCL 만 있으면 되는 줄 알았는데, 왜 NVSHMEM 이 따로 있는가”</h2>
+  </div>
+  <p class="sec-lede">PyTorch 에서 <code>dist.all_reduce</code> 한 줄을 부르면 그게 NCCL 로 들어간다. 학습 코드의 99% 가 그 한 줄로 끝난다. 그런데 frontier inference / training 의 최근 코드 (DeepSeek, FlashInfer, NVSHMEM-based MoE) 는 <strong>NVSHMEM</strong> 을 직접 쓴다. 같은 NVLink, 같은 RDMA 위에서 — 왜 다른 인터페이스인가?</p>
+
+  <p>강의의 출발 질문 셋.</p>
+  <ol>
+    <li><strong>NCCL 의 collective 추상이 왜 부족할 때가 있는가</strong> — host-launched, batched, bulk 동기 모델 자체의 한계.</li>
+    <li><strong>NVSHMEM 의 PGAS 모델은 어떤 패턴을 추가로 표현 가능하게 하는가</strong> — fine-grained, GPU-initiated, asynchronous put/get.</li>
+    <li><strong>두 모델은 같이 쓰는가, 둘 중 하나만 쓰는가</strong> — 답: 같이 쓴다. layer 가 다르다.</li>
+  </ol>
+
+  <p>Jeff 의 입장은 <em>“두 모델은 경쟁이 아니라 보완”</em>이다. NCCL 은 <strong>큰 단위의 collective</strong>를 가장 빠르게, NVSHMEM 은 <strong>작은 단위의 비대칭 통신</strong>을 가장 자연스럽게. 이게 강의 전체를 끌고 가는 framing.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>두 라이브러리를 같은 추상 레이어로 보지 말 것 — NCCL 은 <em>“모든 GPU 가 같은 데이터에 같은 연산을 한다”</em> 의 collective 모델, NVSHMEM 은 <em>“특정 GPU 의 특정 메모리 위치에 직접 쓴다”</em> 의 one-sided 모델. 같은 trip 을 짤 때 “단체 관광버스” 와 “개별 우버” 의 차이.</p>
+  </div>
+
+  <div class="pull">“NCCL 은 batched, bulk synchronous. NVSHMEM 은 fine-grained, asynchronous. 둘 다 NVLink 위에서 돌지만 추상이 정반대다.”<span class="by">강의 §1 재구성 · Jeff Hammond</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>NCCL collective 의 추상</b><span>· allreduce · broadcast · all-gather</span></div>
+    <h2>“모두가 같이 부른다, 그리고 같이 끝난다” — bulk synchronous 의 약속</h2>
+  </div>
+  <p class="sec-lede">NCCL 의 핵심 단어는 <strong>collective</strong>. 모든 rank 가 같은 함수를 같은 인자로 부르고, 모두가 끝나야 다음 코드가 실행된다. <code>ncclAllReduce</code>, <code>ncclBroadcast</code>, <code>ncclAllGather</code>, <code>ncclReduceScatter</code> — 이 4-5개가 학습 코드의 99%.</p>
+
+  <div class="split">
+    <div>
+      <p>collective 의 본질적 제약 두 가지.</p>
+      <ul>
+        <li><strong>모든 rank 가 참여</strong> — 한 rank 만 빠지면 deadlock. communicator 의 멤버십이 고정이라는 의미.</li>
+        <li><strong>모든 rank 가 같은 인자</strong> — buffer 사이즈, dtype, op 가 일치해야 함. 한 rank 만 다른 사이즈를 부르면 정의되지 않은 동작.</li>
+      </ul>
+      <p>이 제약이 곧 NCCL 의 강점이기도 하다 — 미리 알고 있으면 <strong>topology-aware 한 최적 알고리즘</strong>을 한 번 선택해서 같은 모양으로 반복할 수 있다. ring, tree, double binary tree — §05 에서 자세히.</p>
+
+      <div class="callout">
+        <div class="label">PyTorch 위치</div>
+        <p><code>torch.distributed.all_reduce(tensor, op=ReduceOp.SUM)</code> 한 줄이 들어가면 NCCL 의 <code>ncclAllReduce</code> 가 호출된다. <code>backend='nccl'</code> 으로 init 한 ProcessGroup 이 그대로 NCCL communicator. PyTorch 의 distributed API 의 추상이 곧 collective 모델 그 자체.</p>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// NCCL 의 표준 사용 패턴 — host code</span>
+ncclComm_t comm;
+ncclCommInitRank(&amp;comm, nranks, id, rank);
+
+<span style="color:#A99E89">// 각 rank 가 자기 GPU 에 sendbuff/recvbuff 준비</span>
+cudaMalloc(&amp;sendbuff, size);
+cudaMalloc(&amp;recvbuff, size);
+
+<span style="color:#A99E89">// 모든 rank 가 같이 부른다</span>
+ncclAllReduce(sendbuff, recvbuff,
+              count, ncclFloat,
+              ncclSum, comm, stream);
+
+<span style="color:#A99E89">// stream 위에서 비동기로 실행됨 — 이후 sync 필요</span>
+cudaStreamSynchronize(stream);</code></pre>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 4 개 collective 의 데이터 흐름</span><span>4 ranks 예시</span></div>
+    <svg viewBox="0 0 600 220" width="100%" height="220" style="font-family:'JetBrains Mono',monospace;font-size:10px">
+      <!-- AllReduce -->
+      <text x="60" y="16" class="lbl-hi">AllReduce</text>
+      <g transform="translate(0,30)">
+        <rect x="10" y="0" width="30" height="20" class="box-acc"/><text x="25" y="14" class="tx-hi" text-anchor="middle">A</text>
+        <rect x="50" y="0" width="30" height="20" class="box-acc"/><text x="65" y="14" class="tx-hi" text-anchor="middle">B</text>
+        <rect x="90" y="0" width="30" height="20" class="box-acc"/><text x="105" y="14" class="tx-hi" text-anchor="middle">C</text>
+        <rect x="10" y="40" width="110" height="20" class="box-cool"/>
+        <text x="65" y="54" class="tx-hi" text-anchor="middle">A+B+C+D</text>
+        <text x="65" y="78" class="lbl">모두 합 동일</text>
+      </g>
+      <!-- Broadcast -->
+      <text x="220" y="16" class="lbl-hi">Broadcast</text>
+      <g transform="translate(160,30)">
+        <rect x="10" y="0" width="30" height="20" class="box-acc"/><text x="25" y="14" class="tx-hi" text-anchor="middle">X</text>
+        <rect x="50" y="0" width="30" height="20" class="box-paper"/><text x="65" y="14" class="tx" text-anchor="middle">·</text>
+        <rect x="90" y="0" width="30" height="20" class="box-paper"/><text x="105" y="14" class="tx" text-anchor="middle">·</text>
+        <rect x="10" y="40" width="30" height="20" class="box-cool"/><text x="25" y="54" class="tx-hi" text-anchor="middle">X</text>
+        <rect x="50" y="40" width="30" height="20" class="box-cool"/><text x="65" y="54" class="tx-hi" text-anchor="middle">X</text>
+        <rect x="90" y="40" width="30" height="20" class="box-cool"/><text x="105" y="54" class="tx-hi" text-anchor="middle">X</text>
+        <text x="65" y="78" class="lbl">root → 모두</text>
+      </g>
+      <!-- AllGather -->
+      <text x="380" y="16" class="lbl-hi">AllGather</text>
+      <g transform="translate(320,30)">
+        <rect x="10" y="0" width="30" height="20" class="box-acc"/><text x="25" y="14" class="tx-hi" text-anchor="middle">A</text>
+        <rect x="50" y="0" width="30" height="20" class="box-acc"/><text x="65" y="14" class="tx-hi" text-anchor="middle">B</text>
+        <rect x="90" y="0" width="30" height="20" class="box-acc"/><text x="105" y="14" class="tx-hi" text-anchor="middle">C</text>
+        <g transform="translate(0,40)">
+          <rect x="10" y="0" width="30" height="20" class="box-cool"/><text x="25" y="14" class="tx-hi" text-anchor="middle">ABC</text>
+          <rect x="50" y="0" width="30" height="20" class="box-cool"/><text x="65" y="14" class="tx-hi" text-anchor="middle">ABC</text>
+          <rect x="90" y="0" width="30" height="20" class="box-cool"/><text x="105" y="14" class="tx-hi" text-anchor="middle">ABC</text>
+        </g>
+        <text x="65" y="78" class="lbl">concat</text>
+      </g>
+      <!-- ReduceScatter -->
+      <text x="520" y="16" class="lbl-hi">ReduceScatter</text>
+      <g transform="translate(460,30)">
+        <rect x="10" y="0" width="30" height="20" class="box-acc"/><text x="25" y="14" class="tx-hi" text-anchor="middle">A1B1</text>
+        <rect x="50" y="0" width="30" height="20" class="box-acc"/><text x="65" y="14" class="tx-hi" text-anchor="middle">A2B2</text>
+        <rect x="90" y="0" width="30" height="20" class="box-acc"/><text x="105" y="14" class="tx-hi" text-anchor="middle">A3B3</text>
+        <rect x="10" y="40" width="30" height="20" class="box-cool"/><text x="25" y="54" class="tx-hi" text-anchor="middle">Σ1</text>
+        <rect x="50" y="40" width="30" height="20" class="box-cool"/><text x="65" y="54" class="tx-hi" text-anchor="middle">Σ2</text>
+        <rect x="90" y="40" width="30" height="20" class="box-cool"/><text x="105" y="54" class="tx-hi" text-anchor="middle">Σ3</text>
+        <text x="65" y="78" class="lbl">분할된 합</text>
+      </g>
+    </svg>
+    <div class="viz-note"><strong>AllReduce = ReduceScatter + AllGather</strong> 의 합성. 큰 메시지일 때 ring 알고리즘이 이 합성을 직접 활용해 latency 를 절반으로 줄인다 — §05 의 핵심.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>NVSHMEM 의 PGAS 모델</b><span>· Put · get · symmetric heap</span></div>
+    <h2>“내가 너의 메모리에 직접 쓴다” — partitioned global address space</h2>
+  </div>
+  <p class="sec-lede">PGAS (Partitioned Global Address Space) 의 약속 — <strong>각 GPU 의 메모리가 모두 같은 가상 주소 공간 안에 있다</strong>. 단, 물리적으로는 분산. 각 메모리 영역은 한 GPU 에 속한다 (partitioned). 다른 GPU 에 있는 변수에 접근하려면 <code>shmem_get</code>, 다른 GPU 에 쓰려면 <code>shmem_put</code>. <em>한쪽만 부르면 끝난다 — one-sided</em>.</p>
+
+  <div class="split rev">
+    <div>
+      <p>NVSHMEM 의 핵심 개념 셋.</p>
+      <ul>
+        <li><strong>symmetric heap</strong> — 모든 GPU 가 같은 사이즈의 heap 을 가지고, 같은 변수가 같은 offset 에 위치. <code>nvshmem_malloc(size)</code> 의 결과가 모두 같은 주소.</li>
+        <li><strong>PE (Processing Element)</strong> — rank 의 NVSHMEM 명칭. <code>nvshmem_my_pe()</code> 가 자기 번호를, <code>nvshmem_n_pes()</code> 가 전체 수를 돌려줌.</li>
+        <li><strong>one-sided primitives</strong> — <code>nvshmem_put(dst, src, size, pe)</code>, <code>nvshmem_get(dst, src, size, pe)</code>. <em>상대 PE 는 함수를 부르지 않아도 자기 메모리가 바뀐다</em>.</li>
+      </ul>
+
+      <div class="callout cool">
+        <div class="label">왜 “symmetric”</div>
+        <p>같은 변수가 모든 GPU 의 같은 offset 에 있다는 약속이 있어야, “PE 3 의 변수 X 에 쓴다” 가 단순한 주소 계산으로 풀린다. 이게 PGAS 의 효율성의 출발점. MPI one-sided 와 같은 가족이지만 GPU-aware.</p>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// NVSHMEM 의 표준 host code</span>
+nvshmem_init();
+<span style="color:#E7B369">int</span> me = nvshmem_my_pe();
+<span style="color:#E7B369">int</span> npes = nvshmem_n_pes();
+
+<span style="color:#A99E89">// 모든 PE 가 같은 사이즈, 같은 offset</span>
+<span style="color:#E7B369">float</span>* buf = (<span style="color:#E7B369">float</span>*)
+    nvshmem_malloc(N * <span style="color:#E7B369">sizeof</span>(<span style="color:#E7B369">float</span>));
+
+<span style="color:#A99E89">// PE 0 이 PE 1 의 buf[0..N) 를 자기 src 로 덮어씀</span>
+<span style="color:#E7B369">if</span> (me == <span style="color:#E7B369">0</span>) {
+    nvshmem_float_put(buf, src, N, <span style="color:#E7B369">1</span>);
+}
+<span style="color:#A99E89">// PE 1 은 아무것도 안 부른다 — 자기 buf 가 바뀐다</span>
+nvshmem_barrier_all();
+
+nvshmem_free(buf);
+nvshmem_finalize();</code></pre>
+<pre><code><span style="color:#A99E89">// Device 에서 직접 — kernel 안에서 통신</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> exchange(<span style="color:#E7B369">float</span>* buf) {
+    <span style="color:#E7B369">int</span> tid = threadIdx.x;
+    <span style="color:#E7B369">int</span> me  = nvshmem_my_pe();
+    <span style="color:#E7B369">int</span> peer = (me + <span style="color:#E7B369">1</span>) % nvshmem_n_pes();
+    <span style="color:#A99E89">// thread 단위 fine-grained put</span>
+    nvshmem_float_p(&amp;buf[tid], src[tid], peer);
+}</code></pre>
+    </div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">왜 GPU-initiated 가 결정적인가</h3>
+  <p>NVSHMEM 의 진짜 강점은 <strong>device-side API</strong>. 위 두 번째 코드처럼 kernel 안에서 직접 <code>nvshmem_float_p</code> 를 부른다 — kernel 을 끝내고 host 로 나갔다가 NCCL collective 를 부르는 게 아니라, <em>같은 kernel 안에서 통신과 계산이 섞인다</em>.</p>
+
+  <div class="pull">“NCCL 은 host 가 ‘이제 통신해라’ 라고 시킨다. NVSHMEM 은 GPU 가 자기 코드 흐름 안에서 직접 통신한다 — 이 차이가 latency 를 한 자릿수 바꾼다.”<span class="by">강의 §3 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>두 모델의 비교</b><span>· When to choose what</span></div>
+    <h2>같은 NVLink, 다른 추상 — 무엇이 무엇을 약속하는가</h2>
+  </div>
+  <p class="sec-lede">두 라이브러리를 한 표 위에 펼쳐놓는다. 같은 hardware 위에서 다른 약속을 한다는 점이 명확해야 한다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · NCCL vs NVSHMEM 의 12개 차원</span><span>same hardware, different promises</span></div>
+    <div class="l67-tab">
+      <div class="h"><span>차원</span><span>NCCL</span><span>NVSHMEM</span><span>의미</span></div>
+      <div class="row hi"><span class="nm">communication 모델</span><span class="v">collective</span><span class="v hi">PGAS / one-sided</span><span class="v">바라보는 시점</span></div>
+      <div class="row"><span class="nm">참여 방식</span><span class="v">모든 rank</span><span class="v">한 쪽만</span><span class="v">non-symmetric 가능</span></div>
+      <div class="row"><span class="nm">동기화</span><span class="v">자동</span><span class="v">명시적 fence</span><span class="v">memory ordering</span></div>
+      <div class="row"><span class="nm">호출 위치</span><span class="v">host (mostly)</span><span class="v hi">host + device</span><span class="v">in-kernel comm</span></div>
+      <div class="row hi"><span class="nm">메시지 단위</span><span class="v">큰 buffer</span><span class="v hi">word/element</span><span class="v">fine-grained</span></div>
+      <div class="row"><span class="nm">topology 인지</span><span class="v hi">자동 최적화</span><span class="v">사용자 책임</span><span class="v">algorithm 선택</span></div>
+      <div class="row"><span class="nm">latency (small msg)</span><span class="v">~10–30 µs</span><span class="v hi">~1–5 µs</span><span class="v">device-side 효과</span></div>
+      <div class="row"><span class="nm">bandwidth (large)</span><span class="v hi">peak 가까움</span><span class="v">peak 가까움</span><span class="v">큰 메시지는 둘 다</span></div>
+      <div class="row"><span class="nm">programming difficulty</span><span class="v hi">낮음</span><span class="v">높음</span><span class="v">trade-off</span></div>
+      <div class="row"><span class="nm">PyTorch 통합</span><span class="v hi">기본</span><span class="v">실험적</span><span class="v">DeepEP 같은 용도</span></div>
+      <div class="row"><span class="nm">대표 use case</span><span class="v">DDP, ZeRO, TP</span><span class="v hi">MoE dispatch, EP</span><span class="v">collective vs sparse</span></div>
+      <div class="row"><span class="nm">fault tolerance</span><span class="v">제한적</span><span class="v">제한적</span><span class="v">L070 PCCL 참고</span></div>
+    </div>
+    <div class="viz-note">"latency vs bandwidth" 의 측면이 §08 에서 본격적으로 다뤄진다. <strong>작은 메시지에서는 NVSHMEM, 큰 batched 메시지에서는 NCCL</strong> 이 압도. 같은 GPU 시스템 위에서 두 도구를 같이 쓰는 게 자연스러운 결론.</div>
+  </div>
+
+  <div class="l67-cmp">
+    <div class="col acc">
+      <div class="h">NCCL 을 고르는 trigger</div>
+      <div class="t">큰 batched, 같은 패턴 반복</div>
+      <ul>
+        <li>학습 루프의 gradient allreduce (DDP, FSDP)</li>
+        <li>모델 weights 의 broadcast (init)</li>
+        <li>activation 의 all-gather / reduce-scatter (TP)</li>
+        <li>topology 가 복잡 (multi-node, IB + NVLink 혼합)</li>
+        <li><em>“PyTorch 가 이미 부르고 있는 것”</em></li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">NVSHMEM 을 고르는 trigger</div>
+      <div class="t">sparse, asymmetric, fine-grained</div>
+      <ul>
+        <li>MoE dispatch / combine — 각 expert 가 다른 token 받음</li>
+        <li>DeepEP 같은 expert parallelism kernel</li>
+        <li>kernel 안에서 통신을 hide 하고 싶을 때</li>
+        <li>latency-bound 작은 메시지 (1KB 이하)</li>
+        <li>irregular pattern (bipartite scatter, halo exchange)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>ring vs tree algorithms</b><span>· NCCL internals</span></div>
+    <h2>NCCL 이 같은 collective 를 두 가지 방식으로 — 메시지 사이즈에 따라 다르다</h2>
+  </div>
+  <p class="sec-lede">NCCL 의 black box 안에 들어가면 같은 <code>allreduce</code> 가 <strong>ring 알고리즘</strong>과 <strong>tree 알고리즘</strong> 두 형태로 다르게 구현돼 있다. 작은 메시지에서는 tree (latency 우위), 큰 메시지에서는 ring (bandwidth 우위). NCCL 이 자동으로 고른다.</p>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:16px;margin:0 0 8px;color:var(--ink)">ring algorithm — bandwidth optimal</h3>
+      <p>모든 GPU 가 ring 으로 연결됐다고 가정. 메시지를 N개 chunk 로 나눠 ring 위에서 N-1 step 을 반복. <strong>각 step 에서 한 chunk 가 한 hop 이동</strong>. 결국 <em>2(N-1) step</em>으로 allreduce 가 끝남 (reduce-scatter + all-gather 합성).</p>
+      <p>강점 — 각 link 위 데이터 양이 (N-1)/N 으로 거의 1, 즉 <strong>bandwidth 거의 100% 사용</strong>. 약점 — step 수가 N 에 비례해 latency 누적.</p>
+    </div>
+    <div>
+      <h3 style="font-size:16px;margin:0 0 8px;color:var(--ink)">tree algorithm — latency optimal</h3>
+      <p>이진 트리 (또는 double binary tree) 형태로 GPU 들을 묶음. up-phase 에서 child 가 parent 로 reduce, root 에서 결과 집계 후 down-phase 에서 broadcast. <strong>step 수가 log N</strong>.</p>
+      <p>강점 — 작은 메시지에서 latency dominant 한 영역에서 ring 보다 빠름. 약점 — bandwidth 가 나무의 윗부분에서 병목 (root 가 단일 point).</p>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · ring vs tree 의 메시지 사이즈별 시간</span><span>simple model</span></div>
+    <svg viewBox="0 0 600 200" width="100%" height="200">
+      <!-- axes -->
+      <line x1="60" y1="170" x2="560" y2="170" class="ln"/>
+      <line x1="60" y1="20" x2="60" y2="170" class="ln"/>
+      <text x="310" y="195" class="lbl" text-anchor="middle">message size (log scale, KB → MB)</text>
+      <text x="22" y="100" class="lbl" text-anchor="middle" transform="rotate(-90 22,100)">time</text>
+      <!-- ring: linear with size, latency floor low... actually NCCL ring has high latency floor due to N steps -->
+      <line x1="60" y1="80" x2="560" y2="50" class="acc"/>
+      <text x="540" y="42" class="lbl-hi">ring</text>
+      <!-- tree: low latency floor, slope grows -->
+      <line x1="60" y1="40" x2="560" y2="120" class="cool"/>
+      <text x="540" y="135" class="lbl-cool">tree</text>
+      <!-- crossover region -->
+      <line x1="200" y1="20" x2="200" y2="170" class="lnd"/>
+      <text x="205" y="35" class="lbl">crossover</text>
+      <text x="125" y="155" class="lbl">tree 우세</text>
+      <text x="350" y="155" class="lbl">ring 우세</text>
+    </svg>
+    <div class="viz-note">crossover 는 <strong>~1MB 부근</strong> (확인 필요, GPU/NVLink 세대마다 다름). <strong>NCCL 은 <code>NCCL_ALGO=Ring|Tree|Auto</code> 환경변수로 강제 선택 가능</strong> — 디버깅용.</div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">double binary tree</h3>
+  <p>현대 NCCL 의 기본 — 두 개의 보완적 binary tree 를 동시에 돌려 <strong>tree 의 bandwidth 약점을 보강</strong>한다. 각 tree 가 서로 다른 link 만 사용하도록 짜여 있어서 NVLink 의 양방향 대역폭을 모두 활용. 이게 NCCL 2.x 가 “fastest collective library” 의 자리에 머물게 한 핵심 알고리즘.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>GPU-initiated 통신</b><span>· Device-side calls</span></div>
+    <h2>kernel 이 끝나기 전에 통신을 시작한다 — overlap 의 진짜 의미</h2>
+  </div>
+  <p class="sec-lede">NCCL 은 host 가 launch 하는 collective. 그 결과 — kernel 이 끝나야 통신이 시작된다 (또는 별도 stream 위에 띄워야 함). NVSHMEM 은 <strong>kernel 안에서 직접 put/get</strong>. 한 thread block 이 작업을 끝내자마자 그 결과를 다른 GPU 로 send 시작.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · NCCL host-launch vs NVSHMEM device-initiated</span><span>같은 일, 다른 timeline</span></div>
+    <svg viewBox="0 0 700 200" width="100%" height="200" style="font-family:'JetBrains Mono',monospace;font-size:10px">
+      <!-- NCCL pattern -->
+      <text x="20" y="20" class="lbl-hi">NCCL pattern (host-launched)</text>
+      <g transform="translate(0,30)">
+        <text x="20" y="14" class="lbl">CPU</text>
+        <rect x="70" y="0" width="100" height="20" class="box-soft"/>
+        <text x="120" y="14" class="tx" text-anchor="middle">launch K1</text>
+        <rect x="280" y="0" width="120" height="20" class="box-soft"/>
+        <text x="340" y="14" class="tx" text-anchor="middle">launch allreduce</text>
+        <rect x="510" y="0" width="100" height="20" class="box-soft"/>
+        <text x="560" y="14" class="tx" text-anchor="middle">launch K2</text>
+      </g>
+      <g transform="translate(0,60)">
+        <text x="20" y="14" class="lbl">GPU</text>
+        <rect x="80" y="0" width="170" height="20" class="box-cool"/>
+        <text x="165" y="14" class="tx-hi" text-anchor="middle">kernel 1 (compute)</text>
+        <rect x="270" y="0" width="220" height="20" class="box-acc"/>
+        <text x="380" y="14" class="tx-hi" text-anchor="middle">NCCL allreduce</text>
+        <rect x="510" y="0" width="120" height="20" class="box-cool"/>
+        <text x="570" y="14" class="tx-hi" text-anchor="middle">kernel 2</text>
+      </g>
+      <text x="380" y="100" class="lbl">→ compute 와 통신이 sequential</text>
+      <!-- NVSHMEM pattern -->
+      <text x="20" y="125" class="lbl-hi">NVSHMEM pattern (device-initiated)</text>
+      <g transform="translate(0,135)">
+        <text x="20" y="14" class="lbl">CPU</text>
+        <rect x="70" y="0" width="100" height="20" class="box-soft"/>
+        <text x="120" y="14" class="tx" text-anchor="middle">launch fused K</text>
+      </g>
+      <g transform="translate(0,165)">
+        <text x="20" y="14" class="lbl">GPU</text>
+        <rect x="80" y="0" width="500" height="20" class="box-cool"/>
+        <text x="180" y="14" class="tx-hi" text-anchor="middle">compute</text>
+        <rect x="180" y="0" width="120" height="20" class="box-acc" fill-opacity="0.6"/>
+        <text x="240" y="14" class="tx-hi" text-anchor="middle">put</text>
+        <rect x="320" y="0" width="120" height="20" class="box-cool" fill-opacity="0.7"/>
+        <text x="380" y="14" class="tx-hi" text-anchor="middle">compute</text>
+        <rect x="450" y="0" width="120" height="20" class="box-acc" fill-opacity="0.6"/>
+        <text x="510" y="14" class="tx-hi" text-anchor="middle">put</text>
+      </g>
+    </svg>
+    <div class="viz-note">위 timeline 은 단순화. NCCL 도 별도 stream 으로 overlap 시킬 수 있지만, <strong>같은 kernel 안에서의 fine-grained interleaving 은 NVSHMEM 의 device API 만 가능</strong>.</div>
+  </div>
+
+  <p>실전 예 — DeepEP / DeepSeek 의 expert parallelism dispatch. token 마다 어느 expert 로 갈지가 다르다. 이걸 NCCL 의 <em>모든 token batched all-to-all</em> 로 보내면 padding 과 sync 비용이 크다. NVSHMEM 의 <em>per-token put</em> 으로 보내면 정확히 필요한 만큼만, kernel 안에서 직접.</p>
+
+  <div class="callout">
+    <div class="label">하드웨어 전제</div>
+    <p>device-initiated 통신은 GPUDirect RDMA (NIC ↔ GPU 메모리 직접 access) 와 IB Verbs / NVLink 의 GPU-side 트리거가 필요. 모든 cluster 에서 되는 건 아니다 — H100 + ConnectX-7 + IB switch 같은 환경에서 검증됨.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>fault tolerance 와 retry</b><span>· Resilience patterns</span></div>
+    <h2>두 라이브러리 모두 “하나 죽으면 모두 죽는다” — 그 전제가 흔들리고 있다</h2>
+  </div>
+  <p class="sec-lede">NCCL 과 NVSHMEM 모두 <strong>tightly coupled</strong> 모델. communicator 안의 한 GPU/노드가 죽으면 collective 전체가 멈추고, 보통 process group 을 다시 만들어야 한다. 큰 학습 클러스터 (10k GPU) 에서는 이게 사실상 항상 일어난다.</p>
+
+  <div class="split">
+    <div>
+      <p>현재의 핸들링 패턴 — <em>checkpoint + restart</em>. 정기적으로 체크포인트를 저장하고, NCCL communicator 가 깨지면 모든 rank 가 재시작해서 마지막 체크포인트부터 다시.</p>
+      <ul>
+        <li>장점 — 단순하다. 추가 인프라 안 필요.</li>
+        <li>단점 — <strong>재시작 비용이 크다</strong>. 10k GPU 클러스터에서 한 GPU 가 죽으면 모두 재시작.</li>
+      </ul>
+      <p>이걸 깬 새 라이브러리가 <a href="lecture_070.html">L070 PCCL</a> 의 시도 — collective 안에서 일부 rank 의 dropout 을 견디는 fault-tolerant collective. NCCL 자체는 <em>NCCL 3.x 에서 partial recovery 를 검토</em>중 (확인 필요).</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · failure modes</span><span>현재 NCCL/NVSHMEM</span></div>
+        <div class="l67-tab">
+          <div class="h"><span>실패 종류</span><span>NCCL</span><span>NVSHMEM</span><span></span></div>
+          <div class="row"><span class="nm">단일 GPU 죽음</span><span class="v">전체 hang</span><span class="v">전체 hang</span><span class="v">restart 필요</span></div>
+          <div class="row"><span class="nm">노드 죽음</span><span class="v">restart</span><span class="v">restart</span><span class="v">동일</span></div>
+          <div class="row"><span class="nm">network flap</span><span class="v">timeout</span><span class="v">timeout</span><span class="v">env timeout</span></div>
+          <div class="row"><span class="nm">stragglers</span><span class="v">대기</span><span class="v">대기</span><span class="v">slow rank 가 느림</span></div>
+          <div class="row hi"><span class="nm">elastic shrink</span><span class="v">미지원</span><span class="v">미지원</span><span class="v">PCCL 가 시도</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pull">“NCCL 은 ‘모두가 살아있다’ 를 가정한다. 1만 GPU 클러스터에서 그 가정은 매시간 깨진다 — fault tolerance 는 더 이상 옵션이 아니다.”<span class="by">학습 노트 · §7</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>latency vs bandwidth</b><span>· Message-size regimes</span></div>
+    <h2>같은 라이브러리 안에서도 메시지 사이즈에 따라 다른 알고리즘을 선택해야 하는 이유</h2>
+  </div>
+  <p class="sec-lede">communication 의 cost 모델 — <strong>T(n) = α + β·n</strong>. α 는 latency floor, β 는 reciprocal bandwidth, n 은 메시지 사이즈. 이 단순한 모델 위에서 알고리즘 선택의 모든 기준이 나온다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 메시지 사이즈 regime</span><span>α-β model</span></div>
+    <div class="l67-tab">
+      <div class="h"><span>regime</span><span>크기 (대략)</span><span>지배 비용</span><span>최선 도구</span></div>
+      <div class="row hi"><span class="nm">tiny (control flag)</span><span class="v">≤ 16 B</span><span class="v">α dominant</span><span class="v hi">NVSHMEM put</span></div>
+      <div class="row"><span class="nm">small (token feature)</span><span class="v">~ 4 KB</span><span class="v">α dominant</span><span class="v hi">NVSHMEM</span></div>
+      <div class="row"><span class="nm">medium (layer slice)</span><span class="v">~ 1 MB</span><span class="v">crossover</span><span class="v">NCCL tree</span></div>
+      <div class="row"><span class="nm">large (gradient bucket)</span><span class="v">~ 100 MB</span><span class="v">β dominant</span><span class="v hi">NCCL ring</span></div>
+      <div class="row"><span class="nm">xlarge (whole model)</span><span class="v">~ 10 GB</span><span class="v">β dominant</span><span class="v hi">NCCL ring + chunking</span></div>
+    </div>
+    <div class="viz-note"><strong>PyTorch DDP 의 gradient bucketing</strong> 이 정확히 이 regime 위에서 설계됐다 — 작은 gradient 들을 합쳐 ~25MB 단위로 묶어 NCCL ring allreduce 의 sweet spot 을 만든다.</div>
+  </div>
+
+  <p>그리고 — <em>“latency 와 bandwidth 는 같은 hardware 위에서도 다른 측정치”</em>. NVLink 의 peer bandwidth 는 ~600 GB/s 인데 latency 는 ~1 µs 영역. 같은 NVLink 가 어떤 메시지에 대해서는 빠르고, 어떤 메시지에 대해서는 어쩔 수 없이 늦다 — 사이즈가 작으면 α 가 지배.</p>
+
+  <div class="callout">
+    <div class="label">측정 시점</div>
+    <p>NCCL bench (<code>nccl-tests</code>) 를 돌릴 때 <strong>꼭 메시지 사이즈를 sweep 한다</strong>. <code>./all_reduce_perf -b 8 -e 1G -f 2</code> 처럼. 8B 부터 1GB 까지 두 배씩 — α 와 β 가 그래프에서 직접 분리된다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>NCCL 3.x 의 미래</b><span>· Where it heads</span></div>
+    <h2>frontier roadmap — symmetric memory, fault tolerance, GPU-initiated</h2>
+  </div>
+  <p class="sec-lede">강의의 끝부분은 “NCCL 이 어디로 가는가”. 흥미롭게도 NCCL 의 진화 방향이 <strong>NVSHMEM 의 기능을 흡수하는 방향</strong>이다 — 같은 라이브러리 안에서 두 모델을 모두 제공.</p>
+
+  <ul>
+    <li><strong>NCCL symmetric memory</strong> (NCCL 2.20+) — NVSHMEM 의 symmetric heap 을 NCCL 에 도입. PyTorch 의 <code>SymmetricMemory</code> API 가 이걸 노출.</li>
+    <li><strong>NCCL device API</strong> — kernel 안에서 직접 부를 수 있는 NCCL primitive 일부. 작은 메시지 case 를 위한 fast path.</li>
+    <li><strong>fault tolerance</strong> — recoverable communicator. 일부 rank 가 사라져도 남은 rank 끼리 collective 를 계속할 수 있도록 (확인 필요, NCCL 3.x 의 design 단계).</li>
+    <li><strong>topology-aware tree</strong> — multi-rail IB 와 NVLink 5 의 새 topology 에 맞춘 알고리즘.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">관전 포인트</div>
+    <p>NCCL 과 NVSHMEM 의 경계가 점점 흐려지고 있다. 사용자 입장에서는 <em>“하나의 라이브러리에 두 모드가 있다”</em> 가 자연스러운 미래. 이 미래의 사용자는 “collective 를 부를지, put 을 부를지” 를 알고리즘 단위로 고른다 — 라이브러리 단위가 아니라.</p>
+  </div>
+
+  <div class="pull">“통신 라이브러리의 미래는 추상이 아니라 메시지 사이즈 단위로 알고리즘을 자동 선택하는 것 — 사용자는 의도만 적는다.”<span class="by">강의 §9 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드 자료</b><span>· Key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">collective 모델</div>
+      <div class="d">모든 rank 가 같은 함수, 같은 인자, 같이 끝남. NCCL 의 약속.</div>
+    </div>
+    <div class="term">
+      <div class="t">PGAS / one-sided</div>
+      <div class="d">한 쪽만 부르면 끝. symmetric heap. NVSHMEM 의 약속.</div>
+    </div>
+    <div class="term">
+      <div class="t">device-initiated</div>
+      <div class="d">kernel 안에서 직접 통신. NVSHMEM 의 진짜 차별점.</div>
+    </div>
+    <div class="term">
+      <div class="t">α + β·n</div>
+      <div class="d">latency floor + reciprocal bandwidth × size. 모든 알고리즘 선택의 기준.</div>
+    </div>
+    <div class="term">
+      <div class="t">ring vs tree</div>
+      <div class="d">tree 는 latency 우위, ring 은 bandwidth 우위. NCCL 이 자동 선택.</div>
+    </div>
+    <div class="term">
+      <div class="t">double binary tree</div>
+      <div class="d">tree 의 BW 약점을 두 tree 로 보강. NCCL 2.x 의 기본 알고리즘.</div>
+    </div>
+    <div class="term">
+      <div class="t">NCCL_ALGO 환경변수</div>
+      <div class="d">디버깅용 강제 선택. <code>Ring | Tree | Auto</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">fault tolerance 격차</div>
+      <div class="d">두 라이브러리 모두 tightly coupled. 1만 GPU 시대에는 한계.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=zxGVvMN6WaM" target="_blank" rel="noopener">youtube.com/watch?v=zxGVvMN6WaM</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://drive.google.com/file/d/1T8uHhFIeVa_g1oYb_O4d2Ltb8YQly1zK/view" target="_blank" rel="noopener">Google Drive · NCCL/NVSHMEM slides</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v"><a href="https://github.com/ParRes/Kernels/tree/main/Cxx11" target="_blank" rel="noopener">ParRes/Kernels · Cxx11</a> · Jeff 의 비교 벤치마크</span>
+    </div>
+    <div class="row">
+      <span class="k">Doc</span>
+      <span class="v"><a href="https://docs.nvidia.com/nvshmem/api/" target="_blank" rel="noopener">NVSHMEM API</a> · <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/" target="_blank" rel="noopener">NCCL User Guide</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>nccl-tests bandwidth sweep</strong> — <code>./all_reduce_perf -b 8 -e 1G -f 2 -g 4</code>. 8B 부터 1GB 까지 sweep. α 와 β 를 그래프로 분리.</li>
+    <li><strong>NCCL_DEBUG=INFO</strong> — 학습 코드 한 번 돌려 NCCL 이 ring vs tree 중 무엇을 골랐는지 직접 확인. <code>NCCL INFO Channel/Tree</code> 라인.</li>
+    <li><strong>NVSHMEM hello world</strong> — ParRes/Kernels 의 stencil 예제. 두 PE 사이의 halo exchange 를 NVSHMEM put 으로 직접 구현.</li>
+    <li><strong>device-initiated put</strong> — kernel 안에서 <code>nvshmem_float_p</code> 를 부르는 커널 작성. host-launched NCCL allreduce 와 latency 비교.</li>
+    <li><strong>PyTorch SymmetricMemory</strong> — torch 2.4+ 의 새 API. NCCL symmetric memory 위에서 작은 메시지 communication 패턴 직접 작성.</li>
+    <li><strong>NCCL_ALGO 강제</strong> — 같은 allreduce 를 <code>NCCL_ALGO=Ring</code> 과 <code>NCCL_ALGO=Tree</code> 로 두 번 돌려 메시지 사이즈별 차이 측정. crossover 직접 찾기.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· Connections</span></div>
+    <h2>communication / scaling / inference 의 가족 트리</h2>
+  </div>
+  <p class="sec-lede">이 강의의 두 도구가 다른 강의들에서 어떻게 다시 등장하는지 — communication 가족의 핵심 노드.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_017.html">
+      <div class="n">L017</div>
+      <div class="ti">NCCL deep dive</div>
+      <div class="by">Sylvain Jeaugey — NCCL 의 ring/tree 알고리즘 본격 설명</div>
+    </a>
+    <a class="conn" href="lecture_087.html">
+      <div class="n">L087</div>
+      <div class="ti">Low Latency Communication with NVSHMEM</div>
+      <div class="by">device-initiated put 의 실전 — DeepEP 같은 kernel</div>
+    </a>
+    <a class="conn" href="lecture_068.html">
+      <div class="n">L068</div>
+      <div class="ti">Landscape of GPU-centric comm</div>
+      <div class="by">Didem Unat — 두 라이브러리를 큰 지도 위에 위치시킴</div>
+    </a>
+    <a class="conn" href="lecture_070.html">
+      <div class="n">L070</div>
+      <div class="ti">PCCL — fault-tolerant collectives</div>
+      <div class="by">§07 의 한계를 정면으로 다루는 후속</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">profile CUDA kernels</div>
+      <div class="by">NCCL 통신을 profile 의 대상에 포함</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing kernels</div>
+      <div class="by">device-initiated 통신과 fused kernel 의 같은 가족</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· Open questions</span></div>
+    <h2>이 노트가 의도적으로 비워둔 자리들</h2>
+  </div>
+  <ul>
+    <li><strong>NCCL 3.x 의 정확한 fault tolerance design</strong> — 본문에서 “검토중” 으로 적은 부분. 공식 NCCL 릴리스 노트와 NVIDIA GTC 자료 확인 필요.</li>
+    <li><strong>ring vs tree crossover 의 정확한 사이즈</strong> — H100 NVLink, A100 NVLink, B200 NVLink 별로 다름. <code>nccl-tests</code> 자체 측정 필요.</li>
+    <li><strong>NVSHMEM 와 IBGDA 관계</strong> — IB GPUDirect Async 의 상태. NVSHMEM 이 사용하는 transport. 강의에서 잠깐 언급됐는지 영상 재확인 필요.</li>
+    <li><strong>PyTorch SymmetricMemory 의 실 사용 사례</strong> — 어떤 production 코드가 이미 채택했는지. 본 노트에서는 일반화된 표현으로만.</li>
+    <li><strong>α-β 모델의 한계</strong> — 단순 모델은 contention, congestion, NUMA 효과를 못 잡음. 실제 측정에서는 변동 큼.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본문의 latency 수치 (NCCL ~10–30 µs, NVSHMEM ~1–5 µs) 는 일반적 도메인 지식 범위에서 가져온 추정치. 정확한 값은 <em>특정 GPU 세대 + 특정 NIC 조합</em>에서의 직접 측정 필요. 강의 영상이 다시 transcript 가능해지면 Jeff 가 인용한 정확한 숫자로 교체 권장.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_066.html">
+    <span class="lbl">← Lecture 066</span>
+    <span class="nm">Game Arena — Lanxiang Hu</span>
+  </a>
+  <a class="nxt" href="lecture_068.html">
+    <span class="lbl">Lecture 068 →</span>
+    <span class="nm">Landscape of GPU-centric communication — Didem Unat</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L067 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

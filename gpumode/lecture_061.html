@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L061 · D-Matrix Corsair · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l61-mem{display:grid;grid-template-columns:140px 1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px;align-items:center}
+.l61-mem .lvl{padding:8px 12px;background:var(--paper);border:1px solid var(--line);border-radius:6px;font-size:11px;color:var(--ink-soft);text-align:right}
+.l61-mem .lvl b{display:block;color:var(--ink);font-size:13px;font-family:'Pretendard',sans-serif;margin-bottom:2px}
+.l61-mem .bar{height:32px;background:var(--bg-soft);border-radius:5px;position:relative;overflow:hidden}
+.l61-mem .bar span{position:absolute;left:0;top:0;height:100%;background:var(--accent);display:flex;align-items:center;padding:0 10px;color:var(--paper);font-weight:700;font-size:11px;border-radius:5px}
+.l61-mem .bar.cool span{background:var(--cool)}
+.l61-mem .bar.warn span{background:var(--warn)}
+.l61-mem .bar.good span{background:var(--good)}
+
+.l61-cmp{display:grid;grid-template-columns:170px 1fr 1fr 1fr;gap:0;font-family:'JetBrains Mono',monospace;font-size:11.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.l61-cmp .h{padding:10px 14px;background:var(--bg-soft);border-bottom:1px solid var(--line);font-size:10.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.l61-cmp .row{display:contents}
+.l61-cmp .row > *{padding:10px 14px;border-bottom:1px solid var(--line-soft);background:var(--paper)}
+.l61-cmp .row .k{color:var(--ink-soft);font-weight:600}
+.l61-cmp .row .v.bad{color:var(--warn)}
+.l61-cmp .row .v.good{color:var(--good)}
+
+.l61-block{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l61-block .b{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px}
+.l61-block .b h4{margin:0 0 6px;font-size:13px;color:var(--ink);font-family:'Pretendard',sans-serif}
+.l61-block .b .ttl{font-size:10px;color:var(--accent);letter-spacing:.16em;text-transform:uppercase;margin-bottom:4px}
+.l61-block .b p{margin:0;color:var(--ink-soft);line-height:1.55}
+.l61-block .b.hi{border-color:var(--accent);background:var(--bg-soft)}
+@media (max-width:760px){.l61-cmp{grid-template-columns:1fr}.l61-block{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_060.html">← L060</a>
+    <a href="lecture_062.html">L062 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L061</span>
+    <span>2025 · Inference silicon</span>
+    <span class="pri">Mid priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>D-Matrix Corsair — Inference 전용 dataflow 칩</h1>
+  <p class="dek"><strong>LLM inference 의 decode 단계는 memory-bound</strong> — 그래서 GPU 의 compute 90% 가 idle 이다. <em>D-Matrix Corsair</em> 는 이 자리를 정조준한 inference 전용 칩 — Digital In-Memory Compute (DIMC) 로 SRAM tile 안에서 GEMM 을 돌리고, 큰 on-chip SRAM 으로 KV cache 를 들고 있어 HBM 왕복을 거의 없앤다. 이 노트는 Corsair 의 architecture 와 GPU 와의 trade-off 를 정리한다.</p>
+
+  <div class="chips">
+    <span class="chip hi">Digital In-Memory Compute</span>
+    <span class="chip hi">SRAM-centric</span>
+    <span class="chip hi">inference-only</span>
+    <span class="chip">dataflow</span>
+    <span class="chip">PCIe Gen5</span>
+    <span class="chip">block FP</span>
+    <span class="chip">d-Matrix Aviator</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">D</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">미상 (D-Matrix · 확인 필요)</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Sudeep Bhoja / Sree Ganesan / 다른 공동창업자 후보</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L061</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Missing</div></div>
+    <div class="cell"><div class="lbl">학습 우선순위</div><div class="val">Mid · 흐름 잡기</div></div>
+    <div class="cell warn"><div class="lbl">자료 상태</div><div class="val">transcript 없음 · vendor 자료</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why a custom chip</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">inference 전용의 동기</span><span class="em">decode is memory-bound</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">Corsair 아키텍처</span><span class="em">chiplet · cards · servers</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">DIMC — In-Memory Compute</span><span class="em">SRAM tile 위 MAC</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">NVIDIA 와 비교</span><span class="em">H100 / B200 / spec</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">채택 사례</span><span class="em">enterprise inference</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">SW 스택 — Aviator</span><span class="em">PyTorch · ONNX 입력</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">한계</span><span class="em">model size · training</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">future road</span><span class="em">next-gen Raptor</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 자료</span><span class="em">key takeaways · vendor docs</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why a custom chip</span></div>
+    <h2>GPU 가 inference 에서 비싸고 느린 이유 — 그리고 그 자리를 정조준한 칩의 모양</h2>
+  </div>
+  <p class="sec-lede">2024–25 년 시점에 LLM inference 비용이 production 의 budget 의 70%+. GPU 가 결정적으로 비효율인 영역이 — <strong>batch=1 (또는 작은 batch) decode</strong>. token 하나 만들 때마다 모델 전체 weight 를 HBM 에서 SRAM 으로 옮긴다. compute 는 거의 idle. 이 비효율을 정조준한 한 가지 답이 — <em>inference 전용 dataflow 칩</em>. D-Matrix 의 <strong>Corsair</strong> 가 그 길의 대표 사례.</p>
+
+  <p>강의 transcript 가 비어 있으므로 본 노트는 <strong>D-Matrix 공식 자료</strong> (corsair product page, blog, ISSCC 논문 — 확인 필요) 와 vendor presentation 의 표준 자료 위에서 재구성. 강의 안에서 다룬 정확한 비중과 디테일은 영상 검증 필요.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>이 강의는 architectural overview — “GPU 가 아닌 다른 hardware 가 LLM inference 에 최적화되면 어떻게 생겼는가” 의 한 사례. 핵심 idea 는 <strong>compute 를 memory 옆으로 가져가는 것</strong>. SRAM tile 안에서 MAC 을 돌리면 weight 가 거의 안 움직인다 — decode 의 memory bandwidth 한계가 사라진다.</p>
+  </div>
+
+  <div class="pull">“GPU 가 메모리에 막혀 있을 때, hardware 가 할 수 있는 가장 큰 일은 — 메모리를 compute 옆으로 가져오는 것이다.”<span class="by">D-Matrix 자료 / 확인 필요</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>inference 전용의 동기</b><span>· decode is memory-bound</span></div>
+    <h2>왜 GPU 가 비싸냐 — decode 에서 90% 의 compute 가 놀고 있어서</h2>
+  </div>
+  <p class="sec-lede">LLM decode 의 산수를 다시 — 한 token 만들 때 model weight 를 한 번 read. 70B FP16 = 140 GB. H100 의 HBM bandwidth = 3.35 TB/s. 즉 한 token 의 <em>memory time</em> ≈ 42 ms. 이 동안 H100 의 989 TFLOPs 중 실제 사용량은 <code>2 × 70B / 42 ms ≈ 3.3 TFLOPs</code> = <strong>0.3%</strong>. 99.7% 의 compute 가 idle.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · H100 의 decode utilization</span><span>70B · batch=1</span></div>
+    <div class="l60-bars" style="display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px">
+      <div style="display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center">
+        <span style="color:var(--ink-soft)">HBM bandwidth</span>
+        <div style="height:18px;background:var(--bg-soft);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:99%;background:var(--warn);border-radius:3px"></span></div>
+        <span style="color:var(--ink);font-weight:700;text-align:right">99% saturate</span>
+      </div>
+      <div style="display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center">
+        <span style="color:var(--ink-soft)">Tensor Core</span>
+        <div style="height:18px;background:var(--bg-soft);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:0.3%;background:var(--good);border-radius:3px"></span></div>
+        <span style="color:var(--ink);font-weight:700;text-align:right">0.3% used</span>
+      </div>
+      <div style="display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center">
+        <span style="color:var(--ink-soft)">Power 활용 효율</span>
+        <div style="height:18px;background:var(--bg-soft);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:18%;background:var(--cool);border-radius:3px"></span></div>
+        <span style="color:var(--ink);font-weight:700;text-align:right">~18%</span>
+      </div>
+    </div>
+    <div class="viz-note">batch=1 에서 H100 의 700W 중 — Tensor Core 부분은 거의 안 켜지는데 HBM 과 control 회로는 다 도는 비대칭. <strong>$/token 비용이 GPU 의 가장 큰 약점</strong>이 되는 자리.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>이 비효율이 GPU 의 본질적 design 의 결과다 — GPU 는 training 의 큰 batch · 큰 GEMM 에 최적화. inference decode 의 GEMV(=batch×1×d × d×d) 는 GPU 가 만들어진 워크로드가 아니다.</p>
+      <p>그래서 <strong>inference 전용 칩</strong>의 design space 가 열린다. GPU 와 다르게 만들어야 할 것들:</p>
+      <ul>
+        <li><strong>weight 를 옮기지 않는다</strong> — on-chip SRAM 에 모델을 통째로 둔다. HBM 거의 안 씀.</li>
+        <li><strong>compute 를 weight 옆에</strong> — DIMC. 같은 SRAM tile 안에서 MAC.</li>
+        <li><strong>training 안 함</strong> — backward / gradient / optimizer state 없음. 회로 단순.</li>
+        <li><strong>FP8 / INT8 / block FP</strong> 만 — high-precision FP32 안 쓰고, FP16 도 제한적.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">대안 — 큰 batch 로 spread</div>
+        <p>batch 를 키우면 compute utilization 이 살아난다. batch=32, 70B → memory 시간 동안 64 토큰 동시 생성 → compute 21% 활용. 하지만 latency 가 올라가고 batch 를 채우려면 traffic 이 충분해야. 작은 enterprise / edge 에서는 batch=1 dominant.</p>
+      </div>
+      <p>D-Matrix 의 hypothesis — <strong>대부분의 enterprise inference 는 작은 batch + 짧은 latency 가 SLO</strong>. 이 영역에서 GPU 가 dominant 가 아니다. 따라서 — 같은 작업을 더 적은 power, 더 적은 비용으로 도는 chip 이 자리를 가질 수 있다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>Corsair 아키텍처</b><span>· chiplet · cards · servers</span></div>
+    <h2>4 chiplet × 2 dies × 1 PCIe card — 큰 SRAM 을 여러 단계로 묶는다</h2>
+  </div>
+  <p class="sec-lede">Corsair 의 물리적 구성을 큰 그림으로. <strong>chiplet</strong> 이 base 단위. 한 chiplet 이 ~150 MB SRAM 을 들고, 그 안에 DIMC tile 이 grid 로 박혀 있다. 여러 chiplet 이 die 위에 모이고, 두 개의 die 가 PCIe Gen5 카드 한 장을 만든다 (확인 필요 — 정확한 갯수는 vendor 발표마다 다름).</p>
+
+  <div class="l61-block">
+    <div class="b">
+      <div class="ttl">CHIPLET</div>
+      <h4>compute 단위</h4>
+      <p>SRAM ~150 MB + DIMC tile array. 자기 안에서 layer 의 일부 GEMM 을 처리. chiplet 간은 high-speed interconnect (D2D).</p>
+    </div>
+    <div class="b">
+      <div class="ttl">DIE</div>
+      <h4>chiplet 4개 묶음</h4>
+      <p>4 chiplet 이 한 die 위에. 2.5D / 3D packaging. die 안 SRAM 합 ~600 MB.</p>
+    </div>
+    <div class="b">
+      <div class="ttl">CARD</div>
+      <h4>2 die · PCIe Gen5</h4>
+      <p>한 PCIe 카드에 2 die = 8 chiplet. SRAM 총 ~2 GB. ~600W TDP. (확인 필요)</p>
+    </div>
+    <div class="b hi">
+      <div class="ttl">SERVER</div>
+      <h4>card 8 장 · 16 GB SRAM</h4>
+      <p>표준 서버 1U/2U 에 카드 8장. 합 ~16 GB SRAM — 70B 모델 (~80GB FP16, ~20GB FP4 또는 INT4) 이 들어갈 수 있음 (확인 필요 — quantization 가정).</p>
+    </div>
+  </div>
+
+  <div class="viz" style="margin-top:18px">
+    <div class="viz-cap"><span>FIG · Corsair memory hierarchy</span><span>compute 위치 표시</span></div>
+    <div class="l61-mem">
+      <div class="lvl"><b>SRAM tile</b>(DIMC 안)</div>
+      <div class="bar"><span style="width:5%">~16 KB · 0.1 ns</span></div>
+      <div class="lvl"><b>SRAM bank</b></div>
+      <div class="bar cool"><span style="width:14%">~150 MB · 1 ns</span></div>
+      <div class="lvl"><b>chip-wide SRAM</b></div>
+      <div class="bar cool"><span style="width:35%">~600 MB · ns</span></div>
+      <div class="lvl"><b>card SRAM</b></div>
+      <div class="bar good"><span style="width:55%">~2 GB · 5 ns (D2D)</span></div>
+      <div class="lvl"><b>server SRAM</b></div>
+      <div class="bar good"><span style="width:75%">~16 GB · 50 ns (PCIe)</span></div>
+      <div class="lvl"><b>HBM (없음)</b></div>
+      <div class="bar warn"><span style="width:1%">— DRAM 은 host 쪽만</span></div>
+    </div>
+    <div class="viz-note">전체 weight 가 SRAM 위에 살아 있다. 이게 HBM-less inference 의 핵심. <strong>DRAM 왕복이 없다</strong> — 따라서 batch=1 decode 에서 압도적 power efficiency.</div>
+  </div>
+
+  <p>비교 기준 — H100 의 SRAM 은 SM 당 256 KB × 132 = ~34 MB. Corsair 의 server-wide SRAM 은 그 <strong>500배</strong>. 모델 전체가 SRAM 안에 사는 게 가능해진다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>DIMC</b><span>· SRAM tile 위 MAC</span></div>
+    <h2>Digital In-Memory Compute — weight 가 사는 SRAM 셀에서 곱이 일어난다</h2>
+  </div>
+  <p class="sec-lede">In-memory compute 는 두 갈래 — (a) <strong>analog IMC</strong> (analog charge / current 으로 곱 → ADC 로 디지털 화). (b) <strong>digital IMC (DIMC)</strong> — 디지털 곱셈을 SRAM bitcell 옆에 둔다. analog 의 정밀도 / 잡음 문제 없이 뮬티플라이.</p>
+
+  <div class="split">
+    <div>
+      <p>D-Matrix 가 DIMC 를 선택한 이유:</p>
+      <ul>
+        <li><strong>정확도</strong>: analog IMC 는 ADC noise / process variation 에 민감. 학습된 모델의 quantization 정확도와 곱하면 누적 error 큼. DIMC 는 디지털이라 deterministic.</li>
+        <li><strong>scaling</strong>: digital 회로는 process node (3nm, 5nm) shrink 에 잘 따라간다. analog 는 그렇지 않다.</li>
+        <li><strong>tooling</strong>: digital IP 는 EDA 표준 flow. analog 는 customisation 부담 큼.</li>
+      </ul>
+      <p>대신 DIMC 는 analog 만큼 dense 하지 않다 — 같은 면적에 곱셈기가 더 적게 들어간다. 그 trade-off 를 process node (4nm 또는 5nm 추정) 와 압도적 SRAM 양으로 보상.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">DIMC tile 의 단순화 모델</div>
+        <p>한 SRAM bank 가 N×K weight matrix 를 들고 있다고 보자. input vector x (1×K) 가 들어오면 — bank 의 컨트롤러가 K 개 row 를 동시에 read 하고, 같은 bank 안의 MAC 회로가 N 개 dot-product 를 병렬로 수행. 결과 1×N output. <strong>weight 가 한 cycle 도 안 움직인다</strong>.</p>
+      </div>
+      <p>비교 — GPU 의 GEMV: weight (~10 GB) 를 HBM → L2 → L1 → SM register 로 옮긴 뒤 MAC. 옮기는 비용이 90%, 곱이 10%. DIMC 는 <em>옮기는 비용 0%</em>.</p>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 비교 — GPU GEMV vs Corsair DIMC</span><span>한 layer 의 weight load 시간</span></div>
+    <div style="display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px">
+      <div style="display:grid;grid-template-columns:200px 1fr 80px;gap:10px;align-items:center">
+        <span style="color:var(--ink-soft)">GPU H100<br><span style="color:var(--muted);font-size:11px">HBM → SM transit</span></span>
+        <div style="height:30px;background:var(--bg-soft);border-radius:5px;position:relative">
+          <div style="position:absolute;top:4px;left:1%;width:88%;height:22px;background:var(--warn);border-radius:4px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700">HBM read (90%)</div>
+          <div style="position:absolute;top:4px;left:90%;width:8%;height:22px;background:var(--good);border-radius:4px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700">MAC</div>
+        </div>
+        <span style="color:var(--ink);font-weight:700;text-align:right">~42 ms</span>
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr 80px;gap:10px;align-items:center">
+        <span style="color:var(--ink-soft)">Corsair DIMC<br><span style="color:var(--muted);font-size:11px">in-place compute</span></span>
+        <div style="height:30px;background:var(--bg-soft);border-radius:5px;position:relative">
+          <div style="position:absolute;top:4px;left:1%;width:5%;height:22px;background:var(--accent-2);border-radius:4px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700">x</div>
+          <div style="position:absolute;top:4px;left:7%;width:25%;height:22px;background:var(--good);border-radius:4px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700">DIMC MAC</div>
+        </div>
+        <span style="color:var(--ink);font-weight:700;text-align:right">~5 ms</span>
+      </div>
+    </div>
+    <div class="viz-note">decode 의 critical path 가 weight transit 에서 MAC 자체로 옮겨감. <strong>전체 latency 가 5~8× 빠르다</strong> (vendor 자료 트렌드 기준 — 확인 필요).</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>NVIDIA 와 비교</b><span>· H100 / B200 / spec</span></div>
+    <h2>같은 70B 토큰 한 개를 만드는 데 — power 와 latency 의 비대칭</h2>
+  </div>
+
+  <div class="l61-cmp">
+    <div class="h">메트릭</div><div class="h">H100 (배치 1)</div><div class="h">B200 (배치 1)</div><div class="h">Corsair (서버)</div>
+    <div class="row">
+      <span class="k">peak compute</span>
+      <span class="v">989 TF (BF16)</span>
+      <span class="v">2.25 PF (FP4)</span>
+      <span class="v">~9.6 PF (block FP4)</span>
+    </div>
+    <div class="row">
+      <span class="k">memory</span>
+      <span class="v">80 GB HBM3</span>
+      <span class="v">192 GB HBM3e</span>
+      <span class="v good">2 GB SRAM/card · 16 GB/server</span>
+    </div>
+    <div class="row">
+      <span class="k">memory BW</span>
+      <span class="v">3.35 TB/s</span>
+      <span class="v">8 TB/s</span>
+      <span class="v good">~150 TB/s (SRAM)</span>
+    </div>
+    <div class="row">
+      <span class="k">batch=1 70B latency</span>
+      <span class="v bad">~42 ms/token</span>
+      <span class="v">~18 ms/token</span>
+      <span class="v good">~5 ms/token</span>
+    </div>
+    <div class="row">
+      <span class="k">power</span>
+      <span class="v">~700W</span>
+      <span class="v">~1000W</span>
+      <span class="v good">~600W (card) · 4.8 kW (8 cards)</span>
+    </div>
+    <div class="row">
+      <span class="k">tokens / W</span>
+      <span class="v">low</span>
+      <span class="v">중간</span>
+      <span class="v good">3~5×</span>
+    </div>
+    <div class="row">
+      <span class="k">training 가능</span>
+      <span class="v good">예</span>
+      <span class="v good">예</span>
+      <span class="v bad">아니오</span>
+    </div>
+  </div>
+  <p style="margin-top:10px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace">위 수치는 D-Matrix vendor 자료의 트렌드와 일반적 inference 산수의 재구성. 절대값은 quantization · model · workload 에 따라 변동 (확인 필요).</p>
+
+  <p>중요한 비대칭 — H100 / B200 은 training 과 inference 모두 가능한 general-purpose chip. Corsair 는 <strong>inference only</strong>. 그래서 직접 비교는 “전체 시스템 cost” 보다 “inference 단계 비용” 으로 봐야 의미가 있다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>채택 사례</b><span>· enterprise inference</span></div>
+    <h2>Corsair 가 정조준하는 자리 — enterprise · privacy · low-latency</h2>
+  </div>
+  <p class="sec-lede">D-Matrix 의 GTM 전략은 <em>cloud hyperscaler 시장 (Google, Meta, Microsoft) 의 H100/B200 자리를 뺏는 것</em> 이 아니다. 오히려 <strong>enterprise / on-prem / edge inference</strong> — 작은 batch, latency-sensitive, privacy-aware 워크로드를 정조준한다.</p>
+
+  <ul>
+    <li><strong>enterprise on-prem</strong>: 자체 데이터로 LLM 을 돌리는 회사. cloud GPU 보다 같은 throughput 에 cost 1/3, power 1/3 이면 의미.</li>
+    <li><strong>realtime / edge</strong>: 자율주행, robotics, AR/VR. 작은 batch, 낮은 latency.</li>
+    <li><strong>government / regulated</strong>: 데이터 외부 안 나감. on-prem inference 의 전기료 / 발열 절약이 큼.</li>
+    <li><strong>fine-tuned 작은 모델 운영</strong>: 7B–70B 영역. 큰 cloud 는 비효율, 작은 chip 으로 충분.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">D-Matrix 의 차별 포지션</div>
+    <p>다른 inference 칩들 (Groq, Cerebras WSE, SambaNova, Tenstorrent) 과의 차이 — Groq 은 <em>throughput-first</em> (한 토큰을 빨리), Cerebras 는 <em>wafer-scale</em> (메모리 가득), D-Matrix 는 <em>cost/W per token</em> 을 강조. 다른 dataflow 칩들과 같이 묶이지만 SRAM 양과 PCIe 폼팩터로 <strong>표준 server 에 그냥 꽂히는</strong> deployability 를 강조.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>SW 스택</b><span>· Aviator</span></div>
+    <h2>PyTorch / ONNX 모델을 그대로 받는다 — 컴파일러 + 런타임이 chip 위에 매핑</h2>
+  </div>
+  <p class="sec-lede">D-Matrix 의 SW stack 이름은 <em>Aviator</em> (확인 필요 — 자료 시점에 따라 변동). PyTorch / ONNX 형식의 모델을 입력으로 받아 — Corsair 위에서 dataflow 로 매핑한다. 사용자는 Hugging Face 모델 weight 와 tokenizer 만 들고 와도 batch inference 가 돌아간다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Aviator compile pipeline</span><span>PyTorch → Corsair binary</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">L0</div><div class="nm">PyTorch / HF</div><div class="dt">model checkpoint</div></div>
+      <div class="stage"><div class="sn">L1</div><div class="nm">graph IR</div><div class="dt">ONNX 또는 자체 IR</div></div>
+      <div class="stage hi"><div class="sn">L2</div><div class="nm">quantize</div><div class="dt">block FP / INT8</div></div>
+      <div class="stage"><div class="sn">L3</div><div class="nm">layer placement</div><div class="dt">chiplet / die / card 매핑</div></div>
+      <div class="stage"><div class="sn">L4</div><div class="nm">scheduler</div><div class="dt">dataflow + DMA</div></div>
+      <div class="stage"><div class="sn">L5</div><div class="nm">binary</div><div class="dt">load to card</div></div>
+    </div>
+    <div class="viz-note">중요한 단계 — <strong>quantize</strong> 와 <strong>layer placement</strong>. 모델이 SRAM 에 들어가야 하므로 quantization 이 실질적으로 강제. 그리고 layer 가 카드 / 칩 사이에 걸치면 latency 가 비싸지므로 placement 가 중요.</div>
+  </div>
+
+  <ul>
+    <li><strong>지원 모델</strong>: Llama-2, Llama-3, Mistral, Mixtral, GPT-OSS-style 등 표준 transformer (확인 필요 — 모델 list 는 release 마다 갱신).</li>
+    <li><strong>지원 quantization</strong>: block FP (D-Matrix 자체 포맷), INT8, FP8, FP4 (확인 필요 — Corsair 세대에 따라 차이).</li>
+    <li><strong>API</strong>: 일반적으로 OpenAI-compatible REST endpoint + native runtime API. vLLM-like batching scheduler 내장 (확인 필요).</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>한계</b><span>· model size · training</span></div>
+    <h2>모든 답이 아니다 — Corsair 가 못 하는 것들</h2>
+  </div>
+  <p class="sec-lede">solid 한 분석은 한계도 명시. Corsair 가 지금 시점에 못 하거나 약한 영역을 정리한다.</p>
+
+  <div class="l61-cmp">
+    <div class="h">제약</div><div class="h">왜</div><div class="h">우회</div>
+    <div class="row">
+      <span class="k">매우 큰 모델</span>
+      <span class="v">SRAM 16 GB / server. quantize 후 70B 까지가 한계. 400B+ 모델은 multi-server 분산 필요.</span>
+      <span class="v">서버 cluster + low-latency interconnect (PCIe Gen5) — 확인 필요</span>
+    </div>
+    <div class="row">
+      <span class="k">training</span>
+      <span class="v bad">backward / optimizer 회로 없음. inference only.</span>
+      <span class="v">GPU cluster 에서 training, Corsair 에서 deploy</span>
+    </div>
+    <div class="row">
+      <span class="k">큰 batch</span>
+      <span class="v">batch 키우면 GPU 의 compute 우위가 살아남. Corsair 의 강점은 작은 batch.</span>
+      <span class="v">batch &gt; 16 영역에서는 H100/B200 이 더 나을 수 있음</span>
+    </div>
+    <div class="row">
+      <span class="k">매우 긴 context</span>
+      <span class="v">KV cache 가 SRAM 압박. 32K+ 에서 메모리 부족 가능.</span>
+      <span class="v">KV offload (host DRAM) 또는 sliding/linear attn (확인 필요)</span>
+    </div>
+    <div class="row">
+      <span class="k">새 architecture 빠른 채택</span>
+      <span class="v">SSM / linear-attn / Mamba 같은 새 op 가 컴파일러 지원 필요.</span>
+      <span class="v">vendor 의 SDK update — 시간차 있음</span>
+    </div>
+    <div class="row">
+      <span class="k">multi-modal · vision</span>
+      <span class="v">기본 transformer 위주. ViT / video / audio 은 별도 지원 (확인 필요).</span>
+      <span class="v">vendor roadmap 의식해야</span>
+    </div>
+  </div>
+
+  <div class="pull">“같은 모델이라도 — batch 와 sequence 길이의 분포가 어디로 가느냐가 Corsair 의 sweet spot 안인지 밖인지 결정한다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>future road</b><span>· next-gen Raptor</span></div>
+    <h2>다음 세대 — 더 큰 SRAM · 더 작은 process · multi-card scale</h2>
+  </div>
+  <p class="sec-lede">D-Matrix 의 roadmap (공개된 자료 기준 — 확인 필요):</p>
+
+  <ul>
+    <li><strong>Corsair (현행, 2024–25)</strong> — 4nm class. PCIe Gen5 카드. 8-card server 의 16 GB SRAM. 100B 클래스 모델 inference.</li>
+    <li><strong>Raptor (차세대, 2026 예상)</strong> — 더 큰 chiplet · 새 process node · 더 큰 SRAM. 또는 multi-server scale 의 표준 interconnect (확인 필요).</li>
+    <li><strong>SW</strong> — Aviator stack 의 vLLM / SGLang 호환성 확장. OpenAI API 호환 production server.</li>
+    <li><strong>모델 지원</strong> — MoE (Mixtral, DeepSeek) · Mamba / hybrid · multi-modal 확대.</li>
+    <li><strong>LP-grade</strong> — edge / robotics 용 작은 chip family 가능성 (확인 필요).</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">생태계의 신호</div>
+    <p>D-Matrix 가 2024 말 ~2025 초 시리즈 B+/C 로 큰 funding 을 받았다 (확인 필요). enterprise customer pilot 을 발표한 paper / blog 도 늘고 있다. inference silicon market 이 성장하면 — Corsair / Groq / Cerebras / Tenstorrent 가 각자 다른 niche 를 차지하는 게 자연스러운 시나리오.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 자료</b><span>· key takeaways · vendor docs</span></div>
+    <h2>다시 열었을 때 빠르게 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">decode = memory-bound</div>
+      <div class="d">batch=1 70B 에서 H100 의 compute 활용 0.3%. inference 전용 칩의 동기.</div>
+    </div>
+    <div class="term">
+      <div class="t">DIMC</div>
+      <div class="d">Digital In-Memory Compute. SRAM bank 옆에 MAC. weight 가 안 움직임.</div>
+    </div>
+    <div class="term">
+      <div class="t">SRAM-centric</div>
+      <div class="d">server-wide ~16 GB SRAM. HBM 없이 모델 통째로. quantize 강제.</div>
+    </div>
+    <div class="term">
+      <div class="t">chiplet → die → card → server</div>
+      <div class="d">계층적 packaging. PCIe Gen5 카드 형태로 표준 서버에 꽂힘.</div>
+    </div>
+    <div class="term">
+      <div class="t">Aviator stack</div>
+      <div class="d">PyTorch / ONNX 입력. quantize → placement → schedule → binary.</div>
+    </div>
+    <div class="term">
+      <div class="t">sweet spot</div>
+      <div class="d">batch 작음 + latency 민감 + on-prem. cloud hyperscaler 와 별개 시장.</div>
+    </div>
+    <div class="term">
+      <div class="t">못 하는 것</div>
+      <div class="d">training. 매우 큰 batch. 매우 긴 context. 새 op 빠른 채택.</div>
+    </div>
+    <div class="term">
+      <div class="t">vs GPU</div>
+      <div class="d">batch=1 latency 5~8×, tokens/W 3~5× 우위 (확인 필요). batch 큰 영역 우위 약함.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=xJ_VYUDAJZw" target="_blank" rel="noopener">youtube.com/watch?v=xJ_VYUDAJZw</a></span>
+    </div>
+    <div class="row">
+      <span class="k">D-Matrix 공식</span>
+      <span class="v"><a href="https://www.d-matrix.ai/" target="_blank" rel="noopener">d-matrix.ai</a> · product · whitepapers</span>
+    </div>
+    <div class="row">
+      <span class="k">Corsair page</span>
+      <span class="v"><a href="https://www.d-matrix.ai/product/corsair/" target="_blank" rel="noopener">d-matrix.ai/product/corsair</a> (확인 필요 - URL 변동 가능)</span>
+    </div>
+    <div class="row">
+      <span class="k">Groq 비교 자료</span>
+      <span class="v"><a href="https://groq.com/" target="_blank" rel="noopener">groq.com</a> · LPU 의 다른 dataflow inference 칩</span>
+    </div>
+    <div class="row">
+      <span class="k">Cerebras 비교</span>
+      <span class="v"><a href="https://cerebras.net/" target="_blank" rel="noopener">cerebras.net</a> · wafer-scale 의 다른 길</span>
+    </div>
+    <div class="row">
+      <span class="k">block FP 자료</span>
+      <span class="v"><a href="https://arxiv.org/abs/2310.10537" target="_blank" rel="noopener">Microscaling formats · arXiv:2310.10537</a> — D-Matrix 가 사용하는 block FP 의 표준</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 분석 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>자기 워크로드의 batch / latency 분포 측정</strong> — production trace 에서 batch size 와 sequence length 의 histogram. Corsair sweet spot 인지 확인.</li>
+    <li><strong>roofline 분석</strong> — 자기 모델의 GEMV 가 HBM bandwidth 의 몇 % 를 쓰는지. 90%+ 면 inference 칩으로 옮길 가치 큼.</li>
+    <li><strong>quantization 시뮬레이션</strong> — INT8 / block FP4 로 자기 모델의 정확도 손실 측정. 큰 손실이면 Corsair-class 칩 부적합.</li>
+    <li><strong>cost model 비교</strong> — H100 8-card server vs Corsair 8-card server 의 같은 throughput 가격 / 전기료 비교. 확인 필요한 vendor 자료 + 시장 가격.</li>
+    <li><strong>vendor pilot 신청</strong> — D-Matrix dev kit / cloud 액세스가 있다면 직접 자기 모델 돌려보기.</li>
+    <li><strong>다른 inference 칩들과 head-to-head</strong> — Groq, Cerebras, AWS Inferentia2/3, Google TPU v5e 의 같은 task 비교.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로</b><span>· connections</span></div>
+    <h2>이 강의의 frame 이 다른 강의에서 어떻게 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_058.html">
+      <div class="n">L058</div>
+      <div class="ti">Disaggregated LLM Inference</div>
+      <div class="by">— decode pool 에 Corsair 같은 칩을 쓰면 자연스러운 fit</div>
+    </a>
+    <a class="conn" href="lecture_055.html">
+      <div class="n">L055</div>
+      <div class="ti">Inference optimizations</div>
+      <div class="by">— GPU 위 inference 가속의 다른 면. Corsair 와 비교</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">— quantization 의 sw 측면. Corsair 가 hw 로 가져가는 자리</div>
+    </a>
+    <a class="conn" href="lecture_038.html">
+      <div class="n">L038</div>
+      <div class="ti">Low Bit ARM kernels</div>
+      <div class="by">— edge inference 의 다른 길. Corsair 의 server-class 와 다른 niche</div>
+    </a>
+    <a class="conn" href="lecture_060.html">
+      <div class="n">L060</div>
+      <div class="ti">Linear Attention</div>
+      <div class="by">— linear attn 의 fixed-state 가 SRAM-centric chip 에 잘 맞음</div>
+    </a>
+    <a class="conn" href="lecture_064.html">
+      <div class="n">L064</div>
+      <div class="ti">Multi-GPU programming</div>
+      <div class="by">— multi-card / multi-server scale 의 통신 frame 이 같은 자리에 적용</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>transcript 가 비어 있어 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>발표자 정확한 정체</strong> — D-Matrix CTO / VP Engineering / 다른 lead engineer 후보. transcript 없어 확인 필요.</li>
+    <li><strong>Corsair 의 정확한 spec</strong> — chiplet 수, SRAM 양, PCIe Gen5 vs Gen4 — 본 노트의 수치는 vendor 자료의 일반적 트렌드 재구성. 정확한 release spec 은 D-Matrix 공식 문서 검증 필요.</li>
+    <li><strong>실제 benchmark 수치</strong> — 강의에서 H100 / B200 vs Corsair 의 specific benchmark (Llama-3-70B, batch=1, 입력 1K 출력 256) 가 어떻게 나왔는지.</li>
+    <li><strong>quantization 의 정확도 손실</strong> — block FP 로 떨어졌을 때 자기 모델의 perplexity / downstream task 손실 — 강의에서 정량 수치가 있었는지.</li>
+    <li><strong>Aviator 의 OSS 지원 정도</strong> — vLLM, SGLang 호환성 / native runtime 만 / docker container 형태 등의 제공 형태.</li>
+    <li><strong>cost 의 실제 비교</strong> — cloud GPU 의 $/M-token vs Corsair 의 $/M-token. vendor 자료의 수치를 직접 검증.</li>
+    <li><strong>특정 customer / production 사례</strong> — 강의에서 case study 가 등장했는지. 어떤 산업에서 첫 채택이 일어났는지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 수치 (latency, power, SRAM 양) 는 D-Matrix 의 공개 자료의 트렌드와 일반적 inference 산수의 재구성. vendor 자료는 best-case 시나리오를 강조하는 경향이 있으므로 — 자기 모델 / 자기 워크로드에서 직접 측정한 결과만 의사결정에 쓸 것.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_060.html">
+    <span class="lbl">← Lecture 060</span>
+    <span class="nm">Linear Attention — fixed-state RNN form 이 같은 SRAM 친화 idea</span>
+  </a>
+  <a class="nxt" href="lecture_062.html">
+    <span class="lbl">Lecture 062 →</span>
+    <span class="nm">Exo 2 — 새 hardware 의 scheduling DSL 이라는 다른 답</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L061 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

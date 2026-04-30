@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L091 · Mega Lecture: Reinforcement Learning, Agents & OpenEnv · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 91 specific */
+.l91-loop{display:grid;grid-template-columns:1fr;gap:0;font-family:'JetBrains Mono',monospace;font-size:12.5px;margin:14px 0}
+.l91-loop .row{display:grid;grid-template-columns:140px 1fr 110px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;margin-bottom:6px;align-items:center}
+.l91-loop .row.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l91-loop .row .ag{color:var(--accent);font-weight:700;letter-spacing:.04em;font-size:12px}
+.l91-loop .row .what{color:var(--ink-soft);line-height:1.5}
+.l91-loop .row .what strong{color:var(--ink);font-weight:600}
+.l91-loop .row .ev{text-align:right;color:var(--muted);font-size:11px;font-family:'Pretendard',sans-serif}
+
+.l91-pipeline{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin:14px 0}
+.l91-pipeline .stg{padding:12px 8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;text-align:center}
+.l91-pipeline .stg.act{border-color:var(--accent);background:var(--bg-soft)}
+.l91-pipeline .stg .n{color:var(--muted);font-size:10px;letter-spacing:.14em}
+.l91-pipeline .stg .nm{color:var(--ink);font-weight:700;font-size:13px;margin-top:4px;font-family:'Pretendard',sans-serif}
+.l91-pipeline .stg .em{color:var(--ink-soft);font-size:10.5px;margin-top:3px;line-height:1.35}
+
+.l91-stack{display:grid;grid-template-columns:1fr;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l91-stack .layer{display:grid;grid-template-columns:160px 1fr;gap:14px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l91-stack .layer .nm{color:var(--accent);font-weight:700;letter-spacing:.04em;font-size:12px}
+.l91-stack .layer .what{color:var(--ink-soft);line-height:1.5}
+.l91-stack .layer .what code{color:var(--ink)}
+
+.l91-tab{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l91-tab .col{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l91-tab .col .h{color:var(--accent);font-weight:700;letter-spacing:.04em;margin-bottom:6px}
+.l91-tab .col ul{margin:0;padding-left:18px;color:var(--ink-soft);line-height:1.6}
+
+@media (max-width:760px){
+  .l91-loop .row{grid-template-columns:1fr}
+  .l91-pipeline{grid-template-columns:1fr 1fr}
+  .l91-stack .layer{grid-template-columns:1fr}
+  .l91-tab{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_090.html">← L090</a>
+    <a href="lecture_092.html">L092 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L091</span>
+    <span>2025 · Mega Lecture</span>
+    <span class="pri high">High priority</span>
+    <span class="stat warn">transcript · failed · OpenEnv repo 로 보강</span>
+  </div>
+  <h1>Mega Lecture: Reinforcement Learning, Agents & OpenEnv</h1>
+  <p class="dek">2025년 LLM 의 다음 동력은 RL — 그리고 RL 을 굴리려면 <strong>표준화된 environment</strong> 가 필요하다. Meta-PyTorch / HuggingFace / Unsloth / TRL 진영이 모여 만든 <em>OpenEnv</em> 의 추상을 GPU Mode 청중에게 깔고, 그것이 어떻게 agentic RL training pipeline 으로 묶이는지를 한 자리에 모은 mega 강의. transcript 가 실패해서 본 노트는 OpenEnv repo · TRL · Unsloth blog 를 기반으로 재구성.</p>
+
+  <div class="chips">
+    <span class="chip hi">OpenEnv</span>
+    <span class="chip hi">RL training</span>
+    <span class="chip hi">agents</span>
+    <span class="chip hi">GRPO</span>
+    <span class="chip">TRL</span>
+    <span class="chip">Unsloth</span>
+    <span class="chip">torchforge</span>
+    <span class="chip">Gymnasium</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">M</div>
+      <div>
+        <div class="role">Speakers</div>
+        <div class="nm">Meta · HuggingFace · Unsloth 진영 합동</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">스피커 명단 (확인 필요) · OpenEnv 메인테이너 · TRL/Unsloth 메인테이너 합동</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L091 · Mega</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Multi · 확인 필요</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자막 상태</div><div class="val">failed · repo 로 보강</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">왜 mega lecture 인가</span><span class="em">RL · agents · environments</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">RL framework 의 진화</span><span class="em">Gym → OpenAI → Gymnasium → OpenEnv</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">OpenEnv 의 추상</span><span class="em">Action · Observation · StepResult</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">agent 패턴 — tool use · reflexion · ReAct</span><span class="em">agent loop</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">distributed training — rollout · learner · ref</span><span class="em">role disaggregation</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">reward modeling</span><span class="em">verifiable · process · preference</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">평가 — environment 가 곧 benchmark</span><span class="em">eval as env</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">채택 사례 — TRL · Unsloth · torchforge · SkyRL</span><span class="em">in the wild</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 — open vs closed env, hosting</span><span class="em">where it goes</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모 · 실습</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>왜 mega lecture 인가</b><span>· RL · agents · environments</span></div>
+    <h2>2025년의 LLM 학습은 “<em>environment 가 데이터다</em>” 의 시대로 들어섰다</h2>
+  </div>
+  <p class="sec-lede">강의의 출발점. SFT 와 DPO/APO 가 이미 거의 saturate 된 시점에서, 다음 step 의 능력 (수학 · 코드 · 도구 사용 · 멀티턴 추론)은 <strong>환경 안에서 직접 학습</strong>해서 얻는다. 단순 preference 가 아니라 <em>실제로 풀린 문제 / 실제로 실행된 코드</em> 의 reward 가 신호가 된다. 그 environment 를 표준화하는 것이 OpenEnv 의 미션.</p>
+
+  <div class="callout">
+    <div class="label">강의의 정신</div>
+    <p>“RL 의 병목은 알고리즘이 아니라 <strong>환경의 다양성과 안정성</strong>이다. 그래서 framework 가 표준화 layer 가 된다 — model · trainer · env 셋이 분리돼야 한다.”</p>
+  </div>
+
+  <p>이 mega lecture 의 의도는 한 자리에 <em>여러 진영</em> 을 모은다는 점이다. Meta 의 OpenEnv 코어, HuggingFace 의 TRL (GRPO 학습 루프), Unsloth 의 sample efficiency 트릭, 그리고 그 위에서 도는 agent 프레임 — 한 사람이 만들어 한 사람이 쓰는 게 아니라, layer 가 잘 분리된 stack 이 어떻게 조립되는지가 전체 그림.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 2025 RL training stack 전체 단면</span><span>top-down</span></div>
+    <div class="l91-stack">
+      <div class="layer"><span class="nm">L7 · 학습 알고리즘</span><span class="what">GRPO · PPO · DPO 변형 · APO. <code>trl</code> · <code>unsloth</code> · <code>torchforge</code> 가 이 layer 의 구현체.</span></div>
+      <div class="layer"><span class="nm">L6 · trainer 통합</span><span class="what">model · sampler · reward 를 한 학습 루프에 묶는 layer. rollout 과 update 의 분리.</span></div>
+      <div class="layer"><span class="nm">L5 · sampling backend</span><span class="what">vLLM / SGLang / Unsloth 의 fast inference. rollout 의 latency 가 학습 throughput 의 80% 를 결정.</span></div>
+      <div class="layer"><span class="nm">L4 · agent loop</span><span class="what">tool use · ReAct · planner. observation 을 받아 action 을 만드는 정책 코드.</span></div>
+      <div class="layer"><span class="nm">L3 · environment client</span><span class="what">OpenEnv <code>EnvClient</code>. WebSocket 으로 server 와 통신. async-first.</span></div>
+      <div class="layer"><span class="nm">L2 · environment server</span><span class="what">OpenEnv <code>Environment</code>. <code>reset()</code> · <code>step(action)</code> · <code>state()</code>. Docker/K8s 로 격리.</span></div>
+      <div class="layer"><span class="nm">L1 · 격리 / scheduler</span><span class="what">container provider. 같은 environment 의 여러 인스턴스를 동시에. HF Spaces 도 backend 가 될 수 있음.</span></div>
+    </div>
+    <div class="viz-note">강의의 핵심 명제 — <strong>L2/L3 (environment) 가 표준화돼야 L4 (agent) 와 L7 (algo) 가 자유롭게 조합된다</strong>. OpenEnv 는 정확히 L2/L3 layer 의 contract.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>RL framework 의 진화</b><span>· Gym → OpenAI → Gymnasium → OpenEnv</span></div>
+    <h2>같은 인터페이스가 10년에 걸쳐 다듬어졌다 — 그리고 LLM agent 라는 새 부담이 생겼다</h2>
+  </div>
+  <p class="sec-lede">OpenEnv 의 디자인을 이해하려면 그 위에 깔린 역사를 짧게 본다. <code>reset/step</code> 이라는 두 함수의 인터페이스는 거의 그대로다 — 그러나 “step 한 번에 무엇이 통신되는가” 는 시대마다 바뀌었다.</p>
+
+  <ul>
+    <li><strong>OpenAI Gym (2016)</strong> — <code>env.reset()</code>, <code>env.step(action)</code>. observation 은 numpy array, action 은 discrete 또는 continuous. RL 의 lingua franca.</li>
+    <li><strong>Gymnasium (2022, 포크)</strong> — Gym 의 유지보수가 멈추자 Farama Foundation 으로 이전. <code>terminated / truncated</code> 분리, type stub 추가. 현대 RL 의 표준.</li>
+    <li><strong>LLM agent 시대 (2023–24)</strong> — observation 이 더 이상 array 가 아니라 <em>구조화된 dict</em> (도구 호출 결과 · 멀티턴 메시지). action 도 자연어 + 구조화 호출. Gym 인터페이스가 그대로는 안 맞는다.</li>
+    <li><strong>OpenEnv (2025)</strong> — <code>Action</code>, <code>Observation</code>, <code>StepResult</code> 를 <em>강타입 dataclass</em> 로. WebSocket / async 가 1차 시민. Docker/K8s 격리 표준화.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">바뀐 본질</div>
+    <p>Gym 시절 environment 는 <em>한 process 안 함수 호출</em>이었다. OpenEnv 시대에는 — environment 가 <strong>분리된 컨테이너 / 다른 머신 / 다른 언어</strong> 일 수 있다. 그래서 인터페이스가 <em>RPC 친화적</em>으로 바뀌었다 (typed dataclass + async + WS).</p>
+  </div>
+
+  <p>그리고 강의에서 강조되는 점 — <strong>“Gymnasium-style”</strong>이라는 표현. OpenEnv 는 새 패러다임이 아니다. 같은 정신의 새 구현체. 이 결정은 학습 곡선을 낮춘다 — 기존 RL 코드를 OpenEnv 로 옮기는 게 며칠 단위.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>OpenEnv 의 추상</b><span>· Action · Observation · StepResult</span></div>
+    <h2>세 개의 dataclass 와 두 개의 함수 — 그게 전부다</h2>
+  </div>
+  <p class="sec-lede">OpenEnv repo 의 README 가 강조하는 단순함. 새 environment 를 짠다는 건 — <code>Action</code>, <code>Observation</code> 두 개의 dataclass 를 정의하고, server 안에서 <code>reset()</code>, <code>step(action)</code>, <code>state()</code> 셋을 구현하는 일이 전부.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># server 측 — Environment 정의</span>
+<span style="color:#E7B369">from</span> dataclasses <span style="color:#E7B369">import</span> dataclass
+<span style="color:#E7B369">from</span> openenv <span style="color:#E7B369">import</span> Environment, StepResult
+
+<span style="color:#E7B369">@dataclass</span>
+<span style="color:#E7B369">class</span> EchoAction:
+    text: str
+
+<span style="color:#E7B369">@dataclass</span>
+<span style="color:#E7B369">class</span> EchoObservation:
+    last_text: str
+    turn: <span style="color:#E7B369">int</span>
+
+<span style="color:#E7B369">class</span> EchoEnv(Environment):
+    <span style="color:#E7B369">def</span> reset(self):
+        self.turn = <span style="color:#E7B369">0</span>
+        <span style="color:#E7B369">return</span> EchoObservation(<span style="color:#C6B98A">""</span>, <span style="color:#E7B369">0</span>)
+
+    <span style="color:#E7B369">def</span> step(self, action: EchoAction):
+        self.turn += <span style="color:#E7B369">1</span>
+        obs = EchoObservation(action.text, self.turn)
+        reward = <span style="color:#E7B369">1.0</span> <span style="color:#E7B369">if</span> action.text else <span style="color:#E7B369">0.0</span>
+        done = self.turn >= <span style="color:#E7B369">5</span>
+        <span style="color:#E7B369">return</span> StepResult(obs, reward, done)</code></pre>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># client 측 — async 가 1차 시민</span>
+<span style="color:#E7B369">from</span> openenv <span style="color:#E7B369">import</span> EnvClient
+
+<span style="color:#E7B369">async</span> <span style="color:#E7B369">def</span> rollout():
+    <span style="color:#E7B369">async</span> <span style="color:#E7B369">with</span> EnvClient(
+        base_url=<span style="color:#C6B98A">"ws://localhost:9000"</span>
+    ) <span style="color:#E7B369">as</span> client:
+
+        obs = <span style="color:#E7B369">await</span> client.reset()
+
+        <span style="color:#E7B369">for</span> _ <span style="color:#E7B369">in</span> range(<span style="color:#E7B369">5</span>):
+            action = policy(obs)         <span style="color:#A99E89"># 정책</span>
+            result = <span style="color:#E7B369">await</span> client.step(action)
+            obs, r, done = (
+                result.observation,
+                result.reward,
+                result.done,
+            )
+            <span style="color:#E7B369">if</span> done: <span style="color:#E7B369">break</span></code></pre>
+    </div>
+  </div>
+
+  <p>이 짧은 코드 안에 OpenEnv 의 디자인 결정 4가지가 다 보인다.</p>
+
+  <ol>
+    <li><strong>typed dataclass</strong> — observation 의 schema 가 코드에서 검증됨. tool 의 결과가 dict 로 넘어가다가 누락되는 사고를 줄임.</li>
+    <li><strong>async 가 default</strong> — 한 episode 가 쇼핑몰 API · 코드 실행 · 검색 같은 외부 호출을 포함. blocking 이면 GPU 가 비어 있음. async-first 가 throughput 에 결정적.</li>
+    <li><strong>WebSocket</strong> — REST 의 round-trip 비용을 피한다. 멀티턴이 길어지면 길수록 차이가 커진다.</li>
+    <li><strong>StepResult 가 dataclass</strong> — observation/reward/done/info 를 한 객체로. <em>Gym 의 5-tuple 의 후예</em>지만 검증 가능한 형태.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">CLI — environment 도 wheel 처럼 배포된다</div>
+    <p><code>openenv init my_env</code> 가 standard 한 layout 을 만들고, <code>openenv push</code> 가 HuggingFace Spaces 에 배포한다. <em>environment 가 Hub 의 1급 시민</em>이라는 디자인 — 모델/데이터셋과 함께 environment 도 검색되고 버전된다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>agent 패턴</b><span>· tool use · reflexion · ReAct</span></div>
+    <h2>한 step 안에 LLM 이 무엇을 결정하는가 — observation 위에서 action 까지</h2>
+  </div>
+  <p class="sec-lede">강의의 가장 시각적인 부분. environment 가 표준화돼도 — 그 위에서 어떤 action 을 만들지의 정책 코드는 별도. 자주 쓰이는 4가지 패턴.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · agent loop 의 4가지 표준 패턴</span><span>policy code 의 구조</span></div>
+    <div class="l91-loop">
+      <div class="row">
+        <span class="ag">DIRECT</span>
+        <span class="what"><strong>관찰 → LLM → action</strong>. 가장 단순. <code>obs</code> 를 그대로 prompt 에 넣고 LLM 한 번 호출 후 그 출력을 action 으로 파싱.</span>
+        <span class="ev">latency × 1</span>
+      </div>
+      <div class="row hi">
+        <span class="ag">REACT</span>
+        <span class="what"><strong>관찰 → think → act → observe</strong> 의 명시적 두 단계. think 단계에서 LLM 이 “지금 무엇이 필요한가” 를 자연어로 적고, act 단계에서 실제 도구 호출. 강의에서 가장 자주 등장하는 baseline.</span>
+        <span class="ev">latency × 1.5</span>
+      </div>
+      <div class="row">
+        <span class="ag">REFLEXION</span>
+        <span class="what">실패 후 <strong>“왜 실패했는가” 를 LLM 이 적게 한 뒤 재도전</strong>. 자기 비판 단계가 episode 간 메모리 역할. 수학/코드 task 에서 큰 효과.</span>
+        <span class="ev">latency × 2–3</span>
+      </div>
+      <div class="row hi">
+        <span class="ag">PLANNER + EXECUTOR</span>
+        <span class="what">상위 LLM 이 <strong>전체 plan 을 한 번에 생성</strong>, 하위 LLM/도구가 step 단위로 실행. plan 이 진행되며 갱신된다. long-horizon agent 의 표준.</span>
+        <span class="ev">latency × 3–5</span>
+      </div>
+    </div>
+    <div class="viz-note">latency 는 같은 task 에서 DIRECT 대비 상대치. <strong>RL 학습에서 큰 latency 는 곧 sample efficiency 손해</strong> — 도구 호출 횟수가 늘면 한 episode 당 GPU 시간이 늘기 때문에. 그래서 학습 단계에서는 단순 패턴, eval 단계에서는 복잡 패턴이 일반적.</div>
+  </div>
+
+  <p>그리고 강의에서 자주 짚는 점 — <strong>“같은 environment 위에서 다른 agent 패턴을 갈아 끼울 수 있어야 한다”</strong>. agent 와 env 가 분리돼야 ablation 이 가능. ReAct 와 Direct 가 같은 env 의 같은 reward 위에서 비교 가능해야 “정책 코드가 진짜 도움이 되는가” 의 답이 나온다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>distributed training</b><span>· rollout · learner · ref disaggregation</span></div>
+    <h2>RL 학습은 “세 종류의 GPU 가 다른 일을 한다”</h2>
+  </div>
+  <p class="sec-lede">supervised 학습이 “모든 GPU 가 같은 일” 이라면, RL 은 본질적으로 disaggregated 하다. 한 학습 step 의 안을 들여다보면 세 역할이 동시에 돈다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GRPO/PPO 학습 한 step 의 stage</span><span>parallel</span></div>
+    <div class="l91-pipeline">
+      <div class="stg act">
+        <span class="n">STG 1</span>
+        <span class="nm">rollout</span>
+        <span class="em">policy 가 env 와 상호작용 · trajectory 생성</span>
+      </div>
+      <div class="stg">
+        <span class="n">STG 2</span>
+        <span class="nm">reward</span>
+        <span class="em">reward model 또는 verifier 가 점수</span>
+      </div>
+      <div class="stg">
+        <span class="n">STG 3</span>
+        <span class="nm">ref logp</span>
+        <span class="em">frozen reference model 의 logprob</span>
+      </div>
+      <div class="stg">
+        <span class="n">STG 4</span>
+        <span class="nm">advantage</span>
+        <span class="em">GRPO group-relative · baseline 빼기</span>
+      </div>
+      <div class="stg act">
+        <span class="n">STG 5</span>
+        <span class="nm">policy update</span>
+        <span class="em">학습 가능 model 의 backward + step</span>
+      </div>
+      <div class="stg">
+        <span class="n">STG 6</span>
+        <span class="nm">sync</span>
+        <span class="em">새 weight 를 sampler/ref 로</span>
+      </div>
+    </div>
+    <div class="viz-note">stage 1 · 5 가 가장 비싼 자리. <strong>rollout 은 보통 학습 step 의 60–80%</strong> 를 차지한다 — 그래서 vLLM/SGLang 같은 빠른 sampler 와의 통합이 학습 throughput 의 결정 요인. <span style="color:var(--muted)">(확인 필요 — 모델/task 별 비율 다름)</span></div>
+  </div>
+
+  <p>강의에서 강조되는 disaggregation 결정.</p>
+  <ul>
+    <li><strong>rollout 전용 GPU</strong> — 학습 가능 model 과는 별도 GPU 위에서 vLLM 으로 빠른 inference. PagedAttention · continuous batching 의 이점을 그대로.</li>
+    <li><strong>learner GPU</strong> — backward 가 도는 자리. FSDP 또는 DeepSpeed ZeRO. memory 가 가장 많이 필요.</li>
+    <li><strong>reference model</strong> — frozen. learner 와 같은 노드에서 weight share, 또는 별도 GPU.</li>
+    <li><strong>weight sync</strong> — 매 학습 step 후 새 weight 를 sampler 로. NVLink/IB 위 collective 또는 RDMA 직접 transfer.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">torchforge 의 등장</div>
+    <p>위 disaggregation 을 framework 차원에서 표준화한 게 PyTorch 의 <code>torchforge</code>. agentic RL 에 특화된 학습 루프. OpenEnv 와 직접 통합 — Blackjack 예제가 OpenEnv repo 의 cookbook 으로 들어 있음.</p>
+  </div>
+
+  <p>그리고 production-scale RL 에 진입할 때 만나는 디테일 — <strong>weight sync 의 비용</strong>. 70B 모델의 weight 를 매 step transfer 하는 건 비싸다. 보통 N step 마다 sync 하거나, LoRA delta 만 sync 하는 식으로 줄인다. <em>RL 의 throughput 병목은 매번 다른 자리에 옮겨 다닌다</em> — 처음엔 rollout, 다음엔 weight sync, 그 다음엔 reward model 의 latency.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>reward modeling</b><span>· verifiable · process · preference</span></div>
+    <h2>“RL 에 좋은 reward 가 있다” 가 RLHF 의 90%</h2>
+  </div>
+  <p class="sec-lede">강의에서 가장 강조되는 점 중 하나 — RL 알고리즘의 차이보다 reward signal 의 품질이 결과를 더 크게 바꾼다. 2025년 trend 는 reward 가 점점 <em>verifiable</em> 해지는 방향.</p>
+
+  <div class="l91-tab">
+    <div class="col">
+      <div class="h">verifiable reward</div>
+      <ul>
+        <li>수학: 답이 정답과 일치 (1/0)</li>
+        <li>코드: unit test 통과율</li>
+        <li>구조화 출력: JSON schema 준수</li>
+        <li>장점: 노이즈 없음, hack 불가능, 멀티턴에 강함</li>
+        <li>한계: task 가 자동 검증 가능해야</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">process reward (PRM)</div>
+      <ul>
+        <li>최종 답뿐 아니라 <em>중간 단계의 정확성</em> 도 평가</li>
+        <li>chain-of-thought 의 각 step 에 점수</li>
+        <li>장점: 신호 밀도 높음 — sample efficiency</li>
+        <li>한계: PRM 자체 학습이 어려움</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">preference reward (RM)</div>
+      <ul>
+        <li>두 응답 중 어느 쪽이 좋은지 — Bradley-Terry</li>
+        <li>RLHF 의 고전적 형태</li>
+        <li>장점: open-domain task 에 적용 가능</li>
+        <li>한계: reward hacking 의 주된 출처</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">env-native reward</div>
+      <ul>
+        <li>environment 자체가 점수를 준다 — 게임의 score, simulator 의 success</li>
+        <li>OpenEnv 가 자연스럽게 수용하는 형태</li>
+        <li>예: Unsloth 의 2048 env, BlackJack env</li>
+        <li>장점: verifiable + 환경의 풍부함</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pull">“2024년의 RLHF 는 ‘좋은 reward model 학습이 모델 학습보다 어렵다’ 의 시대였다. 2025년은 <em>verifiable reward 로 reward model 자체를 우회한다</em>.”<span class="by">학습 노트</span></div>
+
+  <p>강의에서 짚는 reward 디자인의 함정 — <strong>length hacking</strong>. reward 가 출력 길이와 양의 상관이 있으면, 모델이 길게만 쓰는 쪽으로 발산. 해결책: length-normalized reward, 또는 kl 페널티 강화.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>평가 — environment 가 곧 benchmark</b><span>· eval as env</span></div>
+    <h2>학습용 env 가 그대로 evaluation 환경이 된다 — 이게 OpenEnv 의 큰 그림</h2>
+  </div>
+  <p class="sec-lede">기존 LLM 평가는 “정답이 있는 정적 dataset” 위에서. agentic 시대의 평가는 “환경 안에서 실제로 작동하는가”. 이 둘은 다른 인프라가 아니어야 한다 — environment 라는 같은 추상 위에서.</p>
+
+  <ul>
+    <li><strong>같은 env, 다른 모드</strong> — 학습 시는 reward 를 학습 신호로, 평가 시는 reward 를 metric 으로. 코드 한 줄 바꾸지 않음.</li>
+    <li><strong>seed isolation</strong> — eval 시 사용하는 seed/instance 를 학습 데이터에서 제외. environment 가 instance 단위 split 을 native 지원.</li>
+    <li><strong>환경 버전 고정</strong> — 같은 환경의 새 버전이 reward 를 미세하게 바꾸면 모든 비교가 깨진다. Hub 위 environment 는 SHA 기반 immutable 버전.</li>
+    <li><strong>cross-env transfer</strong> — 한 env 에서 학습한 모델을 다른 env 에서 평가. 진짜 능력의 transfer 가 일어나는가의 질문.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">benchmark 의 미래</div>
+    <p>“정적 dataset” 위 benchmark 는 빠르게 saturate 된다. <strong>environment as benchmark</strong> 는 reward 가 dynamic 해서 saturate 가 어렵다 — 같은 env 에 새 task instance 를 무한히 만들 수 있기 때문. SWE-bench / WebArena 같은 environment 가 사실상 LLM benchmark 의 다음 세대.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>채택 사례</b><span>· TRL · Unsloth · torchforge · SkyRL</span></div>
+    <h2>같은 OpenEnv 위에서 5개의 framework 가 도는 풍경</h2>
+  </div>
+  <p class="sec-lede">OpenEnv repo 의 README 가 자랑스럽게 보여주는 부분 — 이미 여러 RL framework 가 OpenEnv 인터페이스를 지원한다.</p>
+
+  <div class="l91-tab">
+    <div class="col">
+      <div class="h">TRL (HuggingFace)</div>
+      <ul>
+        <li>GRPO 학습 루프의 표준 구현</li>
+        <li>OpenEnv 통합 예제: 수학 task</li>
+        <li>vLLM rollout backend 와 결합</li>
+        <li>HF ecosystem (datasets · transformers · accelerate)</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">Unsloth</div>
+      <ul>
+        <li>2048 게임 env 위 GPT-OSS-20B 학습 Colab notebook</li>
+        <li>4-bit / LoRA 로 작은 GPU 에서도 RL</li>
+        <li>sample efficiency 를 위한 trick 모음</li>
+        <li>홈서버 RL 의 진입점</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">torchforge (PyTorch)</div>
+      <ul>
+        <li>agentic RL 에 특화된 PyTorch native</li>
+        <li>BlackJack 예제 in OpenEnv repo</li>
+        <li>fault tolerance · Monarch 와의 연계 가능성</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="h">기타 — SkyRL · ART · Oumi</div>
+      <ul>
+        <li>SkyRL: 분산 RL 의 다른 stack</li>
+        <li>ART: 작은 RL 라이브러리, 학습 용</li>
+        <li>Oumi: HF 외부의 RL 프레임</li>
+        <li>모두 OpenEnv contract 지원</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>강의에서 던지는 질문 — <em>“왜 이렇게 많은 framework 가 같은 contract 를 채택하는가”</em>. 답은 OpenEnv 자체가 가벼운 인터페이스라는 점. 새 framework 가 OpenEnv 를 추가로 지원하는 비용이 며칠 단위. 그러면서 얻는 이득은 — <strong>HF Hub 위 모든 environment 에 즉시 접근</strong>.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음</b><span>· open vs closed env, hosting</span></div>
+    <h2>environment 의 거버넌스 — 누가 만들고, 누가 검증하는가</h2>
+  </div>
+  <p class="sec-lede">강의의 마지막 섹션은 미래에 대한 질문. RL training 이 실제 production 에서 흔해지면 — environment 의 품질, 보안, 거버넌스가 1차 문제가 된다.</p>
+
+  <ul>
+    <li><strong>environment 의 reproducibility</strong>: 같은 env 의 같은 instance 가 1년 후에도 같은 reward 를 줘야. 외부 API 가 있는 env 는 이 보장이 어려움.</li>
+    <li><strong>cost of an env</strong>: agent 가 코드를 실행하는 env 는 GPU/CPU 비용이 든다. <em>“env 를 누가 비용을 내는가”</em> 가 새 질문. HF Spaces 의 paid tier 가 자연스러운 후보.</li>
+    <li><strong>security</strong>: agent 가 임의 코드를 실행하는 env 는 sandboxing 이 핵심. Docker 격리는 1차 방어선.</li>
+    <li><strong>open vs closed</strong>: 회사 내부의 production env (실제 고객 데이터 위) vs 공개 env (Hub 위). 같은 contract 위에서 둘 다 가능해야.</li>
+    <li><strong>environment 의 진화</strong>: env 자체가 학습되는 단계 — 더 어려운 task 를 자동 생성, curriculum 자동화.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모 · 실습</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">3 dataclass · 2 함수</div>
+      <div class="d"><code>Action · Observation · StepResult</code> + <code>reset() · step()</code>. OpenEnv 의 contract 전체.</div>
+    </div>
+    <div class="term">
+      <div class="t">async-first WebSocket</div>
+      <div class="d">멀티턴 환경의 latency 를 가리는 핵심 디자인. blocking REST 였으면 GPU 가 비어 있을 시간을 hide.</div>
+    </div>
+    <div class="term">
+      <div class="t">role disaggregation</div>
+      <div class="d">RL 은 본질적으로 분리됨. rollout · reward · ref · learner · sampler. 한 GPU 가 모든 일을 안 한다.</div>
+    </div>
+    <div class="term">
+      <div class="t">verifiable reward 가 RLHF 보다 안전</div>
+      <div class="d">자동 검증 가능한 task 면 reward model 자체를 안 만든다. hack 거의 불가능.</div>
+    </div>
+    <div class="term">
+      <div class="t">env = benchmark</div>
+      <div class="d">학습 env 가 그대로 평가 env. seed split 만 분리. 정적 dataset 시대의 끝.</div>
+    </div>
+    <div class="term">
+      <div class="t">HF Hub 가 env 의 배포 채널</div>
+      <div class="d"><code>openenv push</code> → Spaces. environment 가 모델/데이터셋과 같은 1급 시민.</div>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>EchoEnv 구현</strong> — OpenEnv repo 의 cookbook 에서 EchoEnv 를 따라 짠다. <code>openenv init</code> 로 scaffolding 생성, server 띄우고 client 로 연결.</li>
+    <li><strong>2048 env 학습</strong> — Unsloth Colab notebook 으로 GPT-OSS-20B 를 2048 env 위에서 GRPO 학습. <em>처음 RL 을 굴리는 가장 짧은 길</em>.</li>
+    <li><strong>BlackJack + torchforge</strong> — torchforge 의 BlackJack 예제 실행. agent loop 안의 ReAct 패턴이 어떻게 코딩되는지 직접.</li>
+    <li><strong>verifiable math env</strong> — TRL + math env 로 GRPO. reward 를 정답일치(1/0) 로 두고 학습. length hacking 이 어떻게 일어나는지 관찰.</li>
+    <li><strong>weight sync 비용 측정</strong> — N step 마다 weight sync 의 시간을 wandb 로 로깅. 어느 step 부터 sync 가 dominant 가 되는지 그래프.</li>
+  </ol>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=Jew4lhAiqnw" target="_blank" rel="noopener">L091 강의 영상</a></span></div>
+    <div class="row"><span class="k">OpenEnv</span><span class="v"><a href="https://github.com/meta-pytorch/OpenEnv" target="_blank" rel="noopener">meta-pytorch/OpenEnv</a> · <a href="https://github.com/meta-pytorch/OpenEnv/tree/main/gpu-mode-tutorial" target="_blank" rel="noopener">gpu-mode-tutorial</a></span></div>
+    <div class="row"><span class="k">TRL</span><span class="v"><a href="https://github.com/huggingface/trl" target="_blank" rel="noopener">huggingface/trl</a> · GRPO trainer</span></div>
+    <div class="row"><span class="k">Unsloth</span><span class="v"><a href="https://github.com/unslothai/unsloth" target="_blank" rel="noopener">unslothai/unsloth</a> · <a href="https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/OpenEnv_gpt_oss_(20B" target="_blank" rel="noopener">2048 Colab</a></span></div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>RL · 분산 · LLM 시리즈 안의 연결</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_092.html">
+      <div class="n">L092</div>
+      <div class="ti">Smol Training Playbook</div>
+      <div class="by">Loubna Ben Allal — pretraining/SFT 까지의 단계, RL 전 단계</div>
+    </a>
+    <a class="conn" href="lecture_095.html">
+      <div class="n">L095</div>
+      <div class="ti">Single controller programming with Monarch</div>
+      <div class="by">Allen Wang · Colin Taylor — § 05 의 disaggregated RL 의 framework 차원</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">How to profile CUDA kernels in PyTorch</div>
+      <div class="by">PyTorch profiler 의 기본 — RL 에서 rollout 시간 분석에 동일한 도구</div>
+    </a>
+    <a class="conn" href="lecture_058.html">
+      <div class="n">L058</div>
+      <div class="ti">vLLM internals</div>
+      <div class="by">RL rollout 의 sampler — PagedAttention · continuous batching</div>
+    </a>
+    <a class="conn" href="lecture_071.html">
+      <div class="n">L071</div>
+      <div class="ti">GRPO and reasoning RL</div>
+      <div class="by">알고리즘 차원 — DeepSeek-R1 의 학습 레시피</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>스피커 명단 확인 필요</strong> — mega lecture 형식이라 여러 스피커가 등장했을 가능성. transcript 가 복원되면 명단 갱신.</li>
+    <li><strong>OpenEnv 의 정확한 추상</strong> — repo 의 현재 README 기준으로 본 노트를 작성. 강의 시점의 API 와 약간 다를 가능성.</li>
+    <li><strong>weight sync 의 구체 패턴</strong> — 강의에서 어떤 방식(NCCL collective vs RDMA vs file sync)을 강조했는지 영상에서 직접 확인.</li>
+    <li><strong>reward design 의 디테일</strong> — verifiable vs PRM 의 trade-off 가 강의에서 어떻게 정리됐는지 미확인.</li>
+    <li><strong>cost analysis</strong> — RL 학습이 SFT 대비 몇 배 비싼지의 구체적 비교 — 강의에서 숫자가 등장했을 수 있음.</li>
+    <li><strong>OpenEnv 의 미래 — multi-agent</strong>: 한 env 안에서 여러 agent 가 상호작용하는 setting. 강의 시점에 다뤘는지 확인.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 OpenEnv 코드 예시는 repo 의 현재 README 패턴을 학습용으로 단순화한 것이다. 정확한 API 호출 형태(예: <code>EchoEnv</code> 의 실제 선언)는 repo 의 example 파일을 참조해야 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_090.html"><span class="lbl">← Lecture 090</span><span class="nm">Building resilient ML Engineering skills</span></a>
+  <a class="nxt" href="lecture_092.html"><span class="lbl">Lecture 092 →</span><span class="nm">Smol Training Playbook — Loubna Ben Allal</span></a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L091 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

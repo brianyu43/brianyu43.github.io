@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L004 · Compute and Memory Basics · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* L004 — roofline · memory hierarchy · occupancy 의 회계 */
+.l4-roofline{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:18px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l4-roofline svg{display:block;width:100%;max-width:560px;margin:0 auto}
+.l4-roofline .axis-label{fill:var(--ink-soft);font-size:10px}
+.l4-roofline .ridge{fill:var(--ink);font-size:11px;font-weight:700}
+
+.l4-mem{display:grid;grid-template-columns:1fr;gap:0;font-family:'JetBrains Mono',monospace}
+.l4-mem .row{display:grid;grid-template-columns:140px 1fr 110px 100px;gap:12px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-bottom:6px;align-items:center;font-size:12px}
+.l4-mem .row.hi{background:var(--bg-soft);border-color:var(--accent)}
+.l4-mem .row .lvl{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.04em}
+.l4-mem .row .desc{color:var(--ink-soft);font-size:11.5px;line-height:1.4}
+.l4-mem .row .lat{text-align:right;color:var(--ink);font-weight:700;font-size:12px}
+.l4-mem .row .bw{text-align:right;color:var(--ink-soft);font-size:11px}
+
+.l4-occ{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l4-occ .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l4-occ .col h4{margin:0 0 10px;font-size:13px;color:var(--ink);font-family:'Pretendard',sans-serif}
+.l4-occ .col .row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line-soft);font-size:11.5px}
+.l4-occ .col .row .k{color:var(--ink-soft)}
+.l4-occ .col .row .v{color:var(--ink);font-weight:600;font-family:'JetBrains Mono',monospace}
+.l4-occ .col .row.hi .v{color:var(--accent)}
+
+.l4-fuse{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:8px}
+.l4-fuse .pipe{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:8px 10px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l4-fuse .pipe .nm{color:var(--ink);font-weight:700;font-size:12px;width:130px}
+.l4-fuse .pipe .blocks{display:flex;gap:3px;flex:1;align-items:center}
+.l4-fuse .pipe .blk{padding:5px 8px;border-radius:3px;font-size:10.5px;color:var(--paper);font-weight:600}
+.l4-fuse .pipe .blk.r{background:var(--accent)}
+.l4-fuse .pipe .blk.c{background:var(--cool)}
+.l4-fuse .pipe .blk.w{background:var(--accent-2)}
+.l4-fuse .pipe .blk.gap{background:transparent;color:var(--muted);font-weight:400;padding:5px 4px}
+.l4-fuse .pipe.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+@media (max-width:760px){
+  .l4-mem .row{grid-template-columns:1fr}
+  .l4-mem .row .lat,.l4-mem .row .bw{text-align:left}
+  .l4-occ{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_003.html">← L003</a>
+    <a href="lecture_005.html">L005 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L004</span>
+    <span>2024 · FEB · 03</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Lecture 4 · Compute and Memory Basics</h1>
+  <p class="dek">PMPP 의 Ch.4–5 를 한 시간으로 — <strong>커널이 왜 빠르거나 느린가</strong> 의 첫 정량 모델. compute/SM/warp/occupancy 의 회계, memory hierarchy 의 latency 와 bandwidth, <em>roofline</em> 으로 보는 compute-bound vs memory-bound 의 갈림길, 그리고 fusion 이 왜 중요한가의 첫 그림. Thomas Viehmann 이 직접 짠 GELU 커널과 batchnorm 이식 일화로 “정량을 모르고 짜면 어디까지 헛발을 짚는가” 를 보여주는 강의.</p>
+
+  <div class="chips">
+    <span class="chip hi">roofline</span>
+    <span class="chip hi">arithmetic intensity</span>
+    <span class="chip hi">occupancy</span>
+    <span class="chip hi">memory hierarchy</span>
+    <span class="chip">SM · warp</span>
+    <span class="chip">register pressure</span>
+    <span class="chip">launch overhead</span>
+    <span class="chip">fusion</span>
+    <span class="chip cool">PMPP Ch.4–5</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">T</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Thomas Viehmann</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">MathInf · 전 PyTorch core · The Incredible PyTorch 책 저자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L004</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Thomas Viehmann</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">자기 GPU 의 roofline 을 그린다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 빠르고 왜 느린가의 정량</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">SM 의 해부</span><span class="em">FP32 unit · Tensor Core · warp scheduler</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">block 이 SM 에 배정되는 방식</span><span class="em">실행 순서를 가정하지 마라</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">memory hierarchy 의 latency</span><span class="em">register · shared · L1/L2 · HBM</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">arithmetic intensity 와 roofline</span><span class="em">FLOPs / byte</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">occupancy 의 회계</span><span class="em">register · shared · launch shape 의 삼각형</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">launch overhead — 빈 커널의 시간</span><span class="em">empty kernel benchmark</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">왜 fusion 인가</span><span class="em">매번 HBM 을 다시 왕복하지 마라</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">batchnorm 이식 일화</span><span class="em">int32 → int64 의 함정</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why this lecture exists</span></div>
+    <h2>커널이 왜 빠른지 / 왜 느린지를 첫 정량 모델로</h2>
+  </div>
+  <p class="sec-lede">PMPP Ch.1–3 (<a href="lecture_002.html">L002</a>) 까지는 “GPU 위에 일을 어떻게 분배하는가” 의 framing. 거기서 짠 커널이 빠른지 느린지는 측정해 볼 수는 있어도 <strong>왜 그런지</strong> 는 답할 수 없다. L004 가 그 자리를 메운다 — Ch.4(GPU 아키텍처)와 Ch.5(메모리 모델 + 성능)를 묶어 <em>“이 커널은 compute 가 모자란가, memory bandwidth 가 모자란가, occupancy 가 모자란가”</em> 의 첫 정량 진단을 가르친다.</p>
+
+  <p>강의가 답하는 질문은 셋.</p>
+  <ol>
+    <li><strong>SM 안에서 무엇이 무엇을 도는가</strong> — FP32 unit, Tensor Core, warp scheduler, register file, shared memory.</li>
+    <li><strong>같은 데이터에 어떤 메모리 계층이 적용되는가</strong> — 그리고 각 계층의 latency · bandwidth 가 대략 얼마인가.</li>
+    <li><strong>roofline 위에서 내 커널이 어디 있는가</strong> — peak FLOPs 의 70% 인지, peak bandwidth 의 70% 인지, 아니면 둘 다 못 채우고 있는지.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">시리즈 안의 위치</div>
+    <p>이 강의는 <strong>나머지 모든 GPU Mode 강의의 진단 도구</strong>다. <a href="lecture_008.html">L008 CUDA Performance Checklist</a> 가 이 진단의 actionable 항목들이고, <a href="lecture_001.html">L001</a> 의 NCU hint 가 사실상 이 강의의 한 단어들 (occupancy, scoreboard stall) 을 사용한다. 손에 안 잡히면 그 다음 강의들이 “왜” 를 설명하는 자리에서 멈춘다.</p>
+  </div>
+
+  <div class="pull">“많은 커널은 메모리에 의해 제한된다 — 그리고 그게 빠른 커널의 첫 번째 사실이다.”<span class="by">Thomas Viehmann · 학습 노트</span></div>
+</section>
+
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>SM 의 해부</b><span>· FP32 / Tensor Core / warp scheduler</span></div>
+    <h2>한 SM 안에 무엇이 들어 있고, 한 cycle 에 무엇이 도는가</h2>
+  </div>
+  <p class="sec-lede">강의의 첫 정량 — <strong>한 SM 안에 32개의 FP32 unit, 그 중 절반은 INT32 도 가능, 그리고 별도의 Tensor Core unit</strong>. 한 cycle 에 처리되는 thread 의 단위가 <em>warp = 32 threads</em> 이고, 한 SM 은 여러 warp 를 동시에 schedule 한다 (Ampere 기준 4 warp scheduler).</p>
+
+  <div class="l4-occ">
+    <div class="col">
+      <h4>Ampere SM (A100 기준)</h4>
+      <div class="row"><span class="k">FP32 unit</span><span class="v">64 (lane)</span></div>
+      <div class="row"><span class="k">FP64 unit</span><span class="v">32 (lane)</span></div>
+      <div class="row"><span class="k">INT32</span><span class="v">FP32 의 절반과 공유</span></div>
+      <div class="row hi"><span class="k">Tensor Core</span><span class="v">4 unit · MMA 큰 단위</span></div>
+      <div class="row"><span class="k">warp scheduler</span><span class="v">4</span></div>
+      <div class="row"><span class="k">register file</span><span class="v">256 KB</span></div>
+      <div class="row"><span class="k">shared / L1</span><span class="v">192 KB total · split</span></div>
+      <div class="row"><span class="k">max threads/SM</span><span class="v">2048</span></div>
+    </div>
+    <div class="col">
+      <h4>실행 단위로 보면</h4>
+      <div class="row"><span class="k">warp</span><span class="v">32 threads · lockstep</span></div>
+      <div class="row"><span class="k">block</span><span class="v">1+ warps · shared 공유</span></div>
+      <div class="row"><span class="k">grid</span><span class="v">block 들의 집합</span></div>
+      <div class="row hi"><span class="k">한 cycle</span><span class="v">warp 단위 instruction issue</span></div>
+      <div class="row"><span class="k">divergence</span><span class="v">warp 안 분기 → serialize</span></div>
+      <div class="row"><span class="k">__syncthreads</span><span class="v">block 안 동기화 barrier</span></div>
+      <div class="row"><span class="k">block sync</span><span class="v">없음 — kernel boundary 만</span></div>
+      <div class="row"><span class="k">stream</span><span class="v">kernel 들의 시퀀스</span></div>
+    </div>
+  </div>
+
+  <p>이 표의 두 가지 사실이 이 강의의 모든 디테일에 반복적으로 등장한다.</p>
+  <ul>
+    <li><strong>warp = 32 threads, 한 cycle 에 한 instruction 을 lockstep 으로 실행</strong> — 그래서 warp 안에서 분기 (if-else) 가 갈라지면 두 path 가 직렬로 돌면서 절반은 idle. 이게 <em>warp divergence</em>.</li>
+    <li><strong>register file 이 SM 당 256 KB</strong> — 한 thread 당 몇 register 를 쓰는지가 <em>SM 위에 동시에 둘 수 있는 thread 수</em>를 직접 제한. occupancy (§06) 의 출발점.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">Tensor Core 는 의도적으로 빠진다</div>
+    <p>Thomas 가 강의에서 명시 — <em>“today we're not going to look at Tensor Core in great detail”</em>. 첫 정량 모델은 일반 FP32 unit 만으로 깐다. Tensor Core 는 후속 (<a href="lecture_023.html">L023</a> CUTLASS, <a href="lecture_036.html">L036</a> CUTLASS Cute) 의 영역.</p>
+  </div>
+</section>
+
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>block 이 SM 에 배정되는 방식</b><span>· 실행 순서를 가정하지 마라</span></div>
+    <h2>block 들 사이에는 어떤 동기화도 없다 — 그래서 분배가 자유롭다</h2>
+  </div>
+  <p class="sec-lede">강의에서 Thomas 가 가장 못 박는 사실 — <strong>“CUDA 는 block 을 SM 들에 임의로 배정한다. 우리는 실행 순서를 모른다.”</strong> 이 한 문장이 GPU 의 확장성의 비밀이고, 동시에 학습자가 가장 자주 잊는 사실이다.</p>
+
+  <p>이 사실의 결과 두 가지.</p>
+  <ul>
+    <li><strong>block 사이의 통신은 kernel boundary 가 유일</strong> — block A 가 block B 의 결과를 보려면 두 개의 kernel launch 가 필요하다. <em>“이 block 이 다른 block 의 결과를 기다린다” 같은 코드는 deadlock 의 길</em>.</li>
+    <li><strong>block 사이의 atomic 은 동기화가 아닌 update 만</strong> — <code>atomicAdd</code> 가 race-free 하게 update 를 보장하지만, 순서를 보장하진 않는다. 이게 <a href="lecture_009.html">L009 Reductions</a> 의 핵심 함정.</li>
+  </ul>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · block 의 임의 배정</span><span>108 SM 에 256 block 을 던지면</span></div>
+    <svg viewBox="0 0 600 200" width="100%" height="200">
+      <g font-family="JetBrains Mono" font-size="10">
+      <text x="20" y="22" class="lbl" fill="var(--ink-soft)">grid (256 blocks)</text>
+      <g transform="translate(0,30)">
+        <rect x="20" y="0" width="22" height="22" class="box-paper"/><text x="31" y="14" text-anchor="middle" fill="var(--ink)">b0</text>
+        <rect x="44" y="0" width="22" height="22" class="box-paper"/><text x="55" y="14" text-anchor="middle" fill="var(--ink)">b1</text>
+        <rect x="68" y="0" width="22" height="22" class="box-paper"/><text x="79" y="14" text-anchor="middle" fill="var(--ink)">b2</text>
+        <text x="100" y="14" fill="var(--ink-soft)">…</text>
+        <rect x="120" y="0" width="32" height="22" class="box-paper"/><text x="136" y="14" text-anchor="middle" fill="var(--ink)">b255</text>
+      </g>
+
+      <text x="20" y="80" class="lbl" fill="var(--ink-soft)">SM 0..107  (108 SM)</text>
+      <g transform="translate(0,90)">
+        <rect x="20" y="0" width="60" height="36" class="box-soft"/>
+        <text x="50" y="14" text-anchor="middle" fill="var(--ink-soft)">SM 0</text>
+        <rect x="24" y="18" width="22" height="14" class="box-acc"/><text x="35" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b0</text>
+        <rect x="50" y="18" width="22" height="14" class="box-acc"/><text x="61" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b8</text>
+
+        <rect x="90" y="0" width="60" height="36" class="box-soft"/>
+        <text x="120" y="14" text-anchor="middle" fill="var(--ink-soft)">SM 1</text>
+        <rect x="94" y="18" width="22" height="14" class="box-cool"/><text x="105" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b1</text>
+        <rect x="120" y="18" width="22" height="14" class="box-cool"/><text x="131" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b9</text>
+
+        <rect x="160" y="0" width="60" height="36" class="box-soft"/>
+        <text x="190" y="14" text-anchor="middle" fill="var(--ink-soft)">SM 2</text>
+        <rect x="164" y="18" width="22" height="14" class="box-acc"/><text x="175" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b3</text>
+        <rect x="190" y="18" width="22" height="14" class="box-acc"/><text x="201" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b11</text>
+
+        <text x="240" y="20" fill="var(--ink-soft)">…</text>
+
+        <rect x="280" y="0" width="80" height="36" class="box-soft"/>
+        <text x="320" y="14" text-anchor="middle" fill="var(--ink-soft)">SM 107</text>
+        <rect x="284" y="18" width="22" height="14" class="box-cool"/><text x="295" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b107</text>
+        <rect x="310" y="18" width="22" height="14" class="box-cool"/><text x="321" y="29" text-anchor="middle" fill="var(--paper)" font-size="8">b215</text>
+        <rect x="336" y="18" width="22" height="14" class="box-paper"/><text x="347" y="29" text-anchor="middle" fill="var(--ink-soft)" font-size="8">…</text>
+      </g>
+
+      <text x="20" y="160" fill="var(--ink-soft)">wave 1: 108 block · wave 2: 108 block · wave 3: 40 block (under-filled — tail effect)</text>
+      <text x="20" y="180" fill="var(--accent)">→ 256 / 108 = 2.37 wave. 0.37 wave 가 비어 있는 게 “tail effect”.</text>
+      </g>
+    </svg>
+    <div class="viz-note"><strong>“wave”</strong> = 한 SM 당 한 block 씩 돌아가는 한 묶음. 마지막 wave 가 절반만 차면 나머지 SM 들이 idle. 이걸 <a href="lecture_001.html">L001</a> 에서 NCU 가 “tail effect” 로 hint 줬던 그 자리.</div>
+  </div>
+</section>
+
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>memory hierarchy 의 latency</b><span>· register · shared · L1/L2 · HBM</span></div>
+    <h2>같은 데이터, 어디서 읽느냐에 따라 200배 차이</h2>
+  </div>
+  <p class="sec-lede">강의에서 Thomas 가 던지는 두 번째 정량. <strong>한 cycle 안에 register 를 읽는 비용과 HBM 을 읽는 비용은 100~200배 차이</strong>다. on-chip 위계를 register → shared/L1 → L2 → HBM 으로 깔고 각 단계의 대략적 latency 와 bandwidth 를 외워둔다.</p>
+
+  <div class="l4-mem">
+    <div class="row hi">
+      <span class="lvl">register</span>
+      <span class="desc">thread 별 사적, on-chip. 가장 빠름. compiler 가 할당 — 너무 많이 쓰면 spill</span>
+      <span class="lat">1 cycle</span>
+      <span class="bw">— per thread —</span>
+    </div>
+    <div class="row hi">
+      <span class="lvl">shared / L1</span>
+      <span class="desc">block 안 thread 끼리 공유. <code>__shared__</code>. 같은 SM 의 SRAM 에 위치</span>
+      <span class="lat">~30 cycle</span>
+      <span class="bw">~19 TB/s (A100)</span>
+    </div>
+    <div class="row">
+      <span class="lvl">L2</span>
+      <span class="desc">전체 SM 공유. global memory 의 캐시. 자동 관리.</span>
+      <span class="lat">~200 cycle</span>
+      <span class="bw">~5 TB/s</span>
+    </div>
+    <div class="row">
+      <span class="lvl">HBM (global)</span>
+      <span class="desc">device DRAM. <code>cudaMalloc</code> 으로 잡는 곳. 주된 bandwidth bottleneck</span>
+      <span class="lat">~400-800 cycle</span>
+      <span class="bw">~1.5 TB/s (A100)</span>
+    </div>
+    <div class="row">
+      <span class="lvl">PCIe / NVLink</span>
+      <span class="desc">CPU↔GPU 또는 GPU↔GPU. <code>cudaMemcpy</code> 의 길.</span>
+      <span class="lat">매우 큼</span>
+      <span class="bw">~32 GB/s · 600 GB/s</span>
+    </div>
+    <div class="row">
+      <span class="lvl">local memory</span>
+      <span class="desc">register spill 시 “local” 이라 부르지만 실제로는 HBM 에 저장. <em>최대한 피해야 함</em>.</span>
+      <span class="lat">HBM 과 동급</span>
+      <span class="bw">— 회피 대상 —</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">register spill 의 함정</div>
+    <p>강의에서 Thomas 가 자기 일화로 짚은 자리 — <em>“pyo bnom 커널을 옛날 torch 에서 새 PyTorch 로 옮기는데 indexing 을 실수로 int64 로 했더니 register 가 부족해져서 local memory(=HBM)로 spill 되어 느려졌다.”</em> register 사용량은 <code>nvcc -Xptxas=-v</code> 로 빌드 시 dump 가능. 한 thread 가 64 register 를 넘으면 occupancy 가 떨어지기 시작 (Ampere 기준).</p>
+  </div>
+
+  <div class="pull">“local memory 라는 이름에 속지 마라 — 실제로는 HBM 에 spill 되는 register 의 다른 이름이다.”<span class="by">Thomas Viehmann · L004</span></div>
+</section>
+
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>arithmetic intensity 와 roofline</b><span>· FLOPs / byte</span></div>
+    <h2>한 byte 를 가져와서 몇 번의 연산을 하는가 — 이 비율이 모든 것을 결정한다</h2>
+  </div>
+  <p class="sec-lede">강의의 가장 중요한 한 그림. <strong>arithmetic intensity = FLOPs / byte</strong>. 같은 알고리즘이라도 이 값이 작으면 (memory-bound) bandwidth 가 천장이고, 크면 (compute-bound) FLOPs 가 천장이다. 두 천장이 만나는 “ridge point” 가 GPU 마다 정해져 있다 — A100 의 경우 약 13 FLOP/byte (FP32) 또는 ~140 FLOP/byte (Tensor Core BF16).</p>
+
+  <div class="l4-roofline">
+    <svg viewBox="0 0 580 300">
+      <g font-family="JetBrains Mono" font-size="10">
+        <line x1="60" y1="260" x2="540" y2="260" stroke="var(--ink-soft)" stroke-width="1"/>
+        <line x1="60" y1="260" x2="60" y2="40" stroke="var(--ink-soft)" stroke-width="1"/>
+
+        <text x="300" y="285" text-anchor="middle" class="axis-label">arithmetic intensity (FLOPs / byte)</text>
+        <text x="40" y="150" text-anchor="middle" class="axis-label" transform="rotate(-90 40 150)">throughput (FLOPs/s)</text>
+
+        <line x1="60" y1="260" x2="240" y2="80" stroke="var(--accent)" stroke-width="2.5"/>
+        <line x1="240" y1="80" x2="540" y2="80" stroke="var(--accent)" stroke-width="2.5"/>
+
+        <line x1="240" y1="80" x2="240" y2="260" stroke="var(--ink-soft)" stroke-dasharray="3,3" stroke-width="1"/>
+        <text x="240" y="275" text-anchor="middle" class="axis-label">~13 FLOP/byte (ridge)</text>
+
+        <text x="120" y="190" fill="var(--accent)" font-weight="700">memory-bound</text>
+        <text x="120" y="206" fill="var(--ink-soft)">slope = peak BW</text>
+        <text x="380" y="70" fill="var(--accent)" font-weight="700">compute-bound</text>
+        <text x="380" y="86" fill="var(--ink-soft)">peak FLOPs ceiling</text>
+
+        <circle cx="105" cy="240" r="5" fill="var(--accent)"/>
+        <text x="115" y="244" fill="var(--ink)">elementwise (add, relu) — 0.25 FLOP/byte</text>
+        <circle cx="160" cy="180" r="5" fill="var(--accent)"/>
+        <text x="170" y="184" fill="var(--ink)">attention softmax (per-row) — ~3 FLOP/byte</text>
+        <circle cx="280" cy="80" r="5" fill="var(--accent)"/>
+        <text x="290" y="84" fill="var(--ink)">large matmul (fp16 + Tensor Core) — &gt; ridge</text>
+        <circle cx="195" cy="130" r="5" fill="var(--accent)"/>
+        <text x="205" y="134" fill="var(--ink)">conv (small batch, fp32) — ~6 FLOP/byte</text>
+
+        <text x="60" y="55" fill="var(--accent-2)" font-weight="700">peak compute</text>
+        <text x="60" y="270" fill="var(--accent-2)">0</text>
+      </g>
+    </svg>
+    <div class="viz-note">왼쪽 사선의 기울기는 <strong>peak HBM bandwidth</strong>. 오른쪽 평평한 선은 <strong>peak FP32 throughput</strong> (또는 Tensor Core 면 더 위로). 내 커널이 어디 점인지에 따라 “더 빠르게 만들려면 어디를 풀어야 하는가” 가 정해진다.</div>
+  </div>
+
+  <p>roofline 위에서 자주 보이는 패턴들.</p>
+  <ul>
+    <li><strong>elementwise op</strong> (add, relu, sigmoid) 는 거의 항상 <em>far left</em> — bandwidth 가 천장이다. fusion 의 가장 큰 표적 (§08).</li>
+    <li><strong>matmul</strong> 은 어느 사이즈에서는 ridge 를 넘어 compute-bound. 하지만 <em>tall-skinny matmul</em> (예: M=2, K=1024, N=8192) 은 reuse 가 적어 memory-bound 로 떨어진다.</li>
+    <li><strong>attention 의 score 계산 (Q·Kᵀ)</strong> 은 큰 matmul 처럼 보이지만, softmax 와 V·attn 까지 다 묶어 계산할 때 HBM 왕복이 dominant. <a href="lecture_012.html">L012 FlashAttention</a> 의 본론.</li>
+    <li>같은 모델의 같은 레이어가 <strong>training 시 bound 가 다르다</strong> — backward 의 reduction step 이 종종 memory-bound. 한 화살표가 아니다.</li>
+  </ul>
+
+  <div class="pull">“더 빨리 가게 하려면 — 천장이 어딘지 먼저 보라. 잘못된 천장을 깎으려고 하면 노력이 0.”<span class="by">학습 노트 · L004 §05</span></div>
+</section>
+
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>occupancy 의 회계</b><span>· register · shared · launch shape 의 삼각형</span></div>
+    <h2>SM 에 동시에 살 수 있는 warp 수 — 세 자원의 가장 빡빡한 한 자리가 결정</h2>
+  </div>
+  <p class="sec-lede">occupancy = SM 의 active warp 수 / max warp 수. 이 비율이 100% 면 “SM 이 가득 찼다”. 그런데 이 비율을 결정하는 건 <strong>세 자원 중 가장 빡빡한 자리</strong>다.</p>
+
+  <div class="l4-occ">
+    <div class="col">
+      <h4>occupancy 를 깎는 세 자원</h4>
+      <div class="row"><span class="k">register/thread</span><span class="v">256 KB / SM</span></div>
+      <div class="row"><span class="k">shared mem/block</span><span class="v">~100 KB / SM (split)</span></div>
+      <div class="row"><span class="k">block size</span><span class="v">block 수가 너무 많으면</span></div>
+      <div class="row"><span class="k">max threads</span><span class="v">2048 / SM</span></div>
+      <div class="row hi"><span class="k">실제 occupancy</span><span class="v">셋 중 가장 빡빡한 자리</span></div>
+    </div>
+    <div class="col">
+      <h4>예시 — 64 reg, 256 thread/block</h4>
+      <div class="row"><span class="k">block 당 register</span><span class="v">64 × 256 = 16 KB</span></div>
+      <div class="row"><span class="k">SM 당 가능 block</span><span class="v">256 KB / 16 KB = 16</span></div>
+      <div class="row"><span class="k">하지만 max 2048 thread</span><span class="v">2048 / 256 = 8 block</span></div>
+      <div class="row"><span class="k">→ 실제</span><span class="v">8 block × 256 = 2048 thread</span></div>
+      <div class="row hi"><span class="k">occupancy</span><span class="v">100%</span></div>
+    </div>
+  </div>
+
+  <p>강의에서 Thomas 가 깐 직관 — <em>“higher occupancy 가 항상 좋은 건 아니다.”</em> 이게 흔한 오해다. occupancy 는 <strong>memory latency 를 hide 하는 도구</strong>다. 한 warp 가 HBM 을 기다리는 동안 다른 warp 가 일을 하면 latency 가 hide 된다. 그래서 memory-bound 커널에서는 occupancy 가 중요하지만, 이미 compute-bound 면 occupancy 가 80% → 60% 떨어져도 거의 차이 없을 수 있다.</p>
+
+  <div class="callout cool">
+    <div class="label">occupancy calculator</div>
+    <p>강의에서 Thomas 가 짚은 도구 — 옛날엔 Excel sheet, 이제는 <strong>NCU 가 직접 보여준다</strong>. <code>ncu --set full</code> 의 occupancy section. 또는 CUDA Toolkit 의 <code>cudaOccupancyMaxActiveBlocksPerMultiprocessor</code> API. 자기 커널의 register 와 shared mem 사용을 넣으면 occupancy 의 상한을 계산.</p>
+  </div>
+</section>
+
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>launch overhead</b><span>· empty kernel benchmark</span></div>
+    <h2>비어 있는 커널을 띄우면 얼마나 걸리는가 — “고정 비용” 의 수치화</h2>
+  </div>
+  <p class="sec-lede">강의의 작은 실험. <strong><code>__global__ void empty() {}</code> 같은 빈 커널을 launch</strong> 하면 — host → device 의 launch dispatch 만큼의 시간이 걸린다. 이게 <em>“fixed cost per kernel launch”</em>. 대략 <strong>5~20 μs</strong> (system, driver, GPU 종류에 따라).</p>
+
+  <p>이 수치가 의미 있는 자리는 — <strong>커널이 작을수록</strong>이다.</p>
+
+  <div class="bars">
+    <div class="row"><span class="lbl">빈 커널 (n=0)</span><div class="bar sml"><span style="width:6%"></span></div><span class="val">~10 μs</span></div>
+    <div class="row"><span class="lbl">elementwise (n=1024)</span><div class="bar sml"><span style="width:8%"></span></div><span class="val">~12 μs (대부분 launch)</span></div>
+    <div class="row"><span class="lbl">elementwise (n=10⁶)</span><div class="bar sml cool"><span style="width:38%"></span></div><span class="val">~50 μs (kernel 우세)</span></div>
+    <div class="row"><span class="lbl">elementwise (n=10⁸)</span><div class="bar sml cool"><span style="width:96%"></span></div><span class="val">~5 ms (kernel 만)</span></div>
+    <div class="row"><span class="lbl">10000개 작은 kernel 직렬</span><div class="bar sml" style="background:rgba(255,80,80,0.2)"><span style="width:80%;background:#c66"></span></div><span class="val">~100 ms (launch only)</span></div>
+  </div>
+
+  <p>마지막 줄이 <a href="lecture_006.html">L006 Optimizing Optimizers</a> 의 핵심 동기다 — <em>10000 개의 작은 tensor 에 같은 op 를 따로 launch 하면 launch overhead 만 100 ms</em>. <code>foreach</code> / <code>multi_tensor_apply</code> 가 이걸 한 launch 로 합쳐서 거의 0 으로 줄인다.</p>
+
+  <div class="callout">
+    <div class="label">실측 시작 — 자기 GPU 에서</div>
+    <p>강의의 notebook 에 <code>empty</code> 커널을 직접 launch 해서 시간을 재는 셀이 있다. 자기 GPU 에서 <strong>5 μs 인지 20 μs 인지를 한 번 측정</strong>해 두면 — “이 커널은 너무 작아서 launch 가 dominant 이겠다” 가 직관적으로 잡힌다. CUDA Graphs 또는 fusion 으로 가야 할 신호.</p>
+  </div>
+</section>
+
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>왜 fusion 인가</b><span>· 매번 HBM 을 다시 왕복하지 마라</span></div>
+    <h2>EAGER 의 가장 흔한 비효율 — 같은 데이터를 여러 번 읽고 쓴다</h2>
+  </div>
+  <p class="sec-lede">강의에서 Thomas 가 가장 명료하게 한 줄로 정리한 fusion 의 동기. <em>“PyTorch eager 는 op 마다 input 을 read, 결과를 write 한다. 두 op 를 합치면 중간을 register 에 두고 한 번만 write.”</em></p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · fusion 의 메모리 트래픽 절감</span><span>x → relu(x) → x*2 의 두 형태</span></div>
+    <div class="l4-fuse">
+      <div class="pipe">
+        <span class="nm">unfused (eager)</span>
+        <div class="blocks">
+          <span class="blk r">R x</span>
+          <span class="blk c">relu</span>
+          <span class="blk w">W tmp</span>
+          <span class="blk gap">→</span>
+          <span class="blk r">R tmp</span>
+          <span class="blk c">×2</span>
+          <span class="blk w">W out</span>
+        </div>
+      </div>
+      <div class="pipe hi">
+        <span class="nm">fused</span>
+        <div class="blocks">
+          <span class="blk r">R x</span>
+          <span class="blk c">relu</span>
+          <span class="blk c">×2</span>
+          <span class="blk w">W out</span>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">unfused 면 HBM read 2회 + write 2회. fused 면 HBM read 1회 + write 1회. <strong>elementwise op 라면 거의 50% bandwidth 절약</strong>. arithmetic intensity 는 그대로지만 절대 시간은 절반에 가까워진다.</div>
+  </div>
+
+  <p>fusion 의 자동화는 두 자리에서 일어난다.</p>
+  <ul>
+    <li><strong><code>torch.compile</code></strong> — Inductor 가 elementwise chain 을 자동 fuse. <a href="lecture_001.html">L001 §07</a> 에서 <code>TORCH_LOGS=output_code</code> 로 검증.</li>
+    <li><strong>커널 직접 짜기</strong> — Triton/CUDA 로 여러 op 를 한 커널에 합친다. <a href="lecture_018.html">L018 Fusing Kernels</a> 의 본론.</li>
+  </ul>
+
+  <p>강의에서 Thomas 가 짠 GELU 커널이 좋은 예 — <code>0.5f * x * (1.0f + tanhf(sqrt(2/pi) * (x + 0.044715 * x³)))</code> 안에 곱셈/덧셈/tanh 가 다 들어 있다. 이걸 PyTorch eager 처럼 풀면 5~6개의 elementwise launch + HBM 왕복이 되지만, 한 커널 안에서는 한 번의 read 와 한 번의 write 로 끝난다.</p>
+</section>
+
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>batchnorm 이식 일화</b><span>· int32 → int64 의 함정</span></div>
+    <h2>“실수 한 줄” 이 register pressure 를 통해 200% 의 시간 차이로</h2>
+  </div>
+  <p class="sec-lede">강의에서 Thomas 가 자기 디버깅 일화로 깐 가장 인상적인 자리. <strong>옛날 Torch 에서 새 PyTorch 로 batchnorm 커널을 옮기다가 indexing 을 무심코 int64 로 했더니 새 커널이 더 느려졌다.</strong> 원인 추적에 한참 걸렸고 — register 사용량이 늘어나서 spill 이 생겼다는 게 진단이었다.</p>
+
+  <div class="callout">
+    <div class="label">왜 int64 가 register 를 더 먹나</div>
+    <p>32-bit register 가 GPU 의 기본 단위. int32 한 변수는 1 register, int64 는 2 register. 큰 인덱스 산술이 많이 들어간 커널에서 모든 indexing 변수가 한 번에 register 두 배가 된다. 한 thread 가 64 → 80 register 가 되면 occupancy 가 한 단 떨어지고, 더 늘면 local memory 로 spill — 즉 HBM 으로 보내짐. 결과는 “int64 한 줄” 의 시간 차가 200%.</p>
+  </div>
+
+  <p>이 일화의 메시지가 두 줄로 압축된다.</p>
+  <ol>
+    <li><strong>indexing 의 dtype 도 성능 결정 요소</strong>. <code>int</code> 면 충분한 자리에 <code>long</code> 을 쓰지 마라. CUDA 의 <code>blockIdx.x</code> 등은 <code>unsigned int</code>.</li>
+    <li><strong>“느려진 커널” 의 원인이 코드의 한 글자에 있을 수 있다</strong> — 그래서 NCU 의 register/local memory 카운터를 항상 본다.</li>
+  </ol>
+
+  <div class="pull">“정량을 모르면 같은 코드가 왜 느려졌는지 추측만 해야 한다. 정량을 알면 카운터 한 줄에서 답이 나온다.”<span class="by">학습 노트 · L004 §09</span></div>
+
+  <p>강의의 마지막 메시지가 이 일화에서 자연스럽게 따라 나온다 — <em>“성능 일은 추측이 아니라 측정이다.”</em> 그리고 측정하려면 <em>roofline · occupancy · register pressure</em> 의 단어들이 손에 잡혀 있어야 한다. 그게 이 강의의 모든 것.</p>
+</section>
+
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">PMPP Ch.4–5 의 정량 모델을 다시 펼치기 전에 머릿속에 남아 있어야 하는 사실들과 자료.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">arithmetic intensity</div>
+      <div class="d">FLOPs / byte. 이 비율이 ridge 보다 작으면 memory-bound, 크면 compute-bound.</div>
+    </div>
+    <div class="term">
+      <div class="t">roofline</div>
+      <div class="d">왼쪽 사선(BW) + 오른쪽 평선(FLOPs) 의 두 천장. 내 커널이 어느 점인지 보고 무엇을 풀지 결정.</div>
+    </div>
+    <div class="term">
+      <div class="t">memory hierarchy</div>
+      <div class="d">register(1 cycle) → shared(30) → L2(200) → HBM(400+). 200 배 차이.</div>
+    </div>
+    <div class="term">
+      <div class="t">occupancy</div>
+      <div class="d">register/thread, shared/block, max threads 셋 중 가장 빡빡한 자리가 결정. memory-bound 면 중요, compute-bound 면 80→60% 차이 작음.</div>
+    </div>
+    <div class="term">
+      <div class="t">block 의 임의 배정</div>
+      <div class="d">block 사이 통신은 kernel boundary 만. atomic 은 update 만 보장.</div>
+    </div>
+    <div class="term">
+      <div class="t">launch overhead</div>
+      <div class="d">빈 커널 ~10 μs. 작은 커널이 많으면 fusion 또는 CUDA Graphs.</div>
+    </div>
+    <div class="term">
+      <div class="t">register spill</div>
+      <div class="d">너무 많이 쓰면 “local memory” = HBM 으로 보내짐. <code>nvcc -Xptxas=-v</code> 로 dump.</div>
+    </div>
+    <div class="term">
+      <div class="t">int 의 dtype</div>
+      <div class="d">indexing 은 <code>int</code> 로. <code>long</code> 은 register 두 배 → occupancy 떨어진다.</div>
+    </div>
+    <div class="term">
+      <div class="t">fusion 의 동기</div>
+      <div class="d">elementwise op chain 은 거의 항상 BW-bound. fuse 하면 HBM 왕복이 줄어 시간 절감.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=lTmYrKwjSOU" target="_blank" rel="noopener">youtube.com/watch?v=lTmYrKwjSOU</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_004/cuda-mode-2024-02-03.pdf" target="_blank" rel="noopener">cuda-mode-2024-02-03.pdf</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_004/cuda-mode-session-4.ipynb" target="_blank" rel="noopener">cuda-mode-session-4.ipynb</a> — Jeremy 의 L003 notebook 을 base 로 GELU + benchmarking 추가</span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_004" target="_blank" rel="noopener">gpu-mode/lectures/lecture_004</a></span>
+    </div>
+    <div class="row">
+      <span class="k">참고서</span>
+      <span class="v">PMPP Ch.4 (Memory architecture) · Ch.5 (Performance considerations) · NVIDIA <em>Programming Guide</em> · <em>roofline model</em> 원논문 (Williams 2009)</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>자기 GPU 의 roofline 그리기</strong> — peak FLOPs (FP32, FP16, Tensor Core), peak HBM bandwidth 를 spec 에서 가져와 ridge point 계산. matplotlib 으로 직접.</li>
+    <li><strong>빈 커널 시간 측정</strong> — <code>__global__ void empty(){}</code> 을 launch 하고 <code>cudaEvent</code> 로 시간 측정. 자기 환경의 fixed cost 가 5 μs 인지 20 μs 인지 확정.</li>
+    <li><strong>elementwise vs matmul 의 roofline 위치</strong> — <code>x + y</code> 와 <code>matmul(M=1024, N=1024, K=1024)</code> 의 시간을 측정해 arithmetic intensity 와 함께 roofline 위에 점 찍기.</li>
+    <li><strong>register sweep</strong> — 같은 커널을 일부러 변수 많이 만들어서 (<code>nvcc -Xptxas=-v</code> 로 register count 확인) occupancy 가 떨어지는 지점을 찾는다.</li>
+    <li><strong>int32 vs int64 indexing 비교</strong> — Thomas 의 batchnorm 일화 재현. 같은 reduce 또는 stencil 커널을 두 dtype 으로 짜고 시간 비교.</li>
+    <li><strong>fusion 효과 측정</strong> — <code>relu(x) * 2</code> 를 PyTorch eager 와 <code>torch.compile</code> 로 각각 돌려 시간 비교. <code>TORCH_LOGS=output_code</code> 로 fused 커널을 직접 본다.</li>
+    <li><strong>NCU 로 occupancy 보기</strong> — <code>ncu --set full python script.py</code> 의 output 에서 “Achieved Occupancy” 와 “Theoretical Occupancy” 의 차이를 한 번 본다.</li>
+    <li><strong>한 페이지 plan</strong> — 자기가 다루는 모델의 한 layer 를 골라 “이 layer 가 roofline 위에서 어디쯤 있는지, 어떤 천장을 깎으면 가장 효과적인지” 를 한 페이지로 정리.</li>
+  </ol>
+</section>
+
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 정량 모델이 다른 강의에서 어떻게 사용되는지</h2>
+  </div>
+  <p class="sec-lede">L004 의 단어들 (occupancy, scoreboard stall, arithmetic intensity, fusion) 이 거의 모든 후속 강의의 기본 어휘다.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">Profiling CUDA kernels in PyTorch</div>
+      <div class="by">Mark Saroufim — NCU hint 들이 사실상 이 강의의 단어들을 사용</div>
+    </a>
+    <a class="conn" href="lecture_002.html">
+      <div class="n">L002</div>
+      <div class="ti">PMPP Ch.1–3</div>
+      <div class="by">Andreas Köpf — 이 강의의 직속 prequel. 모델 → 정량의 흐름.</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA for Python</div>
+      <div class="by">Jeremy Howard — shared memory tiling. 이 강의의 memory hierarchy 의 첫 응용.</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">Mark Saroufim — 이 강의의 진단 단어들의 actionable 체크리스트</div>
+    </a>
+    <a class="conn" href="lecture_009.html">
+      <div class="n">L009</div>
+      <div class="ti">Reductions</div>
+      <div class="by">Mark Saroufim — block 사이 통신의 자리. 이 강의의 “block 임의 배정” 의 결과를 직접 다룸.</div>
+    </a>
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">Flash Attention</div>
+      <div class="by">Tri Dao — attention 의 roofline 위치를 옮기는 알고리즘. 이 강의의 fusion 동기의 본격 형태.</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Adam Paszke — 이 강의 §08 의 본격 확장</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — fusion 의 production 사례. 이 강의의 정량을 LLM 학습에 적용.</div>
+    </a>
+  </div>
+</section>
+
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">강의의 framing 안에서 의도적으로 비워둔 자리들과, 자기 GPU 위에서 측정해야 손에 박히는 사실들.</p>
+  <ul>
+    <li><strong>Tensor Core 의 roofline 위치</strong> — 강의는 FP32 unit 만 본다. Tensor Core 가 들어가면 ridge point 가 ~10x 오른쪽으로 이동. <a href="lecture_023.html">L023</a> CUTLASS 강의에서.</li>
+    <li><strong>arithmetic intensity 의 정확한 정의</strong> — “FLOP / byte” 의 byte 가 무엇을 셀까? HBM read 만? L2 hit 까지 포함? 강의에서는 흐릿. NVIDIA 공식 정의는 <em>“DRAM bytes”</em> — 즉 HBM 만.</li>
+    <li><strong>occupancy 와 latency hiding 의 정량</strong> — 100% occupancy 가 75% 보다 얼마나 빠른가? bound 에 따라 다름. 강의에서 정량적인 비교는 안 함.</li>
+    <li><strong>register pressure 의 정확한 측정</strong> — <code>nvcc -Xptxas=-v</code> 가 보여주는 “registers per thread” 와 NCU 의 “registers per thread” 가 일치하는가? compiler 의 inline 결정 이후의 실제 사용량인가, 정의된 값인가?</li>
+    <li><strong>L2 cache 의 영향</strong> — 강의는 L1/shared 와 HBM 만 깐다. L2 의 hit 률이 실제 bandwidth 에 어떻게 기여하는지는 빠진다. <a href="lecture_008.html">L008</a> 와 NCU 의 <em>“L2 cache throughput”</em> 카운터에서.</li>
+    <li><strong>Hopper (H100) 의 SM 변화</strong> — 강의는 Ampere 기준. H100 은 SM 당 더 많은 register, 더 큰 L2, async copy 의 등장 (<code>cp.async</code>). 같은 정량 모델이지만 숫자가 다르다.</li>
+    <li><strong>GELU 커널의 직접 측정</strong> — Thomas 가 강의에서 GELU 커널을 짜고 PyTorch eager 와 비교했지만, 측정 결과를 정확히 재구성하지 못했다. <em>(확인 필요)</em> notebook 에서 직접 돌려 시간 차이 확인.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 모든 latency/bandwidth 숫자(register 1 cycle, shared 30 cycle, HBM 400 cycle 등) 는 <strong>Ampere 기준의 대략적 값</strong>이다. 정확한 측정은 micro-benchmark 가 필요. Demystifying Latency and Bandwidth (Mei et al., 2017) 같은 논문이 PTX 단위 측정을 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_003.html">
+    <span class="lbl">← Lecture 003</span>
+    <span class="nm">Jeremy Howard — Python 위에서 CUDA 까지의 학습 사다리</span>
+  </a>
+  <a class="nxt" href="lecture_005.html">
+    <span class="lbl">Lecture 005 →</span>
+    <span class="nm">Jeremy Howard — shared memory tiling 으로 matmul 가속</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L004 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L051 · Consumer GPU performance · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l51-bars{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l51-bars .row{display:grid;grid-template-columns:140px 1fr 110px;gap:12px;align-items:center}
+.l51-bars .row .nm{color:var(--ink-soft);font-size:11.5px}
+.l51-bars .row .bar{height:22px;background:var(--bg-soft);border-radius:3px;position:relative}
+.l51-bars .row .bar .fil{position:absolute;left:0;top:0;height:100%;border-radius:3px;display:grid;place-items:center;color:var(--paper);font-weight:700;font-size:10.5px;padding:0 6px;letter-spacing:.04em}
+.l51-bars .row .bar .fil.a{background:var(--accent)}
+.l51-bars .row .bar .fil.b{background:var(--cool)}
+.l51-bars .row .bar .fil.c{background:var(--warn)}
+.l51-bars .row .bar .fil.d{background:var(--good)}
+.l51-bars .row .v{text-align:right;color:var(--ink);font-weight:700;font-size:12px}
+.l51-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l51-grid .card{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l51-grid .card.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l51-grid .card .h{font-family:'Pretendard',sans-serif;font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px}
+.l51-grid .card .b{font-size:12px;color:var(--ink-soft);line-height:1.55}
+.l51-grid .card .v{margin-top:8px;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.04em}
+.l51-grid .card.warn{border-color:var(--warn)}
+.l51-grid .card.warn .v{color:var(--warn)}
+.l51-tier{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l51-tier .row{display:grid;grid-template-columns:140px 90px 100px 1fr;gap:12px;align-items:center;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l51-tier .row.hd{background:var(--bg-soft);border:none;color:var(--muted);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;padding:6px 14px}
+.l51-tier .row .nm{color:var(--ink);font-weight:700}
+.l51-tier .row .a{color:var(--accent);font-weight:600}
+.l51-tier .row .b{color:var(--ink-soft)}
+.l51-tier .row .c{color:var(--ink-soft);font-size:11.5px;line-height:1.5}
+@media (max-width:760px){
+  .l51-grid{grid-template-columns:1fr}
+  .l51-tier .row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_050.html">← L050</a>
+    <a href="lecture_052.html">L052 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L051</span>
+    <span>2024</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>Consumer GPU performance — RTX 4090 의 진짜 한계</h1>
+  <p class="dek">$1,500 짜리 게이밍 GPU 가 $40,000 짜리 H100 의 어느 부분을 따라잡고 어느 부분에서 명확히 갈라지는가. <strong>tensor core 연산력은 거의 같지만, 메모리 대역폭과 NVLink 와 fp8/fp16 의 비율</strong>에서 의도적으로 잘려 있다 — 그 잘림이 ML 워크로드에 어떻게 다르게 보이는지의 학습 노트. 원본 transcript 가 실패해 본 페이지는 공개 spec 시트와 알려진 벤치마크로 재구성됐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">RTX 4090</span>
+    <span class="chip hi">A100 / H100</span>
+    <span class="chip hi">memory bandwidth</span>
+    <span class="chip hi">NVLink</span>
+    <span class="chip">fp8 / fp16</span>
+    <span class="chip">tensor core</span>
+    <span class="chip">price/perf</span>
+    <span class="chip">market segmentation</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">J</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Jake Cannell</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">researcher · 게이밍 GPU 의 ML 활용 분석</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L051</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Jake Cannell</div></div>
+    <div class="cell warn"><div class="lbl">Transcript</div><div class="val">failed · 본 노트는 재구성</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · GPU 구매 결정에 직접</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">RTX 4090 vs A100/H100</span><span class="em">spec 한 장 비교</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">메모리 대역폭의 한계</span><span class="em">HBM3 vs GDDR6X</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">NVLink 부재의 영향</span><span class="em">multi-GPU scaling 의 끝</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">tensor core 비교</span><span class="em">의도적으로 잘린 fp8/fp16</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">ML 벤치마크 사례</span><span class="em">학습 vs 추론</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">시장 분리의 논리</span><span class="em">왜 NVIDIA 가 막는가</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">가격 대비 가치</span><span class="em">$/TFLOP, $/GB·s</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">multi-GPU 워크어라운드</span><span class="em">PCIe, ZeRO, sharding</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why this lecture exists</span></div>
+    <h2>“집에서 LLM 학습/추론 하려는 사람” 의 가장 현실적 의사결정</h2>
+  </div>
+  <p class="sec-lede">RTX 4090 두 장 사면 H100 한 장보다 <em>compute 만 따지면</em> 비슷한데, 실제로 같은 워크로드를 돌렸을 때 결과가 같지 않다. 어디가 갈라지는가의 질문이 강의 전체를 끌고 간다.</p>
+
+  <p>강의의 두 가지 출발 질문.</p>
+  <ol>
+    <li><strong>RTX 4090 의 어느 spec 이 H100 에 가깝고, 어느 spec 이 의도적으로 잘려 있는가?</strong></li>
+    <li><strong>그 잘림이 실제 ML 워크로드 — 학습, 추론, fine-tuning — 에 어떻게 다르게 나타나는가?</strong></li>
+  </ol>
+
+  <p>이 노트는 <strong>원본 transcript 가 실패</strong>한 강의를 NVIDIA 공식 datasheet, lambda labs / TinyCorp / Tim Dettmers 의 공개 벤치마크, 그리고 일반적으로 알려진 spec 으로 재구성했다. 강의 안에서 직접 확인되지 않은 주장은 “원본 영상 확인 필요” 표시로 둔다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>"4090 이 H100 의 N% 다" 같은 단일 숫자가 의미가 없다. 워크로드의 <strong>병목이 어디냐</strong> 에 따라 4090 의 상대 성능은 30%~95% 사이를 왔다갔다 한다 — compute-bound 면 비슷하고, memory-bound 면 절반, multi-GPU collective 가 들어가면 1/10.</p>
+  </div>
+
+  <div class="pull">“NVIDIA 가 ‘AI 칩’ 과 ‘게이밍 칩’ 을 분리하는 자리가 정확히 LLM 학습이 의존하는 자리다 — 메모리, 인터커넥트, fp8 비율.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>RTX 4090 vs A100/H100</b><span>· spec 한 장 비교</span></div>
+    <h2>같은 세대의 GPU 들이 한 줄에 놓일 때 보이는 그림</h2>
+  </div>
+  <p class="sec-lede">먼저 spec 시트의 숫자만 한 장에 모아본다. 같은 단위로 정렬하면 어디가 “비슷” 하고 어디가 “차원이 다른지” 한눈에 보인다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · GPU spec 한 장 비교</span><span>NVIDIA datasheet 기준</span></div>
+    <div class="l51-tier">
+      <div class="row hd"><span>GPU</span><span>fp16 TFLOPs</span><span>HBM/VRAM</span><span>대역폭 · 인터커넥트 · 가격</span></div>
+      <div class="row">
+        <span class="nm">RTX 4090</span>
+        <span class="a">~165</span>
+        <span class="b">24 GB</span>
+        <span class="c">1.0 TB/s · PCIe Gen4 (NVLink ❌) · $1,500–2,000</span>
+      </div>
+      <div class="row">
+        <span class="nm">A100 80GB</span>
+        <span class="a">~312</span>
+        <span class="b">80 GB</span>
+        <span class="c">2.0 TB/s · NVLink 600 GB/s · $10,000–15,000</span>
+      </div>
+      <div class="row">
+        <span class="nm">H100 SXM</span>
+        <span class="a">~990</span>
+        <span class="b">80 GB</span>
+        <span class="c">3.35 TB/s · NVLink 900 GB/s · $30,000–40,000</span>
+      </div>
+      <div class="row">
+        <span class="nm">H200 SXM</span>
+        <span class="a">~990</span>
+        <span class="b">141 GB</span>
+        <span class="c">4.8 TB/s · NVLink 900 GB/s · $40,000+</span>
+      </div>
+    </div>
+    <div class="viz-note">fp16 의 raw TFLOPs 기준 4090 vs H100 = 1 : 6. 그런데 가격은 1 : 25. 이 비율이 “4090 이 더 가성비” 의 단순 결론을 만든다 — 다음 섹션에서 부서진다.</div>
+  </div>
+
+  <p>4090 의 강점은 분명하다 — <strong>fp16 의 raw TFLOPs 와 가격을 묶어 보면</strong> $/TFLOP 이 H100 의 1/4 수준. 이 단순 비교만 보면 누구나 게이밍 카드를 사고 싶어진다. 하지만 ML 워크로드의 실제 병목은 raw TFLOPs 가 아니다.</p>
+
+  <div class="callout">
+    <div class="label">결정적 차이 셋</div>
+    <p>(1) <strong>VRAM 24 GB vs 80 GB</strong> — 70B 모델이 안 들어간다. (2) <strong>대역폭 1.0 vs 3.35 TB/s</strong> — memory-bound 워크로드에서 3배 차이. (3) <strong>NVLink 부재</strong> — 두 장 묶어도 PCIe Gen4 의 64 GB/s 만으로 통신. multi-GPU collective 가 immediate 병목.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>메모리 대역폭의 한계</b><span>· HBM3 vs GDDR6X</span></div>
+    <h2>LLM 추론은 거의 모두 memory-bound 다 — 그래서 4090 이 1/3</h2>
+  </div>
+  <p class="sec-lede">대형 LLM 추론(특히 generate 단계)은 model weights 를 매 token 마다 한 번 읽는다. 13B fp16 모델 = 26 GB. 4090 은 1 TB/s 니까 token 당 하한 ~26 ms. H100 은 3.35 TB/s 니까 ~7.8 ms. 같은 모델, 같은 코드, <strong>3배 차이</strong>.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 메모리 대역폭 비교 (TB/s)</span><span>NVIDIA datasheet</span></div>
+    <div class="l51-bars">
+      <div class="row">
+        <span class="nm">RTX 4090</span>
+        <div class="bar"><div class="fil c" style="width:21%">GDDR6X · 1.0</div></div>
+        <span class="v">1.0 TB/s</span>
+      </div>
+      <div class="row">
+        <span class="nm">A100 80GB</span>
+        <div class="bar"><div class="fil b" style="width:42%">HBM2e · 2.0</div></div>
+        <span class="v">2.0 TB/s</span>
+      </div>
+      <div class="row">
+        <span class="nm">H100 SXM</span>
+        <div class="bar"><div class="fil a" style="width:69%">HBM3 · 3.35</div></div>
+        <span class="v">3.35 TB/s</span>
+      </div>
+      <div class="row">
+        <span class="nm">H200 SXM</span>
+        <div class="bar"><div class="fil d" style="width:100%">HBM3e · 4.8</div></div>
+        <span class="v">4.8 TB/s</span>
+      </div>
+    </div>
+    <div class="viz-note">메모리 대역폭은 LLM 추론의 거의 직접적 throughput cap. compute 는 token 당 큰 영향이 없다 — KV cache attention 은 memory 패턴이 dominant.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>왜 이 차이가 결정적인지를 풀면 — </p>
+      <ol>
+        <li><strong>generate 단계</strong>는 한 번에 한 token 씩 — 거의 모든 weight 를 읽고 작은 양을 곱한다. arithmetic intensity 가 매우 낮다.</li>
+        <li><strong>arithmetic intensity = FLOPs / bytes</strong>. 모델 weight 한 번 읽고 batch=1 forward 하면 거의 1 (FLOPs ≈ bytes). compute-to-bandwidth 가 100:1 인 GPU 에서 99% 의 시간이 메모리 대기.</li>
+        <li>그래서 generate latency 의 lower bound 는 <code>weight_size / mem_bw</code>. 13B fp16 = 26 GB / 1 TB/s ≈ 26 ms 가 4090 의 절대 하한.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">batch 키우면?</div>
+        <p>batch=1 은 memory-bound, batch ≫ 1 은 compute-bound 로 넘어간다. 같은 weight 한 번 읽고 여러 query 처리. <strong>batch ~32 부터는 4090 의 fp16 TFLOPs 가 살아난다</strong>. 단, KV cache 크기 때문에 24GB VRAM 안에 batch 가 안 들어가는 경우 많음.</p>
+      </div>
+      <div class="pull">“4090 이 H100 보다 떨어지는 이유의 절반 이상은 <em>raw compute 가 아니라 메모리 대역폭</em>이다.” <span class="by">학습 노트 · 재구성</span></div>
+    </div>
+  </div>
+
+  <p>덧붙여 — H100 은 HBM3, 4090 은 GDDR6X. GDDR6X 는 게이밍 frame buffer 용으로 디자인된 기술이고, HBM3 는 데이터센터 GPU 용. 같은 “메모리 칩” 처럼 보이지만 <strong>물리적 구조 자체가 다르다</strong> — HBM 은 다이를 stack 해서 광폭 버스(보통 5120-bit), GDDR 은 보드 위에 분산 배치(384-bit). 같은 클럭이라도 폭이 달라서 대역폭이 다르다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>NVLink 부재의 영향</b><span>· multi-GPU scaling 의 끝</span></div>
+    <h2>두 장 묶을 때 4090 의 가성비가 무너지는 자리</h2>
+  </div>
+  <p class="sec-lede">RTX 4090 에는 <strong>NVLink 가 없다</strong>. RTX 3090 까지는 NVLink bridge 가 있었는데, 4090 부터 의도적으로 제거됐다. 두 장 사이의 통신은 <strong>PCIe Gen4 64 GB/s</strong> 하나뿐. H100 은 NVLink 900 GB/s — <em>14배 차이</em>.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · multi-GPU 인터커넥트 대역폭</span><span>장 간 P2P</span></div>
+    <div class="l51-bars">
+      <div class="row">
+        <span class="nm">4090 (PCIe4)</span>
+        <div class="bar"><div class="fil c" style="width:7%">64</div></div>
+        <span class="v">64 GB/s</span>
+      </div>
+      <div class="row">
+        <span class="nm">A100 NVLink</span>
+        <div class="bar"><div class="fil b" style="width:67%">600</div></div>
+        <span class="v">600 GB/s</span>
+      </div>
+      <div class="row">
+        <span class="nm">H100 NVLink4</span>
+        <div class="bar"><div class="fil a" style="width:100%">900</div></div>
+        <span class="v">900 GB/s</span>
+      </div>
+    </div>
+    <div class="viz-note">학습에서 all-reduce 의 비용이 인터커넥트 대역폭에 직접 비례. 4090 두 장의 학습 효율은 같은 model 을 H100 두 장으로 돌릴 때 대비 ~30% 수준이 일반적.</div>
+  </div>
+
+  <div class="split rev">
+    <div>
+      <p>NVLink 가 없을 때 일어나는 실질적 문제들.</p>
+      <ul>
+        <li><strong>Tensor Parallelism 사실상 불가능</strong> — TP 는 매 layer 마다 all-reduce. PCIe 위에서 이걸 하면 통신 시간이 forward 시간보다 길다.</li>
+        <li><strong>Data Parallelism 도 비효율</strong> — gradient all-reduce 가 step 마다 모델 사이즈 만큼. 7B fp16 = 14 GB / 64 GB/s ≈ 220 ms. step 자체가 100 ms 안쪽인 작은 모델에서 통신이 두 배.</li>
+        <li><strong>ZeRO-3 / FSDP 가 거의 불가능</strong> — parameter sharding 은 매 layer 마다 weight gather. PCIe 로는 동기 시간이 너무 큼.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">왜 NVLink 가 빠졌는가</div>
+        <p>3090 에서 4090 으로 가면서 NVIDIA 가 명시적으로 NVLink 를 뺀 것은 <em>시장 분리</em> 의도가 명백하다. 게이밍 카드로 데이터센터 워크로드 못 돌게. 대신 NVIDIA 는 같은 세대 데이터센터 칩(L40S, H100) 을 별도 가격에 판매. § 07 에서 본격적으로 다룬다.</p>
+      </div>
+      <div class="pull">“4090 두 장 ≠ H100 한 장. compute 가 같아도 인터커넥트가 깎여 있어서 학습이 안 큰다.” <span class="by">학습 노트 · 재구성</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>tensor core 비교</b><span>· 의도적으로 잘린 fp8/fp16</span></div>
+    <h2>같은 architecture 인데 fp8 비율이 다르다</h2>
+  </div>
+  <p class="sec-lede">RTX 4090 과 H100 은 둘 다 Hopper 세대의 tensor core(4090 은 사실은 Ada Lovelace 4세대 TC, H100 은 Hopper 4세대 TC) — 같은 명령어 셋트에 가깝지만 throughput ratio 가 다르다. 특히 <strong>fp8</strong> 에서.</p>
+
+  <div class="l51-grid">
+    <div class="card">
+      <div class="h">RTX 4090</div>
+      <div class="b">fp16/bf16 ~165 TFLOPs · fp8 ~330 TFLOPs (sparse 시 660). 4세대 TC 지만 fp8 의 acceleration 비율이 H100 만큼 크지 않음.</div>
+      <div class="v">$1500 클래스</div>
+    </div>
+    <div class="card hi">
+      <div class="h">H100 SXM</div>
+      <div class="b">fp16/bf16 ~990 TFLOPs · fp8 ~1980 TFLOPs. 모든 정밀도에서 4090 의 ~6배.</div>
+      <div class="v">$30000+ 클래스</div>
+    </div>
+    <div class="card warn">
+      <div class="h">차이의 의미</div>
+      <div class="b">fp8 학습/추론 비율의 차이는 “미래의 워크로드” 에서 더 벌어진다. fp8 으로 LLM 학습이 본격화되면 같은 격차가 6배에서 더 커질 가능성.</div>
+      <div class="v">갈수록 격차 ↑</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">spec 의 미세한 점</div>
+    <p>NVIDIA 는 <strong>4090 의 fp16 accumulator 를 의도적으로 절반</strong>으로 둔다고 알려져 있다 — fp16 with fp16 accumulator 는 full speed, fp16 with fp32 accumulator 는 절반. ML 학습은 보통 fp32 accumulator 를 쓰므로 실제 학습 throughput 은 spec 시트보다 낮다. <em>원본 영상 확인 필요 — 강의에서 명시적으로 다뤘는지</em>.</p>
+  </div>
+
+  <p>하지만 — <strong>추론에 한정</strong>하면 4090 은 의외로 강하다. fp16 accumulator 를 그대로 써도 정확도 손해가 작은 추론 워크로드에서는 raw TFLOPs 가 거의 그대로 살아난다. 추론 vs 학습의 가성비 격차가 여기서 갈린다.</p>
+
+  <div class="pull">“학습은 H100, 추론은 4090. 워크로드의 정밀도 요구가 두 카드의 가성비를 정반대로 만든다.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>ML 벤치마크 사례</b><span>· 학습 vs 추론</span></div>
+    <h2>실제 워크로드에서 보이는 4090 의 상대 성능</h2>
+  </div>
+  <p class="sec-lede">spec 시트의 숫자와 실제 ML 워크로드의 결과는 어긋난다. 공개된 벤치마크 (lambda labs, TinyCorp, Tim Dettmers blog) 에서 추출한 사례들.</p>
+
+  <div class="l51-tier">
+    <div class="row hd"><span>워크로드</span><span>4090</span><span>H100</span><span>비고</span></div>
+    <div class="row">
+      <span class="nm">7B 추론 batch=1</span>
+      <span class="a">~85 tok/s</span>
+      <span class="b">~170 tok/s</span>
+      <span class="c">memory-bound. 격차는 메모리 대역폭 비율 (1:3.35) 에 가까움 — 모델이 24GB 안에 들어가서 4090 도 건강.</span>
+    </div>
+    <div class="row">
+      <span class="nm">70B 추론</span>
+      <span class="a">N/A · OOM</span>
+      <span class="b">~28 tok/s</span>
+      <span class="c">VRAM 부족. 4-bit quantization 으로 35GB 까지 줄여도 24GB 안 들어감. 두 장 묶어도 PCIe 통신 비용으로 안 빠름.</span>
+    </div>
+    <div class="row">
+      <span class="nm">7B fine-tuning, batch=8, fp16</span>
+      <span class="a">~45 step/min</span>
+      <span class="b">~280 step/min</span>
+      <span class="c">memory + accumulator + bandwidth 합쳐서 ~6배 격차.</span>
+    </div>
+    <div class="row">
+      <span class="nm">SD1.5 추론 1024×1024</span>
+      <span class="a">~3.0 it/s</span>
+      <span class="b">~5.0 it/s</span>
+      <span class="c">compute-bound. 격차 작음. 4090 의 가성비가 가장 밝게 빛나는 자리.</span>
+    </div>
+    <div class="row">
+      <span class="nm">SD3 / SDXL 학습</span>
+      <span class="a">~ 1× ref</span>
+      <span class="b">~5–6× ref</span>
+      <span class="c">batch + activation memory 가 24GB 한계에 부딪힘. 작은 batch 로 인해 효율 더 떨어짐.</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">패턴</div>
+    <p>워크로드가 (a) <em>모델이 24GB 안에 들어가고</em>, (b) <em>batch=1 추론이거나 compute-bound 한 task</em> 이면 4090 의 상대 성능이 50%~70%. 모델이 안 들어가거나 collective 가 들어가면 immediate 절벽.</p>
+  </div>
+
+  <p>특히 흥미로운 자리 — <strong>image diffusion 추론</strong>은 4090 의 sweet spot 이다. 모델이 작고(SD1.5 = 3GB) compute-bound 라서 메모리 대역폭이 병목 아님. 실제 production 에서도 SD-as-a-service 회사들이 4090 클러스터를 쓰는 사례 많음 (<em>원본 영상 확인 필요 — 강의에서 사례 언급</em>).</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>시장 분리의 논리</b><span>· 왜 NVIDIA 가 막는가</span></div>
+    <h2>spec 차이는 기술적 한계가 아니라 비즈니스 디자인이다</h2>
+  </div>
+  <p class="sec-lede">RTX 4090 과 H100 의 die 는 — physical level 에서 보면 <strong>유사한 process node, 유사한 transistor density</strong>. spec 차이의 큰 부분은 packaging 과 binning 과 driver 의 결정이지, “4090 이 만들 수 없는 것” 이 아니다. NVIDIA 의 시장 분리 전략의 결과.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · NVIDIA 의 의도적 시장 분리</span><span>RTX 40 시리즈 → AI 분야 차단</span></div>
+    <div class="l51-grid">
+      <div class="card">
+        <div class="h">기술적 가능</div>
+        <div class="b">4090 의 die 는 H100 만큼의 transistor 를 가진다. fp8 도 같은 architecture. 같은 fab.</div>
+        <div class="v">하드웨어 차이 작음</div>
+      </div>
+      <div class="card warn">
+        <div class="h">의도적 차단</div>
+        <div class="b">NVLink 제거 (3090 까지는 있었음). fp16 fp32-accumulator 절반. EULA 에서 데이터센터 사용 금지. driver 가 datacenter SKU 만 일부 기능 활성화.</div>
+        <div class="v">NVIDIA 의 결정</div>
+      </div>
+      <div class="card hi">
+        <div class="h">시장 분리</div>
+        <div class="b">게이밍 시장 ($1.5K) ↔ AI/datacenter 시장 ($30K+). 둘이 섞이지 않게 의도적 차단. <em>가격을 25배로 받기 위한 디자인</em>.</div>
+        <div class="v">가격 25배 격차</div>
+      </div>
+    </div>
+    <div class="viz-note">이 분리가 — 만약 시장이 “4090 두 장 = H100 한 장” 으로 인식한다면 — 깨질 수 있는 분리. 그래서 NVIDIA 는 인터커넥트와 fp16 accumulator 같은 자리를 의도적으로 잘라둔다.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>NVIDIA 의 EULA(End User License Agreement) 는 명시적으로 <strong>“consumer GeForce 제품을 데이터센터에서 사용 금지”</strong>를 명문화한다. 클라우드 회사가 4090 을 모아 GPU 인스턴스로 판매하면 라이선스 위반이다.</p>
+      <p>이 라이선스가 강제력 있어서 — <strong>거대한 클라우드 회사들은 4090 을 안 산다</strong>. 그래서 NVIDIA 의 마진이 보호된다. 작은 스타트업이나 개인 연구자가 자기 머신에 4090 두 장 꼽는 건 라이선스 위반 아님.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">중요한 미세한 점</div>
+        <p>NVLink 가 없는 게 “기술적으로 어렵다” 는 주장은 거짓 — 3090 까지는 NVLink bridge 가 있었다. <em>4090 에서 의도적으로 뺀 것</em>이 명확하다. 그리고 그 한 결정으로 4090 의 multi-GPU 학습 시장이 사실상 막힌다.</p>
+      </div>
+      <div class="pull">“NVIDIA 의 spec 디자인은 — fp16 accumulator 를 절반으로, NVLink 를 빼고, EULA 로 데이터센터 막기. 이 셋이 결합되면 4090 은 게이밍 카드로 정확히 분류된다.” <span class="by">학습 노트 · 재구성</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>가격 대비 가치</b><span>· $/TFLOP, $/GB·s</span></div>
+    <h2>워크로드 유형에 따라 다르게 계산되는 가성비</h2>
+  </div>
+  <p class="sec-lede">한 번에 하나의 가성비 지표만 보면 결론이 한쪽으로 치우친다. 셋을 나란히 본다 — $/TFLOP, $/GB·s, $/GB.</p>
+
+  <div class="l51-tier">
+    <div class="row hd"><span>지표</span><span>4090</span><span>H100</span><span>의미</span></div>
+    <div class="row">
+      <span class="nm">$ / TFLOP fp16</span>
+      <span class="a">$10</span>
+      <span class="b">$36</span>
+      <span class="c">raw compute 만 보면 4090 이 ~3.6배 가성비. 광고에 잘 쓰이는 숫자.</span>
+    </div>
+    <div class="row">
+      <span class="nm">$ / GB·s mem bw</span>
+      <span class="a">$1500</span>
+      <span class="b">$10000</span>
+      <span class="c">memory-bound 워크로드에서 4090 이 ~6.7배 가성비.</span>
+    </div>
+    <div class="row">
+      <span class="nm">$ / GB VRAM</span>
+      <span class="a">$62</span>
+      <span class="b">$430</span>
+      <span class="c">큰 모델이 안 들어가면 무의미. 들어가면 4090 이 ~7배 가성비.</span>
+    </div>
+    <div class="row">
+      <span class="nm">$ / GB·s NVLink</span>
+      <span class="a">N/A</span>
+      <span class="b">$36</span>
+      <span class="c">multi-GPU 학습에서 4090 은 비교 자체가 안 된다.</span>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">실전의 의사결정 규칙</div>
+    <p>(1) 모델이 24GB 에 들어가고 (2) single-GPU 추론이면 — <strong>4090 이 압도적</strong>. (3) 학습이거나 (4) 70B+ 모델이면 — H100 또는 A100 80GB 가 거의 강제. 중간 — 13B fine-tune, 7B multi-GPU — 은 case-by-case.</p>
+  </div>
+
+  <p>한 가지 더 기억할 — <strong>전기료</strong>. 4090 은 450W TDP, H100 은 700W. 24/7 운용 시 전기료 차이가 의미 있는 수준. 1년 100% 가동 시 4090 이 ~$500, H100 이 ~$770 (kWh $0.13 기준). 가성비 지표에는 안 들어가지만 실제 cost 에는 들어간다.</p>
+
+  <div class="pull">“4090 의 진짜 sweet spot — 단일 GPU 안에 들어가는 모델을 추론할 때. 그 외엔 데이터센터 카드의 영역.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>multi-GPU 워크어라운드</b><span>· PCIe, ZeRO, sharding</span></div>
+    <h2>4090 두 장으로 LLM 학습이 가능한 자리들 — 그리고 막히는 자리</h2>
+  </div>
+  <p class="sec-lede">NVLink 없이 4090 두 장으로 무엇을 할 수 있는지의 현실적 가이드.</p>
+
+  <div class="l51-grid">
+    <div class="card hi">
+      <div class="h">Pipeline Parallelism</div>
+      <div class="b">layer 를 두 장에 나눠 cascading. 통신은 layer 경계에서만 → 작은 양. 13B fine-tune 가능.</div>
+      <div class="v">잘 동작</div>
+    </div>
+    <div class="card hi">
+      <div class="h">Single-GPU 추론 cluster</div>
+      <div class="b">각 4090 이 독립적으로 다른 query 처리. NCCL 통신 없음. SD/추론 회사가 가장 많이 쓰는 패턴.</div>
+      <div class="v">잘 동작</div>
+    </div>
+    <div class="card warn">
+      <div class="h">Tensor Parallelism</div>
+      <div class="b">layer 마다 all-reduce. PCIe 위에서 latency 높아 forward 시간보다 통신 길어짐.</div>
+      <div class="v">사실상 불가</div>
+    </div>
+    <div class="card">
+      <div class="h">Data Parallelism</div>
+      <div class="b">step 마다 gradient all-reduce. 작은 모델은 OK, 큰 모델은 통신이 step 시간 ↑↑.</div>
+      <div class="v">7B 까지</div>
+    </div>
+    <div class="card warn">
+      <div class="h">FSDP / ZeRO-3</div>
+      <div class="b">parameter sharding 이 layer 마다 weight gather 필요. PCIe 의 latency overhead 가 layer 마다 중첩.</div>
+      <div class="v">매우 비효율</div>
+    </div>
+    <div class="card hi">
+      <div class="h">QLoRA + 단일 GPU</div>
+      <div class="b">4-bit quant 로 13B 를 24GB 에 박고 LoRA. 4090 한 장에서 학습 가능. 가장 많이 쓰는 패턴.</div>
+      <div class="v">최적 워크어라운드</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">실용 결론</div>
+    <p>4090 으로 LLM 학습을 하려면 — <strong>QLoRA 한 장</strong> (가장 흔함) 또는 <strong>Pipeline Parallel + 작은 batch</strong>. all-reduce 가 매 step 등장하는 패턴은 모두 PCIe 가 발목.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 자료</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">RTX 4090 의 raw spec</div>
+      <div class="d">~165 TFLOPs fp16, 24GB GDDR6X, 1.0 TB/s, 450W, NVLink 없음, PCIe Gen4 64 GB/s, $1500–2000.</div>
+    </div>
+    <div class="term">
+      <div class="t">H100 vs 4090 격차</div>
+      <div class="d">compute 6배, 메모리 대역폭 3.35배, VRAM 3.3배, NVLink 14배 — workload 따라 1.3배 ~ 10배 차이.</div>
+    </div>
+    <div class="term">
+      <div class="t">4090 의 sweet spot</div>
+      <div class="d">단일 GPU 추론 (모델 24GB 이내), image diffusion, QLoRA fine-tune, compute-bound 비-LLM workloads.</div>
+    </div>
+    <div class="term">
+      <div class="t">4090 에서 안 되는 것</div>
+      <div class="d">70B 모델, multi-GPU 학습 (NVLink 의존), Tensor Parallel, FSDP/ZeRO-3, fp16 fp32-accum 의 full speed.</div>
+    </div>
+    <div class="term">
+      <div class="t">의도적 시장 분리</div>
+      <div class="d">3090 까지 있던 NVLink 가 4090 에서 빠짐. EULA 의 데이터센터 금지 조항. fp16 accumulator 절반.</div>
+    </div>
+    <div class="term">
+      <div class="t">$/TFLOP vs $/GB·s</div>
+      <div class="d">두 지표 모두 4090 이 H100 보다 좋다 — 하지만 워크로드 병목이 어느 자원인지에 따라 의미 다름.</div>
+    </div>
+    <div class="term">
+      <div class="t">memory-bound LLM 추론</div>
+      <div class="d">latency 하한 ≈ weight_size / mem_bw. 13B fp16 / 1 TB/s ≈ 26 ms 가 4090 절대 하한.</div>
+    </div>
+    <div class="term">
+      <div class="t">QLoRA 의 위치</div>
+      <div class="d">4090 한 장 + 4-bit quant + LoRA = 13B fine-tune 가능. 거의 모든 “집에서 학습” 시나리오의 표준.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/results?search_query=Jake+Cannell+consumer+GPU+performance+GPU+Mode" target="_blank" rel="noopener">검색 — Jake Cannell · GPU Mode</a></span>
+    </div>
+    <div class="row">
+      <span class="k">RTX 4090 spec</span>
+      <span class="v"><a href="https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/" target="_blank" rel="noopener">nvidia.com/.../rtx-4090</a></span>
+    </div>
+    <div class="row">
+      <span class="k">H100 datasheet</span>
+      <span class="v"><a href="https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet" target="_blank" rel="noopener">nvidia.com/.../h100 datasheet</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Tim Dettmers blog</span>
+      <span class="v"><a href="https://timdettmers.com/2023/01/30/which-gpu-for-deep-learning/" target="_blank" rel="noopener">Which GPU for Deep Learning?</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Lambda labs benchmarks</span>
+      <span class="v"><a href="https://lambdalabs.com/gpu-benchmarks" target="_blank" rel="noopener">lambdalabs.com/gpu-benchmarks</a></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>같은 자리를 다른 각도에서 다루는 강의들</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">How to profile CUDA kernels</div>
+      <div class="by">memory-bound vs compute-bound 의 측정 도구. 4090 의 병목을 직접 확인할 때.</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">memory throughput / occupancy / bandwidth 의 직접 확인.</div>
+    </a>
+    <a class="conn" href="lecture_017.html">
+      <div class="n">L017</div>
+      <div class="ti">GPU Collective Communication</div>
+      <div class="by">all-reduce / NCCL — NVLink 부재가 어떻게 발목을 잡는지 정량화.</div>
+    </a>
+    <a class="conn" href="lecture_038.html">
+      <div class="n">L038</div>
+      <div class="ti">FP8</div>
+      <div class="by">fp8 acceleration 의 spec 차이 — 4090 vs H100 의 미래 격차의 자리.</div>
+    </a>
+    <a class="conn" href="lecture_041.html">
+      <div class="n">L041</div>
+      <div class="ti">Hopper architecture</div>
+      <div class="by">H100 의 새 hardware 기능들 — TMA, async copy, fp8.</div>
+    </a>
+    <a class="conn" href="lecture_052.html">
+      <div class="n">L052</div>
+      <div class="ti">Scaling Laws Low Precision</div>
+      <div class="by">fp8/int8 학습이 가능해질 때 4090 의 위치가 어떻게 바뀌는가.</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>원본 자막 실패로 남은 자리들</h2>
+  </div>
+  <ul>
+    <li><strong>Jake 의 정확한 벤치마크 셋업</strong> — 강의에서 어떤 모델/batch/precision 조합으로 측정했는지 본 노트는 공개 자료의 평균값으로 재구성. <em>원본 영상 확인 필요</em>.</li>
+    <li><strong>RTX 4090 의 fp16 accumulator 절반 주장</strong> — 강의에서 명시적으로 다뤘는지 확실하지 않다. 실제 측정 사례는 일부 reverse-engineering 기록에서 확인됨.</li>
+    <li><strong>EULA 의 데이터센터 금지 조항</strong> — 강의에서 정확한 문구 인용했는지 여부.</li>
+    <li><strong>3090 → 4090 의 NVLink 제거 시점</strong> — 강의에서 이 결정의 “시장 분리 의도” 를 어느 정도로 강조했는지.</li>
+    <li><strong>5090 spec 추정</strong> — 강의 시점에 5090 이 발표되었는지 여부에 따라, 다음 세대의 격차 예측이 다를 수 있음.</li>
+    <li><strong>RTX 5000/6000 Ada (workstation)</strong> — 4090 die 와 같지만 workstation 라이선스. 강의에서 언급 여부.</li>
+    <li><strong>중국 시장의 H800/A800</strong> — 미국 수출 규제로 인터커넥트 깎인 H100 변종. 강의 시점에 다뤘는지.</li>
+    <li><strong>AMD MI300X 와의 비교</strong> — 192GB HBM3 의 데이터센터 GPU. 강의에서 NVIDIA 외 옵션 언급 여부.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 spec 숫자는 NVIDIA 공식 datasheet, lambda labs 벤치마크, Tim Dettmers blog 의 평균값으로 재구성. 실제 자기 워크로드의 측정값과 다를 수 있음. ML 워크로드는 batch size, precision, model size 의 작은 차이가 큰 결과 변화를 만든다 — 자기 셋업으로 직접 한 번 측정 권장.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_050.html">
+    <span class="lbl">← Lecture 050</span>
+    <span class="nm">A learning journey CUDA, Triton, FA</span>
+  </a>
+  <a class="nxt" href="lecture_052.html">
+    <span class="lbl">Lecture 052 →</span>
+    <span class="nm">Scaling Laws for Low Precision — Tanishq Kumar</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L051 · 재구성 노트 · 2026</span>
+</footer>
+
+</body>
+</html>

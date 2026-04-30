@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L027 · gpu.cpp — Portable GPU compute using WebGPU · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l27-flow{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l27-flow .lane{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line-soft)}
+.l27-flow .lane:last-child{border-bottom:none}
+.l27-flow .lane .who{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.1em}
+.l27-flow .lane .row{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.l27-flow .lane .row .blk{height:26px;display:grid;place-items:center;color:var(--paper);font-size:10.5px;font-weight:600;border-radius:3px;padding:0 6px;white-space:nowrap;overflow:hidden}
+.l27-flow .lane .row .vk{background:var(--warn);color:var(--paper)}
+.l27-flow .lane .row .wg{background:var(--cool)}
+.l27-flow .lane .row .gp{background:var(--accent)}
+.l27-cmp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l27-cmp .col{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l27-cmp .col .nm{color:var(--accent);font-weight:700;font-family:'Pretendard',sans-serif;font-size:14px;margin-bottom:8px}
+.l27-cmp .col .row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:var(--ink-soft);border-bottom:1px dotted var(--line-soft)}
+.l27-cmp .col .row:last-child{border-bottom:none}
+.l27-cmp .col .row b{color:var(--ink);font-weight:600}
+.l27-cmp .col.gpucpp{border-color:var(--accent)}
+.l27-targets{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l27-targets .cell{background:var(--paper);padding:14px 16px}
+.l27-targets .cell .h{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.1em;margin-bottom:6px}
+.l27-targets .cell .d{color:var(--ink-soft);font-size:12px;line-height:1.5}
+@media (max-width:760px){
+  .l27-cmp{grid-template-columns:1fr}
+  .l27-targets{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_026.html">← L026</a>
+    <a href="lecture_028.html">L028 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L027</span>
+    <span>2024 · JUL · 13</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>gpu.cpp — Portable GPU compute using WebGPU</h1>
+  <p class="dek">CUDA 없이도 GPU 위에서 일할 수 있는가 — Austin Huang 이 Answer.AI 에서 만든 <strong>gpu.cpp</strong> 는 WebGPU 표준 위에 얇은 C++ 헤더 한 장을 얹어 <em>웹 브라우저, 데스크탑, AR/로보틱스 같은 새 form factor 까지 같은 코드로 GPU compute 를 띄운다</em>는 약속을 깐 라이브러리. 그 약속을 가능하게 하는 WebGPU 의 layer 와, gpu.cpp 가 그 위에 올린 작은 추상의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">WebGPU</span>
+    <span class="chip hi">WGSL</span>
+    <span class="chip hi">gpu.cpp</span>
+    <span class="chip hi">portable compute</span>
+    <span class="chip hi">native + browser</span>
+    <span class="chip">Dawn / wgpu</span>
+    <span class="chip">hot-reload</span>
+    <span class="chip">no Tensor Core</span>
+    <span class="chip">Answer.AI</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">A</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Austin Huang</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Answer.AI · gpu.cpp 저자 · 전 Google AI</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L027</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Austin Huang</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">WGSL 셰이더 직접 짜본다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why portable GPU compute</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">WebGPU 가 여는 portability</span><span class="em">spec · adapter · device</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">WGSL 이라는 셰이더 언어</span><span class="em">@compute · workgroup_size</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">gpu.cpp 의 추상</span><span class="em">createTensor · dispatchKernel</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">Vulkan vs WebGPU 의 보일러플레이트</span><span class="em">800 lines vs 8 lines</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">browser 와 native 의 같은 코드</span><span class="em">Emscripten · Dawn</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">한계 — Tensor Core 미접근</span><span class="em">spec 의 보수성</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">사용 사례</span><span class="em">shader-toy · LLM inference · AR</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">발전 방향</span><span class="em">subgroups · ML extension</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why portable GPU compute</span></div>
+    <h2>“CUDA 없이 GPU 코드를 한 번 짜면 어디서나 도는가” 의 새로운 답</h2>
+  </div>
+  <p class="sec-lede">CUDA 가 ML 의 표준이지만, <strong>CUDA 가 없는 자리</strong>가 많다 — 학생의 MacBook, AR 안경, 로봇 SoC, 웹 브라우저, 일반 사용자의 데스크탑. Austin 의 출발은 그 자리들 위에서 GPU compute 를 어떻게 띄울지의 질문이다.</p>
+
+  <p>강의가 답하려는 두 줄 — </p>
+  <ol>
+    <li><strong>NVIDIA · AMD · Intel · Apple · Qualcomm 어디든 같은 GPU 코드 한 벌로 도달할 수 있는 spec 이 있는가</strong> — 이 자리에 <em>WebGPU</em> 가 들어온다.</li>
+    <li><strong>그 spec 을 직접 써보면 보일러플레이트가 살인적인데, 그걸 어떻게 줄일 것인가</strong> — 이 자리에 <em>gpu.cpp</em> 가 들어온다.</li>
+  </ol>
+
+  <p>강의의 인지적 frame 은 명시적이다. <em>“CUDA 와 같은 자리에 ‘WebGPU + gpu.cpp’ 가 서면 어떤가”</em> — 단, 같은 정점의 perf 를 노리는 게 아니라 <strong>접근성과 portability</strong> 의 다른 축에 가치를 둔다. 100% 의 perf 의 80% 를 따 내면서 100 배 더 많은 환경에서 돈다는 거래.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>“GPU compute 의 표준 진입점은 그동안 CUDA 였다. 그런데 CUDA 없이 GPU 위에서 의미 있는 일을 하는 길이 — 처음으로 — production-grade 로 깔리고 있다. WebGPU 가 그 길의 표준이고, gpu.cpp 가 그 길을 직접 코드 한 줄로 줄인다.”</p>
+  </div>
+
+  <div class="pull">“AR 안경, 로봇, 미래의 form factor 들 — 그들은 high-bandwidth video signal 을 실시간 처리해야 합니다. 그 자리에서 CUDA 는 없습니다. 그래도 GPU 가 거기 있죠.”<span class="by">Austin Huang · 03:14</span></div>
+
+  <p>그래서 강의 끝에 손에 잡혀야 할 것은 — <strong>WebGPU 의 4 추상</strong>(adapter, device, buffer, pipeline), <strong>WGSL 의 핵심 syntax</strong>(@compute, @workgroup_size), <strong>gpu.cpp 의 3 함수</strong>(createTensor, createKernel, dispatchKernel), 그리고 <em>이 stack 의 한계가 어디서 시작되는지</em>(Tensor Core 미접근, FP16 분기) 다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>WebGPU 가 여는 portability</b><span>· spec · adapter · device</span></div>
+    <h2>WebGPU 는 단순한 “브라우저용 OpenGL 후속” 이 아니라 <em>일반 GPU 추상 spec</em></h2>
+  </div>
+  <p class="sec-lede">WebGPU 라는 이름이 “브라우저 그래픽” 만 떠올리게 하지만, Austin 이 명시적으로 정정한다. <strong>WebGPU 는 GPU 자체의 일반 추상 spec</strong>이고, 브라우저는 그 한 사용자다. 데스크탑 native 에서도 같은 spec 이 동일하게 돈다.</p>
+
+  <div class="split">
+    <div>
+      <p>WebGPU 의 layer 위치를 명시적으로 잡으면 — </p>
+      <ul>
+        <li><strong>spec</strong> = W3C / Khronos 가 정의한 GPU API 추상. 함수와 객체 모양이 박혀 있다.</li>
+        <li><strong>impl</strong> = vendor 가 spec 을 구현. 두 메이저 — Google 의 <em>Dawn</em>(C++) 과 Mozilla 의 <em>wgpu</em>(Rust). Chrome / Edge / Safari / Firefox 가 이들을 임베드.</li>
+        <li><strong>backend</strong> = impl 이 그 아래의 native API 를 부른다. Windows: D3D12 / Vulkan, Linux: Vulkan, macOS: Metal, Android: Vulkan.</li>
+      </ul>
+      <p>즉 <em>한 vendor 의 GPU 가 직접 노출</em>되는 게 아니라, native API(D3D12/Vulkan/Metal) 위에 한 층이 더 얹힌다. 이 한 층이 <strong>portability 의 출발점</strong>이다.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · WebGPU layer cake</span><span>spec → impl → backend → driver</span></div>
+        <div class="l27-targets">
+          <div class="cell"><div class="h">L4 · USER</div><div class="d">JS / C++ / Rust / Python — gpu.cpp 가 여기</div></div>
+          <div class="cell"><div class="h">L3 · WebGPU spec</div><div class="d">adapter · device · buffer · pipeline · queue</div></div>
+          <div class="cell"><div class="h">L2 · IMPL</div><div class="d">Dawn (Chrome) · wgpu (Firefox/Rust)</div></div>
+          <div class="cell"><div class="h">L1 · BACKEND</div><div class="d">D3D12 · Vulkan · Metal</div></div>
+          <div class="cell"><div class="h">L0 · DRIVER</div><div class="d">vendor driver — NVIDIA · AMD · Intel · Apple · Qualcomm</div></div>
+          <div class="cell"><div class="h">SHADER LANG</div><div class="d">WGSL → SPIR-V / DXIL / MSL</div></div>
+          <div class="cell"><div class="h">PORTABILITY</div><div class="d">한 코드 → 5 vendor × 4 OS × 2 (web/native)</div></div>
+          <div class="cell"><div class="h">한계</div><div class="d">NVIDIA mma, FP8, TMA 같은 vendor specific 명령은 직접 노출 안 됨</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">WebGPU 의 4 객체 — 항상 만난다</div>
+    <p><code>GPUAdapter</code>(physical 카드 핸들) → <code>GPUDevice</code>(논리 device) → <code>GPUBuffer</code>(메모리) → <code>GPUComputePipeline</code>(컴파일된 shader). 한 device 위에 여러 buffer / pipeline. <em>queue</em> 가 dispatch 를 받는다. CUDA 의 (driver / context / cudaMalloc / kernel) 의 대응.</p>
+  </div>
+
+  <p>WebGPU 의 약속을 한 줄로 — <em>“같은 코드가 NVIDIA · AMD · Intel · Apple · Qualcomm 위에서 모두 동작한다”</em>. 단, 각 vendor 의 native API(CUDA, Metal Performance Shaders) 와 같은 정점의 perf 는 아니다. 그 갭의 이유가 § 07 의 본론.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>WGSL 이라는 셰이더 언어</b><span>· @compute · workgroup_size</span></div>
+    <h2>CUDA 의 <code>__global__</code> 자리에 들어가는 새 syntax</h2>
+  </div>
+  <p class="sec-lede">WebGPU 의 셰이더 언어는 <strong>WGSL (WebGPU Shading Language)</strong> 이다. Rust 에 영향받은 syntax. CUDA · GLSL · HLSL · Metal 의 디자인 결정을 종합한 결과물.</p>
+
+  <div class="split rev">
+    <div>
+<pre><code><span style="color:#A99E89">// WGSL — vector add compute shader</span>
+@group(<span style="color:#E7B369">0</span>) @binding(<span style="color:#E7B369">0</span>) <span style="color:#E7B369">var</span>&lt;storage, read&gt;       a: <span style="color:#E7B369">array</span>&lt;<span style="color:#E7B369">f32</span>&gt;;
+@group(<span style="color:#E7B369">0</span>) @binding(<span style="color:#E7B369">1</span>) <span style="color:#E7B369">var</span>&lt;storage, read&gt;       b: <span style="color:#E7B369">array</span>&lt;<span style="color:#E7B369">f32</span>&gt;;
+@group(<span style="color:#E7B369">0</span>) @binding(<span style="color:#E7B369">2</span>) <span style="color:#E7B369">var</span>&lt;storage, read_write&gt; c: <span style="color:#E7B369">array</span>&lt;<span style="color:#E7B369">f32</span>&gt;;
+
+@compute @workgroup_size(<span style="color:#E7B369">256</span>)
+<span style="color:#E7B369">fn</span> main(@builtin(global_invocation_id) gid: vec3&lt;<span style="color:#E7B369">u32</span>&gt;) {
+    <span style="color:#E7B369">let</span> i = gid.x;
+    <span style="color:#E7B369">if</span> (i &lt; arrayLength(&amp;a)) {
+        c[i] = a[i] + b[i];
+    }
+}</code></pre>
+      <p style="margin-top:14px">CUDA 와 비교 — </p>
+      <ul>
+        <li><code>__global__</code> → <code>@compute</code></li>
+        <li><code>blockDim.x = 256</code> → <code>@workgroup_size(256)</code></li>
+        <li><code>threadIdx.x + blockIdx.x*blockDim.x</code> → <code>gid.x</code> (global_invocation_id)</li>
+        <li><code>__shared__</code> → <code>var&lt;workgroup&gt;</code></li>
+        <li><code>__syncthreads()</code> → <code>workgroupBarrier()</code></li>
+      </ul>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · WGSL → backend shader 코드의 lowering</span><span>한 셰이더, 세 native API</span></div>
+        <div class="pipe">
+          <div class="stage"><div class="sn">L0</div><div class="nm">WGSL</div><div class="dt">사용자가 짜는 코드</div></div>
+          <div class="stage hi"><div class="sn">L1</div><div class="nm">Tint / Naga</div><div class="dt">WGSL 컴파일러</div></div>
+          <div class="stage"><div class="sn">L2</div><div class="nm">SPIR-V</div><div class="dt">Vulkan backend</div></div>
+          <div class="stage"><div class="sn">L2</div><div class="nm">DXIL</div><div class="dt">D3D12 backend</div></div>
+          <div class="stage"><div class="sn">L2</div><div class="nm">MSL</div><div class="dt">Metal backend</div></div>
+        </div>
+        <div class="viz-note">한 WGSL 소스가 <strong>backend 별 IR 로 자동 transpile</strong>. Tint(Dawn) 또는 Naga(wgpu)가 그 일을 한다. SYCL 의 SPIR-V 와 같은 자리지만, WebGPU 의 IR 분기는 backend 별로 더 다양하다.</div>
+      </div>
+
+      <div class="callout">
+        <div class="label">왜 WGSL 이 새로 등장했는가</div>
+        <p>WebGPU 가 SPIR-V 를 바로 받으면 보안 검증이 어렵다(브라우저 환경). 그래서 <em>browser-friendly 한 high-level 텍스트 셰이더 언어</em>가 새로 정의됐다. SPIR-V 는 backend로만 쓰임.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>gpu.cpp 의 추상</b><span>· createTensor · dispatchKernel</span></div>
+    <h2>WebGPU 의 boilerplate 를 8 줄로 압축한 C++ 헤더 한 장</h2>
+  </div>
+  <p class="sec-lede">WebGPU 를 raw C API 로 직접 부르면 — Austin 의 표현 그대로 — “Vulkan 보다 작지만 여전히 수백 줄 보일러플레이트가 박힌다”. <strong>gpu.cpp</strong> 는 single-header C++ 라이브러리로 그 보일러플레이트를 <em>3개의 함수</em>로 줄인다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89">// gpu.cpp — vector add 전체</span>
+<span style="color:#E7B369">#include</span> <span style="color:#C6B98A">"gpu.h"</span>
+<span style="color:#E7B369">using namespace</span> gpu;
+
+<span style="color:#E7B369">int</span> main(){
+  Context ctx       = createContext();      <span style="color:#A99E89">// adapter + device</span>
+
+  Tensor a = createTensor(ctx, {N}, kf32, dataA);
+  Tensor b = createTensor(ctx, {N}, kf32, dataB);
+  Tensor c = createTensor(ctx, {N}, kf32);
+
+  Kernel k = createKernel(ctx, kAddShader,
+                          Bindings{a, b, c},
+                          <span style="color:#A99E89">/*workgroups=*/</span>{N/<span style="color:#E7B369">256</span>, <span style="color:#E7B369">1</span>, <span style="color:#E7B369">1</span>});
+
+  <span style="color:#E7B369">std::promise</span>&lt;<span style="color:#E7B369">void</span>&gt; p;
+  dispatchKernel(ctx, k, p);                 <span style="color:#A99E89">// async</span>
+  wait(ctx, p.get_future());
+
+  toCPU(ctx, c, host_out, <span style="color:#E7B369">sizeof</span>(host_out));
+}</code></pre>
+    </div>
+    <div>
+      <p>같은 일을 <strong>raw WebGPU C API</strong> 로 짜면 — instance request → adapter request → device request → buffer descriptor 4 개 → bind group layout → bind group → shader module → pipeline layout → pipeline → command encoder → compute pass → dispatch → submit → map → callback. <em>250+ 줄</em>이 일반적.</p>
+
+      <p>gpu.cpp 의 핵심 디자인 결정 4 가지 — </p>
+      <ul>
+        <li><strong>Tensor 는 그냥 GPU buffer 의 wrapper</strong> — shape · dtype · 핸들. PyTorch 의 tensor 와 같은 마음.</li>
+        <li><strong>Kernel 은 WGSL 소스 + binding 의 묶음</strong> — workgroup 수까지 한 번에 박는다.</li>
+        <li><strong>dispatchKernel 은 비동기 + future</strong> — 사용자가 promise 로 받아서 wait. CUDA 의 stream + event 패턴과 같은 마음.</li>
+        <li><strong>모든 게 single-header</strong> — 빌드 cost 가 최소. <code>gpu.h</code> 한 줄 include.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 작업을 세 layer 로 — Vulkan vs raw WebGPU vs gpu.cpp</span><span>line count comparison</span></div>
+    <div class="bars">
+      <div class="row"><span class="lbl">Vulkan compute</span><div class="bar"><span style="width:96%"></span></div><span class="val">~800 줄</span></div>
+      <div class="row"><span class="lbl">raw WebGPU C API</span><div class="bar cool"><span style="width:32%"></span></div><span class="val">~250 줄</span></div>
+      <div class="row"><span class="lbl">gpu.cpp</span><div class="bar sml"><span style="width:5%"></span></div><span class="val">~15 줄</span></div>
+      <div class="row"><span class="lbl">CUDA + cudart</span><div class="bar sml"><span style="width:6%"></span></div><span class="val">~20 줄</span></div>
+    </div>
+    <div class="viz-note">강의에서 Austin 이 보여준 비교표 재구성. <strong>gpu.cpp 가 잡으려는 자리는 “CUDA 처럼 짧게 시작할 수 있는 GPU compute”</strong> 지만 portability 가 따라온다는 약속.</div>
+  </div>
+
+  <div class="pull">“Vulkan 으로 가장 작은 토이 커널 하나 띄우려고 800 줄을 짭니다. 보일러플레이트가 도구를 죽이는 거죠. WebGPU 가 그걸 줄였고, gpu.cpp 가 또 한 번 줄입니다.”<span class="by">Austin Huang · 12:48</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>Vulkan vs WebGPU 의 보일러플레이트</b><span>· 800 lines vs 8 lines</span></div>
+    <h2>CUDA 가 “쉽다” 고 느껴지는 진짜 이유 — 그리고 그게 WebGPU 에서도 가능해진 이유</h2>
+  </div>
+  <p class="sec-lede">Austin 이 강의에서 깐 작은 역사 — Vulkan 은 explicit 의 끝까지 갔다. 모든 메모리, 모든 동기화, 모든 pipeline 상태를 사용자가 박는다. 그게 driver 의 부담을 줄였지만 <em>사용자의 부담을 폭발시켰다</em>. WebGPU 는 그 사이의 절충 — explicit 의 핵심은 유지하되 default 를 박는다.</p>
+
+  <div class="l27-cmp">
+    <div class="col">
+      <div class="nm">Vulkan compute</div>
+      <div class="row"><span>memory allocator</span><b>사용자</b></div>
+      <div class="row"><span>descriptor pool</span><b>사용자</b></div>
+      <div class="row"><span>image layout 전이</span><b>사용자</b></div>
+      <div class="row"><span>queue family</span><b>사용자</b></div>
+      <div class="row"><span>fence / semaphore</span><b>사용자</b></div>
+      <div class="row"><span>shader compile</span><b>SPIR-V (외부)</b></div>
+      <div class="row"><span>최소 토이 line count</span><b>~800</b></div>
+    </div>
+    <div class="col gpucpp">
+      <div class="nm">WebGPU</div>
+      <div class="row"><span>memory allocator</span><b>impl 자동</b></div>
+      <div class="row"><span>descriptor (bind group)</span><b>한 줄</b></div>
+      <div class="row"><span>image layout</span><b>spec 추상화</b></div>
+      <div class="row"><span>queue</span><b>device 당 1</b></div>
+      <div class="row"><span>sync</span><b>spec 안 자동 + 명시 barrier</b></div>
+      <div class="row"><span>shader compile</span><b>WGSL 소스 직접</b></div>
+      <div class="row"><span>최소 토이 line count</span><b>~250 (raw)</b></div>
+    </div>
+    <div class="col">
+      <div class="nm">CUDA</div>
+      <div class="row"><span>memory allocator</span><b>cudaMalloc</b></div>
+      <div class="row"><span>descriptor</span><b>없음 (kernel arg)</b></div>
+      <div class="row"><span>layout</span><b>해당 사항 없음</b></div>
+      <div class="row"><span>stream</span><b>default + 사용자</b></div>
+      <div class="row"><span>sync</span><b>cudaDeviceSync · event</b></div>
+      <div class="row"><span>shader compile</span><b>nvcc / NVRTC</b></div>
+      <div class="row"><span>최소 토이 line count</span><b>~20</b></div>
+    </div>
+  </div>
+
+  <p>강의의 인사이트 — <strong>WebGPU 의 디자인 목표 자체가 “CUDA 의 ergonomics + portability”</strong>다. spec 위원회가 “Vulkan 의 explicit 은 너무 멀리 갔다” 는 합의에서 출발했다. 그래서 default value 가 풍부하고 (sampler, alignment, layout 등 자동), 동시에 vendor-extension 을 표준 안에 박지 않는다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>browser 와 native 의 같은 코드</b><span>· Emscripten · Dawn</span></div>
+    <h2>같은 <code>main.cpp</code> 가 데스크탑 binary 로도, 웹 브라우저 안 wasm 으로도 빌드된다</h2>
+  </div>
+  <p class="sec-lede">gpu.cpp 의 portability 의 한 차원이 <em>다른 vendor</em>(WebGPU 이 줌)이라면, 다른 한 차원은 <strong>browser ↔ native</strong>다. 같은 코드가 두 form factor 위에서 돈다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 gpu.cpp 코드의 두 빌드 경로</span><span>native vs browser</span></div>
+    <div class="l27-flow">
+      <div class="lane">
+        <span class="who">NATIVE</span>
+        <div class="row">
+          <div class="blk gp">main.cpp</div>
+          <div class="blk wg">clang++</div>
+          <div class="blk wg">link Dawn</div>
+          <div class="blk vk">D3D12/Vk/Metal</div>
+          <div class="blk vk">vendor driver</div>
+          <div class="blk gp">GPU 위 실행</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="who">BROWSER</span>
+        <div class="row">
+          <div class="blk gp">main.cpp</div>
+          <div class="blk wg">emcc (Emscripten)</div>
+          <div class="blk wg">wasm</div>
+          <div class="blk vk">browser WebGPU</div>
+          <div class="blk vk">browser GPU proc</div>
+          <div class="blk gp">GPU 위 실행</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">두 경로의 <strong>중간 차이는 link 단계의 backend 만</strong>. 사용자 코드는 같다. 데모에서 Austin 이 같은 매트릭스 곱 코드를 데스크탑 터미널과 브라우저 탭에서 동시에 띄웠다.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>이 portability 가 의미하는 시나리오들 — </p>
+      <ul>
+        <li><strong>교육 / 데모</strong> — GitHub Pages 같은 정적 호스팅에 WebGPU 데모를 올리면, 사용자가 자기 GPU 위에서 즉시 돈다. Triton / CUDA tutorial 이 직면한 “설치가 안 되는” 문제가 사라진다.</li>
+        <li><strong>shader hot-reload</strong> — 데모 중 Austin 이 보여준 — 같은 process 가 도는 동안 WGSL 셰이더만 바꿔서 dispatch. GPU 위 buffer state 는 유지된다 (animation 의 “transition” 이 자연스럽게 잡힌다).</li>
+        <li><strong>AR/로보틱스 SoC</strong> — 자체 native API 가 없어도 OpenGL ES / Vulkan 만 있으면 wgpu 가 동작.</li>
+        <li><strong>LLM inference 데모</strong> — Austin 이 직접 만든 Llama 1B inference 데모가 브라우저 탭에서 도는 사례.</li>
+      </ul>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># 같은 코드의 두 빌드 — gpu.cpp 의 CMake</span>
+<span style="color:#A99E89"># 1. Native — Dawn 정적 링크</span>
+cmake -B build -DGPUCPP_BACKEND=native
+cmake --build build
+./build/main                    <span style="color:#A99E89"># 데스크탑 GPU 위에서 실행</span>
+
+<span style="color:#A99E89"># 2. Browser — Emscripten</span>
+emcmake cmake -B build_web
+cmake --build build_web
+python -m http.server -d build_web 8000
+<span style="color:#A99E89"># 브라우저로 localhost:8000 — 같은 코드 같은 GPU</span></code></pre>
+      <p style="margin-top:14px">이 두 빌드가 <strong>같은 셰이더와 같은 logic</strong>을 공유한다는 점이 강의의 데모 메시지다. Austin 의 한 세션은 <em>shader-toy 스타일 그림</em>이 같은 코드로 데스크탑 터미널과 브라우저 안에서 동시에 돌고 있었다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>한계 — Tensor Core 미접근</b><span>· spec 의 보수성</span></div>
+    <h2>“CUDA 의 80% 까지 닿는다” 가 사실인 자리와 거짓인 자리</h2>
+  </div>
+  <p class="sec-lede">Austin 이 강의에서 정직하게 깐 갭 — WebGPU 는 <strong>vendor-portable spec</strong> 이다 보니, NVIDIA mma / Tensor Core, FP8/INT4 같은 vendor specific 명령에 직접 닿지 않는다. GEMM perf 의 절반 이상이 이 명령에서 오는 모던 GPU 에서 결정적인 한계.</p>
+
+  <div class="split rev">
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · GEMM perf 의 진화 단계 — gpu.cpp 가 닿을 수 있는 자리</span><span>Simon Boehm GEMM 시리즈 기준</span></div>
+        <div class="bars">
+          <div class="row"><span class="lbl">naive (no shared)</span><div class="bar sml"><span style="width:6%"></span></div><span class="val">~285 GF</span></div>
+          <div class="row"><span class="lbl">+ shared mem tile</span><div class="bar sml"><span style="width:14%"></span></div><span class="val">~700 GF</span></div>
+          <div class="row"><span class="lbl">+ register tile</span><div class="bar cool"><span style="width:30%"></span></div><span class="val">~1500 GF</span></div>
+          <div class="row"><span class="lbl">+ vectorize / coalesce</span><div class="bar cool"><span style="width:55%"></span></div><span class="val">~2700 GF</span></div>
+          <div class="row"><span class="lbl">+ Tensor Core (mma)</span><div class="bar"><span style="width:96%"></span></div><span class="val">~14 TF</span></div>
+        </div>
+        <div class="viz-note">FP32 RTX 4090 기준. <strong>gpu.cpp 가 직접 도달하는 한계는 4 번째 줄</strong>. mma 까지의 한 자리수 도약은 vendor specific 명령에 의존한다 — WebGPU spec 의 보수성이 거기서 정지한다.</div>
+      </div>
+    </div>
+    <div>
+      <p>강의에서 Austin 이 명시한 “닿지 않는 자리” — </p>
+      <ul>
+        <li><strong>Tensor Core (NVIDIA mma · WMMA)</strong> — WebGPU spec 에 직접 노출 안 됨. proposal 이 진행 중인 <em>cooperative_matrix</em> extension 이 이 자리.</li>
+        <li><strong>FP16 / BF16</strong> — “shader-f16” extension 으로 일부 backend 에서 지원. 항상 가능하진 않다.</li>
+        <li><strong>FP8 / INT4 / INT8 dot</strong> — 표준에 없음. 양자화 inference 의 핵심인데 그렇다.</li>
+        <li><strong>warp/subgroup primitives</strong> — <em>subgroups extension</em> 이 추가되는 중. shuffle / vote 같은 패턴이 그 안에 들어온다.</li>
+        <li><strong>asynchronous copy (cp.async, TMA)</strong> — Hopper 의 핵심 명령. 표준에 없다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">strategic 갭</div>
+    <p>이 갭은 디자인 결정 — <strong>“표준은 vendor 평균에 맞춘다”</strong>는 합의에서 온다. Apple/Qualcomm 의 GPU 도 같은 spec 안에 살아야 하니까. 그래서 NVIDIA 의 최신 명령은 <em>extension</em> 으로만 들어올 수 있다. <em>“가장 빠른 코드를 짜고 싶다면 여전히 vendor-native API”</em> 라는 강의의 정직한 메시지가 여기서 나온다.</p>
+  </div>
+
+  <div class="pull">“gpu.cpp 의 약속은 ‘CUDA 의 100% 를 따라잡는다’ 가 아닙니다. 그건 vendor-native 의 자리예요. 우리가 잡으려는 건 — <em>훨씬 더 많은 자리에서 GPU compute 가 돌게 하는 것</em>입니다.”<span class="by">Austin Huang · 47:30</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>사용 사례</b><span>· shader-toy · LLM inference · AR</span></div>
+    <h2>이미 만들어진 것 — 그리고 가능해 보이는 것</h2>
+  </div>
+  <p class="sec-lede">강의의 데모 시퀀스에서 Austin 이 직접 보여준 사례들과, gpu.cpp 가 가능하게 하는 새 form factor 들의 시나리오.</p>
+
+  <div class="l27-targets">
+    <div class="cell"><div class="h">DEMO 1 · ShaderToy 스타일</div><div class="d">x · y · t 를 입력으로 받아 intensity 를 출력하는 컴퓨트 셰이더. 한 process 가 도는 동안 WGSL 만 바꿔서 dispatch — GPU buffer state 가 유지되어 transition 이 자연스럽게 일어남.</div></div>
+    <div class="cell"><div class="h">DEMO 2 · GEMM 단계 시리즈</div><div class="d">Simon Boehm 의 CUDA matmul worklog 를 그대로 WGSL 로 옮긴 시퀀스. naive → shared → register tile → vectorize. <em>각 단계의 코드를 직접 비교 가능</em>한 학습 자료.</div></div>
+    <div class="cell"><div class="h">DEMO 3 · LLM inference</div><div class="d">Llama-class 1B 모델을 WebGPU 위에서 inference. 브라우저 탭에서 도는 토큰 스트림. 양자화 weight 로 메모리 절약.</div></div>
+    <div class="cell"><div class="h">SCENARIO · AR / 로보틱스</div><div class="d">CUDA 가 없는 SoC 에서 video signal 처리. Snapdragon · Mali · PowerVR · Apple Silicon 에서 같은 binary.</div></div>
+  </div>
+
+  <div class="split" style="margin-top:20px">
+    <div>
+      <p><strong>shader hot-reload 의 의미</strong>. 강의에서 Austin 이 보여준 인상적 데모 중 하나 — process 를 죽이지 않고 WGSL 셰이더만 교체해 dispatch. GPU buffer state 는 유지되니까 시뮬레이션의 <em>“상태”</em>가 그대로 다음 셰이더에 흘러간다. <em>“GPU compute 의 livecoding”</em> 이라는 새로운 작업 형태가 가능하다는 시연.</p>
+    </div>
+    <div>
+      <p><strong>LLM inference 데모의 의미</strong>. 같은 모델 weight 가 — 데스크탑 native 에서는 WebGPU/Dawn 으로, 브라우저에서는 wasm + WebGPU 로, 각 vendor GPU 위에서 도는 길. 양자화로 weight 를 줄이면 1B 정도까지 브라우저 안에서도 의미 있게 돈다. <em>“CUDA 가 필요 없는 LLM 추론”</em> 의 한 길.</p>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">제일 흥미로운 시나리오 — Austin 의 시각</div>
+    <p>“Visual computing 과 ML 이 다시 만나는 자리” — AR 안경의 hand tracking, 로봇의 visual servoing, 라이브 비디오의 model inference. CUDA 가 가지 못하는 form factor 들에서 <strong>WebGPU 가 사실상 표준으로 굳어가는 중</strong>. gpu.cpp 같은 라이브러리가 거기서 진입 비용을 다시 한 번 줄인다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>발전 방향</b><span>· subgroups · ML extension</span></div>
+    <h2>spec 의 다음 단계 — 이 한계가 어디까지 풀리는가</h2>
+  </div>
+  <p class="sec-lede">강의 끝 Q&amp;A 에서 다룬 다음 단계들. WebGPU 는 정적 spec 이 아니라 — Khronos / W3C 가 활발히 extension 을 추가하는 중.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">subgroups</div>
+      <div class="d">warp/subgroup level shuffle, vote, broadcast. <em>2024 후반 stable</em>. Triton 의 <code>tl.atomic_xor</code> 같은 패턴이 가능해진다.</div>
+    </div>
+    <div class="term">
+      <div class="t">cooperative_matrix</div>
+      <div class="d">Tensor Core / Matrix Core 의 portable 추상. proposal 진행 중. NVIDIA mma · Apple AMX · Intel XMX 를 한 입구로.</div>
+    </div>
+    <div class="term">
+      <div class="t">shader-f16</div>
+      <div class="d">FP16 native. 일부 backend 에서 이미 지원. ML 워크로드의 메모리 절감.</div>
+    </div>
+    <div class="term">
+      <div class="t">push constants</div>
+      <div class="d">매우 작은 uniform 데이터를 buffer 없이 dispatch 마다 박는 길. 토큰 generation 의 KV cache step 같은 패턴에 유용.</div>
+    </div>
+    <div class="term">
+      <div class="t">timestamp queries</div>
+      <div class="d">GPU 위 정확한 timing. NCU 에 비할 정도의 깊이는 아니지만, 커널별 ms 측정의 표준 입구.</div>
+    </div>
+    <div class="term">
+      <div class="t">indirect dispatch</div>
+      <div class="d">GPU 가 dispatch 인자를 결정. dynamic batching 의 입구.</div>
+    </div>
+  </div>
+
+  <div class="pull">“cooperative_matrix 가 spec 에 들어오는 그 시점이 — gpu.cpp 가 LLM inference 에서 vendor-native 와 진짜로 비교 가능해지는 자리입니다. 지금은 그 한 단계 직전이에요.”<span class="by">Austin Huang · 1:02:11</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">WebGPU 의 위치</div><div class="d">spec(W3C/Khronos) → impl(Dawn/wgpu) → backend(D3D12/Vulkan/Metal) → vendor driver. 단순한 “브라우저 OpenGL” 아님.</div></div>
+    <div class="term"><div class="t">WebGPU 4 객체</div><div class="d">adapter → device → buffer → pipeline. CUDA (driver/context/cudaMalloc/kernel) 의 대응.</div></div>
+    <div class="term"><div class="t">WGSL syntax</div><div class="d"><code>@compute @workgroup_size(N)</code>, <code>@builtin(global_invocation_id)</code>, <code>var&lt;storage,read_write&gt;</code>, <code>workgroupBarrier()</code>.</div></div>
+    <div class="term"><div class="t">gpu.cpp 3 함수</div><div class="d"><code>createTensor</code>, <code>createKernel</code>, <code>dispatchKernel</code>. single-header. ~15 줄에 vector add 가 끝난다.</div></div>
+    <div class="term"><div class="t">native ↔ browser 동일 코드</div><div class="d">native 빌드는 Dawn 정적 링크, browser 빌드는 emscripten + wasm. 셰이더와 logic 은 동일.</div></div>
+    <div class="term"><div class="t">한계의 자리</div><div class="d">Tensor Core/mma 직접 노출 안 됨. FP8/INT4 없음. cp.async/TMA 없음. <em>cooperative_matrix extension</em> 이 그 길.</div></div>
+    <div class="term"><div class="t">Vulkan vs WebGPU</div><div class="d">Vulkan = explicit 의 끝. WebGPU = explicit + sane defaults. CUDA 의 ergonomics 를 portable 환경에 옮긴 시도.</div></div>
+    <div class="term"><div class="t">사용 시나리오</div><div class="d">학습/데모, browser LLM inference, AR/로봇 SoC, livecoding GPU compute. CUDA 가 없는 form factor 들.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=Ll5Sr1L5LvA" target="_blank" rel="noopener">youtube.com/watch?v=Ll5Sr1L5LvA</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://gpucpp-presentation.answer.ai/" target="_blank" rel="noopener">gpucpp-presentation.answer.ai</a></span>
+    </div>
+    <div class="row">
+      <span class="k">gpu.cpp</span>
+      <span class="v"><a href="https://github.com/AnswerDotAI/gpu.cpp" target="_blank" rel="noopener">github.com/AnswerDotAI/gpu.cpp</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Spec</span>
+      <span class="v"><a href="https://www.w3.org/TR/webgpu/" target="_blank" rel="noopener">W3C WebGPU</a> · <a href="https://www.w3.org/TR/WGSL/" target="_blank" rel="noopener">WGSL</a> · <a href="https://dawn.googlesource.com/dawn" target="_blank" rel="noopener">Dawn</a> · <a href="https://github.com/gfx-rs/wgpu" target="_blank" rel="noopener">wgpu</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>gpu.cpp 클론 + 첫 빌드</strong> — <code>git clone github.com/AnswerDotAI/gpu.cpp &amp;&amp; cmake</code>. native binary 가 자기 GPU 위에서 vector add 를 도는 것을 확인.</li>
+    <li><strong>같은 코드를 브라우저 빌드</strong> — emscripten 으로. <code>localhost:8000</code> 에서 같은 셰이더가 도는 것을 확인. 동시에 두 빌드를 띄워두면 portability 의 의미가 손에 잡힌다.</li>
+    <li><strong>WGSL 의 첫 셰이더</strong> — <code>@compute @workgroup_size(256)</code> 으로 elementwise pow 를 짠다. global_invocation_id 의 의미를 직접 출력해서 본다.</li>
+    <li><strong>gpu.cpp 의 GEMM 단계</strong> — repo 안 examples/matmul 시리즈. naive → shared → register tile 을 한 단계씩 따라간다. 같은 코드의 CUDA 버전이 있다면 PTX 와 WGSL → MSL/SPIR-V transpile 결과를 diff.</li>
+    <li><strong>WebGPU raw 와 gpu.cpp 의 비교</strong> — 같은 vector add 를 raw <code>WGPUDevice</code> API 로 짜본다. 보일러플레이트의 양을 직접 손에 박는다.</li>
+    <li><strong>shader hot-reload 데모 재현</strong> — 한 process 가 도는 동안 WGSL 파일을 watch + reload. animation 의 transition 이 자연스럽게 흐르는지 확인.</li>
+    <li><strong>LLM inference 데모 띄우기</strong> — gpu.cpp 의 examples 에 Llama 1B 데모. 브라우저 탭에서 토큰이 나오는 것을 본 후, profiler 로 어떤 단계가 가장 오래 걸리는지 확인.</li>
+    <li><strong>cooperative_matrix proposal 읽기</strong> — W3C 의 proposal 문서. 같은 추상이 NVIDIA mma · Apple AMX · Intel XMX 를 어떻게 한 입구로 묶으려 하는지 본다.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 다른 강의에 어떻게 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_026.html">
+      <div class="n">L026</div>
+      <div class="ti">SYCL Mode (Intel GPU)</div>
+      <div class="by">Patric Zhao — vendor portable spec 의 또 다른 사례, SPIR-V 기반</div>
+    </a>
+    <a class="conn" href="lecture_031.html">
+      <div class="n">L031</div>
+      <div class="ti">Beginners Guide to Metal</div>
+      <div class="by">Nikita Shulga — WebGPU 의 macOS backend 가 결국 도달하는 자리</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">Mark Saroufim — § 03 의 WGSL syntax 와 CUDA <code>__global__</code> 의 mapping reference</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA</div>
+      <div class="by">Jeremy Howard — Simon Boehm GEMM 시리즈가 § 08 의 GEMM 단계 데모의 원본</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Mark · Charles — fusion 의 일반론, WebGPU 위에서도 같은 자리</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — Triton 위 LLM 학습 커널, gpu.cpp 의 LLM inference 데모와 대척점</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">Hicham Badri — gpu.cpp 가 닿지 못하는 INT4/INT8 의 자리, 왜 vendor-native 가 필요한지의 사례</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>cooperative_matrix extension 의 stable 시점</strong> — 강의 시점(2024 mid)에는 proposal. 그 후 어떤 backend(Dawn? wgpu?) 가 먼저 stable 로 받았는지.</li>
+    <li><strong>WGSL → MSL / SPIR-V / DXIL 의 lowering 결과 diff</strong> — 같은 GEMM 셰이더가 세 backend 에서 만드는 IR 의 차이. <code>tint --dump</code> 로 확인 가능.</li>
+    <li><strong>gpu.cpp 의 LLM inference 가 vendor-native 와의 perf 갭</strong> — Llama 1B 같은 모델을 같은 GPU 위 cuBLAS / Metal MPS 로 돌렸을 때와의 토큰당 latency 비교.</li>
+    <li><strong>browser 안 LLM inference 의 실용 한계</strong> — 메모리, latency, cold start. wasm + WebGPU 가 도달 가능한 모델 크기의 상한.</li>
+    <li><strong>subgroups extension 위 reduction</strong> — Triton 의 <code>tl.sum</code> 같은 패턴을 WGSL 로 짤 때 코드 양과 perf.</li>
+    <li><strong>AR/로봇 SoC 위 실측</strong> — Snapdragon · Mali · 등 모바일 GPU 에서 같은 gpu.cpp 코드의 perf characteristic. CUDA-grade desktop GPU 와 어떤 차원이 다른지.</li>
+    <li><strong>portable performance vs portable correctness</strong> — vendor 별 같은 셰이더의 floating point 결정성. ML 학습 reproducibility 와의 충돌 자리.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 line count 비교(800 / 250 / 15 / 20)와 GEMM perf 단계 수치는 강의에서 Austin 이 보여준 슬라이드의 재구성. 자기 GPU 위에서 직접 측정해야 vendor 별 변동이 실제로 어떻게 분포하는지 손에 잡힌다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_026.html">
+    <span class="lbl">← Lecture 026</span>
+    <span class="nm">SYCL Mode — Intel GPU 의 portable C++ stack</span>
+  </a>
+  <a class="nxt" href="lecture_028.html">
+    <span class="lbl">Lecture 028 →</span>
+    <span class="nm">Liger Kernel — Byron Hsu 의 Triton 으로 짠 LLM 학습 커널</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L027 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

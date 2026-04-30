@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L053 · torch.compile Q&amp;A · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l53-pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l53-pipe .stage{padding:14px 12px;background:var(--paper);border:1px solid var(--line);border-radius:8px;text-align:center}
+.l53-pipe .stage.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l53-pipe .stage .sn{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.04em;margin-bottom:4px}
+.l53-pipe .stage .nm{color:var(--ink);font-weight:700;font-family:'Pretendard',sans-serif;font-size:13px;margin-bottom:4px}
+.l53-pipe .stage .dt{color:var(--ink-soft);font-size:11px;line-height:1.4}
+.l53-arr{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:center;margin:6px 0}
+.l53-tab{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l53-tab .row{display:grid;grid-template-columns:200px 1fr 110px;gap:14px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:start}
+.l53-tab .row.hd{background:var(--bg-soft);border:none;color:var(--muted);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;padding:6px 14px}
+.l53-tab .row .nm{color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace}
+.l53-tab .row .b{color:var(--ink-soft);font-size:12px;line-height:1.55}
+.l53-tab .row .c{color:var(--ink);font-weight:700;text-align:right;font-size:11.5px}
+.l53-tab .row.warn{border-color:var(--warn)}
+.l53-trace{font-family:'JetBrains Mono',monospace;font-size:11.5px;display:grid;gap:6px}
+.l53-trace .row{display:grid;grid-template-columns:90px 1fr;gap:14px;padding:8px 14px;background:var(--paper);border:1px solid var(--line);border-radius:5px;align-items:center}
+.l53-trace .row .lbl{color:var(--ink-soft)}
+.l53-trace .row .body{color:var(--ink);font-size:12px}
+.l53-trace .row.hi{border-color:var(--accent);background:var(--bg-soft)}
+@media (max-width:760px){.l53-pipe{grid-template-columns:1fr}.l53-tab .row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_052.html">← L052</a>
+    <a href="lecture_054.html">L054 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L053</span>
+    <span>2024</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>torch.compile Q&amp;A — Richard Zou</h1>
+  <p class="dek">PyTorch core 의 Richard Zou 가 깐 <strong>torch.compile 의 내부</strong> — TorchDynamo 의 graph 캡처, AOT autograd, FakeTensor, dynamic shape, Inductor 의 lowering, cudagraph 의 위치. <em>“왜 graph break 가 일어나나, dynamic shape 가 왜 잘 안 되나, 어디서 디버깅을 시작하나”</em> 의 실전 질문에 대한 답. 본 페이지는 transcript 가 실패해 PyTorch 공식 문서, dev-discuss 토론, Richard 의 공개 talk 으로 재구성됐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">torch.compile</span>
+    <span class="chip hi">TorchDynamo</span>
+    <span class="chip hi">AOT autograd</span>
+    <span class="chip hi">Inductor</span>
+    <span class="chip">FakeTensor</span>
+    <span class="chip">dynamic shape</span>
+    <span class="chip">graph break</span>
+    <span class="chip">cudagraph</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">R</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Richard Zou</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · PyTorch core · functorch / torch.compile / vmap</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L053</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Richard Zou</div></div>
+    <div class="cell warn"><div class="lbl">Transcript</div><div class="val">failed · 본 노트는 재구성</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">graph break 가 일어나는 자리</span><span class="em">Dynamo 의 한계</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">dynamic shape 처리</span><span class="em">guard · symbolic shape</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">FakeTensor 의 역할</span><span class="em">shape inference</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">AOT autograd</span><span class="em">forward + backward 같이</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">Inductor 와 Triton 의 분리</span><span class="em">backend 의 선택</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">cudagraph 와의 관계</span><span class="em">언제 둘이 같이</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">디버깅 워크플로</span><span class="em">TORCH_LOGS · TORCH_COMPILE_DEBUG</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">흔한 회피 패턴</span><span class="em">graph break 를 피하는 코드</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why this lecture exists</span></div>
+    <h2>“torch.compile 한 줄 추가했더니 왜 안 빨라지는가” 의 실전 답</h2>
+  </div>
+  <p class="sec-lede">PyTorch 2.0 의 <code>torch.compile()</code> 은 한 줄 wrapping 으로 fusion 을 잡아주는 기적적인 도구로 광고되지만 — 실전에서 학습 코드를 감싸면 graph break 가 줄줄이 터지거나, recompile 이 매 step 일어나거나, dynamic shape 에서 행이 멈춘다. 이 강의는 <strong>왜 그런 일이 일어나는지</strong> 의 내부 답을 깐다.</p>
+
+  <p>강의의 출발 질문 셋.</p>
+  <ol>
+    <li><strong>graph break</strong> 가 정확히 무엇이고 어디서 일어나는가?</li>
+    <li><strong>dynamic shape</strong> 가 잡힐 때와 안 잡힐 때의 차이는?</li>
+    <li><strong>backward pass</strong> 까지 어떻게 같이 컴파일되는가? (AOT autograd 의 의미)</li>
+  </ol>
+
+  <p>본 노트는 transcript 실패로 — PyTorch 공식 문서, dev-discuss 의 Dynamo/Inductor 디자인 RFC, Richard Zou 의 다른 talk (PyTorch Conference, EuroPython) 을 종합한 재구성.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>torch.compile 을 한 줄짜리 마법으로 보면 안 된다. 안에는 <strong>4개의 거의 독립적인 시스템</strong> 이 있다 — Dynamo (graph 캡처), AOT autograd (backward 합성), FakeTensor (shape 추론), Inductor (lowering). 각자 다른 자리에서 다른 이유로 깨진다.</p>
+  </div>
+
+  <div class="pull">“torch.compile 의 디버깅은 — 어느 시스템에서 깨졌는지를 먼저 식별하는 것. 그 식별이 가능해지는 순간 90% 의 문제가 풀린다.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>graph break 가 일어나는 자리</b><span>· Dynamo 의 한계</span></div>
+    <h2>“이 코드 라인을 graph 로 못 잡는다” — Dynamo 의 거부 사유들</h2>
+  </div>
+  <p class="sec-lede">TorchDynamo 는 Python bytecode 위에서 동작한다 — 함수가 호출되면 bytecode 를 walk 하면서 “이 op 가 graph 에 들어갈 수 있나” 를 체크한다. 못 들어가는 자리에서 <strong>graph break</strong> — 거기서 graph 를 끊고, 그 라인은 일반 Python 으로 돌고, 그 후 다시 graph 캡처 시작.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · torch.compile 의 4-stage 파이프라인</span><span>Python → Triton</span></div>
+    <div class="l53-pipe">
+      <div class="stage hi">
+        <div class="sn">L0 · capture</div>
+        <div class="nm">Dynamo</div>
+        <div class="dt">Python bytecode 위에서 graph 캡처. graph break 가 일어나는 자리.</div>
+      </div>
+      <div class="stage">
+        <div class="sn">L1 · trace</div>
+        <div class="nm">FakeTensor</div>
+        <div class="dt">실제 Tensor 안 만들고 shape/dtype 만 추적. AOT trace 의 substrate.</div>
+      </div>
+      <div class="stage">
+        <div class="sn">L2 · backward</div>
+        <div class="nm">AOT autograd</div>
+        <div class="dt">forward graph 에서 backward graph 를 같이 만든다. 두 graph 가 짝이 되어 lowering.</div>
+      </div>
+      <div class="stage">
+        <div class="sn">L3 · lower</div>
+        <div class="nm">Inductor</div>
+        <div class="dt">FX graph → Triton/C++/cpp_wrapper. fusion · scheduling · vectorization 결정.</div>
+      </div>
+      <div class="stage">
+        <div class="sn">L4 · run</div>
+        <div class="nm">Triton kernel</div>
+        <div class="dt">생성된 코드가 GPU 위에서 실행. cudagraph 가 따로 wrapping 가능.</div>
+      </div>
+    </div>
+    <div class="viz-note">L0 가 graph break 의 자리, L1 이 dynamic shape 의 자리, L2 가 backward 의 자리, L3 가 fusion 의 자리. 각자 다른 디버깅 도구.</div>
+  </div>
+
+  <p>graph break 를 일으키는 흔한 패턴.</p>
+
+  <div class="l53-tab">
+    <div class="row hd"><span>패턴</span><span>왜 깨지는가</span><span>회피</span></div>
+    <div class="row">
+      <span class="nm">if x.item() &gt; 0:</span>
+      <span class="b">tensor 의 값을 Python 조건문에 쓰면 — Dynamo 가 값을 안 만들고 graph 만 짜기 때문에 즉시 break. <code>data-dependent control flow</code> 라고 부름.</span>
+      <span class="c">torch.where</span>
+    </div>
+    <div class="row">
+      <span class="nm">print(tensor)</span>
+      <span class="b">side effect. 디버깅 print 가 학습 코드에 남으면 그 자리에서 break.</span>
+      <span class="c">로깅 분리</span>
+    </div>
+    <div class="row">
+      <span class="nm">.numpy() / .tolist()</span>
+      <span class="b">tensor 를 Python 객체로 변환. graph 영역 밖으로 나간다.</span>
+      <span class="c">tensor 유지</span>
+    </div>
+    <div class="row">
+      <span class="nm">unsupported op</span>
+      <span class="b">Dynamo 가 아직 lowering 못 하는 ATen op 또는 custom op. 점점 줄지만 매 PyTorch 버전마다 변동.</span>
+      <span class="c">torch.compile.allow_in_graph</span>
+    </div>
+    <div class="row">
+      <span class="nm">try/except</span>
+      <span class="b">예외 처리 자체는 가능하지만 except 안의 logic 이 어렵다.</span>
+      <span class="c">예외 분리</span>
+    </div>
+    <div class="row warn">
+      <span class="nm">.cpu() in middle</span>
+      <span class="b">device transition. 의도한 거면 OK 지만, 의도 안 한 경우 보통 .item() 의 우회.</span>
+      <span class="c">의도 확인</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">graph break 가 무조건 나쁜 건 아니다</div>
+    <p>graph break 가 한 번 나도 — 그 전후의 두 sub-graph 는 각자 컴파일된다. 단, fusion 이 break 경계를 넘지 못 한다는 점이 손해. <em>“이 break 가 fusion 을 깨고 있는지” 가 진짜 질문.</em> 학습 루프 시작/끝 의 break 는 거의 무해.</p>
+  </div>
+
+  <div class="pull">“graph break 자체보다 — break 가 hot loop 안에 있느냐가 중요하다. step 마다 한 번 break 면 큰 손해, epoch 의 begin/end 면 무해.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>dynamic shape 처리</b><span>· guard · symbolic shape</span></div>
+    <h2>같은 함수가 다른 shape 으로 들어올 때 무엇이 일어나는가</h2>
+  </div>
+  <p class="sec-lede">torch.compile 은 처음 호출될 때 그 입력의 shape 으로 graph 를 만든다. 그 다음 호출 — 다른 shape 이면? 두 가지 모드. (1) <strong>static (default)</strong> — recompile. (2) <strong>dynamic</strong> — symbolic shape 으로 graph 를 만들어 두고 다음 호출에서 재사용.</p>
+
+  <div class="split">
+    <div>
+      <p>static 모드의 함정 — 매 step batch size 가 다른 학습 (가변 길이 sequence, dynamic batching) 에서 매번 recompile. compile 비용이 1~5초인데, 매 step 이 100ms 면 — <em>compile 비용이 학습 비용보다 큼</em>.</p>
+      <p>dynamic 모드의 함정 — 모든 차원이 dynamic 이라고 처리되면 fusion 이 잘 안 됨 (Inductor 가 shape 을 모르면 vectorization 결정 어려움). 보통 “batch dim 만 dynamic, 나머지 static” 이 좋음.</p>
+
+      <div class="callout cool">
+        <div class="label">guard 의 의미</div>
+        <p>compile 된 graph 에는 <em>guard</em> 가 같이 박힌다 — “이 graph 는 batch=32, seq=512, dtype=fp16 일 때만 valid” 같은 조건. 호출 시 guard 가 false 면 recompile. 너무 많은 guard 가 박히면 recompile 폭주.</p>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># dynamic shape 의 세 모드</span>
+torch.compile(fn)                           <span style="color:#A99E89"># default · static</span>
+torch.compile(fn, dynamic=<span style="color:#E7B369">True</span>)             <span style="color:#A99E89"># 모든 차원 symbolic</span>
+torch.compile(fn, dynamic=<span style="color:#E7B369">None</span>)             <span style="color:#A99E89"># automatic — 첫 recompile 후 dynamic</span>
+
+<span style="color:#A99E89"># 차원별 마킹</span>
+<span style="color:#E7B369">from</span> torch <span style="color:#E7B369">import</span> _dynamo <span style="color:#E7B369">as</span> dynamo
+dynamo.mark_dynamic(x, <span style="color:#E7B369">0</span>)                <span style="color:#A99E89"># dim 0 만 dynamic</span>
+
+<span style="color:#A99E89"># compile log 보기</span>
+<span style="color:#E7B369">import</span> os
+os.environ[<span style="color:#C6B98A">"TORCH_LOGS"</span>] = <span style="color:#C6B98A">"recompiles"</span></code></pre>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 함수가 두 번 호출될 때의 결정 트리</span><span>schematic</span></div>
+    <div class="l53-tab">
+      <div class="row hd"><span>호출 시퀀스</span><span>일어나는 일</span><span>cost</span></div>
+      <div class="row">
+        <span class="nm">f(x; B=32) (1st)</span>
+        <span class="b">cold compile. Dynamo trace + AOT + Inductor + Triton compile + first run.</span>
+        <span class="c">~3 sec</span>
+      </div>
+      <div class="row">
+        <span class="nm">f(x; B=32) (2nd)</span>
+        <span class="b">guard 통과 — graph 재사용. 거의 raw kernel 비용만.</span>
+        <span class="c">~10 ms</span>
+      </div>
+      <div class="row warn">
+        <span class="nm">f(x; B=64) static</span>
+        <span class="b">guard 실패 — recompile. 새 graph 생성. cache 에 둘 다 보관.</span>
+        <span class="c">~3 sec</span>
+      </div>
+      <div class="row">
+        <span class="nm">f(x; B=64) dynamic</span>
+        <span class="b">guard 통과 (B 가 symbolic). 같은 graph 재사용.</span>
+        <span class="c">~10 ms</span>
+      </div>
+      <div class="row warn">
+        <span class="nm">f(x; B=128) static</span>
+        <span class="b">또 recompile. cache 에 셋. 16번 누적되면 recompile limit 도달 — “torch._dynamo.config.cache_size_limit” warning.</span>
+        <span class="c">~3 sec ↑</span>
+      </div>
+    </div>
+    <div class="viz-note">cache_size_limit 가 default 8. 그 이상이면 자동 disable 되고 Dynamo 가 eager 로 fallback. 학습 코드에서 “이상하게 느려졌다” 의 흔한 원인.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>FakeTensor 의 역할</b><span>· shape inference</span></div>
+    <h2>실제 메모리 안 잡고 graph 를 trace 하는 방법</h2>
+  </div>
+  <p class="sec-lede">graph 를 짜려면 — 매 op 의 출력 shape, dtype, device 를 알아야 한다. 그런데 실제 Tensor 를 만들면 메모리가 잡히고 GPU op 가 실행된다. compile 단계에서는 그게 싫다. 그래서 <strong>FakeTensor</strong> — “shape, dtype, device 만 들고 있고 storage 는 없는 Tensor”.</p>
+
+  <div class="split rev">
+    <div>
+      <p>FakeTensor 가 풀어주는 것들.</p>
+      <ul>
+        <li><strong>shape inference</strong> — <code>torch.matmul(a, b)</code> 의 출력 shape 을 실제 곱셈 안 하고 알 수 있음. metadata 만 다룸.</li>
+        <li><strong>device 일관성 검증</strong> — 입력 cuda 면 출력도 cuda 인지 trace 시점에 확인.</li>
+        <li><strong>fast trace</strong> — 큰 모델의 graph 를 trace 할 때 실제 forward 1번 안 돌려도 됨. 메모리 0.</li>
+        <li><strong>conditional 분석 어려움</strong> — fake tensor 는 “값” 을 안 들고 있어서 <code>if x.sum() &gt; 0</code> 같은 검사를 trace 시점에 못 함. 그래서 graph break.</li>
+      </ul>
+    </div>
+    <div>
+<pre><code><span style="color:#E7B369">from</span> torch._subclasses <span style="color:#E7B369">import</span> FakeTensorMode
+
+<span style="color:#E7B369">with</span> FakeTensorMode():
+    a = torch.randn(<span style="color:#E7B369">1024</span>, <span style="color:#E7B369">1024</span>, device=<span style="color:#C6B98A">"cuda"</span>)
+    b = torch.randn(<span style="color:#E7B369">1024</span>, <span style="color:#E7B369">1024</span>, device=<span style="color:#C6B98A">"cuda"</span>)
+    c = a @ b
+    <span style="color:#E7B369">print</span>(c.shape)        <span style="color:#A99E89"># torch.Size([1024, 1024])</span>
+    <span style="color:#E7B369">print</span>(c.dtype)        <span style="color:#A99E89"># torch.float32</span>
+    <span style="color:#E7B369">print</span>(c.device)       <span style="color:#A99E89"># cuda:0</span>
+    <span style="color:#A99E89"># 실제 메모리 0 — c 는 metadata 만</span></code></pre>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">FakeTensor 가 깨지는 자리</div>
+    <p>(1) <strong>data-dependent op</strong> — <code>torch.unique</code>, <code>torch.nonzero</code>, <code>torch.repeat_interleave(x, n)</code> 같이 출력 shape 이 input value 에 의존. fake tensor 가 추정 못 함. (2) <strong>custom op 의 fake impl 미등록</strong> — 사용자 정의 op 이 fake tensor mode 에서 어떻게 동작하는지 별도 등록 필요 (<code>@register_fake</code>).</p>
+  </div>
+
+  <div class="pull">“FakeTensor 는 PyTorch 의 새 substrate 다. AOT autograd, Dynamo, export 가 모두 같은 FakeTensor 위에서 trace 한다.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>AOT autograd</b><span>· forward + backward 같이</span></div>
+    <h2>backward graph 를 미리 만들어 둔다 — 그 의미와 함정</h2>
+  </div>
+  <p class="sec-lede">PyTorch 의 default autograd 는 <strong>tape-based</strong> — forward 가 실행되면서 동시에 grad function 을 tape 에 쌓고, backward 호출 시 그걸 거꾸로 실행. <strong>AOT autograd</strong> 는 다르다 — forward 가 실행되기 전 단계에서 backward graph 를 같이 만들어 둔다 (Ahead-Of-Time).</p>
+
+  <div class="split">
+    <div>
+      <p>왜 AOT 가 필요한가.</p>
+      <ul>
+        <li><strong>fusion 의 기회</strong> — backward 도 graph 로 잡혀 있어야 forward 와 같이 fusion 할 수 있음. tape 위에서는 op 별로 흩어져 있어 fusion 어려움.</li>
+        <li><strong>Inductor 의 optimization</strong> — Inductor 는 graph 를 받아서 lowering. tape 는 못 받음.</li>
+        <li><strong>scheduling 자유도</strong> — “이 backward op 을 어디 위치에 둘까” 의 결정. AOT 는 이 자유도를 활용 가능.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="label">AOT 의 trick — recompute</div>
+        <p>backward graph 안에 forward op 을 다시 넣어 둔다 (activation checkpointing 의 정형화된 형태). 메모리 절약. 단, 그 결정을 자동으로 하는 게 어려움 — 강의에서 “min-cut partitioning” 이라는 알고리즘으로 forward 와 backward 사이의 “저장” 과 “재계산” 의 경계를 결정한다고 알려져 있다.</p>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># AOT autograd 의 의사 흐름</span>
+joint_graph = trace_forward_and_backward(fn, inputs)
+<span style="color:#A99E89"># joint_graph: forward + backward 가 한 graph 안에</span>
+
+fwd_graph, bwd_graph = partition(joint_graph)
+<span style="color:#A99E89"># forward 가 무엇을 backward 에 넘겨줄지 결정</span>
+<span style="color:#A99E89"># (saved tensors vs recomputed)</span>
+
+fwd_compiled = inductor_compile(fwd_graph)
+bwd_compiled = inductor_compile(bwd_graph)
+
+<span style="color:#A99E89"># 호출 시 forward 만 실행, backward 는 backward() 시</span>
+<span style="color:#E7B369">def</span> compiled_fn(*args):
+    out, saved = fwd_compiled(*args)
+    register_for_backward(saved, bwd_compiled)
+    <span style="color:#E7B369">return</span> out</code></pre>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · joint graph 의 partition</span><span>min-cut</span></div>
+    <div class="l53-trace">
+      <div class="row hi">
+        <span class="lbl">forward</span>
+        <span class="body"><code>x → linear → gelu → linear → norm → out</code> (fusion 가능)</span>
+      </div>
+      <div class="row">
+        <span class="lbl">save</span>
+        <span class="body">x, gelu_out, norm_input — backward 에 필요. 메모리 부담.</span>
+      </div>
+      <div class="row">
+        <span class="lbl">recompute</span>
+        <span class="body">gelu 는 cheap 하고, gelu_input 만 있으면 된다. saved 에서 빼고 backward 에서 재계산. 메모리 ↓.</span>
+      </div>
+      <div class="row hi">
+        <span class="lbl">backward</span>
+        <span class="body">recomputed gelu + saved norm_input + saved x → grad_x. 그래프 위에서 fusion 가능.</span>
+      </div>
+    </div>
+    <div class="viz-note">min-cut partitioning 은 — forward 의 어느 op 의 출력을 saved 로 두고, 어느 op 은 backward 에서 재계산할지를 결정. 메모리 vs compute 의 자동 trade-off.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>Inductor 와 Triton 의 분리</b><span>· backend 의 선택</span></div>
+    <h2>graph 가 어떻게 GPU 코드가 되는가</h2>
+  </div>
+  <p class="sec-lede">Inductor 는 torch.compile 의 default backend. FX graph 를 받아서 Triton kernel(GPU) 또는 C++/cpp_wrapper(CPU) 로 lowering. 사용자가 거의 보지 않지만 fusion / scheduling / vectorization 의 결정을 여기서 한다.</p>
+
+  <div class="l53-tab">
+    <div class="row hd"><span>backend</span><span>역할</span><span>출력</span></div>
+    <div class="row">
+      <span class="nm">inductor (default)</span>
+      <span class="b">FX graph → Triton (GPU) / C++ (CPU). fusion · loop tiling · vectorization.</span>
+      <span class="c">Triton / C++</span>
+    </div>
+    <div class="row">
+      <span class="nm">aot_eager</span>
+      <span class="b">AOT autograd 만 — Inductor 안 거치고 ATen op 그대로. 디버깅용.</span>
+      <span class="c">eager</span>
+    </div>
+    <div class="row">
+      <span class="nm">eager</span>
+      <span class="b">Dynamo 가 graph 를 잡지만 그대로 eager 실행. graph break 검출만.</span>
+      <span class="c">eager</span>
+    </div>
+    <div class="row">
+      <span class="nm">cudagraphs</span>
+      <span class="b">cudagraph wrapping 만. fusion 안 함.</span>
+      <span class="c">cudagraph</span>
+    </div>
+    <div class="row">
+      <span class="nm">tensorrt</span>
+      <span class="b">third-party — NVIDIA TensorRT 로 lowering.</span>
+      <span class="c">TRT engine</span>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">Inductor 의 fusion 결정</div>
+    <p>Inductor 는 graph 의 op 들을 — pointwise (elementwise), reduction (sum/max), tile (matmul/conv) 의 세 카테고리로 분류. 같은 카테고리는 잘 fuse 되고 (특히 pointwise), reduction 다음의 pointwise 도 fuse 가능. tile 연산은 보통 자기 kernel 로 — Inductor 는 이 결정을 자동으로.</p>
+  </div>
+
+  <p>실전에서 Inductor 의 출력 코드를 보고 싶다면 — <code>TORCH_LOGS=output_code</code> 환경변수. 생성된 Triton 코드가 console 에 dump 된다. <a href="lecture_001.html">L001</a> 에서 Mark 가 같은 트릭으로 새 커널의 “시작점” 을 얻는 방법을 깐다.</p>
+
+  <div class="pull">“Inductor 의 출력 코드를 한 번 읽어보면 — fusion 이 어떻게 일어나는지의 직관이 잡힌다. 그 직관 위에서 자기 손으로 Triton 을 짤 때 시작점이 된다.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>cudagraph 와의 관계</b><span>· 언제 둘이 같이</span></div>
+    <h2>Inductor 가 만든 코드를 cudagraph 가 한 번 더 wrapping</h2>
+  </div>
+  <p class="sec-lede">cudagraph 는 PyTorch 의 별도 기능 — 같은 sequence 의 GPU 호출을 한 번 캡처해서 “하나의 단위” 로 launch. launch overhead 가 크게 줄어든다 (특히 작은 op 이 많이 있는 경우).</p>
+
+  <div class="split">
+    <div>
+      <p>cudagraph 가 도움 되는 자리.</p>
+      <ul>
+        <li><strong>작은 batch size 의 학습</strong> — kernel 한 개 실행이 너무 짧아서 launch overhead 가 dominant.</li>
+        <li><strong>LLM inference 의 generate 단계</strong> — token 마다 같은 sequence of ops. cudagraph 로 capture 하면 launch overhead 없음.</li>
+        <li><strong>RL 환경의 small policy</strong> — 환경 step 마다 작은 forward.</li>
+      </ul>
+      <p>cudagraph 와 torch.compile 은 <strong>서로 다른 layer 에서 작동</strong>한다. compile 이 op 들을 fuse 해서 큰 kernel 로 만들고, cudagraph 가 그 kernel 들의 sequence 를 한 번에 launch. 같이 쓸 수 있고 보통 같이 쓰는 게 best.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">cudagraph 의 함정</div>
+        <p>(1) <strong>shape 이 고정</strong>이어야 함 — graph 캡처 시점의 shape 으로 lock. (2) <strong>memory address 도 고정</strong> — pre-allocated buffer 사용. (3) <strong>conditional 안 됨</strong> — capture 한 sequence 만 그대로. (4) capture 시 “warmup” 한 번 필요 — 첫 호출은 캡처용.</p>
+      </div>
+<pre><code><span style="color:#A99E89"># torch.compile + cudagraph 같이</span>
+fn = torch.compile(model, mode=<span style="color:#C6B98A">"reduce-overhead"</span>)
+<span style="color:#A99E89"># reduce-overhead = inductor + cudagraph</span></code></pre>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">언제 cudagraph 가 안 좋은가</div>
+    <p>큰 batch / 큰 모델에서는 — kernel 자체가 충분히 무거워서 launch overhead 가 무의미. cudagraph 가 잡는 메모리 (pre-allocated buffer) 가 부담일 수 있음. 그리고 dynamic shape 이 있으면 cudagraph 가 매번 capture 다시 — 오히려 손해.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>디버깅 워크플로</b><span>· TORCH_LOGS · TORCH_COMPILE_DEBUG</span></div>
+    <h2>“왜 안 빨라지나” 의 답을 찾는 표준 시퀀스</h2>
+  </div>
+  <p class="sec-lede">torch.compile 디버깅의 가장 큰 함정은 — 어디서 깨졌는지가 안 보임. 4-stage 파이프라인 어디든 깨질 수 있음. 표준 시퀀스 를 거치며 layer 별로 좁혀간다.</p>
+
+  <ol>
+    <li><strong>graph break 가 있나?</strong> <code>torch._dynamo.explain(fn, *args)</code> — graph break 의 횟수와 자리를 알려준다. 0 이 목표.</li>
+    <li><strong>recompile 이 자주 일어나나?</strong> <code>TORCH_LOGS="recompiles"</code>. 학습 step 마다 recompile 하면 cache_size_limit 도달. dynamic 모드 활성화 또는 shape 고정.</li>
+    <li><strong>output code 가 어떤 모양인가?</strong> <code>TORCH_LOGS="output_code"</code>. Inductor 의 Triton 출력. fusion 이 의도대로 됐는지 확인.</li>
+    <li><strong>전체 trace 보고 싶으면</strong> <code>TORCH_COMPILE_DEBUG=1</code>. <code>./torch_compile_debug/</code> 디렉토리에 파일 dump.</li>
+    <li><strong>backend 만 바꿔보기</strong> — <code>backend="aot_eager"</code> 로 두면 AOT 까지만, Inductor 안 함. 둘 중 어느 단계가 문제인지 식별.</li>
+  </ol>
+
+  <div class="l53-trace">
+    <div class="row hi">
+      <span class="lbl">step 1</span>
+      <span class="body"><code>torch._dynamo.explain(fn, x)</code> — graph break 위치 확인. <code>get_graph_break_reasons()</code></span>
+    </div>
+    <div class="row">
+      <span class="lbl">step 2</span>
+      <span class="body"><code>TORCH_LOGS="recompiles" python train.py</code> — recompile 자주 나면 dynamic 모드.</span>
+    </div>
+    <div class="row hi">
+      <span class="lbl">step 3</span>
+      <span class="body"><code>TORCH_LOGS="output_code"</code> — Triton 코드 dump. fusion 검증.</span>
+    </div>
+    <div class="row">
+      <span class="lbl">step 4</span>
+      <span class="body"><code>TORCH_COMPILE_DEBUG=1</code> — full trace 디렉토리 dump.</span>
+    </div>
+    <div class="row hi">
+      <span class="lbl">step 5</span>
+      <span class="body">backend 바꾸기 — <code>aot_eager</code>, <code>eager</code> — 어느 단계 문제인지 식별.</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">Richard 의 자주 인용되는 조언</div>
+    <p>“처음 torch.compile 을 쓸 때 — <strong>먼저 graph break 0 을 만든다</strong>. fusion 최적화는 그 다음.” graph break 가 있으면 fusion 도 깨지니까 둘이 동시에 풀려야 함. <em>원본 영상 확인 필요 — 강의에서 Richard 가 같은 조언을 했는지</em>.</p>
+  </div>
+
+  <div class="pull">“torch.compile 의 디버깅은 — 정상 작동하는 사람의 워크플로를 그대로 모방하는 것에서 시작. step 1, 2, 3, 4, 5 를 정해진 순서로.” <span class="by">학습 노트 · 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>흔한 회피 패턴</b><span>· graph break 를 피하는 코드</span></div>
+    <h2>compile 친화적인 PyTorch 코드를 짜는 법</h2>
+  </div>
+  <p class="sec-lede">강의의 실전 답 — “이런 패턴은 compile 가 잡는다”, “이런 패턴은 깨진다”. 코딩 습관 단위.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">.item() 안 쓰기</div>
+      <div class="d">tensor 의 scalar 값을 Python 으로 꺼내면 break. 비교가 필요하면 <code>torch.where</code>, mask 처리.</div>
+    </div>
+    <div class="term">
+      <div class="t">control flow 는 tensor op 으로</div>
+      <div class="d"><code>if cond: x else: y</code> 가 cond 가 tensor 면 break. <code>torch.where(cond, x, y)</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">print, breakpoint 분리</div>
+      <div class="d">학습 hot loop 에 디버깅 print 두지 말 것. logging 은 graph 밖에서.</div>
+    </div>
+    <div class="term">
+      <div class="t">in-place op 주의</div>
+      <div class="d"><code>x += y</code> 도 가능하지만, autograd 와 잘 안 맞아서 일부 케이스에서 break. 가능하면 <code>x = x + y</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">custom op 은 register</div>
+      <div class="d">사용자 정의 cuda 함수는 <code>torch.library.custom_op</code> 로 등록. fake impl 도 같이.</div>
+    </div>
+    <div class="term">
+      <div class="t">data-dependent 패턴 분리</div>
+      <div class="d"><code>torch.unique</code>, <code>torch.nonzero</code> 같이 출력 shape 이 입력 값에 의존하는 op 은 graph 밖으로.</div>
+    </div>
+    <div class="term">
+      <div class="t">dynamic shape 명시</div>
+      <div class="d">batch dim 만 dynamic. <code>torch._dynamo.mark_dynamic(x, 0)</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">함수 분리</div>
+      <div class="d">학습 step 의 forward + backward 를 한 함수로 묶고 그것만 compile. data loading, logging 은 밖.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">전략 정리</div>
+    <p>compile 친화적 코드의 황금률 — <strong>“tensor 가 graph 안에서 끝까지 살아 있게”</strong>. tensor → Python value → tensor 로 왔다갔다 하면 break 폭주. 모든 logic 을 tensor op 으로 표현.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 자료</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">4-stage 파이프라인</div>
+      <div class="d">Dynamo (capture) → FakeTensor (trace) → AOT autograd (backward) → Inductor (lower → Triton).</div>
+    </div>
+    <div class="term">
+      <div class="t">graph break</div>
+      <div class="d">.item(), data-dependent control flow, print, custom op 미등록. hot loop 안의 break 가 가장 큰 손해.</div>
+    </div>
+    <div class="term">
+      <div class="t">dynamic shape</div>
+      <div class="d">static (default) 은 매 shape 마다 recompile. dynamic=True 또는 mark_dynamic 으로 symbolic shape.</div>
+    </div>
+    <div class="term">
+      <div class="t">cache_size_limit</div>
+      <div class="d">default 8. 그 이상 recompile 누적 시 자동 disable. 학습 코드에서 “이상하게 느려졌다” 의 흔한 원인.</div>
+    </div>
+    <div class="term">
+      <div class="t">FakeTensor</div>
+      <div class="d">shape/dtype/device 만 들고 storage 없음. graph trace 의 substrate. 메모리 0.</div>
+    </div>
+    <div class="term">
+      <div class="t">AOT autograd</div>
+      <div class="d">backward graph 를 미리 합성. min-cut partitioning 으로 saved vs recomputed 자동 결정.</div>
+    </div>
+    <div class="term">
+      <div class="t">Inductor backend</div>
+      <div class="d">FX → Triton (GPU). pointwise/reduction/tile 카테고리로 fusion. <code>TORCH_LOGS=output_code</code> 로 코드 dump.</div>
+    </div>
+    <div class="term">
+      <div class="t">cudagraph (mode=reduce-overhead)</div>
+      <div class="d">launch overhead 줄임. shape 고정 필수. 작은 batch / generate 에서 큰 효과.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">Speaker</span>
+      <span class="v"><a href="https://github.com/zou3519" target="_blank" rel="noopener">github.com/zou3519 · Richard Zou</a></span>
+    </div>
+    <div class="row">
+      <span class="k">PyTorch docs</span>
+      <span class="v"><a href="https://pytorch.org/docs/stable/torch.compiler.html" target="_blank" rel="noopener">torch.compiler 공식 문서</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Inductor RFC</span>
+      <span class="v"><a href="https://dev-discuss.pytorch.org/t/torchinductor-a-pytorch-native-compiler-with-define-by-run-ir-and-symbolic-shapes/747" target="_blank" rel="noopener">dev-discuss.pytorch.org/Inductor RFC</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Dynamo 깊이</span>
+      <span class="v"><a href="https://pytorch.org/docs/stable/torch.compiler_deepdive.html" target="_blank" rel="noopener">torch.compiler deep dive</a></span>
+    </div>
+    <div class="row">
+      <span class="k">explain 도구</span>
+      <span class="v"><a href="https://pytorch.org/docs/stable/torch.compiler_troubleshooting.html" target="_blank" rel="noopener">torch.compile troubleshooting</a></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>같은 자리를 다른 각도에서 다루는 강의들</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">How to profile CUDA kernels</div>
+      <div class="by">Mark Saroufim — TORCH_LOGS=output_code 가 처음 등장. 그 자리의 본격 확장.</div>
+    </a>
+    <a class="conn" href="lecture_014.html">
+      <div class="n">L014</div>
+      <div class="ti">Practitioner's Guide to Triton</div>
+      <div class="by">Inductor 가 출력하는 Triton 의 본격 이해.</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">torch.compile 의 출력을 LLM 학습 커널로 손봐서 발전시킨 사례.</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">Inductor 다음 단계의 lowering 디테일.</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">torchao</div>
+      <div class="by">torch.compile + quantization 의 결합.</div>
+    </a>
+    <a class="conn" href="lecture_046.html">
+      <div class="n">L046</div>
+      <div class="ti">torch.export / AOTI</div>
+      <div class="by">torch.compile 의 export 모드 — production 배포.</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>원본 자막 실패로 비워둔 자리들</h2>
+  </div>
+  <ul>
+    <li><strong>Q&amp;A 의 실제 질문 목록</strong> — 강의 형식이 Q&amp;A 였으므로 청중이 어떤 질문을 했는지 본 노트는 알 수 없음. 자주 나오는 질문 카테고리로 재구성. <em>원본 영상 확인 필요</em>.</li>
+    <li><strong>구체적 숫자 — recompile cost</strong> — “3초” 같은 값은 typical 이지만 모델/하드웨어에 따라 다름.</li>
+    <li><strong>min-cut partitioning 의 디테일</strong> — AOT 가 어떻게 자동 결정하는지 강의에서 어디까지 풀었는지.</li>
+    <li><strong>Inductor 의 fusion 결정 알고리즘</strong> — pointwise/reduction/tile 분류만 본 노트에 있음. 실제 알고리즘은 더 정교.</li>
+    <li><strong>backward 의 recompute 결정</strong> — saved 와 recomputed 의 결정이 자동인지, 사용자 hint 가 있는지.</li>
+    <li><strong>cudagraph 의 의도하지 않은 메모리 부담</strong> — pre-allocated buffer 가 실제 학습에서 얼마나 큰지.</li>
+    <li><strong>torch.export 와의 차이</strong> — torch.compile 과 torch.export 가 어떤 경우 어느 쪽을 쓰는지.</li>
+    <li><strong>multi-GPU 와의 상호작용</strong> — DDP / FSDP 와 torch.compile 이 어떻게 같이 동작하는지. 강의에서 다뤘는지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 코드 스니펫과 동작 설명은 PyTorch 2.0+ 공식 문서와 dev-discuss RFC 를 토대로 한 재구성. PyTorch 의 발전 속도가 빠르므로 — 실제 사용 시 자기 PyTorch 버전의 docs 를 직접 확인. 특히 backend 옵션과 mode 이름은 자주 변경됨.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_052.html">
+    <span class="lbl">← Lecture 052</span>
+    <span class="nm">Scaling Laws for Low Precision</span>
+  </a>
+  <a class="nxt" href="lecture_054.html">
+    <span class="lbl">Lecture 054 →</span>
+    <span class="nm">Small RL Models with LeanRL</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L053 · 재구성 노트 · 2026</span>
+</footer>
+
+</body>
+</html>

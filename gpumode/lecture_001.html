@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L001 · How to profile CUDA kernels in PyTorch · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 1 specific tweaks */
+.l1-async{display:grid;grid-template-columns:1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l1-async .row{display:grid;grid-template-columns:120px 1fr 84px;gap:12px;align-items:center}
+.l1-async .row .who{color:var(--ink-soft);font-size:12px}
+.l1-async .row .track{position:relative;height:30px;background:var(--bg-soft);border-radius:5px}
+.l1-async .row .track .seg{position:absolute;top:4px;height:22px;border-radius:4px;display:grid;place-items:center;color:var(--paper);font-size:10px;font-weight:700;letter-spacing:.04em;padding:0 6px;white-space:nowrap}
+.l1-async .row .track .seg.launch{background:var(--accent)}
+.l1-async .row .track .seg.kernel{background:var(--cool)}
+.l1-async .row .track .seg.idle{background:var(--paper-deep);color:var(--ink-soft)}
+.l1-async .row .track .seg.warmup{background:var(--accent-2);opacity:.6}
+.l1-async .row .reading{text-align:right;color:var(--ink);font-weight:700}
+.l1-async .row .reading.bad{color:var(--warn)}
+.l1-async .row .reading.good{color:var(--good)}
+
+.l1-trace{font-family:'JetBrains Mono',monospace;font-size:11px}
+.l1-trace .lane{display:grid;grid-template-columns:96px 1fr;gap:12px;margin-bottom:6px;align-items:center}
+.l1-trace .lane .nm{color:var(--ink-soft);font-size:11px}
+.l1-trace .lane .row{position:relative;height:24px;background:var(--bg-soft);border-radius:3px}
+.l1-trace .lane .row .blk{position:absolute;top:3px;height:18px;border-radius:2px;display:grid;place-items:center;font-size:9.5px;color:var(--paper);font-weight:600;padding:0 4px;white-space:nowrap;overflow:hidden}
+.l1-trace .lane .row .blk.cpu{background:var(--cool-2)}
+.l1-trace .lane .row .blk.api{background:var(--accent-2)}
+.l1-trace .lane .row .blk.copy{background:var(--accent)}
+.l1-trace .lane .row .blk.kernel{background:var(--cool)}
+.l1-trace .arrow{stroke:var(--accent);stroke-width:1.2;fill:none;stroke-dasharray:0}
+
+.l1-ladder{font-family:'JetBrains Mono',monospace;display:grid;grid-template-columns:1fr;gap:0}
+.l1-ladder .step{display:grid;grid-template-columns:140px 1fr 90px;gap:14px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;margin-bottom:8px;align-items:center}
+.l1-ladder .step .lvl{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.04em}
+.l1-ladder .step .nm{color:var(--ink);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif}
+.l1-ladder .step .nm em{font-style:normal;color:var(--ink-soft);font-weight:500;font-size:13px;display:block;margin-top:2px}
+.l1-ladder .step .what{font-size:12px;color:var(--ink-soft);text-align:right;line-height:1.4}
+.l1-ladder .step.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l1-ladder .step.hi .lvl{color:var(--accent)}
+
+.ncu-list{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.ncu-list .h{display:grid;grid-template-columns:1fr 70px 110px;gap:10px;color:var(--muted);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.ncu-list .row{display:grid;grid-template-columns:1fr 70px 110px;gap:10px;padding:8px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.ncu-list .row .what{color:var(--ink-soft)}
+.ncu-list .row .pct{color:var(--ink);font-weight:700;text-align:right}
+.ncu-list .row .gain{color:var(--accent);font-weight:600;text-align:right;font-size:11px}
+.ncu-list .row.warn{border-color:var(--warn)}
+.ncu-list .row.warn .pct{color:var(--warn)}
+
+.decision{display:grid;grid-template-columns:1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.decision .lvl{display:grid;grid-template-columns:120px 1fr 1fr;gap:12px;padding:14px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper);align-items:start}
+.decision .lvl .nm{color:var(--accent);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif}
+.decision .lvl .when{color:var(--ink-soft);font-size:12.5px;line-height:1.5}
+.decision .lvl .signal{font-size:11.5px;color:var(--muted);line-height:1.5}
+.decision .lvl .signal strong{color:var(--ink);font-weight:600}
+@media (max-width:760px){
+  .decision .lvl{grid-template-columns:1fr}
+  .l1-ladder .step{grid-template-columns:1fr}
+  .l1-ladder .step .what{text-align:left}
+  .ncu-list .h,.ncu-list .row{grid-template-columns:1fr 60px 90px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_002.html">L002 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L001</span>
+    <span>2024 · JAN · 13</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · 56분 · available</span>
+  </div>
+  <h1>How to profile CUDA kernels in PyTorch</h1>
+  <p class="dek">PyTorch 프로그램 안에 <strong>커스텀 CUDA 커널을 끼워넣는 가장 작은 길</strong>, 그리고 그게 실제로 빠른지 — 더 빠르게 만들 여지가 있는지 — 를 어떤 도구로 어떻게 확인하는가. Mark Saroufim 이 GPU Mode 첫 강의에서 깐 프로파일링 워크플로를 <em>도구별 진입점</em> 과 <em>의사결정 사다리</em> 두 축으로 다시 정리한 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">PyTorch profiler</span>
+    <span class="chip hi">load_inline</span>
+    <span class="chip hi">Triton</span>
+    <span class="chip hi">torch.compile</span>
+    <span class="chip hi">Nsight Compute</span>
+    <span class="chip">PTX</span>
+    <span class="chip">CUDA events</span>
+    <span class="chip">fusion</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">M</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Mark Saroufim</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · PyTorch core · GPU Mode 운영진</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L001</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Mark Saroufim</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">직접 구현해본다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">Why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">CUDA 는 비동기다</span><span class="em">The async-timing trap</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">autograd profiler — 첫 진입점</span><span class="em">torch.profiler.profile()</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">Chrome trace 로 보는 PyTorch profiler</span><span class="em">visual profiler · flow events</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">load_inline 으로 CUDA 끼워넣기</span><span class="em">torch.utils.cpp_extension</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">Triton — 같은 일을 파이썬으로</span><span class="em">DSL · interpret · PTX</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">torch.compile 가 코드를 짜준다</span><span class="em">TORCH_LOGS=output_code</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">NCU 로 한계까지 내려가기</span><span class="em">Nsight Compute</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">언제 어디까지 내려갈 것인가</span><span class="em">torch → Triton → CUDA</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why this lecture exists</span></div>
+    <h2>“CUDA 튜토리얼 지옥” 을 건너뛰는 가장 짧은 길</h2>
+  </div>
+  <p class="sec-lede">대부분의 사람이 CUDA 를 시작할 때 부딪히는 문제는 문법이 아니라 <em>경로의 문제</em>다 — 어디서 시작해서 무엇으로 검증하고 어디까지 내려갈지 모른다는 것. 이 강의는 그 경로를 도구 단위로 깐다.</p>
+
+  <p>강의가 풀려고 하는 질문은 두 개로 압축된다.</p>
+  <ol>
+    <li><strong>PyTorch 프로그램 안에 커스텀 CUDA 커널을 어떻게 끼워넣는가</strong> — C/C++ 빌드 시스템 다루지 않고.</li>
+    <li><strong>그 커널이 실제로 빠른지 어떻게 검증하는가</strong> — 그리고 더 빠르게 만들 여지가 있는지 어떻게 보는가.</li>
+  </ol>
+
+  <p>Mark 의 입장은 명시적으로 <strong>실용주의</strong>다. <em>“GPU 가 어떻게 도는지 모든 디테일을 이해하지 않아도, 프로파일러로 black box 를 시각적으로 보면서 유용한 일을 할 수 있다.”</em> 이 시각이 강의 전체를 끌고 간다 — 교과서식 bottom-up (메모리 모델 → warp → SM → kernel) 대신, top-down 으로 <em>이미 도는 코드를 어디서 어떻게 보는지</em>부터 깐다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>이 강의의 모든 도구는 같은 질문에 답한다 — <strong>“방금 launch 한 그 커널, 실제로 GPU 위에서 무슨 일이 벌어지고 있는가?”</strong> 첫 도구는 그저 <em>이름과 시간</em>을 보여주고, 마지막 도구(NCU)는 <em>특정 라인이 메모리 latency 때문에 막혔는지 register 부족 때문에 막혔는지</em>까지 본다.</p>
+  </div>
+
+  <div class="pull">“프로파일링은 GPU 를 black box 로 두고도 유용하게 쓸 수 있게 해준다. 모든 디테일을 알 필요는 없다.”<span class="by">Mark Saroufim · 09:43</span></div>
+
+  <p>그래서 이 강의의 끝에 도착했을 때 손에 잡혀 있어야 하는 건 <strong>4개 도구</strong>와 <strong>1개의 의사결정 사다리</strong>다 — autograd profiler, PyTorch profiler(Chrome trace), Triton interpret 모드, NCU. 그리고 “언제 torch 에서 Triton 으로, Triton 에서 CUDA 로 내려갈지” 의 판단 기준.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>CUDA 는 비동기다</b><span>· The async-timing trap</span></div>
+    <h2>가장 흔한 첫 실수 — <code>time.time()</code> 으로 GPU 코드를 재면 안 된다</h2>
+  </div>
+  <p class="sec-lede">강의에서 Mark 가 “CUDA 에 대해 가장 먼저 알아야 할 것 하나만 고르라면” 이라고 못 박은 사실 — <strong>CUDA 는 비동기</strong>다. 호스트가 <code>kernel&lt;&lt;&lt;...&gt;&gt;&gt;</code> 을 호출해도 GPU 가 끝나기를 기다리지 않는다. python 의 <code>time.time()</code> 으로 측정하는 건 launch overhead 일 뿐, 커널이 실제로 도는 시간이 아니다.</p>
+
+  <div class="split">
+    <div>
+      <p>제대로 재려면 세 가지를 조합해야 한다.</p>
+      <ol>
+        <li><strong>warmup</strong> — 첫 호출은 CUDA context 초기화가 섞이므로 버린다.</li>
+        <li><strong><code>torch.cuda.Event</code></strong> — GPU 타임라인 위에 직접 마커를 찍는다. <code>start.record()</code> 와 <code>end.record()</code>.</li>
+        <li><strong><code>torch.cuda.synchronize()</code></strong> — end 이벤트가 실제로 GPU 에서 기록될 때까지 기다린다.</li>
+      </ol>
+      <p>이 셋이 빠진 측정은 거의 항상 <em>잘못된 숫자</em>를 준다 — 빨라 보이거나(launch 만 잰 경우) 들쭉날쭉(첫 호출의 context init 이 섞인 경우)이다.</p>
+
+      <div class="callout">
+        <div class="label">Mark 의 헬퍼 — 강의에서 그대로 쓰는 패턴</div>
+        <p><code>torch.cuda.Event(enable_timing=True)</code> 두 개를 만들어 start/end 로 쓰고, 사이를 GPU 가 워치하게 한 뒤 마지막에 <code>synchronize()</code>. <code>start.elapsed_time(end)</code> 가 ms 단위로 진짜 커널 시간을 돌려준다.</p>
+      </div>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># Mark 의 time_pytorch_function — pytorch_square.py 그대로</span>
+<span style="color:#E7B369">def</span> time_pytorch_function(func, input):
+    <span style="color:#A99E89"># CUDA IS ASYNC — python time 모듈 쓰면 안 된다</span>
+    start = torch.cuda.Event(enable_timing=<span style="color:#E7B369">True</span>)
+    end   = torch.cuda.Event(enable_timing=<span style="color:#E7B369">True</span>)
+
+    <span style="color:#A99E89"># Warmup — 첫 호출에 context init 비용이 섞임</span>
+    <span style="color:#E7B369">for</span> _ <span style="color:#E7B369">in</span> range(5):
+        func(input)
+
+    start.record()
+    func(input)
+    end.record()
+    torch.cuda.synchronize()
+    <span style="color:#E7B369">return</span> start.elapsed_time(end)</code></pre>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · python time 으로 재면 무엇이 잡히는가</span><span>HOST vs GPU 타임라인</span></div>
+    <div class="l1-async">
+      <div class="row">
+        <span class="who">잘못된 측정<br><span style="color:var(--muted);font-size:11px">python time.time()</span></span>
+        <div class="track">
+          <div class="seg launch" style="left:2%;width:6%">launch</div>
+          <div class="seg idle" style="left:9%;width:88%">— python 은 여기서 이미 끝났다고 본다 —</div>
+        </div>
+        <span class="reading bad">~0.05 ms</span>
+      </div>
+      <div class="row">
+        <span class="who">실제 GPU 시간<br><span style="color:var(--muted);font-size:11px">cuda.Event + sync</span></span>
+        <div class="track">
+          <div class="seg launch" style="left:2%;width:6%">launch</div>
+          <div class="seg kernel" style="left:9%;width:78%">kernel 실행</div>
+          <div class="seg launch" style="left:88%;width:8%;background:var(--good)">sync</div>
+        </div>
+        <span class="reading good">~12 ms</span>
+      </div>
+      <div class="row">
+        <span class="who">첫 호출(워밍 X)<br><span style="color:var(--muted);font-size:11px">context init 섞임</span></span>
+        <div class="track">
+          <div class="seg warmup" style="left:2%;width:35%">CUDA context init</div>
+          <div class="seg kernel" style="left:38%;width:55%">kernel</div>
+        </div>
+        <span class="reading bad">~280 ms</span>
+      </div>
+    </div>
+    <div class="viz-note">위 두 줄의 차이가 200배. 같은 커널, 같은 입력. <strong>측정 도구 하나로 결론이 뒤집힌다.</strong></div>
+  </div>
+
+  <p>강의에서 Mark 가 보여준 첫 번째 작은 실험 — <code>torch.square(b)</code> vs <code>b * b</code> vs <code>b ** 2</code> — 도 이 세팅 위에서만 의미가 있다. 결과: <code>torch.square</code> 와 <code>b ** 2</code> 는 똑같이 <code>aten::pow</code> 를 부르고, <code>b * b</code> 는 <code>aten::mul</code> 을 부르며 미세하게 더 빠르다. 같은 수학 연산이 백엔드에서 다른 op 로 디스패치된다는 사실이 이 첫 측정에서 이미 드러난다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>autograd profiler</b><span>· torch.profiler.profile()</span></div>
+    <h2>이름과 시간만 — 가장 작은 진입점</h2>
+  </div>
+  <p class="sec-lede">첫 프로파일러는 <strong>autograd profiler</strong>. context manager 안에 코드를 넣으면, GPU 위에서 어떤 op 들이 호출됐고 각자 얼마나 걸렸는지 표로 떨어진다. 코드 한 줄 더 추가하지 않아도 “내 함수는 <code>aten::pow</code> 를 부르는구나”, “<code>aten::mul</code> 이 더 빠르네” 같은 사실이 드러난다.</p>
+
+  <div class="split rev">
+    <div>
+<pre><code><span style="color:#A99E89"># torch.square / a*a / a**2 가 각자 어떤 op 를 부르는지 본다</span>
+<span style="color:#E7B369">with</span> torch.profiler.profile() <span style="color:#E7B369">as</span> prof:
+    torch.square(b)
+
+print(prof.key_averages().table(
+    sort_by=<span style="color:#C6B98A">"cuda_time_total"</span>,
+    row_limit=<span style="color:#E7B369">10</span>,
+))</code></pre>
+<pre><code><span style="color:#A99E89">--- 출력 (핵심 줄만) ---</span>
+Self CPU time total: 211.000us
+Self CUDA time total: 162.001us
+
+aten::pow                    7.66%   16.000us  ...   2  CUDA  pow_tensor_scalar
+aten::result_type            0.00%    0.000us  ...   2
+vectorized_elementwise_kernel
+                           100.00%  162.001us  ...   2  CUDA</code></pre>
+    </div>
+    <div>
+      <p>표에서 읽히는 사실 두 가지.</p>
+      <ul>
+        <li><strong><code>aten::pow</code> 가 호출된다</strong> — <code>torch.square</code> 라는 이름이 직접 op 가 아니라 <code>pow(x, 2)</code> 로 디스패치된다는 뜻. 즉 PyTorch 안에 “square” 라는 별도의 fused 커널은 없다.</li>
+        <li><strong>실제 GPU 시간은 <code>vectorized_elementwise_kernel</code> 안에서 다 잡힌다</strong> — pointwise 연산은 거의 모두 이 templated 커널 하나로 모인다.</li>
+      </ul>
+      <p>이 정도만으로도 첫 가설을 세울 수 있다 — “PyTorch 의 <code>torch.square</code> 는 사실상 elementwise pow 다. 내가 직접 짜는 square 커널이 더 빨라질 가능성은, fused 한 다른 연산과 함께 묶을 때나 의미가 있다.”</p>
+      <div class="callout cool">
+        <div class="label">사용 패턴</div>
+        <p>autograd profiler 는 <strong>“이 함수가 어떤 op 들을 부르는가”</strong> 의 답을 가장 빠르게 준다. 항상 첫 도구로 쓴다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>Chrome trace 로 보는 PyTorch profiler</b><span>· visual profiler · flow events</span></div>
+    <h2>표가 끝나는 자리에서 시각화가 시작된다</h2>
+  </div>
+  <p class="sec-lede">표 위에서는 <em>op 들이 같은 시간에 어떻게 겹치는지</em>, <em>memcpy 가 커널과 어떤 순서로 도는지</em>가 안 보인다. <strong>PyTorch profiler 의 Chrome trace</strong> 가 그 자리를 채운다 — JSON 으로 export 해서 <code>chrome://tracing</code> 에 드래그하면 바로 timeline 뷰.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#E7B369">from</span> torch.profiler <span style="color:#E7B369">import</span> profile, ProfilerActivity
+
+<span style="color:#E7B369">with</span> profile(activities=[
+    ProfilerActivity.CPU,
+    ProfilerActivity.CUDA,
+]) <span style="color:#E7B369">as</span> prof:
+    <span style="color:#E7B369">for</span> _ <span style="color:#E7B369">in</span> range(<span style="color:#E7B369">10</span>):
+        a = torch.square(torch.randn(<span style="color:#E7B369">10000</span>, <span style="color:#E7B369">10000</span>).cuda())
+
+prof.export_chrome_trace(<span style="color:#C6B98A">"trace.json"</span>)
+<span style="color:#A99E89"># 그 다음 chrome://tracing 에 trace.json 을 드래그</span></code></pre>
+      <p>실전에서는 <code>schedule(wait=1, warmup=1, active=2, repeat=1)</code> 와 <code>on_trace_ready</code> 콜백을 함께 써서 <em>학습 루프 일부 step 만</em> 잡는 패턴이 표준이다. 강의의 <code>pt_profiler.py</code> 가 그 형태.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · torch.square 한 번의 chrome trace</span><span>CPU lane → GPU lane</span></div>
+        <div class="l1-trace">
+          <div class="lane">
+            <span class="nm">CPU thread</span>
+            <div class="row">
+              <div class="blk cpu" style="left:1%;width:18%">aten::square</div>
+              <div class="blk api" style="left:21%;width:14%">cudaLaunchKernel</div>
+              <div class="blk cpu" style="left:38%;width:24%">aten::pow</div>
+              <div class="blk api" style="left:64%;width:14%">cudaLaunchKernel</div>
+            </div>
+          </div>
+          <div class="lane">
+            <span class="nm">CUDA stream</span>
+            <div class="row">
+              <div class="blk copy" style="left:8%;width:14%">memcpy H→D</div>
+              <div class="blk kernel" style="left:24%;width:38%">vectorized_elementwise_kernel&lt;4&gt;</div>
+              <div class="blk kernel" style="left:64%;width:30%">vectorized_elementwise_kernel&lt;4&gt;</div>
+            </div>
+          </div>
+          <svg viewBox="0 0 400 56" width="100%" height="56" style="margin-top:6px">
+            <path d="M120 4 Q 150 30 152 50" class="acc" stroke-dasharray="3,3"/>
+            <text x="106" y="44" class="lbl" fill="var(--accent)">flow event</text>
+            <path d="M260 4 Q 270 30 268 50" class="acc" stroke-dasharray="3,3"/>
+          </svg>
+        </div>
+        <div class="viz-note">CPU 가 launch API 를 부른 시점에서 <strong>flow arrow</strong> 가 GPU stream 위 실제 커널까지 그어진다. 둘이 같은 “일” 이라는 걸 시각적으로 묶는다.</div>
+      </div>
+    </div>
+  </div>
+
+  <p>이 뷰에서 처음 잡히는 새로운 정보가 두 가지 더 있다.</p>
+  <ul>
+    <li><strong>memcpy host-to-device</strong> 가 커널 앞에 항상 박힌다 — 입력을 <code>.cuda()</code> 로 보낼 때 발생. 이게 길면 <em>커널을 빠르게 짜봐야 의미가 없다</em>. 강의의 큰 메시지 중 하나가 여기서 시작된다.</li>
+    <li><strong>커널 이름이 <code>vectorized_elementwise_kernel&lt;4&gt;</code></strong> — 4 는 block 수다. 같은 사이즈의 입력에 대해 PyTorch 가 자동으로 4 블록을 띄운다는 사실. 큰 입력에서 작은 grid 면 GPU 자원이 비어 있을 가능성이 높다 (§ 08 NCU 가 이 hint 를 직접 준다).</li>
+  </ul>
+
+  <div class="pull">“표가 답을 빨리 주지만, 시각화는 <em>어디서 갭이 생기는지</em>를 답한다 — 갭이 곧 fusion 의 표적이다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>load_inline</b><span>· torch.utils.cpp_extension</span></div>
+    <h2>C++/CUDA 빌드 시스템 없이 커널을 끼워넣는 길</h2>
+  </div>
+  <p class="sec-lede">커스텀 CUDA 커널을 PyTorch 에 넣을 때 전통적으로 만나는 두 벽 — <strong>pybind11 보일러플레이트</strong>와 <strong>setup.py / CMake / make</strong>. <code>torch.utils.cpp_extension.load_inline</code> 은 둘 다 우회한다. C++ 소스와 CUDA 소스를 <em>문자열로 그냥 넣으면</em>, 안에서 ninja 가 build 해서 <code>.so</code> 로 import 가능한 모듈을 돌려준다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · load_inline 이 내부에서 하는 일</span><span>string → callable op</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">L0</div><div class="nm">Python 안 문자열</div><div class="dt">cuda_source · cpp_source</div></div>
+      <div class="stage"><div class="sn">L1</div><div class="nm">코드 생성</div><div class="dt">main.cpp · pybind glue</div></div>
+      <div class="stage hi"><div class="sn">L2</div><div class="nm">build.ninja</div><div class="dt">자동 생성</div></div>
+      <div class="stage"><div class="sn">L3</div><div class="nm">nvcc / g++</div><div class="dt">.o · .so</div></div>
+      <div class="stage"><div class="sn">L4</div><div class="nm">torch op</div><div class="dt">module.square_matrix(t)</div></div>
+    </div>
+    <div class="viz-note">중요한 건 <strong>모든 중간 산출물(main.cpp, build.ninja)이 디스크에 남는다는 사실</strong>이다. <code>build_directory='./load_inline_cuda'</code> 로 위치를 고정해두면 — pybind 가 어떻게 자동 생성됐는지, ninja 가 어떤 nvcc flag 로 빌드했는지 직접 볼 수 있다. 학습 자료로도 쓰인다.</div>
+  </div>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># load_inline.py — 강의 repo 그대로</span>
+cuda_source = <span style="color:#C6B98A">'''</span>
+<span style="color:#C6B98A">__global__ void square_matrix_kernel(</span>
+<span style="color:#C6B98A">    const float* matrix, float* result,</span>
+<span style="color:#C6B98A">    int width, int height) {</span>
+<span style="color:#C6B98A">  int row = blockIdx.y * blockDim.y + threadIdx.y;</span>
+<span style="color:#C6B98A">  int col = blockIdx.x * blockDim.x + threadIdx.x;</span>
+<span style="color:#C6B98A">  if (row &lt; height &amp;&amp; col &lt; width) {</span>
+<span style="color:#C6B98A">    int idx = row * width + col;</span>
+<span style="color:#C6B98A">    result[idx] = matrix[idx] * matrix[idx];</span>
+<span style="color:#C6B98A">  }</span>
+<span style="color:#C6B98A">}</span>
+
+<span style="color:#C6B98A">torch::Tensor square_matrix(torch::Tensor m) {</span>
+<span style="color:#C6B98A">  auto h = m.size(0); auto w = m.size(1);</span>
+<span style="color:#C6B98A">  auto out = torch::empty_like(m);</span>
+<span style="color:#C6B98A">  dim3 t(16,16);</span>
+<span style="color:#C6B98A">  dim3 b((w+15)/16, (h+15)/16);</span>
+<span style="color:#C6B98A">  square_matrix_kernel&lt;&lt;&lt;b,t&gt;&gt;&gt;(</span>
+<span style="color:#C6B98A">    m.data_ptr&lt;float&gt;(),</span>
+<span style="color:#C6B98A">    out.data_ptr&lt;float&gt;(), w, h);</span>
+<span style="color:#C6B98A">  return out;</span>
+<span style="color:#C6B98A">}</span>
+<span style="color:#C6B98A">'''</span>
+cpp_source = <span style="color:#C6B98A">"torch::Tensor square_matrix(torch::Tensor);"</span></code></pre>
+    </div>
+    <div>
+<pre><code><span style="color:#E7B369">from</span> torch.utils.cpp_extension <span style="color:#E7B369">import</span> load_inline
+
+ext = load_inline(
+    name=<span style="color:#C6B98A">'square_matrix_extension'</span>,
+    cpp_sources=cpp_source,
+    cuda_sources=cuda_source,
+    functions=[<span style="color:#C6B98A">'square_matrix'</span>],
+    with_cuda=<span style="color:#E7B369">True</span>,
+    extra_cuda_cflags=[<span style="color:#C6B98A">"-O2"</span>],
+    build_directory=<span style="color:#C6B98A">'./load_inline_cuda'</span>,
+)
+
+<span style="color:#A99E89"># 이제 그냥 파이썬 함수처럼 부른다</span>
+a = torch.tensor([[<span style="color:#E7B369">1.</span>,<span style="color:#E7B369">2.</span>,<span style="color:#E7B369">3.</span>],
+                  [<span style="color:#E7B369">4.</span>,<span style="color:#E7B369">5.</span>,<span style="color:#E7B369">6.</span>]],
+                 device=<span style="color:#C6B98A">'cuda'</span>)
+print(ext.square_matrix(a))</code></pre>
+      <p style="margin-top:14px"><strong>“C++ 파일을 손에 들지 않고 CUDA 커널을 PyTorch 에 박는다” — 이 한 문장이 강의 전반부의 핵심.</strong></p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">함정</div>
+    <p>처음 build 가 <strong>의외로 느리다</strong>. nvcc 가 한 번 다 돌아야 한다. flash attention 을 source 에서 build 할 때 시간이 오래 걸리는 이유와 같은 메커니즘 — 커널 하나하나가 nvcc 를 거친다. 매번 다시 컴파일되지는 않으니 두 번째부터는 빠르다. 캐싱이 자동이라는 점은 알아둘 것.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>Triton</b><span>· DSL · interpret · PTX</span></div>
+    <h2>같은 일을 파이썬으로 — 그리고 launch 설정 한 줄에 성능이 뒤집힌다</h2>
+  </div>
+  <p class="sec-lede">Triton 은 파이썬 안 DSL 이지만 <strong>CUDA 코드를 만들지 않는다</strong> — 직접 PTX 까지 내려간다. 통합은 trivial: 그냥 파이썬 함수를 부른다. 그런데 강의에서 Mark 가 보여준 첫 실험에서 <code>torch.square</code> 보다 자기 Triton 커널이 <em>더 느렸다</em>. 원인이 뭐였나 — 그게 이 섹션의 본론.</p>
+
+  <div class="split rev">
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · Triton lowering 사다리</span><span>Python → SASS</span></div>
+        <div class="l1-ladder">
+          <div class="step">
+            <span class="lvl">L0 · DSL</span>
+            <span class="nm">@triton.jit Python<em>tl.load / tl.store / tl.sum 같은 tile 단위 op</em></span>
+            <span class="what">사람이 손으로 짜는 단계</span>
+          </div>
+          <div class="step">
+            <span class="lvl">L1 · Triton-IR</span>
+            <span class="nm">tile-level IR<em>BLOCK_SIZE, num_warps, num_stages 결정 반영</em></span>
+            <span class="what">~/.triton/cache/ 안 텍스트로 남음</span>
+          </div>
+          <div class="step hi">
+            <span class="lvl">L2 · MLIR / LLVM</span>
+            <span class="nm">layout · pipeline · register 할당<em>여기서 fast 와 느림이 갈린다</em></span>
+            <span class="what">launch 설정 한 줄이 결과를 뒤집는 자리</span>
+          </div>
+          <div class="step">
+            <span class="lvl">L3 · PTX</span>
+            <span class="nm">virtual ISA<em>R8 = R0 * R0 같은 가상 register 명령</em></span>
+            <span class="what">강의에서 직접 들여다보는 자료</span>
+          </div>
+          <div class="step">
+            <span class="lvl">L4 · SASS</span>
+            <span class="nm">SM 별 머신코드<em>실제 NVIDIA 칩 위에서 도는 명령</em></span>
+            <span class="what">arch 별로 다름 (sm_80, sm_90…)</span>
+          </div>
+        </div>
+        <div class="viz-note">강의에서 Mark 가 직접 짠 square 커널의 PTX 를 까보니 <strong>register 8 개</strong>를 쓰고 있더라 — input 8 개 load → R0…R7, mul → R8…R15, store. 작은 커널의 register 사용량은 PTX 만 보고도 가늠할 수 있다.</div>
+      </div>
+    </div>
+    <div>
+      <p>강의의 시퀀스를 따라가 보자.</p>
+      <ol>
+        <li>Mark 가 Triton 의 fused softmax 튜토리얼을 베이스로 row-wise square 커널을 짠다. 코드는 짧다 — <code>tl.load</code> 로 한 row 를 SRAM 에 올리고 곱하고 <code>tl.store</code> 로 다시 쓴다.</li>
+        <li>A100 / 4090 모두에서 <strong><code>torch.square</code> 보다 느렸다</strong>. <code>torch.compile</code> 도 비슷하게 느렸다 — torch.compile 도 결국 Triton 으로 lowering 하니 자연스러운 결과.</li>
+        <li>NCU 로 들어가서 본 hint — <em>kernel grid is too small to fill available resources</em>. 결국 <strong>BLOCK_SIZE 가 너무 작아서</strong> SM 들이 비어 있었다.</li>
+        <li><code>BLOCK_SIZE = 1024</code> 로 고정하니 트렌드가 완전히 뒤집혀서 Triton 이 빨라졌다.</li>
+      </ol>
+      <div class="callout">
+        <div class="label">실전 교훈</div>
+        <p>Triton 커널의 성능은 <strong>소스 코드</strong>가 아니라 <strong>launch 설정</strong>(<code>BLOCK_SIZE</code>, <code>num_warps</code>, <code>num_stages</code>) 으로 결정되는 부분이 크다. 같은 코드가 한 설정에서 1ms, 다른 설정에서 10ms. 새 커널은 항상 이 셋을 sweep 하면서 본다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">interpret 모드 — Python breakpoint 가 박힌다</h3>
+      <p>Triton 커널은 GPU 위에서 도는 동안 <em>black box</em>다. <code>print</code> 가 안 된다. 그래서 디버깅이 어렵다. 강의에서 Mark 가 강조한 게 <code>@triton.jit(interpret=True)</code> — 이 모드에서는 커널이 CPU 위에서 시뮬레이션 돌면서 <code>breakpoint()</code> 가 동작한다. <em>“이 변수가 어떤 모양인지 step 마다 보고 싶다”</em> 의 답.</p>
+      <p>환경변수 <code>TRITON_INTERPRET=1</code> 로도 켤 수 있다.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#E7B369">@triton</span>.jit(interpret=<span style="color:#E7B369">True</span>)
+<span style="color:#E7B369">def</span> square_kernel(out_ptr, in_ptr, n,
+                  BLOCK: tl.constexpr):
+    pid    = tl.program_id(<span style="color:#E7B369">0</span>)
+    offs   = pid * BLOCK + tl.arange(<span style="color:#E7B369">0</span>, BLOCK)
+    mask   = offs &lt; n
+    x      = tl.load(in_ptr + offs, mask=mask)
+    <span style="color:#E7B369">breakpoint</span>()                <span style="color:#A99E89"># ← 여기서 멈춘다</span>
+    tl.store(out_ptr + offs, x * x, mask=mask)
+
+<span style="color:#A99E89"># pdb 안에서 print(x.tensor) 같이 wrapped tensor 의 내부를 본다</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pull">“GPU 커널을 디버깅하려고 변수를 일부러 글로벌 메모리에 적던 시절을 끝낸다 — interpret 모드는 GPU 커널 디버깅의 의미를 한 단계 바꾼다.”<span class="by">Andreas Köpf · 32:18</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>torch.compile + TORCH_LOGS</b><span>· 코드 생성 트릭</span></div>
+    <h2>Triton 커널을 직접 짜지 말고, torch 가 짜준 걸 출발점으로 삼는다</h2>
+  </div>
+  <p class="sec-lede">강의 후반부에서 Mark 가 가장 여러 번 추천한 트릭. 새 커널을 처음부터 짜지 말고, <code>torch.compile</code> 이 같은 연산에 대해 만들어내는 Triton 커널을 <strong>먼저 읽어본다</strong>. 그 코드가 보통 <em>충분히 읽을 만 한 시작점</em>이고, 변수명만 바꾸면 그대로 쓸 수 있다.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># square_compile.py</span>
+<span style="color:#E7B369">import</span> torch
+
+<span style="color:#E7B369">def</span> square(a):
+    <span style="color:#E7B369">return</span> torch.square(a)
+
+opt = torch.compile(square)
+opt(torch.randn(<span style="color:#E7B369">10000</span>, <span style="color:#E7B369">10000</span>).cuda())</code></pre>
+<pre><code><span style="color:#A99E89"># 실행 시 환경변수로 켜면 console 에 Triton 커널 dump</span>
+TORCH_LOGS=output_code python square_compile.py</code></pre>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># torch.compile 이 만들어낸 Triton 코드 (약식)</span>
+<span style="color:#E7B369">@triton</span>.jit
+<span style="color:#E7B369">def</span> triton_(in_ptr0, out_ptr0, xnumel,
+            XBLOCK: tl.constexpr):
+    xoffset = tl.program_id(<span style="color:#E7B369">0</span>) * XBLOCK
+    xindex  = xoffset + tl.arange(<span style="color:#E7B369">0</span>, XBLOCK)[:]
+    xmask   = xindex &lt; xnumel
+    tmp0    = tl.load(in_ptr0 + xindex, xmask)
+    tmp1    = tmp0 * tmp0       <span style="color:#A99E89"># ← elementwise mul</span>
+    tl.store(out_ptr0 + xindex, tmp1, xmask)</code></pre>
+    </div>
+  </div>
+
+  <p>코드의 변수명은 <code>tmp0</code>, <code>tmp1</code> 같이 익명이지만, 구조는 명확하다 — load → 연산 → store. 그리고 강의의 다음 관찰이 진짜 흥미로운 지점.</p>
+
+  <div class="callout">
+    <div class="label">fusion 의 증거를 코드에서 직접 본다</div>
+    <p>같은 입력에 <code>torch.square</code> 를 두 번 적용하는 함수를 컴파일하면 — <em>두 개의 커널이 launch 되는 게 아니라</em>, 한 커널 안에 <code>tmp1 = tmp0 * tmp0</code>, <code>tmp2 = tmp1 * tmp1</code> 이 같이 들어간다. 이게 fusion 이다 — HBM 왕복 한 번을 절약. <em>“fused 됐는지 안 됐는지” 가 코드 dump 만으로 검증된다</em>는 사실이 강의의 큰 메시지.</p>
+  </div>
+
+  <div class="pull">“ML 코드의 가장 중요한 최적화는 결국 <em>몇 개의 커널로 줄였는가</em>. 그걸 가장 직관적으로 보여주는 도구가 <code>TORCH_LOGS=output_code</code>.”<span class="by">Mark Saroufim · 38:47</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>NCU</b><span>· Nsight Compute</span></div>
+    <h2>커널이 <em>왜</em> 느린지까지 — actionable hints 가 박혀 있는 프로파일러</h2>
+  </div>
+  <p class="sec-lede">PyTorch profiler 까지가 “커널 이름과 시간” 을 본다면, NCU 는 한 단계 더 — <strong>한 커널 안에서 메모리 latency 가 발목을 잡고 있는지, register 가 부족한지, occupancy 가 모자라서 SM 이 비어 있는지</strong>를 직접 알려준다. 사용법은 한 줄.</p>
+
+  <pre><code>ncu python train.py</code></pre>
+
+  <p>그리고 시각 모드는 <code>--set full -o trace</code> 를 붙여서 실행한 뒤 Nsight Compute UI 에 trace 를 연다.</p>
+
+  <div class="split rev">
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · NCU 가 직접 박아주는 hint 예시</span><span>square 커널 · A100</span></div>
+        <div class="ncu-list">
+          <div class="h"><span>METRIC / HINT</span><span>현재</span><span>가능한 개선</span></div>
+          <div class="row warn"><span class="what">Achieved Occupancy</span><span class="pct">38%</span><span class="gain">→ 70%</span></div>
+          <div class="row warn"><span class="what">Tail effect (last wave underfilled)</span><span class="pct">0.4 wave</span><span class="gain">+50% speedup</span></div>
+          <div class="row"><span class="what">L1 cache throughput</span><span class="pct">62%</span><span class="gain">—</span></div>
+          <div class="row"><span class="what">L2 cache throughput</span><span class="pct">71%</span><span class="gain">—</span></div>
+          <div class="row warn"><span class="what">Long scoreboard stalls</span><span class="pct">28%</span><span class="gain">+20% speedup</span></div>
+        </div>
+        <div class="viz-note">NCU 가 <strong>구체적 다음 행동</strong>까지 제안한다 — <em>“grid 를 키워라”</em>, <em>“padding 으로 last wave 를 채워라”</em>, <em>“coalesce 와 shared memory 를 직접 관리해라”</em>. 단순한 metric dump 이상.</div>
+      </div>
+    </div>
+    <div>
+      <p>이 hint 들이 의미하는 바를 풀면 — <strong>강의의 핵심 통찰</strong>이 여기 들어 있다.</p>
+      <ul>
+        <li><strong>Tail effect / Achieved occupancy</strong> 는 보통 <em>padding 과 launch shape</em> 으로 직접 통제할 수 있다. <code>BLOCK_SIZE</code> 한 줄, 입력 padding 한 줄.</li>
+        <li><strong>Long scoreboard stalls</strong> 는 <em>메모리 latency</em> 가 다른 명령이 도는 시간보다 길어서 생기는 stall. 이건 <em>coalesced reads</em> 와 <em>shared memory 의 직접 관리</em>로 푼다.</li>
+        <li>그리고 핵심 — <strong>Triton 은 padding 까지는 잡지 못 한다</strong>. coalescing/shared memory 관리도 Triton 의 결정 영역 안에 있어서 사용자가 직접 통제하기 어렵다.</li>
+      </ul>
+      <div class="callout">
+        <div class="label">의사결정 trigger</div>
+        <p>NCU 가 “tail effect 50%, scoreboard stall 20%” 같은 식으로 hint 를 주면 — <em>50% 는 Triton 위에서 padding 으로 잡고, 20% 는 직접 CUDA 로 내려가서 shared memory 를 짜야 잡힌다</em>. 이 갈림길이 자연스럽게 다음 섹션의 “언제 어디까지 내려갈 것인가” 로 이어진다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>의사결정 사다리</b><span>· torch → Triton → CUDA</span></div>
+    <h2>NCU 가 “여기서부터 더 짜내려면 직접 내려가야 한다” 고 말해줄 때까지 미룬다</h2>
+  </div>
+  <p class="sec-lede">강의의 마지막 메시지 중 하나. CUDA 부터 시작하지 마라. <em>torch → Triton → CUDA</em> 의 사다리를 NCU 가 hint 를 주는 시점에 한 단계씩 내려간다. 그 hint 가 trigger 가 된다.</p>
+
+  <div class="decision">
+    <div class="lvl">
+      <span class="nm">torch / torch.compile</span>
+      <span class="when">PyTorch op 그대로 + <code>torch.compile</code> wrap. 커널을 직접 안 짠다.<br>NCU 로 떠본다 — 만약 <strong>compute throughput 이 peak 의 70% 이상</strong> 이면 그대로 둔다.</span>
+      <span class="signal"><strong>여기서 멈출 신호</strong> — peak 의 70%↑, 별다른 actionable hint 없음, fusion 이 이미 잘 일어남(output_code dump 로 확인).</span>
+    </div>
+    <div class="lvl">
+      <span class="nm">Triton</span>
+      <span class="when">torch.compile 이 만들어준 Triton 커널을 시작점으로 한다. 변수명 바꾸고 <code>BLOCK_SIZE</code>, <code>num_warps</code>, <code>num_stages</code> 를 sweep 한다.<br>대부분의 ML 커널은 여기까지로 충분하다.</span>
+      <span class="signal"><strong>여기서 멈출 신호</strong> — NCU 가 “tail effect / occupancy / launch shape” 만 hint 로 주고, padding 과 grid 조정으로 잡힘.</span>
+    </div>
+    <div class="lvl">
+      <span class="nm">직접 CUDA</span>
+      <span class="when">NCU 가 <strong>long scoreboard stall</strong>, <strong>uncoalesced reads</strong>, <strong>shared memory bank conflict</strong> 를 hint 로 줄 때 비로소 내려간다. <code>load_inline</code> 으로 끼워넣는다 — 빌드 시스템 안 만진다.</span>
+      <span class="signal"><strong>여기서만 추가로 따는 것</strong> — coalescing 직접 통제, shared memory 직접 stage, register 사용 조정, vector load (<code>float4</code>).</span>
+    </div>
+  </div>
+
+  <div class="pull">“CUDA 부터 시작해서 mucking around 하면 거의 항상 Triton autotuner 보다 느린 코드를 짠다.”<span class="by">Mark Saroufim · 43:00</span></div>
+
+  <p>이 사다리에서 한 가지 더 짚어야 하는 점 — <strong>Numba 는 강의에서 의도적으로 추천 경로에서 빠진다</strong>. 개념적으로는 CUDA 와 동일한 모델인데 (grid, block, threadIdx), 강의의 인지적 부담을 줄이기 위해 “이 클래스에서는 C++/CUDA 또는 Triton 만 쓴다” 고 못 박는다. 산업에서도 Triton 과 직접 CUDA 가 사실상 표준이 됐다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">강의에서 6개월 뒤에 다시 돌아왔을 때 가장 빨리 복원해야 하는 사실들과 — 직접 손에 박아야 하는 코드 자료들.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">async timing pattern</div>
+      <div class="d">CUDA Event start/end + warmup 5회 + <code>cuda.synchronize()</code>. <code>time.time()</code> 으로 GPU 코드 측정 절대 금지.</div>
+    </div>
+    <div class="term">
+      <div class="t">profiler 진입 순서</div>
+      <div class="d">autograd profiler (표) → PyTorch profiler (Chrome trace) → NCU. 각 단계가 다른 차원의 정보를 준다.</div>
+    </div>
+    <div class="term">
+      <div class="t">load_inline</div>
+      <div class="d"><code>cuda_sources</code> 와 <code>cpp_sources</code> 에 문자열로 넣고 <code>build_directory</code> 지정. main.cpp 와 build.ninja 가 디스크에 남아 학습 자료로도 쓰임.</div>
+    </div>
+    <div class="term">
+      <div class="t">launch 설정 sweep</div>
+      <div class="d">Triton 새 커널은 <code>BLOCK_SIZE</code> · <code>num_warps</code> · <code>num_stages</code> 셋을 항상 sweep. 같은 소스가 설정 따라 10배 차이.</div>
+    </div>
+    <div class="term">
+      <div class="t">interpret = True</div>
+      <div class="d"><code>@triton.jit(interpret=True)</code> 또는 <code>TRITON_INTERPRET=1</code>. CPU 시뮬레이션 + Python <code>breakpoint()</code> 로 GPU 커널 디버깅.</div>
+    </div>
+    <div class="term">
+      <div class="t">TORCH_LOGS=output_code</div>
+      <div class="d"><code>torch.compile</code> 이 만든 Triton 커널을 dump. fusion 검증 + 새 커널의 시작점으로 활용.</div>
+    </div>
+    <div class="term">
+      <div class="t">NCU one-liner</div>
+      <div class="d"><code>ncu python train.py</code> — 기본 hint 받기. 시각화는 <code>ncu --set full -o trace python …</code> 후 GUI 에서.</div>
+    </div>
+    <div class="term">
+      <div class="t">의사결정 trigger</div>
+      <div class="d">NCU 가 “long scoreboard stall” 또는 “uncoalesced reads” hint 를 줄 때 비로소 직접 CUDA. 그 전엔 Triton 으로 충분.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=LuhJEEJQgUM" target="_blank" rel="noopener">youtube.com/watch?v=LuhJEEJQgUM</a> · 56분</span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/CUDA%20MODE_%20Lecture%201.pdf" target="_blank" rel="noopener">CUDA MODE_ Lecture 1.pdf</a> · <a href="https://docs.google.com/presentation/d/110dnMW94LX1ySWxu9La17AVUxjgSaQDLOotFC3BZZD4/edit" target="_blank" rel="noopener">Google Slides</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v">
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/pytorch_square.py" target="_blank" rel="noopener">pytorch_square.py</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/pt_profiler.py" target="_blank" rel="noopener">pt_profiler.py</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/load_inline.py" target="_blank" rel="noopener">load_inline.py</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/load_inline_cuda/cuda.cu" target="_blank" rel="noopener">load_inline_cuda/cuda.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/main.py" target="_blank" rel="noopener">main.py</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/numba_square.py" target="_blank" rel="noopener">numba_square.py</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_001/nsys_square.py" target="_blank" rel="noopener">nsys_square.py</a>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_001" target="_blank" rel="noopener">gpu-mode/lectures/lecture_001</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>async timing 패턴 베이스라인</strong> — <code>pytorch_square.py</code> 를 그대로 돌려 <code>torch.square</code>, <code>a*a</code>, <code>a**2</code> 의 GPU 시간을 측정한다. 작은 차이가 어떤 op 디스패치에서 오는지 표로 확인.</li>
+    <li><strong>load_inline 으로 첫 커널</strong> — <code>load_inline.py</code> 를 돌리고 <code>./load_inline_cuda/</code> 안의 자동 생성된 <code>main.cpp</code> 와 <code>build.ninja</code> 를 직접 읽는다. pybind 가 어떻게 박혀 있는지 손에 잡힐 때까지.</li>
+    <li><strong>Chrome trace</strong> — 같은 코드에 <code>torch.profiler.profile()</code> 을 둘러 trace.json 을 export 하고 <code>chrome://tracing</code> 에 드래그한다. memcpy H→D 와 커널 사이의 갭을 직접 본다.</li>
+    <li><strong>Triton interpret 로 디버깅</strong> — <code>@triton.jit(interpret=True)</code> 와 <code>breakpoint()</code> 로 row-wise square 커널을 한 step 씩 들여다본다. <code>tl.arange</code>, <code>tl.load</code> 의 결과 모양을 직접 print.</li>
+    <li><strong>BLOCK_SIZE sweep</strong> — Triton square 커널을 <code>BLOCK_SIZE ∈ {64, 128, 256, 512, 1024, 2048}</code> 로 측정. <code>torch.square</code> 와 비교. <em>그래프가 U자나 단조 감소가 아니면</em> 다른 변수가 섞인 것.</li>
+    <li><strong>torch.compile 의 Triton 코드 읽기</strong> — <code>TORCH_LOGS=output_code</code> 로 <code>torch.square</code> 와 <code>torch.square(torch.square(x))</code> 두 케이스를 dump. fusion 이 일어났는지 코드 안에서 직접 확인.</li>
+    <li><strong>NCU 한번 돌려보기</strong> — 자기 GPU 가 있다면 <code>ncu python pytorch_square.py</code>. 첫 hint 가 무엇인지 적어둔다. cloud 환경에서는 NCU 가 막혀 있을 수 있으니 자기 데스크탑이나 NCU 가 허용된 인스턴스에서.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 다음에 어디에 다시 등장하는지</h2>
+  </div>
+  <p class="sec-lede">L001 의 도구들이 시리즈 안에서 어떻게 다시 호출되는지를 묶어둔다 — 같은 도구가 다른 문맥에서 재등장하는 패턴이 GPU Mode 시리즈 전체의 학습 곡선이다.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_002.html">
+      <div class="n">L002</div>
+      <div class="ti">PMPP Ch. 1–3</div>
+      <div class="by">Andreas Köpf — grid/block/thread 의 정식 모델, 메모리 모델</div>
+    </a>
+    <a class="conn" href="lecture_003.html">
+      <div class="n">L003</div>
+      <div class="ti">CUDA for Python Programmers</div>
+      <div class="by">Jeremy Howard — load_inline 위에 layered 인 step-by-step 진입</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA for Python</div>
+      <div class="by">Jeremy Howard — load_inline 다음 단계, shared memory · vectorized loads</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">Mark Saroufim — 이 강의의 NCU hint 들을 체크리스트로 정리한 후속편</div>
+    </a>
+    <a class="conn" href="lecture_014.html">
+      <div class="n">L014</div>
+      <div class="ti">Practitioner's Guide to Triton</div>
+      <div class="by">Umer Adil — § 06 Triton 부분의 본격 확장</div>
+    </a>
+    <a class="conn" href="lecture_016.html">
+      <div class="n">L016</div>
+      <div class="ti">On Hands Profiling</div>
+      <div class="by">Taylor Robbie — NCU 활용의 실전 워크숍</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — torch.compile 의 Triton 출력을 LLM 학습 커널로 발전시킨 사례</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">Kapil Sharma — § 06 의 lowering 사다리(L0→L4)의 내부</div>
+    </a>
+    <a class="conn" href="lecture_053.html">
+      <div class="n">L053</div>
+      <div class="ti">torch.compile Q&amp;A</div>
+      <div class="by">Richard Zou — § 07 의 fusion · dynamic shape · graph break 깊이 이해</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">학습 노트로 정리하면서 의도적으로 비워둔 자리들 — 강의 안에서 부분적으로만 등장한 주제, 또는 후속 강의에서 본격적으로 다뤄지는 주제.</p>
+  <ul>
+    <li><strong>Triton 커널과 같은 일을 하는 직접 CUDA 커널의 PTX 비교</strong> — Mark 가 강의 중 비교를 시도하다가 시간 부족으로 못 마쳤다. 같은 row-wise square 를 Triton 과 직접 CUDA 로 짜고 두 PTX 를 직접 diff 해보면 어디가 다른지 확인 가능.</li>
+    <li><strong>dynamic shape 와 graph break</strong> — torch.compile 의 fusion 이 깨지는 조건들. 이 강의에서는 “복잡한 코드는 graph break 로 부분만 컴파일된다” 정도로만 언급됐다. <a href="lecture_053.html">L053</a> 에서 본격적으로 다룬다.</li>
+    <li><strong>nsys 와 Nsight Systems 의 위치</strong> — 강의에서 <code>nsys_square.py</code> 가 repo 에 있지만 본문에서는 NCU 만 본다. system-level 타임라인(NCCL, CPU, multi-GPU)은 nsys 의 영역이고 NCU 는 단일 커널 깊이파기. 분리 잘 해두기.</li>
+    <li><strong>cudaGraphs</strong> — Mark 가 마지막 Q&amp;A 에서 “언제 cudaGraphs 를 쓸지” 가 별도 강의 주제로 적합하다고 답했다. launch overhead 가 dominant 한 학습 루프에서 큰 차이를 낸다.</li>
+    <li><strong>실제 프로덕션 LLM 추론 코드에서의 적용</strong> — 강의 자체는 toy <code>square</code> 커널 위에서 도구를 깐다. SAM-fast / GPT-fast 같은 사례에서 같은 도구 시퀀스가 어떻게 쓰였는지 — Mark 가 마지막에 잠깐 언급. 별도로 추적할 필요.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 모든 NCU 수치 예시(occupancy 38%, tail 0.4 wave 등)는 <strong>강의에서 Mark 가 보여준 화면을 재구성한 예시 값</strong>이다. 자기 GPU 에서 직접 NCU 를 돌려 보고 hint 의 실제 형태를 한 번 봐야 깊이 들어간다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <span></span>
+  <a class="nxt" href="lecture_002.html">
+    <span class="lbl">Lecture 002 →</span>
+    <span class="nm">Ch1–3 PMPP book — Andreas Köpf 가 깐 grid/block/thread 의 정식 모델</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L001 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

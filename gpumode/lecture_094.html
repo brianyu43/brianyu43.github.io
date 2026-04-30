@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L094 · tvm-ffi · Tianqi Chen · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* Lecture 94 specific */
+.l94-pf{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.l94-pf .col{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l94-pf .col.bad{border-color:var(--warn)}
+.l94-pf .col.bad .h{color:var(--warn)}
+.l94-pf .col .h{color:var(--accent);font-weight:700;font-size:13px;letter-spacing:.04em;margin-bottom:6px}
+.l94-pf .col ul{margin:0;padding-left:18px;color:var(--ink-soft);line-height:1.6}
+
+.l94-stack{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:6px}
+.l94-stack .layer{display:grid;grid-template-columns:130px 1fr;gap:14px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l94-stack .layer.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l94-stack .layer .nm{color:var(--accent);font-weight:700;letter-spacing:.04em;font-size:12px}
+.l94-stack .layer .nm.warn{color:var(--warn)}
+.l94-stack .layer .what{color:var(--ink-soft);line-height:1.5}
+.l94-stack .layer .what code{color:var(--ink)}
+
+.l94-cmp{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l94-cmp .row{padding:9px 12px;background:var(--paper);border:1px solid var(--line);border-radius:5px;line-height:1.5}
+.l94-cmp .row.h{background:var(--bg-soft);color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.l94-cmp .row.l{color:var(--accent);font-weight:700;font-size:12px}
+
+@media (max-width:760px){
+  .l94-pf{grid-template-columns:1fr}
+  .l94-cmp{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_093.html">← L093</a>
+    <a href="lecture_095.html">L095 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L094</span>
+    <span>2025 · 후반</span>
+    <span class="pri high">High priority</span>
+    <span class="stat warn">transcript · failed · TVM repo + Tianqi 의 글 보강</span>
+  </div>
+  <h1>tvm-ffi — 한 wheel 로 여러 framework 를 지원하는 ABI</h1>
+  <p class="dek">FlashInfer · TileLang · cuteDSL — kernel 라이브러리가 많아질수록 같은 코드를 PyTorch · JAX · PaddlePaddle 에 어떻게 함께 배포할 것인가가 새 문제. <strong>tvm-ffi</strong> 는 framework-agnostic 한 minimal C ABI 를 제공해 “하나의 wheel 이 모든 framework 와 모든 Python 버전을 지원” 하는 길을 깐다. Apache TVM 기반 최소 runtime 의 디자인 결정을 Tianqi Chen 이 GPU Mode 청중에게 옮긴 강의. transcript 가 실패해서 본 노트는 repo README 와 일반 FFI 도메인 지식 기반으로 재구성.</p>
+
+  <div class="chips">
+    <span class="chip hi">tvm-ffi</span>
+    <span class="chip hi">PackedFunc</span>
+    <span class="chip hi">DLPack</span>
+    <span class="chip hi">C ABI</span>
+    <span class="chip">PyTorch FFI</span>
+    <span class="chip">JAX</span>
+    <span class="chip">FlashInfer</span>
+    <span class="chip">TileLang</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">T</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Tianqi Chen</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">CMU · Apache TVM 의 founder · OctoML · MLC LLM · XGBoost 의 author</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L094</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Tianqi Chen</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자막 상태</div><div class="val">failed · README 보강</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">왜 새 FFI 가 필요했나</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">TVM 의 FFI 동기 — 10년의 누적</span><span class="em">historical motivation</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">lightweight runtime — 작은 표면적</span><span class="em">minimal C ABI</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">multi-language interop — Python · C++ · Rust</span><span class="em">language bridges</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">PackedFunc 추상</span><span class="em">core abstraction</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">채택 사례 — FlashInfer · TileLang · cuteDSL</span><span class="em">in the wild</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">PyTorch FFI 와의 비교</span><span class="em">positioning</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">한계 — RFC 단계의 제약</span><span class="em">limitations</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 — stable ABI 의 미래</span><span class="em">future</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 실습</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>왜 새 FFI 가 필요했나</b><span>· why this lecture exists</span></div>
+    <h2>“같은 kernel 코드를 PyTorch · JAX · Paddle 에 배포하려면 wheel 을 몇 개 빌드해야 하는가”</h2>
+  </div>
+  <p class="sec-lede">강의의 출발점은 kernel 라이브러리 저자의 실제 고통. 한 라이브러리가 PyTorch wheel · JAX plugin · Paddle 확장을 따로 만들고, 거기에 Python 3.9–3.13 까지 곱하면 wheel 매트릭스가 폭발한다. 같은 CUDA kernel 인데.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>“ML system 의 다음 병목은 알고리즘이 아니라 <strong>유통</strong>이다. 같은 kernel 을 모든 framework / 모든 Python 버전 / 모든 OS 에 안정적으로 보내는 길이 없으면 — kernel 이 빨라도 못 쓴다.”</p>
+  </div>
+
+  <p>Tianqi 의 진단 — <em>현존 FFI 의 두 큰 부류</em> 가 다 이 문제를 풀지 못한다.</p>
+
+  <div class="l94-pf">
+    <div class="col bad">
+      <div class="h">Framework-specific FFI</div>
+      <ul>
+        <li><strong>PyTorch C++ extension</strong>, <strong>JAX custom call</strong>, Paddle op</li>
+        <li>같은 kernel 을 <em>각 framework 별로 wrap</em>. 코드 중복 + 빌드 매트릭스 폭발</li>
+        <li>framework 의 ABI 가 바뀌면 다 깨짐</li>
+        <li>Python 버전마다 wheel 새로 빌드</li>
+      </ul>
+    </div>
+    <div class="col bad">
+      <div class="h">Heavy interop layer</div>
+      <ul>
+        <li><strong>pybind11</strong>, <strong>cffi</strong>, <strong>Cython</strong></li>
+        <li>language interop 은 풀지만 — runtime 표준이 아님</li>
+        <li>tensor 같은 ML primitive 가 first-class 가 아님</li>
+        <li>data passing 시 copy 가 자주 일어남</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>tvm-ffi 의 위치는 그 사이 — <strong>최소 C ABI</strong>로 framework 사이의 wrapper 비용을 없애면서, <strong>tensor 가 first-class</strong>인 ML 친화적 디자인.</p>
+
+  <div class="pull">“하나의 wheel 이 모든 framework 와 모든 Python 버전을 지원한다 — 그게 가능한가? 그렇다, FFI 가 충분히 작으면.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>TVM 의 FFI 동기</b><span>· historical motivation</span></div>
+    <h2>10년 동안 다듬어진 <code>PackedFunc</code> 의 정신을 별도 패키지로</h2>
+  </div>
+  <p class="sec-lede">tvm-ffi 는 새로 만든 게 아니다. Apache TVM 안에서 10년 동안 써온 <code>PackedFunc</code> 메커니즘을 — TVM 본체와 분리해 — 독립 패키지로 추출한 것. <strong>“TVM 을 안 써도 PackedFunc 만 쓸 수 있게”</strong>가 핵심.</p>
+
+  <ul>
+    <li><strong>2017–18 TVM 의 시작</strong> — Tianqi 가 TVM 을 만들 때부터 “generated kernel 을 어떤 frontend 에서도 부를 수 있어야 한다” 가 디자인 결정. PackedFunc 가 그 contract.</li>
+    <li><strong>2019–22 다중 frontend</strong> — TVM 이 PyTorch · TensorFlow · ONNX · MXNet 에 generated kernel 을 export 하면서 PackedFunc 가 공통 layer 가 됨.</li>
+    <li><strong>2023–24 다른 프로젝트의 채택</strong> — FlashInfer 가 같은 메커니즘을 빌려 attention kernel 을 PyTorch/JAX 양쪽에 export. TileLang · cuteDSL 도 비슷.</li>
+    <li><strong>2025 tvm-ffi 분리</strong> — 같은 메커니즘을 “TVM 안의 한 부분” 이 아니라 <em>독립 표준</em>으로. 다른 프로젝트가 TVM 전체 의존 없이 가져다 쓸 수 있게.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">왜 TVM 에서 분리했나</div>
+    <p>TVM 은 “compiler + runtime” 의 큰 패키지. <strong>kernel 라이브러리는 compiler 가 필요 없다</strong> — runtime 의 작은 부분만 있으면 됨. tvm-ffi 는 그 작은 부분을 <em>독립 minimum</em> 으로 패키지화. dependency 가 가벼워지면서 채택 비용이 떨어진다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>lightweight runtime — 작은 표면적</b><span>· minimal C ABI</span></div>
+    <h2>의도적으로 작은 ABI — “수십 개의 함수 시그니처 만으로 모든 것을”</h2>
+  </div>
+  <p class="sec-lede">tvm-ffi 의 디자인 핵심은 <strong>의도적인 작음</strong>. C ABI 가 작아야 — 모든 컴파일러, 모든 OS, 모든 Python 버전에서 안정적. 큰 ABI 는 한 군데가 깨지면 전체가 깨진다.</p>
+
+  <div class="l94-stack">
+    <div class="layer hi">
+      <span class="nm">L1 · TVMValue</span>
+      <span class="what">union 값 — int64, float64, void*, TVMObjectHandle. 모든 함수 호출의 인자/반환은 이 union 한 종류로 표현. <em>type erasure 의 가장 작은 형태</em>.</span>
+    </div>
+    <div class="layer">
+      <span class="nm">L2 · TVMArgValue</span>
+      <span class="what">TVMValue + type code. type tag 가 함께. wrapping 비용 거의 없음.</span>
+    </div>
+    <div class="layer hi">
+      <span class="nm">L3 · DLPack tensor</span>
+      <span class="what">tensor 는 별도 standard <code>DLManagedTensor</code> 로. <strong>zero-copy 교환</strong>이 핵심 — PyTorch 의 tensor 가 그대로 JAX 로 (메타데이터만 복사).</span>
+    </div>
+    <div class="layer">
+      <span class="nm">L4 · PackedFunc</span>
+      <span class="what">함수 호출의 단일 시그니처 — <code>void (*)(TVMValue* args, int* type_codes, int num_args, TVMValue* ret, ...)</code>. 모든 함수가 이 한 형태.</span>
+    </div>
+    <div class="layer">
+      <span class="nm">L5 · Object system</span>
+      <span class="what">refcounted handle. tensor 외 다른 ML primitive (string, list, dict) 도 같은 방식으로.</span>
+    </div>
+    <div class="layer hi">
+      <span class="nm">L6 · 멀티언어 binding</span>
+      <span class="what">Python · C++ · Rust 가 같은 ABI 위에 layered. 새 언어 추가는 binding layer 만 작성.</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 union + type code 인가</div>
+    <p>이 디자인은 <strong>ABI 안정성</strong>의 비결. 새 type 을 추가해도 — type code 하나가 늘 뿐, 구조체 layout 은 그대로. <em>“이미 빌드된 wheel 이 새 버전에서도 그대로 동작”</em> 의 기반.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>multi-language interop</b><span>· Python · C++ · Rust</span></div>
+    <h2>같은 함수가 Python 에서 부르건 Rust 에서 부르건 — 같은 호출 비용</h2>
+  </div>
+  <p class="sec-lede">tvm-ffi 의 또 다른 핵심 — <strong>language-agnostic</strong>. 함수의 진짜 구현은 C++ 또는 Rust 에 있고, Python 은 thin wrapper. 그러나 그 반대도 가능 — Python 함수를 C++ 에서 호출.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># Python 측 — kernel 라이브러리 함수 호출</span>
+<span style="color:#E7B369">import</span> tvm_ffi
+<span style="color:#E7B369">import</span> torch
+
+flash = tvm_ffi.load_module(<span style="color:#C6B98A">"libflashinfer.so"</span>)
+
+q = torch.randn(<span style="color:#E7B369">1</span>, <span style="color:#E7B369">8</span>, <span style="color:#E7B369">1024</span>, <span style="color:#E7B369">128</span>, device=<span style="color:#C6B98A">"cuda"</span>)
+k = torch.randn(<span style="color:#E7B369">1</span>, <span style="color:#E7B369">8</span>, <span style="color:#E7B369">1024</span>, <span style="color:#E7B369">128</span>, device=<span style="color:#C6B98A">"cuda"</span>)
+v = torch.randn(<span style="color:#E7B369">1</span>, <span style="color:#E7B369">8</span>, <span style="color:#E7B369">1024</span>, <span style="color:#E7B369">128</span>, device=<span style="color:#C6B98A">"cuda"</span>)
+
+<span style="color:#A99E89"># tvm_ffi 가 torch tensor 를 DLPack 으로 view → kernel 로</span>
+out = flash.attention(q, k, v)
+<span style="color:#A99E89"># out 도 torch tensor 처럼 보임 (DLPack import)</span></code></pre>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// C++ 측 — kernel 함수 정의</span>
+<span style="color:#E7B369">#include</span> <span style="color:#C6B98A">"tvm/ffi/function.h"</span>
+
+<span style="color:#E7B369">void</span> attention(NDArray q, NDArray k, NDArray v,
+               NDArray out) {
+  <span style="color:#A99E89">// q.data, q.shape, q.strides 직접 접근</span>
+  <span style="color:#A99E89">// CUDA kernel 호출</span>
+  launch_attention_kernel(q, k, v, out);
+}
+
+<span style="color:#A99E89">// 등록 — 한 줄</span>
+TVM_FFI_REGISTER_GLOBAL(<span style="color:#C6B98A">"flashinfer.attention"</span>)
+    .set_body_typed(attention);</code></pre>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">호출 비용</div>
+    <p>Python → C++ kernel 의 호출 overhead 가 일반 pybind 보다 <strong>낮다</strong>. 그 이유 — pybind 는 매 호출마다 type 변환 코드가 도는데, tvm-ffi 는 union + type code 의 단일 dispatch. <em>특히 작은 kernel 을 자주 부르는 LLM serving 에서 차이가 누적</em>. <span style="color:var(--muted)">(확인 필요 — 정확한 비율)</span></p>
+  </div>
+
+  <p>그리고 Rust binding 의 의의 — Rust 로 짠 kernel 라이브러리가 Python 에서 그대로 호출 가능. <em>새 시스템 언어 (Rust, Mojo, Zig) 가 ML kernel 영역에 들어오는 길</em>이 자연스럽게 열림.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>PackedFunc 추상</b><span>· core abstraction</span></div>
+    <h2>모든 함수가 같은 시그니처 — 그 작은 결정이 큰 결과를 만든다</h2>
+  </div>
+  <p class="sec-lede">PackedFunc 는 tvm-ffi 의 핵심 추상. <em>모든 함수가 같은 C 시그니처</em>를 가진다. 인자가 5개든 0개든, 반환값이 tensor 든 string 이든. 호출 시점에 type code 로 dispatch.</p>
+
+  <div class="split rev">
+    <div>
+      <p>이 결정이 만들어내는 4가지 결과.</p>
+      <ol>
+        <li><strong>ABI 안정성</strong> — 함수 시그니처가 바뀔 일이 없음. 새 함수 추가 = 같은 시그니처의 새 entry. 기존 ABI 깨지지 않음.</li>
+        <li><strong>generic dispatch</strong> — 한 dispatcher 가 모든 함수를. 새 함수 등록 시 dispatcher 코드 안 바꿈.</li>
+        <li><strong>language bridge 의 단순함</strong> — 새 언어 추가 시 “이 한 시그니처를 어떻게 호출할 것인가” 만 풀면 됨.</li>
+        <li><strong>introspection</strong> — 모든 함수의 인자/반환 type code 를 runtime 에 검사 가능. type-safe 호출이 dynamic 하게 보장.</li>
+      </ol>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">// PackedFunc 의 C 시그니처 (단순화)</span>
+<span style="color:#E7B369">typedef</span> <span style="color:#E7B369">int</span> (*PackedCFunc)(
+    TVMValue* args,
+    <span style="color:#E7B369">int</span>* type_codes,
+    <span style="color:#E7B369">int</span> num_args,
+    TVMValue* ret,
+    <span style="color:#E7B369">int</span>* ret_type_code,
+    <span style="color:#E7B369">void</span>* resource_handle
+);
+
+<span style="color:#A99E89">// 모든 함수가 이 한 형태</span>
+<span style="color:#A99E89">// add(a, b), attention(q, k, v), tokenize(s) — 다 같은 시그니처</span></code></pre>
+<pre><code><span style="color:#A99E89"># Python 측 typed 호출 — 외피는 익숙한 형태</span>
+add: tvm_ffi.PackedFunc = registry.get(<span style="color:#C6B98A">"my.add"</span>)
+result = add(<span style="color:#E7B369">3</span>, <span style="color:#E7B369">5</span>)
+
+<span style="color:#A99E89"># 내부적으로는</span>
+<span style="color:#A99E89"># [TVMValue(3), TVMValue(5)] + [int_code, int_code]</span>
+<span style="color:#A99E89"># → C 함수 호출 → ret 으로 결과 반환</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pull">“같은 시그니처 안에 모든 함수를 욱여넣는다 — 이게 dispatch 비용을 낮추고 ABI 를 안정화한다.”<span class="by">학습 노트</span></div>
+
+  <p>그리고 PackedFunc 와 함께 다니는 추상 — <strong>Object</strong>. tensor 외 string · list · dict · module 등 다양한 ML primitive 가 같은 refcounted handle 위에 올라간다. PyTorch 의 tensor 든 numpy 의 ndarray 든 — DLPack 으로 같은 PackedFunc 를 통과.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>채택 사례</b><span>· FlashInfer · TileLang · cuteDSL</span></div>
+    <h2>같은 wheel 이 PyTorch 와 JAX 양쪽에서 도는 풍경</h2>
+  </div>
+  <p class="sec-lede">repo README 가 자랑스럽게 보여주는 채택 사례. tvm-ffi 가 풀려는 문제가 가짜가 아닌, 실제 라이브러리 저자들이 마주친 문제임을 증명.</p>
+
+  <ul>
+    <li><strong>FlashInfer</strong> — LLM attention kernel 라이브러리. PyTorch 가 1차 frontend 였지만, JAX 사용자도 같은 attention 을 원함. tvm-ffi 채택 후 — <em>같은 wheel</em> 이 양쪽에서.</li>
+    <li><strong>TileLang</strong> — kernel DSL. 생성된 kernel 을 PyTorch/JAX/PaddlePaddle 에 동시에 export.</li>
+    <li><strong>cuteDSL</strong> — NVIDIA 의 CUTE DSL Python wrapper. 같은 패턴.</li>
+    <li><strong>framework extension</strong> — PyTorch 의 새 op 를 framework 의 ABI 변경에 영향 없이 배포. PyTorch 2.x → 2.y 의 silent break 문제 회피.</li>
+    <li><strong>multi-language</strong> — Python / C++ / Rust 의 cross-language ML 인프라.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">실제 ergonomic 의 차이</div>
+    <p>FlashInfer 같은 라이브러리가 <em>PyTorch 의 매 minor 버전 release 마다 wheel 을 새로 빌드해야 했던 시절</em>이 있었다. tvm-ffi 채택 후 — <strong>한 번 빌드한 wheel 이 PyTorch 2.0–2.6 에서 그대로 동작</strong>. 라이브러리 저자의 인지 부담이 한 자리수 줄어든다. <span style="color:var(--muted)">(확인 필요 — 정확한 호환 범위)</span></p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>PyTorch FFI 와의 비교</b><span>· positioning</span></div>
+    <h2>같은 일을 다른 가정 위에서</h2>
+  </div>
+
+  <div class="l94-cmp">
+    <div class="row h">차원</div>
+    <div class="row h">PyTorch C++ ext</div>
+    <div class="row h">pybind11</div>
+    <div class="row h">tvm-ffi</div>
+
+    <div class="row l">scope</div>
+    <div class="row">PyTorch 한정</div>
+    <div class="row">Python ↔ C++ generic</div>
+    <div class="row">framework-agnostic ML</div>
+
+    <div class="row l">tensor 1급 시민</div>
+    <div class="row">torch::Tensor</div>
+    <div class="row">아님 (numpy 외부)</div>
+    <div class="row">DLPack standard</div>
+
+    <div class="row l">ABI 안정성</div>
+    <div class="row">PyTorch 버전 결합</div>
+    <div class="row">Python ABI 결합</div>
+    <div class="row">자체 stable C ABI</div>
+
+    <div class="row l">Python 버전</div>
+    <div class="row">매 버전 wheel</div>
+    <div class="row">매 버전 wheel</div>
+    <div class="row">한 wheel 다 지원</div>
+
+    <div class="row l">멀티 framework</div>
+    <div class="row">불가능</div>
+    <div class="row">framework 의존 안 함</div>
+    <div class="row">native 지원</div>
+
+    <div class="row l">호출 비용</div>
+    <div class="row">중간</div>
+    <div class="row">중간 ~ 높음</div>
+    <div class="row">낮음 (single dispatch)</div>
+
+    <div class="row l">학습 곡선</div>
+    <div class="row">PyTorch 사용자 친숙</div>
+    <div class="row">C++ 익숙해야</div>
+    <div class="row">새 추상 학습 필요</div>
+  </div>
+
+  <p>각자가 자기 자리가 있다. <strong>한 framework 에서 한 op 만 추가</strong>는 PyTorch ext 가 빠르고 쉬움. <strong>generic Python ↔ C++ </strong>는 pybind. <strong>여러 framework 에 같은 kernel 을 배포</strong>는 tvm-ffi. 강의의 메시지는 “하나가 다른 둘을 대체한다” 가 아니라 “각자의 자리가 있다”.</p>
+
+  <div class="callout cool">
+    <div class="label">언제 tvm-ffi 를 채택할 가치</div>
+    <p><strong>1. 두 개 이상의 framework 를 지원해야 할 때</strong>. 2. <strong>한번 빌드한 wheel 이 오래 살기를 원할 때</strong>. 3. <strong>Python 외 다른 언어 (Rust, C++) 사용자가 있을 때</strong>. 셋 중 하나라도 강하면 채택 가치. 아니면 PyTorch ext 가 더 단순.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>한계 — RFC 단계의 제약</b><span>· limitations</span></div>
+    <h2>v0.1 의 솔직함 — 아직 완성 아님</h2>
+  </div>
+  <p class="sec-lede">repo README 가 명시 — <strong>v0.1.0 이후 RFC stage</strong>. C ABI 안정성을 우선시하지만 일부는 여전히 변경 가능. 0.X.Y 의 버전 표기 자체가 “X 가 breaking change” 라고 선언.</p>
+
+  <ul>
+    <li><strong>ABI freeze 는 1.0 부터</strong> — 0.X 단계에서는 minor 버전 변화에 binary 호환이 깨질 수 있음.</li>
+    <li><strong>autograd 통합 미흡</strong> — kernel 을 부르는 건 OK 인데, 자동 미분 그래프에 등록하는 건 framework 별로 wrap 필요.</li>
+    <li><strong>schema 시스템 미성숙</strong> — type code 가 단순한 dispatch 까지만. 복잡한 ML schema (tensor of nested structure) 는 커스텀.</li>
+    <li><strong>error reporting</strong> — C ABI 의 한계로 stack trace 가 제한적. Python 레이어에서 보강 중.</li>
+    <li><strong>build system 통합</strong> — CMake / setup.py 와의 매끄러운 통합이 framework-specific FFI 보다 한 단계 거칠다.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">디자인 의도와 한계의 trade-off</div>
+    <p>tvm-ffi 의 한계는 거의 다 <strong>“작게 유지하기” 의 비용</strong>. 큰 ABI 면 ergonomic 이 좋지만 안정성이 무너진다. 작은 ABI 가 안정성을 주는 대가로 ergonomic 이 거칠다. <em>1.0 이후 ergonomic 을 외부 라이브러리(예: pybind11-style wrapper)로 layered 시킬 가능성</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 — stable ABI 의 미래</b><span>· future</span></div>
+    <h2>Python 의 stable ABI 처럼 — ML 의 stable ABI</h2>
+  </div>
+  <p class="sec-lede">강의에서 Tianqi 가 짚는 야망. CPython 의 <code>limited API</code> 가 “한 wheel 이 여러 Python 버전을 지원” 을 가능케 한 것처럼 — tvm-ffi 가 <em>ML 영역의 limited API</em>가 되는 길.</p>
+
+  <ul>
+    <li><strong>1.0 의 ABI freeze</strong> — 그 이후 모든 wheel 이 binary forward-compatible.</li>
+    <li><strong>frontend 표준화</strong> — DLPack 이 이미 거의 universal. PackedFunc 가 그 옆에 자리 잡으면 ML kernel 의 lingua franca.</li>
+    <li><strong>새 frontend 의 진입 비용 절감</strong> — Mojo, Zig, Rust 가 ML kernel 영역에 진입할 때 “tvm-ffi binding 만 만들면 모든 기존 라이브러리 사용 가능”.</li>
+    <li><strong>edge / mobile 까지</strong> — TVM 의 본래 강점인 edge 배포에 자연스러운 확장. 같은 PackedFunc contract 가 desktop · server · mobile 위에서.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 실습</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">PackedFunc</div><div class="d">모든 함수가 같은 C 시그니처. union + type code 로 dispatch. ABI 안정성의 핵심.</div></div>
+    <div class="term"><div class="t">DLPack tensor</div><div class="d">framework 사이 zero-copy tensor 교환의 표준. PyTorch · JAX · Paddle · Numpy/Cupy 모두 native.</div></div>
+    <div class="term"><div class="t">한 wheel · 모든 framework</div><div class="d">PyTorch 2.x, JAX, Paddle 의 minor 버전 변화에 wheel 을 새로 안 빌드. 라이브러리 저자의 인지 부담 절감.</div></div>
+    <div class="term"><div class="t">multi-language</div><div class="d">Python · C++ · Rust 가 같은 ABI 위에. 새 언어 추가는 binding layer 만.</div></div>
+    <div class="term"><div class="t">호출 비용 낮음</div><div class="d">single dispatch — pybind 보다 작은 함수 호출에서 빠름. LLM serving 에서 누적 효과.</div></div>
+    <div class="term"><div class="t">RFC stage v0.1</div><div class="d">아직 ABI freeze 전. 1.0 이전 minor 버전 사이 binary 호환 안 보장.</div></div>
+    <div class="term"><div class="t">FlashInfer · TileLang · cuteDSL</div><div class="d">실제 채택 사례. 추상이 가짜가 아니라 라이브러리 저자가 실제로 골랐음의 증거.</div></div>
+    <div class="term"><div class="t">PyTorch ext 의 대체 아님</div><div class="d">한 framework 한 op 추가는 PyTorch ext 가 더 빠름. tvm-ffi 는 multi-framework 일 때.</div></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>tvm-ffi hello world</strong> — repo example 의 첫 “add” 함수. C++ 로 짜고 등록, Python 에서 호출. 빌드 매트릭스 확인.</li>
+    <li><strong>tensor 통과</strong> — torch.Tensor 를 인자로 받는 C++ 함수. DLPack import/export 가 어떻게 일어나는지 코드에서.</li>
+    <li><strong>같은 wheel JAX 에서 호출</strong> — 같은 빌드된 .so 를 JAX 에서 import. 둘 다 동작 확인.</li>
+    <li><strong>FlashInfer attention 호출</strong> — 실제 채택 사례 코드 읽기. tvm-ffi 가 어떻게 wrap 되는지 패턴 학습.</li>
+    <li><strong>Rust binding 시도</strong> — Rust crate 로 같은 함수 호출. cross-language 가 실제로 어떻게 도는지 손에 잡아 보기.</li>
+  </ol>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v"><a href="https://www.youtube.com/watch?v=fQcCCSdAFI8" target="_blank" rel="noopener">L094 강의 영상</a></span></div>
+    <div class="row"><span class="k">Repo</span><span class="v"><a href="https://github.com/apache/tvm-ffi" target="_blank" rel="noopener">apache/tvm-ffi</a></span></div>
+    <div class="row"><span class="k">Related</span><span class="v"><a href="https://github.com/flashinfer-ai/flashinfer" target="_blank" rel="noopener">FlashInfer</a> · <a href="https://github.com/tile-ai/tilelang" target="_blank" rel="noopener">TileLang</a> · <a href="https://github.com/dmlc/dlpack" target="_blank" rel="noopener">DLPack</a></span></div>
+    <div class="row"><span class="k">TVM</span><span class="v"><a href="https://tvm.apache.org" target="_blank" rel="noopener">tvm.apache.org</a> · 본가 프로젝트</span></div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>compiler / FFI 시리즈 안에서</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html"><div class="n">L001</div><div class="ti">How to profile CUDA kernels in PyTorch</div><div class="by">load_inline 의 PyTorch FFI — § 07 의 비교 대상</div></a>
+    <a class="conn" href="lecture_096.html"><div class="n">L096</div><div class="ti">TLX</div><div class="by">Triton 의 lower-level — kernel 라이브러리의 또 다른 layer</div></a>
+    <a class="conn" href="lecture_097.html"><div class="n">L097</div><div class="ti">HipKittens</div><div class="by">AMD GPU 의 kernel — multi-vendor 의 자리</div></a>
+    <a class="conn" href="lecture_029.html"><div class="n">L029</div><div class="ti">Triton Internals</div><div class="by">kernel DSL 의 lowering — TileLang 과 통하는 영역</div></a>
+    <a class="conn" href="lecture_058.html"><div class="n">L058</div><div class="ti">vLLM internals</div><div class="by">FlashInfer attention 의 사용처</div></a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>transcript 가 실패</strong>해서 본 노트의 호출 비용 비교는 일반적 추정. 실제 benchmark 는 강의 영상 또는 repo 의 perf 자료에서 확인 필요.</li>
+    <li><strong>ABI 호환 범위의 정확한 명세</strong> — “PyTorch 2.0–2.6” 같은 구체 호환은 추정. 실제 지원 매트릭스는 repo 의 CI 결과에서.</li>
+    <li><strong>autograd 통합 로드맵</strong> — 1.0 에 들어갈지, 별도 layer 로 남을지 강의에서 다뤘을 가능성.</li>
+    <li><strong>JAX custom_call 과의 깊은 비교</strong> — 강의에서 JAX 진영의 FFI 와 어떻게 다른지 정량적 비교.</li>
+    <li><strong>TVM 본가와의 의존 관계</strong> — tvm-ffi 가 정말 standalone 인지, TVM runtime 의 일부 의존이 남아있는지 확인.</li>
+    <li><strong>Mojo / Zig 의 실제 binding</strong> — “새 언어가 진입할 수 있다” 는 미래형. 실제 구현이 어디까지 진척됐는지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 PackedFunc C 시그니처 코드는 TVM 의 일반적 형태를 단순화한 것. 정확한 시그니처는 tvm-ffi 의 <code>include/tvm/ffi/c_api.h</code> 에서 확인. 강의에서 보여준 정확한 예시는 영상 직접 확인 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_093.html"><span class="lbl">← Lecture 093</span><span class="nm">Cornserve</span></a>
+  <a class="nxt" href="lecture_095.html"><span class="lbl">Lecture 095 →</span><span class="nm">Single controller programming with Monarch</span></a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L094 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

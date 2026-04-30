@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L045 · Outperforming cuBLAS on H100 · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l45-mem{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px;margin:14px 0}
+.l45-mem .lvl{display:grid;grid-template-columns:130px 1fr 100px 90px;gap:12px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l45-mem .lvl.hi{background:var(--bg-soft);border-color:var(--accent)}
+.l45-mem .lvl .nm{color:var(--accent);font-weight:700;font-size:12px}
+.l45-mem .lvl .d{color:var(--ink-soft);font-size:11.5px;line-height:1.4}
+.l45-mem .lvl .sz{color:var(--ink);font-weight:600;text-align:right;font-size:11px}
+.l45-mem .lvl .bw{color:var(--good);font-weight:600;text-align:right;font-size:11px}
+
+.l45-pipe{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l45-pipe .lane{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:center}
+.l45-pipe .lane .nm{color:var(--ink-soft);font-size:11px}
+.l45-pipe .lane .row{position:relative;height:24px;background:var(--bg-soft);border-radius:3px}
+.l45-pipe .lane .row .blk{position:absolute;top:3px;height:18px;border-radius:3px;display:grid;place-items:center;color:var(--paper);font-weight:700;font-size:9.5px;padding:0 5px;white-space:nowrap;overflow:hidden}
+.l45-pipe .lane .row .blk.tma{background:var(--accent-2)}
+.l45-pipe .lane .row .blk.mma{background:var(--cool)}
+.l45-pipe .lane .row .blk.bar{background:var(--paper-deep);color:var(--ink-soft)}
+.l45-pipe .lane .row .blk.idle{background:#d8c8a8;color:var(--ink-soft)}
+
+.l45-bars{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l45-bars .row{display:grid;grid-template-columns:160px 1fr 120px;gap:14px;align-items:center}
+.l45-bars .row .lbl{color:var(--ink)}
+.l45-bars .row .bar{height:22px;background:var(--bg-soft);border-radius:4px;position:relative}
+.l45-bars .row .bar span{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.l45-bars .row .bar.cool span{background:var(--cool-2)}
+.l45-bars .row .bar.good span{background:var(--good)}
+.l45-bars .row .v{color:var(--ink);font-weight:700;text-align:right;font-size:12px}
+
+.l45-swizzle{display:grid;grid-template-columns:auto auto;gap:18px;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;margin:14px 0}
+.l45-swizzle .grid{display:grid;gap:1px;padding:6px;background:var(--bg-soft);border-radius:4px}
+.l45-swizzle .grid div{width:20px;height:20px;display:grid;place-items:center;font-size:9px;color:var(--paper);font-weight:700;border-radius:2px}
+.l45-swizzle .lbl{font-size:10px;color:var(--muted);text-align:center;margin-top:6px;letter-spacing:.06em}
+
+.l45-feat{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.l45-feat .it{padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace}
+.l45-feat .it .k{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em}
+.l45-feat .it .v{color:var(--ink);font-size:13px;font-weight:700;font-family:'Pretendard',sans-serif;margin:4px 0}
+.l45-feat .it .d{color:var(--ink-soft);font-size:11.5px;line-height:1.45}
+@media (max-width:760px){
+  .l45-mem .lvl{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_044.html">← L044</a>
+    <a href="lecture_046.html">L046 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L045</span>
+    <span>2025 · MAR</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · 실패 · 외부 자료 + 도메인 지식 기반</span>
+  </div>
+  <h1>Outperforming cuBLAS on H100</h1>
+  <p class="dek">H100 의 <strong>Hopper 신기능</strong> — TMA, WGMMA, async copy, warp specialization, block cluster, TMA multicast — 을 모두 끌어쓴 직접 작성 GEMM 커널이 cuBLAS 를 어떻게 따라잡는가. pranjalssh 의 강의 발표 (Modal blog 의 동명 시리즈와 같은 결을 공유). transcript 가 누락된 강의이므로 본 노트는 <em>Hopper architecture 도큐먼트 + CUTLASS / Modal 의 공개 자료</em>를 베이스로 정리한 보충 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">H100 / Hopper</span>
+    <span class="chip hi">TMA</span>
+    <span class="chip hi">WGMMA</span>
+    <span class="chip hi">producer-consumer</span>
+    <span class="chip hi">SMEM swizzle</span>
+    <span class="chip">block cluster</span>
+    <span class="chip">cuBLAS baseline</span>
+    <span class="chip">CUTLASS 비교</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">P</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">pranjalssh</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">GPU Mode 커뮤니티 contributor · CUDA 커널 엔지니어</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L045</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">pranjalssh</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · Hopper 의 표준 자료</div></div>
+    <div class="cell warn"><div class="lbl">상태</div><div class="val">transcript fetch failed</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 cuBLAS 보다 빠를 수 있는가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">cuBLAS 가 못 잡는 자리</span><span class="em">general-purpose 의 비용</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">H100 의 새 자원</span><span class="em">TMA · WGMMA · 4th gen TC</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">producer-consumer 파이프라인</span><span class="em">warp specialization</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">SMEM swizzle 패턴</span><span class="em">bank conflict 회피</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">Hopper TMA descriptor</span><span class="em">tensor map · 좌표 시스템</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">cuBLAS vs custom 결과</span><span class="em">크기별 throughput</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">production 적용의 어려움</span><span class="em">edge case · validation</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">CUTLASS 와의 관계</span><span class="em">DSL vs 직접 작성</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 cuBLAS 보다 빠를 수 있는가</span></div>
+    <h2>“NVIDIA 가 만든 라이브러리보다 우리가 빠르다” 가 가능한 자리</h2>
+  </div>
+  <p class="sec-lede">감각이 헷갈리는 자리. cuBLAS 는 NVIDIA 가 직접 만든 GEMM 라이브러리다. 그런데 어떤 사이즈/조건에서 <em>외부 사용자가 짠 커널이 더 빠를 수 있다</em>. 이게 가능한 이유와 한계를 분명히 하는 게 이 강의의 가치.</p>
+
+  <p>강의 transcript 가 누락되었지만, 토픽이 가리키는 자리는 분명하다 — H100 의 새 hardware feature 들이 cuBLAS 에 다 반영되기까지 시간이 걸리고, 그 사이 <strong>특정 사이즈와 데이터 타입에 specialize 된 커널</strong>이 cuBLAS 의 general 한 path 를 이길 수 있다. <em>같은 결의 자료를 Modal blog 에서 동명 시리즈로 출간했다</em> — 본 노트는 Modal blog + Hopper 공식 문서를 베이스로 강의 토픽을 추정한다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame · 추정</div>
+    <p>cuBLAS 는 “모든 사이즈, 모든 데이터 타입, 모든 layout” 의 generality 를 지킨다. 그 generality 의 비용 — 일부 path 가 충분히 specialize 되지 않거나, 새 hardware feature 가 늦게 반영. <strong>한 사이즈 (예: M=N=K=4096, FP16) 에 모든 trick 을 짜낸 커널</strong>이 그 path 에서는 cuBLAS 를 능가할 수 있다.</p>
+  </div>
+
+  <div class="pull">“cuBLAS 를 이긴다는 건 cuBLAS 보다 일반적으로 우월하다는 게 아니다 — 한 사이즈, 한 dtype, 한 layout 에서, peak 까지 손으로 짜냈다는 뜻이다.”<span class="by">학습 노트 · 도메인 정리</span></div>
+
+  <p>이 강의의 실용적 산출 — Hopper 의 모든 trick 이 한 자리에 모인 reference GEMM. <strong>L043 의 Turing 5단계 사다리</strong>를 출발점으로 하면, 이 강의가 그 사다리에 <em>TMA, WGMMA, warp specialization, cluster, swizzle</em> 까지 추가한 H100 버전.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>cuBLAS 가 못 잡는 자리</b><span>· general-purpose 의 비용</span></div>
+    <h2>“같은 일을 하는 더 빠른 방법” 이 있다 — 단, 보편적이지 않다</h2>
+  </div>
+  <p class="sec-lede">cuBLAS 의 디자인 제약 — 모든 사이즈, 모든 dtype 조합, 모든 stride/layout, 모든 alpha/beta 조합에서 합리적으로 빠르게 동작해야 한다. 이 generality 가 비용으로 돌아오는 자리.</p>
+
+  <div class="l45-feat">
+    <div class="it"><div class="k">SIZE</div><div class="v">"이상한" 크기</div><div class="d">M=N=K 가 SM 수의 배수도 아니고, tile 의 자연스러운 크기도 아닐 때. cuBLAS 는 일반화된 padding/tile 로 처리하면서 utilization 떨어짐.</div></div>
+    <div class="it"><div class="k">SHAPE</div><div class="v">tall/skinny</div><div class="d">M=2, N=K=4096 같은 GEMV-급 모양. cuBLAS 는 이런 자리에 specialize 된 별도 path 가 있긴 하지만, 모든 조합을 다 못 잡음.</div></div>
+    <div class="it"><div class="k">EPI</div><div class="v">epilogue 결합</div><div class="d">GEMM 끝에 add bias / activation / scale 등을 fuse 하고 싶을 때. cuBLASLt 가 일부 epilogue 지원하지만 LLM 의 복잡한 fusion 은 직접 짜야 함.</div></div>
+    <div class="it"><div class="k">DTYPE</div><div class="v">신규 dtype</div><div class="d">FP8 같은 새 dtype. cuBLAS 가 지원해도 모든 corner case 가 충분히 specialize 되기까지 시간 차이.</div></div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>그래서 “cuBLAS 격파” 는 <strong>한 자리에서</strong>의 격파. 강의가 보여줬을 자리들 (추정).</p>
+      <ul>
+        <li>크기 sweep 을 그려서 <em>어떤 사이즈에서</em> custom 이 cuBLAS 보다 빠른지 확인. 보통 <strong>큰 square (M=N=K=8192)</strong> 와 <strong>매우 tall/skinny</strong> 양극단.</li>
+        <li>FP16 / BF16 / FP8 별로 격차가 다르다. 보통 새 dtype 일수록 cuBLAS specialize 가 부족 → custom 격차 큼.</li>
+        <li>cuBLAS 의 <em>persistent kernel</em> path vs <em>sliced-K split</em> path 등 자기들끼리도 여러 strategy. custom 은 한 strategy 만 깊게.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">"이긴다" 의 의미 신중히</div>
+        <p>cuBLAS 는 <em>모든 사이즈에서 합리적으로 빠르다</em>. custom 커널은 <em>한 사이즈에서 더 빠르고 다른 사이즈에서 훨씬 느릴 수 있다</em>. production 시스템은 보통 cuBLAS 또는 cuBLASLt 를 fallback 으로 두고, 특정 hot path 만 custom 으로 갈아끼운다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>H100 의 새 자원</b><span>· TMA · WGMMA · 4th gen tensor core · cluster</span></div>
+    <h2>Ampere 사다리에 5개 새 도구가 추가됐다</h2>
+  </div>
+  <p class="sec-lede">L043 의 Turing 사다리 — column-major → SMEM → register tile → double buffer — 가 Ampere(A100) 위에서 추가로 <em>cp.async</em> 를 만난다. Hopper(H100) 는 거기서 한 번 더, <strong>5개의 새 도구</strong>가 추가된다.</p>
+
+  <div class="l45-mem">
+    <div class="lvl"><span class="nm">HBM3</span><span class="d">device memory · 80 GB · H100 SXM5</span><span class="sz">80 GB</span><span class="bw">3.35 TB/s</span></div>
+    <div class="lvl"><span class="nm">L2 cache</span><span class="d">device 전체 공유 · partitioned</span><span class="sz">50 MB</span><span class="bw">~12 TB/s</span></div>
+    <div class="lvl hi"><span class="nm">SMEM</span><span class="d">SM 당 program-managed cache · L1 과 공유</span><span class="sz">228 KB/SM</span><span class="bw">~33 TB/s</span></div>
+    <div class="lvl"><span class="nm">register</span><span class="d">thread 직접 접근 · 가장 빠름</span><span class="sz">256 KB/SM</span><span class="bw">peak</span></div>
+    <div class="lvl"><span class="nm">tensor core 4th gen</span><span class="d">FP16/BF16/FP8 + sparse · WGMMA로 호출</span><span class="sz">132 SM</span><span class="bw">~990 TFLOPs FP16</span></div>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">TMA (Tensor Memory Accelerator)</div>
+      <div class="d">SMEM 으로의 bulk async copy. 좌표 시스템 (descriptor) 으로 N-D tile 을 한 번에 fetch. shape transform/swizzle 까지 free. CUDA core 가 transfer 에 cycle 안 씀.</div>
+    </div>
+    <div class="term">
+      <div class="t">WGMMA (Warp-Group MMA)</div>
+      <div class="d">한 instruction 으로 4 warp = 128 thread 가 같이 큰 matmul. Ampere 의 warp-level <code>mma.sync</code>의 4배 단위. SMEM 또는 register 를 operand 로.</div>
+    </div>
+    <div class="term">
+      <div class="t">async copy + barrier</div>
+      <div class="d">cp.async 가 Ampere 부터 있었지만, Hopper 의 mbarrier 와 결합해서 <em>arrive/wait</em> 가 hardware 동기화. CUDA cores 가 free.</div>
+    </div>
+    <div class="term">
+      <div class="t">block cluster</div>
+      <div class="d">최대 16 block 을 한 cluster 로 묶음. 같은 cluster 안의 block 들이 SMEM 으로 직접 통신 가능. <em>distributed shared memory</em>.</div>
+    </div>
+    <div class="term">
+      <div class="t">TMA multicast</div>
+      <div class="d">한 번의 GMEM read 가 cluster 안의 여러 block 의 SMEM 으로 동시에. bandwidth 절약.</div>
+    </div>
+    <div class="term">
+      <div class="t">FP8 (E4M3 / E5M2)</div>
+      <div class="d">새 dtype. tensor core 가 FP16 의 2배 throughput. 정확도 손실 trade-off.</div>
+    </div>
+  </div>
+
+  <p>H100 GEMM 이 cuBLAS 를 격파하려면 — <strong>이 6개 도구를 한 커널 안에 모두 결합</strong>해야 한다. 하나라도 빠지면 격차가 작아진다. 강의의 본론은 그 결합의 모양.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>producer-consumer 파이프라인</b><span>· warp specialization</span></div>
+    <h2>한 SM 안에서 “일을 시키는 warp” 와 “계산하는 warp” 가 분리된다</h2>
+  </div>
+  <p class="sec-lede">L042 의 Mosaic GPU 에서도 본 핵심 패턴이 — Hopper GEMM 의 표준 구조다. 한 block 안의 warp group 들이 다른 역할을 맡는다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Hopper GEMM 의 producer-consumer 파이프라인 (3-stage prefetch)</span><span>한 block · 1 producer + 2 consumer</span></div>
+    <div class="l45-pipe">
+      <div class="lane">
+        <span class="nm">Producer WG (1 warp)</span>
+        <div class="row">
+          <div class="blk tma" style="left:1%;width:9%">TMA A0</div>
+          <div class="blk tma" style="left:11%;width:9%">TMA B0</div>
+          <div class="blk bar" style="left:21%;width:5%">arr</div>
+          <div class="blk tma" style="left:27%;width:9%">TMA A1</div>
+          <div class="blk tma" style="left:37%;width:9%">TMA B1</div>
+          <div class="blk bar" style="left:47%;width:5%">arr</div>
+          <div class="blk tma" style="left:53%;width:9%">TMA A2</div>
+          <div class="blk tma" style="left:63%;width:9%">TMA B2</div>
+          <div class="blk bar" style="left:73%;width:5%">arr</div>
+          <div class="blk tma" style="left:79%;width:9%">TMA A3</div>
+          <div class="blk tma" style="left:89%;width:9%">TMA B3</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">Consumer WG 0 (4 warp)</span>
+        <div class="row">
+          <div class="blk idle" style="left:1%;width:25%">idle (no data yet)</div>
+          <div class="blk bar" style="left:27%;width:4%">w</div>
+          <div class="blk mma" style="left:32%;width:14%">WGMMA A0·B0</div>
+          <div class="blk bar" style="left:47%;width:4%">w</div>
+          <div class="blk mma" style="left:52%;width:14%">WGMMA A1·B1</div>
+          <div class="blk bar" style="left:67%;width:4%">w</div>
+          <div class="blk mma" style="left:72%;width:14%">WGMMA A2·B2</div>
+        </div>
+      </div>
+      <div class="lane">
+        <span class="nm">Consumer WG 1 (4 warp)</span>
+        <div class="row">
+          <div class="blk idle" style="left:1%;width:33%">idle</div>
+          <div class="blk bar" style="left:35%;width:4%">w</div>
+          <div class="blk mma" style="left:40%;width:14%">WGMMA</div>
+          <div class="blk bar" style="left:55%;width:4%">w</div>
+          <div class="blk mma" style="left:60%;width:14%">WGMMA</div>
+          <div class="blk bar" style="left:75%;width:4%">w</div>
+          <div class="blk mma" style="left:80%;width:14%">WGMMA</div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">producer 1 warp 가 TMA 로 SMEM 의 다음 stage 를 prefetch 하는 동안, consumer 2 WG 가 현재 stage 를 WGMMA 로 처리. <strong>3-stage circular SMEM buffer</strong> — async 로 producer 가 늘 두 stage 앞서 있다. 첫 두 wave 의 idle 가 warmup 비용.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>이 구조의 디자인 결정들.</p>
+      <ul>
+        <li><strong>1 producer + 2 consumer</strong> 가 흔한 비율. producer 는 TMA 명령만 발행하면 되므로 warp 1개 충분. consumer 는 WGMMA + accumulator 처리.</li>
+        <li><strong>num_stages = 3</strong> 또는 4. 더 많으면 SMEM 사용량 증가 → occupancy 감소. 적으면 prefetch 가 latency 커버 못 함.</li>
+        <li><strong>register 분배</strong> — producer 와 consumer 의 register 사용량이 다르다. <code>setmaxnreg</code> 로 producer 는 register 적게, consumer 는 많이.</li>
+        <li><strong>barrier</strong> — Hopper 의 <code>mbarrier</code>. arrive 와 wait 가 SMEM 위 변수로 표현됨.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">FlashAttention 3 와의 관계</div>
+        <p>L042 의 FA3 가 <em>2 consumer WG</em> 사이에서 softmax/MMA 를 갈라 critical section. 본 강의의 GEMM 은 그 구조의 단순 버전 — softmax 가 없으므로 두 consumer 가 같은 일(WGMMA)만 한다. 같은 producer-consumer 골격, 다른 critical section.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>SMEM swizzle 패턴</b><span>· bank conflict 회피의 정석</span></div>
+    <h2>WGMMA 가 좋아하는 layout, 사람이 보는 layout 의 충돌</h2>
+  </div>
+  <p class="sec-lede">SMEM 은 bank 32개로 분할. 한 word(4B) 가 한 bank 에 있고, warp 의 32 thread 가 같은 bank 의 다른 word 를 동시에 access 하면 <strong>bank conflict</strong>. 32-way conflict 면 32배 느려진다.</p>
+
+  <div class="split">
+    <div>
+      <p>WGMMA 는 SMEM 의 특정 layout 을 요구한다. 단순한 row-major 면 — K 차원으로 stride 하면서 접근 → bank conflict 발생. NVIDIA 의 답: <strong>swizzle</strong>. SMEM 의 word 를 행에 따라 XOR 패턴으로 재배치해서 같은 bank 에 안 걸리게.</p>
+
+      <p>swizzle pattern 의 종류 (Hopper 표준).</p>
+      <ul>
+        <li><code>NoSwizzle</code> — 기본 row-major. 작은 K 차원에서만 사용.</li>
+        <li><code>32B Swizzle</code> — 32 byte 단위로 XOR. K=8, K=16 (FP16) 에 적합.</li>
+        <li><code>64B Swizzle</code> — 64 byte 단위. K=32 (FP16) 에 적합.</li>
+        <li><code>128B Swizzle</code> — 128 byte 단위. <strong>가장 흔히 쓰이는</strong> 패턴. K=64 (FP16) 의 표준.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · 128B swizzle 의 예시 (개념)</span><span>같은 색 = 같은 bank</span></div>
+        <div class="l45-swizzle">
+          <div>
+            <div class="grid" style="grid-template-columns:repeat(8,1fr)">
+              <div style="background:#9a5a2b">0</div><div style="background:#cf8b4f">1</div><div style="background:#7a92a8">2</div><div style="background:#a3a37a">3</div><div style="background:#9a5a2b">4</div><div style="background:#cf8b4f">5</div><div style="background:#7a92a8">6</div><div style="background:#a3a37a">7</div>
+              <div style="background:#cf8b4f">0</div><div style="background:#9a5a2b">1</div><div style="background:#a3a37a">2</div><div style="background:#7a92a8">3</div><div style="background:#cf8b4f">4</div><div style="background:#9a5a2b">5</div><div style="background:#a3a37a">6</div><div style="background:#7a92a8">7</div>
+              <div style="background:#7a92a8">0</div><div style="background:#a3a37a">1</div><div style="background:#9a5a2b">2</div><div style="background:#cf8b4f">3</div><div style="background:#7a92a8">4</div><div style="background:#a3a37a">5</div><div style="background:#9a5a2b">6</div><div style="background:#cf8b4f">7</div>
+              <div style="background:#a3a37a">0</div><div style="background:#7a92a8">1</div><div style="background:#cf8b4f">2</div><div style="background:#9a5a2b">3</div><div style="background:#a3a37a">4</div><div style="background:#7a92a8">5</div><div style="background:#cf8b4f">6</div><div style="background:#9a5a2b">7</div>
+            </div>
+            <div class="lbl">128B swizzled SMEM tile</div>
+          </div>
+        </div>
+        <div class="viz-note">행마다 column 이 다른 순서로 bank 에 매핑. 한 warp 가 같은 column 을 다른 row 에서 읽어도 — 각 행이 다른 bank 에 들어가서 conflict 없음. <strong>TMA 가 swizzle 까지 free 로 처리</strong>한다 — descriptor 에 swizzle mode 만 명시.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">실전</div>
+    <p>WGMMA 가 요구하는 SMEM layout 은 swizzle pattern 에 맞아야 한다. CUTLASS 의 <code>tiled_mma</code>, <code>composed_layout</code> 추상이 이 매칭을 자동화. 직접 작성한다면 — TMA descriptor 의 swizzle mode 와 WGMMA instruction 의 SMEM operand layout 을 손으로 매칭해야 한다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>Hopper TMA descriptor</b><span>· tensor map · 좌표 시스템</span></div>
+    <h2>“어떤 N-D 영역을 SMEM 어디에 어떤 layout 으로” 를 한 객체로</h2>
+  </div>
+  <p class="sec-lede">TMA 의 핵심 추상. <em>copy 의 모든 결정</em> — global 의 base address, dimension, stride, swizzle, 데이터 타입, padding mode — 을 한 <strong>tensor map</strong> 객체에 한 번 묶는다. 그리고 이후엔 좌표만 주면 된다.</p>
+
+  <pre><code><span style="color:#A99E89">// host 측에서 descriptor 한 번 만들기</span>
+CUtensorMap tensor_map_a;
+cuTensorMapEncodeTiled(
+    &amp;tensor_map_a,
+    CU_TENSOR_MAP_DATA_TYPE_FLOAT16,         <span style="color:#A99E89">// dtype</span>
+    /*tensor_rank*/ 2,
+    /*global_address*/ (<span style="color:#E7B369">void</span>*)A_ptr,
+    /*global_dim*/ {M, K},
+    /*global_strides*/ {K * 2 /*bytes*/},
+    /*box_dim*/ {BLOCK_M, BLOCK_K},          <span style="color:#A99E89">// SMEM 에 가져올 tile 크기</span>
+    /*element_strides*/ {1, 1},
+    CU_TENSOR_MAP_INTERLEAVE_NONE,
+    CU_TENSOR_MAP_SWIZZLE_128B,              <span style="color:#A99E89">// 128B swizzle 자동 적용</span>
+    CU_TENSOR_MAP_L2_PROMOTION_L2_64B,
+    CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE
+);
+
+<span style="color:#A99E89">// device kernel 안에서 — 좌표만 넘기면 끝</span>
+asm <span style="color:#E7B369">volatile</span> (
+    <span style="color:#C6B98A">"cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes "</span>
+    <span style="color:#C6B98A">"[%0], [%1, {%2, %3}], [%4];"</span>
+    :: <span style="color:#C6B98A">"r"</span>(smem_addr), <span style="color:#C6B98A">"l"</span>(&amp;tensor_map_a),
+       <span style="color:#C6B98A">"r"</span>(m_offset), <span style="color:#C6B98A">"r"</span>(k_offset),
+       <span style="color:#C6B98A">"r"</span>(barrier_addr)
+);</code></pre>
+
+  <div class="split">
+    <div>
+      <p>TMA 의 큰 장점 4가지.</p>
+      <ul>
+        <li><strong>주소 계산이 hardware 에서</strong> — 사용자 코드에서 stride 곱하기, swizzle 비트 XOR 하기 같은 코드가 사라진다.</li>
+        <li><strong>coalescing 자동</strong> — TMA engine 이 GMEM 에서 cache line 단위로 가져온다.</li>
+        <li><strong>OOB 처리 자동</strong> — descriptor 의 OOB fill mode 로 padding 처리.</li>
+        <li><strong>multicast 한 줄</strong> — cluster 차원 따라 broadcast 가능. <code>.cluster</code> suffix 만 추가.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">학습 자료로서의 TMA</div>
+        <p>TMA descriptor 의 직접 작성은 <em>Hopper 의 모든 디테일</em>이 한 자리에 모이는 자료다. swizzle, OOB, stride, coordinate system, mbarrier 가 모두 이 한 객체에 묶인다. 직접 짜보면 Hopper 의 메모리 모델이 손에 잡힌다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>cuBLAS vs custom 결과</b><span>· 크기별 throughput</span></div>
+    <h2>실제 격차의 모양 — 한 자리에서 1.1×, 다른 자리에서 0.9×</h2>
+  </div>
+  <p class="sec-lede">강의 결과 부분의 핵심 — 절대 throughput 보다 <strong>크기별 비율</strong>의 그래프가 중요하다. 어떤 (M, N, K) 에서 custom 이 cuBLAS 를 이기고, 어떤 자리에서는 지는지.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · cuBLAS vs custom 의 가능한 결과 모양 (도메인 지식 기반 추정)</span><span>FP16 · H100 SXM5</span></div>
+    <div class="l45-bars">
+      <div class="row"><span class="lbl">M=N=K=2048</span><div class="bar good"><span style="width:65%"></span></div><span class="v">~720 TF</span></div>
+      <div class="row"><span class="lbl">M=N=K=4096</span><div class="bar good"><span style="width:78%"></span></div><span class="v">~860 TF</span></div>
+      <div class="row"><span class="lbl">M=N=K=8192 · cuBLAS</span><div class="bar"><span style="width:75%"></span></div><span class="v">~830 TF</span></div>
+      <div class="row"><span class="lbl">M=N=K=8192 · custom</span><div class="bar good"><span style="width:82%"></span></div><span class="v">~900 TF</span></div>
+      <div class="row"><span class="lbl">M=2,N=K=4096 · cuBLAS</span><div class="bar"><span style="width:30%"></span></div><span class="v">~330 TF</span></div>
+      <div class="row"><span class="lbl">M=2,N=K=4096 · custom</span><div class="bar cool"><span style="width:18%"></span></div><span class="v">~200 TF</span></div>
+    </div>
+    <div class="viz-note">정확한 절대 수치는 영상에서 확인 필요. <strong>패턴</strong>만 강조 — square 큰 사이즈에서 custom 이 cuBLAS 를 능가하지만, tall/skinny 에서는 cuBLAS 의 전용 path 가 우월. peak 990 TF (FP16) 의 80% 가 production-grade 의 표준 자리.</div>
+  </div>
+
+  <p>이 결과에서 <strong>cuBLAS 격파</strong>의 의미가 다시 분명해진다. <em>특정 사이즈에서</em> 우월. 그리고 그 우월의 폭은 보통 5–15%. cuBLAS 가 이미 매우 좋다는 사실의 반증.</p>
+
+  <div class="callout cool">
+    <div class="label">왜 큰 격차는 안 나는가</div>
+    <p>cuBLAS 도 H100 의 새 도구를 사용한다 — TMA, WGMMA, warp specialization 모두. 차이가 나는 자리는 — <strong>tile 크기 sweep 의 폭</strong>, <strong>specific 사이즈로의 specialize</strong>, <strong>새 dtype 의 path 성숙도</strong>. 둘 다 같은 hardware feature 를 쓰는 이상, 격차는 5–15% 가 일반적인 range.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>production 적용의 어려움</b><span>· edge case · validation · maintenance</span></div>
+    <h2>“이 사이즈에서 우월” 에서 “모든 production 사이즈에서 안전” 으로의 거리</h2>
+  </div>
+  <p class="sec-lede">강의가 다뤘을 (또는 다뤘어야 할) 자리. custom GEMM 이 cuBLAS 를 한 사이즈에서 이긴다고 그대로 production 에 들어가지 않는다. 5가지 어려움.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">edge case</div>
+      <div class="d">M, N, K 가 tile 의 배수가 아닐 때 — padding / mask / tail 처리. cuBLAS 는 모두 처리. custom 은 매번 직접.</div>
+    </div>
+    <div class="term">
+      <div class="t">numerical 정확도</div>
+      <div class="d">FP16 / BF16 의 accumulator strategy, alpha/beta 의 scaling 순서, NaN/inf 전파. cuBLAS 와 정확히 일치할 의무는 없지만 시스템 nvm 호환은 확인 필요.</div>
+    </div>
+    <div class="term">
+      <div class="t">epilogue 결합</div>
+      <div class="d">production 은 GEMM + bias + GELU + dropout 같은 fusion 을 원함. cuBLASLt 는 일부 epilogue. custom 은 자기 epilogue 만 지원.</div>
+    </div>
+    <div class="term">
+      <div class="t">multi-stream 안전성</div>
+      <div class="d">CUDA stream 여러 개에서 호출할 때 race / leak. TMA descriptor 의 lifecycle 관리.</div>
+    </div>
+    <div class="term">
+      <div class="t">유지보수</div>
+      <div class="d">새 CUDA 버전, 새 architecture (Blackwell). cuBLAS 는 NVIDIA 가 자동 update. custom 은 직접 포팅.</div>
+    </div>
+    <div class="term">
+      <div class="t">heuristic dispatch</div>
+      <div class="d">사이즈에 따라 cuBLAS / custom1 / custom2 중 어느 것이 빠른지 결정. heuristic table or autotuner.</div>
+    </div>
+  </div>
+
+  <p>그래서 production GEMM 은 <strong>fallback 으로 cuBLAS, hot path 만 custom</strong> 의 layered 접근. PyTorch 자체도 <code>aten::matmul</code> 안에서 사이즈별로 cuBLAS / cublasLt / Triton fused / custom 을 분기.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>CUTLASS 와의 관계</b><span>· DSL 위에서 짤지 직접 짤지</span></div>
+    <h2>같은 일을 더 적은 노력으로 하는 길 — CUTLASS 3.x</h2>
+  </div>
+  <p class="sec-lede">강의가 직접 CUDA C++ 로 풀었지만, NVIDIA 가 같은 일을 위한 라이브러리를 제공한다 — <strong>CUTLASS</strong>. 3.x 부터는 Hopper 의 모든 도구를 wrapper 로 노출.</p>
+
+  <div class="split">
+    <div>
+      <p>CUTLASS 의 추상.</p>
+      <ul>
+        <li><code>CollectiveMma</code> — producer-consumer 파이프라인 추상. num_stages, schedule 결정.</li>
+        <li><code>CollectiveBuilder</code> — tile shape, dtype 만 주면 적절한 schedule 자동 선택.</li>
+        <li><code>tiled_mma</code> + <code>composed_layout</code> — WGMMA / TMA 의 layout 매칭 자동화.</li>
+        <li><code>EpilogueFunctor</code> — custom epilogue. bias, activation, dropout 결합.</li>
+      </ul>
+      <p>CUTLASS 로 짠 GEMM 의 코드량 — 직접 작성의 1/5 수준. 그리고 NVIDIA 가 새 architecture 에 따라 backbone 을 update 한다.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">왜 직접 작성 강의가 가치 있는가</div>
+        <p>CUTLASS 는 추상의 두께가 두껍다. 처음 봤을 때 — <em>“여기서 무슨 일이 일어나고 있나”</em> 가 흐려진다. 본 강의처럼 한 번 손으로 풀어보면 — 다시 CUTLASS 로 돌아가서 같은 라인 어디가 무엇을 하는지 손에 잡힌다. <strong>학습 자료 vs 생산 자료</strong>의 차이.</p>
+      </div>
+
+      <div class="callout cool">
+        <div class="label">선택 가이드 — 추정</div>
+        <p>새로운 GEMM 변형이 필요한가? — CUTLASS 위에서 epilogue 만 custom. <em>특정 사이즈 한 자리에서 cuBLAS 를 명백히 이겨야 하는가?</em> — 그 자리에 specialize 한 직접 작성 커널. 두 길이 보완적이다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">"cuBLAS 격파" 의 의미</div>
+      <div class="d">한 사이즈, 한 dtype 에서 5–15% 우월. 모든 사이즈에서 우월이 아님.</div>
+    </div>
+    <div class="term">
+      <div class="t">Hopper 의 6 새 도구</div>
+      <div class="d">TMA, WGMMA, async copy + mbarrier, block cluster, TMA multicast, FP8.</div>
+    </div>
+    <div class="term">
+      <div class="t">producer-consumer + warp spec</div>
+      <div class="d">1 producer warp + 2 consumer WG. 3-stage SMEM 버퍼.</div>
+    </div>
+    <div class="term">
+      <div class="t">SMEM swizzle 128B</div>
+      <div class="d">WGMMA 와 TMA 가 모두 같은 swizzle 모드. row 별 XOR 패턴.</div>
+    </div>
+    <div class="term">
+      <div class="t">TMA descriptor</div>
+      <div class="d">N-D copy 의 모든 결정을 한 객체에. 커널 안에서는 좌표만 넘김.</div>
+    </div>
+    <div class="term">
+      <div class="t">CUTLASS 3.x</div>
+      <div class="d">같은 일을 wrapper 로. CollectiveMma 가 핵심. epilogue 까지.</div>
+    </div>
+    <div class="term">
+      <div class="t">production fallback</div>
+      <div class="d">heuristic dispatch — 사이즈별로 cuBLAS / custom 선택. PyTorch 자체도 같은 패턴.</div>
+    </div>
+    <div class="term">
+      <div class="t">peak 990 TFLOPs</div>
+      <div class="d">H100 SXM5 의 FP16 peak. production-grade 는 보통 80%+ (~800 TF).</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=ErTmTCRP1_U" target="_blank" rel="noopener">youtube.com/watch?v=ErTmTCRP1_U</a> · 길이 미상</span>
+    </div>
+    <div class="row">
+      <span class="k">Modal blog</span>
+      <span class="v"><a href="https://www.modal.com/blog" target="_blank" rel="noopener">modal.com/blog</a> · pranjalssh 의 동명 시리즈</span>
+    </div>
+    <div class="row">
+      <span class="k">CUTLASS</span>
+      <span class="v"><a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">github.com/NVIDIA/cutlass</a> · 3.x</span>
+    </div>
+    <div class="row">
+      <span class="k">Hopper PTX</span>
+      <span class="v"><a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener">PTX ISA</a> · cp.async.bulk.tensor / wgmma.mma_async</span>
+    </div>
+    <div class="row">
+      <span class="k">Hopper Tuning</span>
+      <span class="v"><a href="https://docs.nvidia.com/cuda/hopper-tuning-guide/" target="_blank" rel="noopener">CUDA Hopper Tuning Guide</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>cuBLAS baseline 측정</strong> — H100 위에서 M=N=K ∈ {2048, 4096, 8192} 의 FP16 GEMM 을 cuBLAS 로 측정. throughput 의 peak 비율 기록.</li>
+    <li><strong>Naive WGMMA 커널</strong> — TMA 없이 직접 GMEM access 로 WGMMA 호출. 이 베이스라인이 얼마나 느린지 확인.</li>
+    <li><strong>TMA 추가</strong> — host 측에서 tensor map 만들고, kernel 안에서 cp.async.bulk.tensor PTX 호출. 베이스라인 대비 speedup.</li>
+    <li><strong>warp specialization</strong> — producer 1 warp + consumer 2 WG 분리. <code>setmaxnreg</code> 로 register 분배.</li>
+    <li><strong>SMEM swizzle 128B</strong> — TMA descriptor 와 WGMMA operand layout 매칭. NCU 의 SMEM bank conflict metric 으로 검증.</li>
+    <li><strong>cluster + multicast</strong> — block cluster 활성화, A 또는 B 를 multicast. bandwidth 사용량 감소를 NCU 로 확인.</li>
+    <li><strong>cuBLAS 와 비교</strong> — 단계별로 cuBLAS 대비 % 그래프. 어느 단계에서 격차가 좁혀지는지 추적.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 다음에 어디에 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_042.html">
+      <div class="n">L042</div>
+      <div class="ti">Mosaic GPU</div>
+      <div class="by">Adam Paszke — 같은 Hopper 도구를 JAX DSL 위에서. producer-consumer 패턴이 같음</div>
+    </a>
+    <a class="conn" href="lecture_043.html">
+      <div class="n">L043</div>
+      <div class="ti">int8 tensorcore matmul (Turing)</div>
+      <div class="by">Erik Schultheis — 같은 사다리의 출발점. Turing 5단계 + Hopper 5단계</div>
+    </a>
+    <a class="conn" href="lecture_036.html">
+      <div class="n">L036</div>
+      <div class="ti">CUTLASS / CuTe</div>
+      <div class="by">같은 일을 라이브러리 위에서. CollectiveMma 추상</div>
+    </a>
+    <a class="conn" href="lecture_044.html">
+      <div class="n">L044</div>
+      <div class="ti">NVIDIA Profiling</div>
+      <div class="by">본 강의의 결과를 NCU 로 검증할 때 — SpeedOfLight, MemoryWorkload</div>
+    </a>
+    <a class="conn" href="lecture_046.html">
+      <div class="n">L046</div>
+      <div class="ti">Distributed GEMM</div>
+      <div class="by">Ali Hassani — 한 GPU GEMM 위에 분산. 같은 producer-consumer 가 다중 GPU 로 확장</div>
+    </a>
+    <a class="conn" href="lecture_050.html">
+      <div class="n">L050</div>
+      <div class="ti">CUDA / Triton / FlashAttention</div>
+      <div class="by">같은 도구로 attention 구현</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>transcript 누락으로 더 많은 자리가 비어 있다</h2>
+  </div>
+  <p class="sec-lede">강의 transcript 가 누락된 강의 — 본 노트의 구체적 수치와 코드는 도메인 지식과 외부 자료에서 가져왔다. 영상 직접 확인이 필요한 사항들.</p>
+  <ul>
+    <li><strong>강의 발표가 보여준 정확한 사이즈와 격차</strong> — 본 노트의 그래프는 도메인 지식 기반 추정. 실제 강의의 측정값은 영상 확인 필요.</li>
+    <li><strong>FP8 가 다뤄졌는가</strong> — Hopper 의 새 dtype. cuBLAS 의 FP8 path 와 격차가 어떻게 다른지 — 영상의 specific 결과 확인.</li>
+    <li><strong>strategy: persistent vs split-K</strong> — 큰 K, 작은 M/N 의 사이즈에서 자주 쓰는 split-K 전략. 본 강의가 이 자리를 다뤘는지 미확인.</li>
+    <li><strong>cuBLAS internals</strong> — 강의가 cuBLAS 의 어느 path 와 비교했는지 (cuBLAS, cuBLASLt, cuBLAS-DX 의 차이). 영상 직접 확인.</li>
+    <li><strong>Hopper 의 FP32 accumulator strategy</strong> — FP16 input 에 FP32 accumulator 의 정확도/속도 trade-off 가 다뤄졌는가.</li>
+    <li><strong>Modal blog 와의 관계</strong> — pranjalssh 가 Modal blog 에 거의 같은 토픽으로 시리즈 글을 게재. 강의가 그 글의 발표인지, 별도 자료인지 — Modal blog 직접 확인 필요.</li>
+    <li><strong>Blackwell 으로의 전환</strong> — 강의 시점(2025-03) 기준. Blackwell 의 새 도구들 (TMEM, 5th gen TC) 과 본 강의의 결과가 어떻게 transferable 한지.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 numerical 주장 — peak TFLOPs, SMEM 크기, swizzle pattern 등 — 은 NVIDIA 공식 문서 (Hopper Tuning Guide, PTX ISA, CUDA C Programming Guide) 기준이지 강의의 발화에서 인용한 것이 아니다. 강의의 실제 강조점은 영상을 직접 보고 보충해야 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_044.html">
+    <span class="lbl">← Lecture 044</span>
+    <span class="nm">NVIDIA Profiling</span>
+  </a>
+  <a class="nxt" href="lecture_046.html">
+    <span class="lbl">Lecture 046 →</span>
+    <span class="nm">Distributed GEMM — Ali Hassani</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L045 · transcript-failed · domain-knowledge supplement · 2026</span>
+</footer>
+
+</body>
+</html>

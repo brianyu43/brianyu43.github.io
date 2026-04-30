@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L030 · Quantized Training · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l30-bits{display:grid;grid-template-columns:1fr;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l30-bits .row{display:grid;grid-template-columns:120px 1fr 90px;gap:14px;align-items:center;padding:8px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l30-bits .row .nm{color:var(--ink);font-weight:600}
+.l30-bits .row .vis{display:flex;gap:1px}
+.l30-bits .row .vis .b{height:18px;background:var(--accent)}
+.l30-bits .row .vis .b.exp{background:var(--cool)}
+.l30-bits .row .vis .b.man{background:var(--accent-2)}
+.l30-bits .row .vis .b.sgn{background:var(--ink)}
+.l30-bits .row .info{color:var(--ink);font-weight:700;text-align:right;font-size:11.5px}
+.l30-mw{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.l30-mw .col{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l30-mw .col .h{color:var(--accent);font-weight:700;font-family:'Pretendard',sans-serif;font-size:14px;margin-bottom:8px}
+.l30-mw .col .row{padding:5px 0;display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-soft);border-bottom:1px dotted var(--line-soft)}
+.l30-mw .col .row:last-child{border-bottom:none}
+.l30-mw .col .row b{color:var(--ink)}
+.l30-mw .col.right{border-color:var(--accent)}
+.l30-fp8{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l30-fp8 .b{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l30-fp8 .b .h{color:var(--accent);font-weight:700;font-family:'Pretendard',sans-serif;font-size:14px;margin-bottom:6px}
+.l30-fp8 .b .d{color:var(--ink-soft);font-size:12.5px;line-height:1.55}
+.l30-fp8 .b code{background:var(--bg-soft);color:var(--accent);padding:1px 5px;border-radius:3px}
+@media (max-width:760px){
+  .l30-bits .row{grid-template-columns:1fr}
+  .l30-mw,.l30-fp8{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_029.html">← L029</a>
+    <a href="lecture_031.html">L031 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L030</span>
+    <span>2024 · OCT · 06</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Quantized Training</h1>
+  <p class="dek">Inference 양자화는 비교적 쉬운 길이지만 — <strong>학습 시 양자화</strong>는 forward 의 정확도와 backward 의 gradient flow 를 동시에 깨뜨리지 않으면서 메모리/속도를 따 내야 하는 어려운 문제다. Thien Tran 이 깐 <em>master weights, stochastic rounding, low-bit optimizer state</em> 의 디자인 결정과 — Triton 위에서 dequantize/quantize 를 shared memory 안에서 끝내는 패턴의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">quantized training</span>
+    <span class="chip hi">FP8</span>
+    <span class="chip hi">INT8</span>
+    <span class="chip hi">stochastic rounding</span>
+    <span class="chip hi">master weights</span>
+    <span class="chip">8-bit optimizer</span>
+    <span class="chip">e4m3 / e5m2</span>
+    <span class="chip">torchao</span>
+    <span class="chip">delayed scaling</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">T</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Thien Tran</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">torchao contributor · gau-nernst (GitHub)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L030</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Thien Tran</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">8-bit optimizer 직접 짠다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 학습 양자화가 어려운가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">학습 시 메모리의 분포</span><span class="em">weight · grad · opt state · act</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">forward/backward 정밀도 분리</span><span class="em">low-bit compute, high-bit accum</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">stochastic rounding</span><span class="em">unbiased gradient 의 길</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">master weights 패턴</span><span class="em">왜 fp32 한 벌이 살아있는가</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">low-bit optimizer state</span><span class="em">8-bit Adam</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">FP8 의 e4m3 / e5m2</span><span class="em">두 포맷의 분업</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">실측 사례</span><span class="em">torchao · TE 비교</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">inference 양자화와의 차이</span><span class="em">대칭/비대칭, dynamic/static</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 학습 양자화가 어려운가</span></div>
+    <h2>“양자화 학습” 은 두 개의 다른 문제를 동시에 푼다 — 메모리와 throughput</h2>
+  </div>
+  <p class="sec-lede">Inference 양자화는 결과가 정해진 weight 를 줄이는 일이다. 학습 양자화는 — <strong>weight 가 매 step 바뀌고, gradient 가 weight 를 업데이트하고, optimizer state 가 그 사이를 잇는다</strong>. 정밀도를 깨면 어디서든 학습이 발산할 수 있다.</p>
+
+  <p>Thien 이 강의 첫 5 분에 깐 두 줄 — </p>
+  <ol>
+    <li><strong>학습 메모리의 어디를 어떻게 줄일 것인가</strong> — weight, gradient, optimizer state, activation 의 4 자리. 자리마다 양자화의 길이 다르다.</li>
+    <li><strong>Tensor Core 의 low-bit compute(FP8/INT8 mma)를 어떻게 학습에 박을 것인가</strong> — 단순 메모리 절감이 아니라 throughput 도 따 내려면 mma 입력이 low-bit 여야 한다.</li>
+  </ol>
+
+  <p>강의의 frame 은 — <em>“정밀도를 일률적으로 줄이지 말라. 자리마다 다른 정밀도를 쓰는 게 정답”</em>. forward 의 mma input 은 FP8/INT8, accumulation 은 FP32, master weight 는 FP32, optimizer state 는 8-bit, gradient 는 BF16. 한 모델 안에 5–6 개 정밀도가 동시에 산다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>이 강의의 모든 디자인 결정은 한 질문에서 나온다 — <strong>“이 자리에서 정밀도를 깎으면 학습이 발산하는가”</strong>. 발산하지 않는 자리는 깎고, 발산하는 자리는 fp32 를 유지한다. 그 분기점을 찾는 것이 핵심.</p>
+  </div>
+
+  <div class="pull">“Inference 양자화에서는 ‘이 weight 가 얼마나 정확한가’만 보면 됩니다. 학습에서는 — <em>그 weight 가 어떻게 움직이는가</em> 도 봐야 해요. gradient 의 부호 한 비트가 잘못되면 발산합니다.”<span class="by">Thien Tran · 04:32</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>학습 시 메모리의 분포</b><span>· weight · grad · opt state · act</span></div>
+    <h2>“학습 메모리의 60% 가 weight 가 아니다” — 어디서 잡힐 수 있는지의 지도</h2>
+  </div>
+  <p class="sec-lede">강의의 첫 그림 — Llama-3 8B 학습 시 메모리 사용을 분해. weight 자체는 약 16 GB(BF16), 그런데 학습 step 의 peak 는 60–80 GB. 차이가 어디서 오는지 알아야 양자화의 표적이 잡힌다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 8B BF16 학습 step 의 메모리 분포</span><span>Adam optimizer · seq 4096 · batch 16</span></div>
+    <div class="bars">
+      <div class="row"><span class="lbl">model weights (BF16)</span><div class="bar cool"><span style="width:20%"></span></div><span class="val">16 GB</span></div>
+      <div class="row"><span class="lbl">gradients (BF16)</span><div class="bar cool"><span style="width:20%"></span></div><span class="val">16 GB</span></div>
+      <div class="row"><span class="lbl">Adam state (FP32 m + v)</span><div class="bar"><span style="width:80%"></span></div><span class="val">64 GB</span></div>
+      <div class="row"><span class="lbl">master weights (FP32)</span><div class="bar"><span style="width:40%"></span></div><span class="val">32 GB</span></div>
+      <div class="row"><span class="lbl">activations (BF16)</span><div class="bar cool"><span style="width:30%"></span></div><span class="val">~24 GB</span></div>
+    </div>
+    <div class="viz-note">Adam 의 m, v 가 <strong>각각 fp32 모델 크기와 같다</strong>. 두 개니까 weight 의 4 배. 여기에 master weight 가 또 한 벌. <em>weight 의 8 배 + activation</em> 이 학습 메모리의 본체.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>각 자리의 양자화 가능성 — </p>
+      <ul>
+        <li><strong>weight</strong> — BF16 까지는 안전. FP8 weight 는 mma 와 직결. <em>delicate</em>.</li>
+        <li><strong>gradient</strong> — BF16 표준. FP8 grad 는 <em>delayed scaling</em> 이 필요. 발산의 주요 원인.</li>
+        <li><strong>optimizer state (m, v)</strong> — <strong>가장 많이 차지. 가장 양자화 안전한 자리</strong>. 8-bit Adam 이 표준.</li>
+        <li><strong>master weights</strong> — FP32 한 벌. 정확도가 직결되니 항상 fp32. 단 stochastic rounding 으로 유지하면 BF16 으로 줄일 수 있다.</li>
+        <li><strong>activations</strong> — BF16 대부분. recompute 로 줄이는 게 우선, 양자화는 까다로움.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">Thien 의 우선순위</div>
+        <p>가장 큰 win 은 <strong>optimizer state 의 8-bit 화</strong>. 64 GB 가 16 GB 로 — <em>전체의 30% 절감</em>. accuracy 영향이 거의 없다 (state 의 정확도가 학습에 직결되지 않으니까). 그 다음이 master weight 의 BF16 화 + stochastic rounding. 그 다음이 mma 의 FP8 화. <strong>이 순서가 risk/reward 의 sweet spot</strong>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>forward/backward 정밀도 분리</b><span>· low-bit compute, high-bit accum</span></div>
+    <h2>한 mma 안에 두 정밀도가 산다 — input 은 FP8, accumulator 는 FP32</h2>
+  </div>
+  <p class="sec-lede">Tensor Core 의 mma 명령 자체가 <strong>혼합 정밀도</strong>다. <em>입력은 FP16/BF16/FP8/INT8, 출력은 FP32</em>. 학습 양자화의 핵심 메커니즘은 그 “입력만 줄인다” 는 점에 있다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 정밀도의 사다리 — 같은 mma 안에서</span><span>storage vs compute</span></div>
+    <div class="l30-bits">
+      <div class="row">
+        <span class="nm">FP32</span>
+        <span class="vis">
+          <span class="b sgn" style="width:8%"></span>
+          <span class="b exp" style="width:24%"></span>
+          <span class="b man" style="width:68%"></span>
+        </span>
+        <span class="info">1+8+23 / 32b</span>
+      </div>
+      <div class="row">
+        <span class="nm">BF16</span>
+        <span class="vis">
+          <span class="b sgn" style="width:8%"></span>
+          <span class="b exp" style="width:50%"></span>
+          <span class="b man" style="width:42%"></span>
+        </span>
+        <span class="info">1+8+7 / 16b</span>
+      </div>
+      <div class="row">
+        <span class="nm">FP16</span>
+        <span class="vis">
+          <span class="b sgn" style="width:8%"></span>
+          <span class="b exp" style="width:32%"></span>
+          <span class="b man" style="width:60%"></span>
+        </span>
+        <span class="info">1+5+10 / 16b</span>
+      </div>
+      <div class="row">
+        <span class="nm">FP8 e4m3</span>
+        <span class="vis">
+          <span class="b sgn" style="width:12%"></span>
+          <span class="b exp" style="width:50%"></span>
+          <span class="b man" style="width:38%"></span>
+        </span>
+        <span class="info">1+4+3 / 8b</span>
+      </div>
+      <div class="row">
+        <span class="nm">FP8 e5m2</span>
+        <span class="vis">
+          <span class="b sgn" style="width:12%"></span>
+          <span class="b exp" style="width:62%"></span>
+          <span class="b man" style="width:26%"></span>
+        </span>
+        <span class="info">1+5+2 / 8b</span>
+      </div>
+      <div class="row">
+        <span class="nm">INT8</span>
+        <span class="vis">
+          <span class="b sgn" style="width:12%"></span>
+          <span class="b" style="width:88%;background:var(--cool-2)"></span>
+        </span>
+        <span class="info">signed 8b</span>
+      </div>
+    </div>
+    <div class="viz-note"><strong>같은 mma 의 두 시간 단위</strong>: input 의 BF16/FP8/INT8 → 누적은 항상 fp32. 그래서 <em>input precision 만 깎고 sum 의 정확도는 유지된다</em>.</div>
+  </div>
+
+  <div class="split rev">
+    <div>
+<pre><code><span style="color:#A99E89"># forward: weight FP8 + activation FP8 → output FP32 (cast back)</span>
+<span style="color:#E7B369">def</span> linear_fp8_forward(x_bf16, w_bf16):
+    <span style="color:#A99E89"># amax 추적 + scale</span>
+    s_x = compute_scale(x_bf16)
+    s_w = compute_scale(w_bf16)
+    x_fp8 = (x_bf16 / s_x).to(fp8)
+    w_fp8 = (w_bf16 / s_w).to(fp8)
+
+    <span style="color:#A99E89"># Tensor Core mma — FP8 in, FP32 out</span>
+    out_fp32 = mma_fp8(x_fp8, w_fp8)
+
+    <span style="color:#A99E89"># scale 복원 후 BF16 output</span>
+    <span style="color:#E7B369">return</span> (out_fp32 * s_x * s_w).to(bf16)</code></pre>
+    </div>
+    <div>
+      <p>이 패턴의 본질 — </p>
+      <ul>
+        <li><strong>compute 정밀도 ≠ storage 정밀도</strong>. mma 의 input 만 low-bit. accumulator 는 fp32 그대로.</li>
+        <li><strong>scaling 이 핵심</strong>. FP8 의 dynamic range 가 좁으니 — 입력의 amax 를 보고 scale 한 다음 cast.</li>
+        <li><strong>scale 은 metadata 로 따라다닌다</strong>. PyTorch 의 <code>torch._scaled_mm</code> 같은 API 가 (tensor, scale) 쌍을 받는다.</li>
+        <li><strong>backward 도 같은 패턴</strong>. weight grad / activation grad 둘 다 FP8 입력 + fp32 누적.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">delayed scaling 의 의미</div>
+    <p>scale 을 <em>매 step 새로 계산</em>하면 한 비트가 흔들려 학습이 발산할 수 있다. 그래서 NVIDIA Transformer Engine 등은 <strong>delayed scaling</strong> — 지난 N 개 step 의 amax 를 history 로 저장해 max 를 scale 로. 학습이 stable.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>stochastic rounding</b><span>· unbiased gradient 의 길</span></div>
+    <h2>round-to-nearest 가 아니라 — “확률적으로 위 또는 아래로”</h2>
+  </div>
+  <p class="sec-lede">학습 양자화의 가장 우아한 trick 중 하나. 작은 gradient 가 weight update 시 round-to-nearest 으로 0 이 되는 문제를 — <em>확률적 반올림</em>으로 해결.</p>
+
+  <div class="split">
+    <div>
+      <p>문제 상황을 구체적으로 — </p>
+      <ul>
+        <li><strong>BF16 master weight</strong>: 0.5000 (mantissa 7 비트)</li>
+        <li><strong>gradient × lr</strong>: 0.0001 (BF16 의 LSB 보다 작음)</li>
+        <li><strong>round-to-nearest 결과</strong>: 0.5000 (gradient 가 사라짐)</li>
+        <li><strong>여러 step 누적</strong>: 0.0001 × 1000 = 0.1 인데 — 매 step 에서 사라지면 영원히 안 더해진다</li>
+      </ul>
+      <p><strong>stochastic rounding</strong> 은 — 0.5001 을 받았을 때, 0.5000 으로 99% 확률, 0.5001 의 다음 representable 값으로 1% 확률로 round. <em>기댓값이 정확하다</em> (unbiased). 1000 step 누적시 평균적으로 0.1 가 더해진다.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># stochastic rounding — Triton 안에서</span>
+<span style="color:#E7B369">@triton</span>.jit
+<span style="color:#E7B369">def</span> sr_cast_fp32_to_bf16(x_fp32):
+    <span style="color:#A99E89"># 1. fp32 의 lower 16 bit 를 random bit 로 가산</span>
+    rand = tl.rand(seed, offset)         <span style="color:#A99E89"># [0, 1) uniform</span>
+    rand_bits = (rand * <span style="color:#E7B369">65536</span>).to(tl.uint32)
+
+    <span style="color:#A99E89"># 2. fp32 비트 직접 manipulation</span>
+    bits = x_fp32.to(tl.uint32, bitcast=<span style="color:#E7B369">True</span>)
+    bits = bits + rand_bits              <span style="color:#A99E89"># lower 16b 에 random 가산</span>
+
+    <span style="color:#A99E89"># 3. truncate to bf16 (= upper 16 bits)</span>
+    <span style="color:#E7B369">return</span> (bits &gt;&gt; <span style="color:#E7B369">16</span>).to(tl.bfloat16, bitcast=<span style="color:#E7B369">True</span>)</code></pre>
+      <p style="margin-top:12px">핵심 — <em>round-to-nearest 보다 비용이 거의 같다</em>. random 한 번, addition 한 번. 그런데 학습 양자화의 정확도 손실이 한 자리수 줄어든다.</p>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">stochastic rounding 의 위치</div>
+    <p>fp32 → bf16 cast(master → working weight), bf16 → fp8 cast 등 <em>모든 down-cast 자리</em>에서 stochastic rounding 이 default 가 되는 추세. PyTorch 의 <code>torch.ao</code>, NVIDIA TE 모두 옵션으로 제공.</p>
+  </div>
+
+  <div class="pull">“round-to-nearest 는 작은 gradient 를 영원히 죽입니다. stochastic rounding 은 — 평균적으로 정확한 update 가 됩니다. 학습 양자화에서 한 줄 trick 으로 가장 큰 효과.”<span class="by">Thien Tran · 28:50</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>master weights 패턴</b><span>· 왜 fp32 한 벌이 살아있는가</span></div>
+    <h2>“mixed precision training” 의 구조 — 두 weight 가 동시에 산다</h2>
+  </div>
+  <p class="sec-lede">학습 시 weight 는 사실상 <strong>두 벌</strong>로 산다 — forward/backward 에 쓰이는 working weight (BF16/FP8) 와 optimizer 가 업데이트하는 master weight (FP32). 이 분리가 mixed-precision training 의 본질.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 한 step 의 master/working weight 흐름</span><span>두 정밀도의 ping-pong</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">1</div><div class="nm">cast</div><div class="dt">master FP32 → working BF16</div></div>
+      <div class="stage"><div class="sn">2</div><div class="nm">forward</div><div class="dt">BF16 weight × BF16 act → loss</div></div>
+      <div class="stage"><div class="sn">3</div><div class="nm">backward</div><div class="dt">BF16 grad 산출</div></div>
+      <div class="stage hi"><div class="sn">4</div><div class="nm">upcast</div><div class="dt">grad → FP32</div></div>
+      <div class="stage hi"><div class="sn">5</div><div class="nm">opt step</div><div class="dt">master FP32 update</div></div>
+    </div>
+    <div class="viz-note">step 5 가 fp32 인 이유 — Adam 의 <em>v = β₂·v + (1-β₂)·g²</em> 에서 g² 가 매우 작은 값일 수 있고, 누적이 fp16 로는 부정확. 그래서 master 와 optimizer state 는 FP32 가 표준.</div>
+  </div>
+
+  <div class="split rev">
+    <div>
+      <div class="l30-mw">
+        <div class="col">
+          <div class="h">working weight</div>
+          <div class="row"><span>storage</span><b>BF16 또는 FP8</b></div>
+          <div class="row"><span>역할</span><b>forward · backward</b></div>
+          <div class="row"><span>크기</span><b>2N 또는 N bytes</b></div>
+          <div class="row"><span>업데이트</span><b>매 step master 에서 cast</b></div>
+        </div>
+        <div class="col right">
+          <div class="h">master weight</div>
+          <div class="row"><span>storage</span><b>FP32</b></div>
+          <div class="row"><span>역할</span><b>optimizer 가 업데이트</b></div>
+          <div class="row"><span>크기</span><b>4N bytes</b></div>
+          <div class="row"><span>업데이트</span><b>매 step opt step 결과</b></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p>이 분리의 미묘한 디테일들 — </p>
+      <ul>
+        <li><strong>master weight 가 메모리에서 가장 큰 자리</strong>. weight 의 4 배(FP32 vs FP16 storage 가 8 byte vs 2 byte). FSDP/ZeRO 의 sharding 이 이 자리에서 가장 큰 효과.</li>
+        <li><strong>master weight 의 BF16 화</strong> + stochastic rounding. <em>2024 의 새 추세</em>. 메모리를 또 절반으로.</li>
+        <li><strong>cast 의 cost</strong> — 매 step 마다 working = master.bf16(). N 의 weight 를 cast 하니 적지 않은 일.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="label">FSDP / DeepSpeed 의 자리</div>
+        <p>FSDP 는 master weight 를 GPU 들 사이에 <strong>shard</strong>. opt step 시 자기 shard 만 업데이트. <em>master 가 가장 큰 자리니까 sharding 의 효과가 비례적</em>. ZeRO-3 도 같은 마음.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>low-bit optimizer state</b><span>· 8-bit Adam</span></div>
+    <h2>“optimizer state 의 m, v 를 8-bit 로 — 학습 결과는 그대로”</h2>
+  </div>
+  <p class="sec-lede">학습 양자화의 가장 큰 win 자리. Tim Dettmers 의 <em>bitsandbytes</em> 가 처음 깐 패턴을 Thien 이 직접 강의에서 재해석. 핵심은 <strong>“dequant + update + quant 를 한 Triton 커널 안에서 끝낸다”</strong>.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89"># 8-bit Adam 의 한 step — Triton (요약)</span>
+<span style="color:#E7B369">@triton</span>.jit
+<span style="color:#E7B369">def</span> adam_8bit_step(p_ptr, g_ptr,
+                    m8_ptr, v8_ptr,
+                    sm_ptr, sv_ptr,
+                    lr, b1, b2, eps,
+                    BLOCK: tl.constexpr):
+    pid    = tl.program_id(<span style="color:#E7B369">0</span>)
+    offs   = pid * BLOCK + tl.arange(<span style="color:#E7B369">0</span>, BLOCK)
+
+    <span style="color:#A99E89"># 1. shared memory 안에서 dequant</span>
+    m8     = tl.load(m8_ptr + offs)             <span style="color:#A99E89"># int8</span>
+    v8     = tl.load(v8_ptr + offs)
+    sm     = tl.load(sm_ptr + pid)              <span style="color:#A99E89"># scale</span>
+    sv     = tl.load(sv_ptr + pid)
+    m      = m8.to(tl.float32) * sm
+    v      = v8.to(tl.float32) * sv
+
+    <span style="color:#A99E89"># 2. Adam update — fp32 안에서</span>
+    g      = tl.load(g_ptr + offs).to(tl.float32)
+    m      = b1 * m + (<span style="color:#E7B369">1</span> - b1) * g
+    v      = b2 * v + (<span style="color:#E7B369">1</span> - b2) * g * g
+    p      = tl.load(p_ptr + offs)
+    p_new  = p - lr * m / (tl.sqrt(v) + eps)
+
+    <span style="color:#A99E89"># 3. 다시 quantize — 새 scale 산출</span>
+    abs_m  = tl.max(tl.abs(m))
+    sm_new = abs_m / <span style="color:#E7B369">127.</span>
+    m8_new = (m / sm_new).to(tl.int8)
+
+    tl.store(p_ptr + offs, p_new)
+    tl.store(m8_ptr + offs, m8_new)
+    tl.store(sm_ptr + pid, sm_new)
+    <span style="color:#A99E89"># v 도 같은 패턴 ...</span></code></pre>
+    </div>
+    <div>
+      <p>이 커널의 핵심 디자인 결정 — </p>
+      <ul>
+        <li><strong>dequantized state 를 global memory 에 절대 안 쓴다</strong>. 모든 fp32 값이 register/SRAM 에서만 살아있음. 강의 Q&amp;A 의 핵심 질문.</li>
+        <li><strong>block-wise scaling</strong>. 한 BLOCK 단위(예: 2048 element) 의 amax 로 한 scale. tensor-wise 보다 정확, element-wise 보다 cheap.</li>
+        <li><strong>Adam 의 b1, b2 가 1 에 가까우니</strong> m, v 가 매우 안정. 양자화 noise 의 영향이 작다.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="label">Q&amp;A 의 핵심</div>
+        <p>강의 중 한 청중이 — <em>“BLOCK 안에서 row-wise scaling 을 쓰면 row 가 너무 클 때 reduction 이 한 BLOCK 에 안 들어가지 않나?”</em> 라고 질문. Thien 의 답: <em>“그래서 group size 를 bias 시키되 한 SM 의 shared memory 에 들어오게 결정한다. 작은 group 이 안전하다”</em>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 메모리 절감 — 8-bit Adam</span><span>Llama-3 8B</span></div>
+    <div class="bars">
+      <div class="row"><span class="lbl">FP32 Adam (m + v)</span><div class="bar"><span style="width:96%"></span></div><span class="val">64 GB</span></div>
+      <div class="row"><span class="lbl">FP16 Adam</span><div class="bar cool"><span style="width:48%"></span></div><span class="val">32 GB</span></div>
+      <div class="row"><span class="lbl">8-bit Adam</span><div class="bar sml"><span style="width:24%"></span></div><span class="val">16 GB (-75%)</span></div>
+      <div class="row"><span class="lbl">4-bit Adam (실험)</span><div class="bar sml"><span style="width:14%"></span></div><span class="val">9 GB</span></div>
+    </div>
+    <div class="viz-note">8-bit Adam 만으로 <strong>학습 메모리 30% 절감</strong>. bitsandbytes 의 표준. accuracy 영향 거의 0.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>FP8 의 e4m3 / e5m2</b><span>· 두 포맷의 분업</span></div>
+    <h2>왜 FP8 는 <em>두 포맷</em>인가 — forward 와 backward 의 다른 distribution</h2>
+  </div>
+  <p class="sec-lede">FP8 spec 은 두 가지 — <strong>e4m3</strong>(exponent 4 + mantissa 3)와 <strong>e5m2</strong>(exponent 5 + mantissa 2). 같은 8 비트지만 trade-off 가 다르다. 학습에서 어디에 어떤 포맷을 쓰는지가 결정적.</p>
+
+  <div class="l30-fp8">
+    <div class="b">
+      <div class="h">e4m3 — 정확도 우선</div>
+      <div class="d">
+        exponent 4 비트 → range <code>±448</code><br>
+        mantissa 3 비트 → relative precision ~1/16<br><br>
+        <strong>forward activation, weight</strong> 에 사용. 값의 범위가 좁고 정확도가 중요한 자리.<br>
+        denormal subnormal 까지 활용해 precision 을 짜냄.
+      </div>
+    </div>
+    <div class="b">
+      <div class="h">e5m2 — 범위 우선</div>
+      <div class="d">
+        exponent 5 비트 → range <code>±57344</code><br>
+        mantissa 2 비트 → relative precision ~1/8<br><br>
+        <strong>backward gradient</strong> 에 사용. gradient 는 분포가 넓고(작은 grad + 큰 grad 동시), 정확도보다 dynamic range 가 중요.<br>
+        IEEE 754 fp16 와 같은 exponent 폭.
+      </div>
+    </div>
+  </div>
+
+  <div class="split rev">
+    <div>
+      <div class="callout cool">
+        <div class="label">NVIDIA Transformer Engine 의 표준</div>
+        <p>activation / weight = <strong>e4m3</strong>. gradient = <strong>e5m2</strong>. 두 포맷이 mma 의 다른 자리에서 만난다 — forward 의 <em>w_e4m3 × a_e4m3 → fp32</em>, backward 의 <em>g_e5m2 × ... → fp32</em>. FP16 mixed-precision 시대의 patterned trade-off 가 더 정교화된 버전.</p>
+      </div>
+
+      <p>Hopper 의 mma 는 두 포맷을 모두 input 으로 받는다. <code>tcgen05.mma{f8e4m3, f8e5m2}</code> 같은 명령. Triton 도 3.x 부터 양쪽 모두.</p>
+    </div>
+    <div>
+      <p>학습 시 한 mma 의 흐름을 풀면 — </p>
+      <ol>
+        <li><strong>forward</strong>: <code>out = w_e4m3 @ a_e4m3</code>. fp32 accumulation. cast back to bf16/fp8.</li>
+        <li><strong>backward (input grad)</strong>: <code>g_in = w_e4m3.T @ g_out_e5m2</code>. weight 는 forward 와 같은 e4m3, grad 는 e5m2.</li>
+        <li><strong>backward (weight grad)</strong>: <code>g_w = a_e4m3.T @ g_out_e5m2</code>. forward 의 activation 을 재사용.</li>
+      </ol>
+      <p>각 mma 마다 두 input 의 scale 을 따로 추적해야 한다. 그래서 <em>scale 메타데이터 텐서</em>가 weight/activation/grad 옆에 따라다닌다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>실측 사례</b><span>· torchao · TE 비교</span></div>
+    <h2>“이 디자인이 실제로 학습 결과를 깨뜨리지 않는가”</h2>
+  </div>
+  <p class="sec-lede">강의 후반의 본론. Thien 이 torchao 의 quantized training stack 으로 직접 측정한 결과. NVIDIA Transformer Engine 의 결과와도 비교.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 학습 perf — Llama-3 8B 1B token</span><span>throughput · loss</span></div>
+    <div class="bars">
+      <div class="row"><span class="lbl">BF16 baseline</span><div class="bar cool"><span style="width:50%"></span></div><span class="val">4500 tok/s</span></div>
+      <div class="row"><span class="lbl">+ 8-bit Adam</span><div class="bar cool"><span style="width:53%"></span></div><span class="val">4800</span></div>
+      <div class="row"><span class="lbl">+ FP8 forward</span><div class="bar"><span style="width:78%"></span></div><span class="val">7100 (+58%)</span></div>
+      <div class="row"><span class="lbl">+ FP8 fwd+bwd (TE)</span><div class="bar"><span style="width:90%"></span></div><span class="val">8200 (+82%)</span></div>
+      <div class="row"><span class="lbl">+ stochastic master</span><div class="bar sml"><span style="width:92%"></span></div><span class="val">8400 (+87%)</span></div>
+    </div>
+    <div class="viz-note">H100 80GB 단일 노드 기준. <strong>throughput 이 거의 2 배</strong>까지 — 메모리는 <em>30–40% 절감</em>까지 따 낸다. <em>Llama 의 train loss 는 1B token 까지 BF16 baseline 과 visible 차이 없음</em>(diff &lt; 1%).</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>강의에서 짚은 미묘한 측정 디테일들 — </p>
+      <ul>
+        <li><strong>FP8 의 win 은 H100 부터</strong>. A100 은 FP8 mma 가 없다. mma 자체는 H100 / H200 / Blackwell.</li>
+        <li><strong>실효 win 은 모델 + batch + seq 에 따라 달라짐</strong>. memory-bound 인 자리(작은 batch, KV cache dominant)는 FP8 의 throughput win 이 작다.</li>
+        <li><strong>delayed scaling 의 history window</strong>. 작으면 (16) 빠르고 stable, 크면 (128) 더 robust 하지만 cold start 가 느림.</li>
+        <li><strong>convergence 가 깨지는 자리</strong> — scale 이 sudden 하게 변하는 self-attention 의 logit. 그 자리만 BF16 fallback 하는 패턴.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">torchao 와 TE 의 디자인 차이</div>
+        <p><strong>NVIDIA Transformer Engine</strong> = 모듈 단위 wrapping. <code>te.Linear</code>, <code>te.LayerNorm</code> 으로 모델 코드 변경.<br>
+        <strong>torchao</strong> = tensor subclass + dispatch. <code>quantize_(model, Float8DynamicLinearConfig())</code> 한 줄로 모델의 nn.Linear 를 swap. <em>모델 코드 변경 거의 없음</em>.<br>
+        <em>접근 방식의 trade-off</em> — TE 는 각 자리의 정밀 통제, torchao 는 채택 비용 0.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pull">“BF16 학습이 1.0 이라면, 8-bit Adam + FP8 fwd/bwd 까지 가면 1.8× 빠르고 메모리는 30% 적게 — 그리고 loss curve 가 같습니다. 이게 quantized training 의 본질입니다.”<span class="by">Thien Tran · 1:12:18</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>inference 양자화와의 차이</b><span>· 대칭/비대칭, dynamic/static</span></div>
+    <h2>“같은 INT8 인데 학습은 어렵고 inference 는 쉬운 이유”</h2>
+  </div>
+  <p class="sec-lede">강의 끝부분에서 Thien 이 명시적으로 던진 비교. 같은 양자화 단어가 두 환경에서 다른 의미를 가진다.</p>
+
+  <div class="terms">
+    <div class="term"><div class="t">inference: weight only</div><div class="d">weight 만 INT8/INT4. activation 은 BF16. 각 weight 가 정해져 있으니 calibration 한 번에 끝.</div></div>
+    <div class="term"><div class="t">training: weight 가 매 step 변함</div><div class="d">amax 가 매 step 변함. delayed scaling history 또는 dynamic scaling 필수. inference 의 calibration 이 통하지 않음.</div></div>
+    <div class="term"><div class="t">inference: 비대칭 양자화 OK</div><div class="d">zero point 를 따로 저장. INT4 가 [-8, 7] 이지만 zero point 로 mapping 자유.</div></div>
+    <div class="term"><div class="t">training: 대칭 양자화 표준</div><div class="d">학습 시 zero point 가 변하면 backward 가 복잡. 대부분 symmetric scaling.</div></div>
+    <div class="term"><div class="t">inference: static or dynamic activation</div><div class="d">activation 양자화는 calibration set 위 amax history 또는 매 batch 마다 dynamic.</div></div>
+    <div class="term"><div class="t">training: dynamic + history</div><div class="d">매 step amax 추적 + history rolling max. 발산 방지가 우선.</div></div>
+    <div class="term"><div class="t">inference: rounding 거의 무관</div><div class="d">round-to-nearest 으로 충분. 정밀도 손실은 weight 분포에 영향 받음.</div></div>
+    <div class="term"><div class="t">training: stochastic rounding 필수</div><div class="d">작은 grad 가 round-to-nearest 으로 죽으면 학습 발산. unbiased rounding 이 결정적.</div></div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">한 줄 요약</div>
+    <p><strong>inference 양자화 = 정확도의 게임</strong>. weight 분포를 어떻게 더 정확하게 표현하는가.<br>
+    <strong>training 양자화 = gradient flow 의 게임</strong>. 학습이 발산하지 않으면서 어디까지 정밀도를 깎을 수 있는가.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">학습 메모리 분포</div><div class="d">weight × 8 (BF16 + grad + master fp32 + Adam m,v fp32) + activation. <em>opt state 가 가장 큼</em>.</div></div>
+    <div class="term"><div class="t">정밀도 분리</div><div class="d">mma input 만 low-bit (FP8/INT8), accumulator 는 fp32. storage ≠ compute precision.</div></div>
+    <div class="term"><div class="t">stochastic rounding</div><div class="d">작은 grad 가 round-to-nearest 으로 죽는 것을 막음. 기댓값 unbiased. 비용은 거의 없음.</div></div>
+    <div class="term"><div class="t">master weights</div><div class="d">FP32 한 벌이 optimizer 가 만지는 자리. working weight (BF16) 와 분리. mixed-precision 의 본질.</div></div>
+    <div class="term"><div class="t">8-bit Adam</div><div class="d">opt state m, v 를 INT8 + scale 로. dequant/quant 가 shared memory 안에서. 정확도 영향 거의 0, 메모리 -75%.</div></div>
+    <div class="term"><div class="t">FP8 e4m3 / e5m2</div><div class="d">e4m3 = forward act/weight (정확도). e5m2 = backward grad (range). Hopper mma 가 양쪽.</div></div>
+    <div class="term"><div class="t">delayed scaling</div><div class="d">amax history N 개 step 의 max 를 scale 로. 학습 stability 의 핵심.</div></div>
+    <div class="term"><div class="t">torchao vs TE</div><div class="d">torchao = tensor subclass dispatch (모델 변경 0). TE = 모듈 wrapping (정밀 통제). 채택 비용 trade-off.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=Br07GsnnvWc" target="_blank" rel="noopener">youtube.com/watch?v=Br07GsnnvWc</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_030" target="_blank" rel="noopener">repo lecture_030</a> (PDF)</span>
+    </div>
+    <div class="row">
+      <span class="k">Notebook</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_030" target="_blank" rel="noopener">[GPU_MODE]_Quantized_training.ipynb</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v"><a href="https://github.com/pytorch/ao" target="_blank" rel="noopener">pytorch/ao (torchao)</a> · <a href="https://github.com/gau-nernst" target="_blank" rel="noopener">github.com/gau-nernst</a> · <a href="https://github.com/TimDettmers/bitsandbytes" target="_blank" rel="noopener">bitsandbytes</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Reference</span>
+      <span class="v"><a href="https://github.com/NVIDIA/TransformerEngine" target="_blank" rel="noopener">NVIDIA Transformer Engine</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>학습 메모리 baseline 측정</strong> — Llama-2 1B 의 한 step 의 메모리 분포를 <code>torch.cuda.memory_allocated()</code> 로 추적. weight / grad / opt state / activation 의 % 확인.</li>
+    <li><strong>8-bit Adam 적용</strong> — bitsandbytes 또는 torchao. 같은 모델로 학습 1B token. 메모리 절감과 loss 곡선 일치 확인.</li>
+    <li><strong>stochastic rounding 직접 짜보기</strong> — Triton 으로 fp32 → bf16 cast 의 두 버전 (RTN vs SR). small grad 누적 시뮬레이션으로 차이 확인.</li>
+    <li><strong>FP8 forward 적용</strong> — H100 환경에서 torchao 의 <code>Float8DynamicLinear</code>. throughput / loss 비교.</li>
+    <li><strong>FP8 backward 까지</strong> — TE 또는 torchao 의 fully-FP8 mode. e4m3 vs e5m2 의 자리를 직접 확인.</li>
+    <li><strong>delayed scaling history 영향</strong> — history window 16 / 64 / 256 으로 학습. 짧을수록 발산 위험, 긴 게 stable.</li>
+    <li><strong>Triton 으로 8-bit Adam 구현</strong> — 강의의 패턴을 first principle 로 짜본다. dequant + update + quant 를 한 커널.</li>
+    <li><strong>master weight BF16 화</strong> — torchao 의 옵션. stochastic rounding 와 결합. 메모리 절감을 측정.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 시리즈 안에 어떻게 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — 학습 메모리 절감의 다른 축(fusion). Liger 의 fp32 accum 패턴이 § 03 와 같은 자리</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">Hicham Badri — INT4/INT8 의 inference 자리. § 09 의 비교 reference</div>
+    </a>
+    <a class="conn" href="lecture_033.html">
+      <div class="n">L033</div>
+      <div class="ti">Bitblas</div>
+      <div class="by">Wang Lei — low-bit GEMM 의 컴파일러 측면. quantized training 과 inference 의 hardware mma 사용</div>
+    </a>
+    <a class="conn" href="lecture_032.html">
+      <div class="n">L032</div>
+      <div class="ti">Unsloth</div>
+      <div class="by">Daniel Han — fine-tuning 환경의 양자화 (QLoRA). master weight 와 LoRA 어댑터의 정밀도 분리</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">Mark Saroufim — § 02 의 메모리 분포 측정의 도구</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Mark · Charles — § 06 의 dequant+update+quant fusion 의 일반론</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">Kapil Sharma — Triton 의 FP8 type, mma layout 이 어떻게 lower 되는가</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>4-bit Adam 의 실용성</strong> — 강의 시점에 실험 단계. 정확도가 어디서부터 깨지는지의 정확한 경계는.</li>
+    <li><strong>FP8 의 long training stability</strong> — 1B token 까지는 BF16 와 일치하지만, 100B+ token training 에서도 그런가? Llama 의 production 학습이 FP8 로 가능한가.</li>
+    <li><strong>master weight 의 BF16 화 위험</strong> — stochastic rounding 으로 보완되는데, 한계 자리(매우 작은 lr 이나 매우 큰 batch)에서 깨지는가.</li>
+    <li><strong>Blackwell 의 FP4 mma</strong> — Blackwell 이 가져온 FP4 명령. 학습에도 적용 가능한가? FP8 보다 한 단계 더의 절감.</li>
+    <li><strong>activation 양자화의 자리</strong> — 강의에서 명시적으로 다루지 않은 자리. selective recompute + 양자화의 합집합이 가능한가.</li>
+    <li><strong>multi-GPU 환경의 FP8</strong> — FSDP/DeepSpeed 위 FP8 가 all-reduce / all-gather 에서 어떻게 동작하는가. NCCL 의 FP8 reduction.</li>
+    <li><strong>torchao 와 torch.compile 의 통합</strong> — quantize_ 의 tensor subclass 가 torch.compile 의 fusion 과 호환되는가.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 throughput / 메모리 수치는 강의에서 Thien 이 보여준 측정을 재구성한 것. H100 / H200 / Blackwell 별로 변동이 클 수 있고, torchao 의 stability 도 빠르게 변하니 — 자기 환경에서 baseline 을 직접 떠봐야 한다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_029.html">
+    <span class="lbl">← Lecture 029</span>
+    <span class="nm">Triton Internals — Kapil Sharma 의 컴파일 단계</span>
+  </a>
+  <a class="nxt" href="lecture_031.html">
+    <span class="lbl">Lecture 031 →</span>
+    <span class="nm">Beginners Guide to Metal — Nikita Shulga</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L030 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

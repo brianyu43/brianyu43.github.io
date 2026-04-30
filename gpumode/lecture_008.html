@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L008 · CUDA Performance Checklist · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+/* L008 — checklist 형식, before/after 비교 */
+.l8-cklist{display:grid;grid-template-columns:1fr;gap:0;font-family:'JetBrains Mono',monospace}
+.l8-cklist .item{display:grid;grid-template-columns:50px 200px 1fr 110px;gap:14px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-bottom:7px;align-items:center}
+.l8-cklist .item .n{color:var(--accent);font-weight:700;font-size:18px;font-family:'Pretendard',sans-serif}
+.l8-cklist .item .ti{color:var(--ink);font-weight:700;font-size:13px;font-family:'Pretendard',sans-serif}
+.l8-cklist .item .ti em{font-style:normal;color:var(--ink-soft);font-weight:500;font-size:11.5px;display:block;margin-top:3px}
+.l8-cklist .item .what{color:var(--ink-soft);font-size:12px;line-height:1.5}
+.l8-cklist .item .gain{text-align:right;color:var(--accent);font-weight:700;font-size:13px}
+.l8-cklist .item .gain em{font-style:normal;color:var(--ink-soft);font-size:10px;display:block;margin-top:2px;font-weight:500}
+
+.l8-warp{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px}
+.l8-warp .lane{display:grid;grid-template-columns:90px 1fr;gap:10px;margin-bottom:6px;align-items:center}
+.l8-warp .lane .nm{color:var(--ink-soft);font-size:11px}
+.l8-warp .lane .threads{display:grid;grid-template-columns:repeat(32,1fr);gap:1px}
+.l8-warp .lane .threads .t{height:18px;border-radius:2px;background:var(--paper-deep);font-size:8px;display:grid;place-items:center;color:var(--ink-soft)}
+.l8-warp .lane .threads .t.a{background:var(--accent);color:var(--paper)}
+.l8-warp .lane .threads .t.b{background:var(--cool);color:var(--paper)}
+.l8-warp .lane .threads .t.idle{opacity:.25;background:var(--paper-deep)}
+
+.l8-mem{font-family:'JetBrains Mono',monospace;font-size:11px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.l8-mem .col{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+.l8-mem .col h4{margin:0 0 10px;font-size:13px;color:var(--ink);font-family:'Pretendard',sans-serif}
+.l8-mem .col h4 em{font-style:normal;color:var(--accent);font-weight:500}
+.l8-mem .col h4.bad em{color:var(--warn)}
+.l8-mem .col .row{display:grid;grid-template-columns:60px 1fr;gap:8px;padding:5px 0;font-size:11px;align-items:center}
+.l8-mem .col .row .lbl{color:var(--ink-soft)}
+.l8-mem .col .row .arrows{font-family:'JetBrains Mono',monospace;color:var(--ink);letter-spacing:1px}
+.l8-mem .col .row .arrows.bad{color:var(--warn)}
+.l8-mem .col .row .arrows.good{color:var(--good)}
+
+@media (max-width:760px){
+  .l8-cklist .item{grid-template-columns:1fr}
+  .l8-cklist .item .gain{text-align:left}
+  .l8-warp .lane .threads{grid-template-columns:repeat(16,1fr)}
+  .l8-mem{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_007.html">← L007</a>
+    <a href="lecture_009.html">L009 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L008</span>
+    <span>2024 · MAR · 02</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>CUDA Performance Checklist</h1>
+  <p class="dek">L004 의 정량 모델이 “왜 빠르고 왜 느린가” 의 진단이라면, L008 은 <strong>같은 진단 결과를 받았을 때 무엇을 해야 하는가의 actionable 체크리스트</strong>. <em>coalesce / occupancy / divergence / coarsening / privatization / tiling</em> 의 6개 항목 — 각 항목에 same kernel 의 before/after CUDA 코드와 NCU 측정. PMPP 책의 정수를 한 “체크리스트” 로 다시 정리한 형태. Mark Saroufim 이 자기 GitHub 의 7개 .cu 파일과 함께 실시간으로 NCU 결과를 깐다.</p>
+
+  <div class="chips">
+    <span class="chip hi">memory coalescing</span>
+    <span class="chip hi">occupancy</span>
+    <span class="chip hi">warp divergence</span>
+    <span class="chip hi">thread coarsening</span>
+    <span class="chip hi">privatization</span>
+    <span class="chip">tiling</span>
+    <span class="chip">PTX latency table</span>
+    <span class="chip cool">PMPP 의 한 페이지 요약</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">M</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Mark Saroufim</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · PyTorch core · GPU Mode 운영진 · L001 의 후속편</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L008</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Mark Saroufim</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">7개 .cu 직접 빌드</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">진단을 행동으로</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">PTX latency 표 — 무엇이 가장 비싼가</span><span class="em">DRAM vs SRAM 의 절대값</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">[01] memory coalescing</span><span class="em">한 warp 가 한 transaction</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">[02] occupancy</span><span class="em">register/shared/launch shape 의 회계</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">[03] warp divergence</span><span class="em">if-else 의 비용</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">[04] thread coarsening</span><span class="em">한 thread 가 더 많은 일</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">[05] privatization</span><span class="em">atomic 을 register 로</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">[06] tiling 의 다음 단</span><span class="em">register tiling, double buffer</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">체크리스트의 운영 방법</span><span class="em">언제 어느 항목부터</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why this lecture exists</span></div>
+    <h2>“NCU 가 hint 를 줬다 — 그래서 무엇을 할 것인가” 의 책</h2>
+  </div>
+  <p class="sec-lede">L004 와 L001 까지 따라온 학습자가 자기 커널의 NCU report 를 보면 <em>“achieved occupancy 38%, long scoreboard stall 28%”</em> 같은 숫자를 받는다. 이걸 어떻게 행동으로 옮길 것인가? L008 이 그 매뉴얼이다 — <strong>각 hint 에 대응되는 표준 변환 (coalesce, divergence 제거, coarsening 등) 을 항목별로 정리</strong>. 각 항목은 짧은 “before/after .cu” 한 페이지로.</p>
+
+  <p>강의의 운영 방식.</p>
+  <ol>
+    <li>Mark 의 GitHub repo 에 6 ~ 7개의 .cu 파일이 있고, 각 파일이 한 항목.</li>
+    <li>모두 <code>nvcc</code> 로 직접 빌드해서 <code>ncu</code> 로 측정. cloud 환경에서 NCU 가 막혀 있으면 자기 desktop 또는 lambda labs.</li>
+    <li>각 항목마다 “naive 버전 vs 개선 버전” 의 NCU 결과 비교.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">시리즈 안의 위치</div>
+    <p>이 강의는 <strong>“PMPP 의 4–5장에서 본 것을 다시 한 페이지로”</strong> 의 정리. <a href="lecture_004.html">L004</a> 가 정량적 진단, <a href="lecture_001.html">L001</a> 이 도구. 이 강의는 둘이 합쳐졌을 때의 행동 매뉴얼.</p>
+  </div>
+
+  <div class="pull">“NCU 가 ‘여기가 느리다’ 라고 답해주면 — 다음 질문은 ‘어떤 변환을 적용할까’. 이 강의가 그 매핑.”<span class="by">학습 노트 · L008 §01</span></div>
+</section>
+
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>PTX latency 표</b><span>· 무엇이 가장 비싼가</span></div>
+    <h2>모든 최적화가 같은 한 사실에서 출발한다 — DRAM 이 SRAM 보다 100x 느리다</h2>
+  </div>
+  <p class="sec-lede">강의 첫 부분에서 Mark 가 인용하는 자료 — <em>“Demystifying GPU Microarchitecture through Microbenchmarking”</em> 같은 PTX-level latency 측정 논문. 이 표가 “왜 어떤 변환이 효과적인가” 를 한 번에 답해 준다.</p>
+
+  <div class="bars">
+    <div class="row"><span class="lbl">register read</span><div class="bar sml cool"><span style="width:1%"></span></div><span class="val">~1 cycle</span></div>
+    <div class="row"><span class="lbl">FMA</span><div class="bar sml cool"><span style="width:4%"></span></div><span class="val">~4 cycle</span></div>
+    <div class="row"><span class="lbl">int32 add</span><div class="bar sml cool"><span style="width:4%"></span></div><span class="val">~4 cycle</span></div>
+    <div class="row"><span class="lbl">shared memory load</span><div class="bar sml cool"><span style="width:8%"></span></div><span class="val">~30 cycle</span></div>
+    <div class="row"><span class="lbl">L1 hit</span><div class="bar sml cool"><span style="width:10%"></span></div><span class="val">~30 cycle</span></div>
+    <div class="row"><span class="lbl">L2 hit</span><div class="bar sml"><span style="width:30%"></span></div><span class="val">~200 cycle</span></div>
+    <div class="row"><span class="lbl">DRAM (HBM)</span><div class="bar sml" style="background:rgba(255,80,80,0.2)"><span style="width:90%;background:#c66"></span></div><span class="val">~400 cycle</span></div>
+    <div class="row"><span class="lbl">PCIe</span><div class="bar sml" style="background:rgba(255,80,80,0.2)"><span style="width:99%;background:#c66"></span></div><span class="val">~수만 cycle</span></div>
+  </div>
+
+  <p>이 표의 의미를 한 줄로 — <strong>“DRAM 을 안 가는 것” 이 모든 최적화의 첫 표적</strong>. 이 한 줄이 강의의 모든 6개 항목의 공통 모티프.</p>
+  <ul>
+    <li><strong>coalescing</strong> — DRAM 가는 transaction 의 수를 줄인다.</li>
+    <li><strong>tiling / shared</strong> — 같은 데이터를 DRAM 에서 다시 가져오지 않는다.</li>
+    <li><strong>privatization</strong> — atomic 의 DRAM 왕복을 register 로.</li>
+    <li><strong>occupancy</strong> — DRAM 기다리는 동안 다른 warp 가 일하게.</li>
+    <li><strong>coarsening</strong> — DRAM 가는 일을 한 thread 에 묶음.</li>
+  </ul>
+
+  <p>warp divergence 만 “DRAM 과 무관” 한 항목 — 그건 SM 의 issue throughput 의 문제다.</p>
+</section>
+
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>[01] memory coalescing</b><span>· 한 warp 가 한 transaction</span></div>
+    <h2>인접한 thread 가 인접한 메모리를 읽으면 — 한 transaction 으로 모임</h2>
+  </div>
+  <p class="sec-lede">CUDA 의 메모리 시스템은 <strong>warp (32 thread) 단위로 transaction</strong>을 일으킨다. 한 warp 의 thread 들이 인접한 32 word 를 읽으면 — 하나의 32-byte transaction 으로 합쳐진다. 만약 thread 들이 흩어진 자리를 읽으면 — 32개의 별도 transaction. 이게 <strong>coalesced</strong> vs <strong>uncoalesced</strong>.</p>
+
+  <div class="split">
+    <div>
+<pre><code><span style="color:#A99E89">// coalesce.cu — Mark 의 demo (요약)</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> copyDataNonCoalesced(
+    <span style="color:#E7B369">float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n)
+{
+  <span style="color:#E7B369">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (i &lt; n)
+    out[i] = in[(i * <span style="color:#E7B369">2</span>) % n];          <span style="color:#A99E89">// stride 2 — 흩어짐</span>
+}
+
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> copyDataCoalesced(
+    <span style="color:#E7B369">float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n)
+{
+  <span style="color:#E7B369">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (i &lt; n)
+    out[i] = in[i];                       <span style="color:#A99E89">// 한 warp 가 인접 32 word</span>
+}</code></pre>
+    </div>
+    <div>
+      <div class="l8-mem">
+        <div class="col">
+          <h4 class="bad">non-coalesced (stride 2) — <em>32 transactions</em></h4>
+          <div class="row"><span class="lbl">w0</span><span class="arrows bad">[0]   [_]   [4]   [_]   [8]   [_]</span></div>
+          <div class="row"><span class="lbl">w1</span><span class="arrows bad">[_]   [_]   [_]   [_]   [_]   [_]</span></div>
+          <div class="row"><span class="lbl">w2</span><span class="arrows bad">[2]   [_]   [6]   [_]   [10]  [_]</span></div>
+          <div class="row"><span class="lbl">w3</span><span class="arrows bad">… 매 thread 가 별도 transaction</span></div>
+        </div>
+        <div class="col">
+          <h4>coalesced — <em>1 transaction</em></h4>
+          <div class="row"><span class="lbl">w0</span><span class="arrows good">[0] [1] [2] [3] [4] [5] [6] [7]</span></div>
+          <div class="row"><span class="lbl">w1</span><span class="arrows good">[8] [9] [10][11][12][13][14][15]</span></div>
+          <div class="row"><span class="lbl">…</span><span class="arrows good">한 warp = 한 32-byte transaction</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">NCU 측정</div>
+    <p>Mark 의 demo 에서 — <em>memory throughput 89%, L1 cache throughput 70%</em> 같은 패턴이 non-coalesced 에서. coalesced 버전은 같은 metric 이 훨씬 낮은데, 시간은 더 빠르다. <strong>memory throughput 이 “높다” 가 무조건 좋은 건 아님</strong> — uncoalesced 가 같은 데이터를 여러 transaction 으로 가져와 throughput 을 인위적으로 부풀린다.</p>
+  </div>
+
+  <p>실전 적용 — <strong>tensor 가 contiguous 인지, indexing 이 마지막 차원을 stride 1 로 가는지</strong> 항상 검증. <code>tensor.is_contiguous()</code> 가 PyTorch 에서의 첫 체크.</p>
+</section>
+
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>[02] occupancy</b><span>· register/shared/launch shape 의 회계</span></div>
+    <h2>SM 이 비어 있으면 — DRAM 기다리는 동안 누구도 일하지 않는다</h2>
+  </div>
+  <p class="sec-lede">L004 §06 에서 깐 정의. 여기서는 <em>actionable</em> 측면 — 무엇을 줄여 occupancy 를 올릴 것인가.</p>
+
+  <div class="l8-cklist">
+    <div class="item">
+      <span class="n">1</span>
+      <span class="ti">register/thread 줄이기<em>32 또는 64 register 가 흔한 경계</em></span>
+      <span class="what">큰 변수를 작은 dtype 으로 (int64 → int32). 함수 inline 줄이기. <code>__launch_bounds__(N)</code> 으로 nvcc 에 hint.</span>
+      <span class="gain">+10-30%<em>occupancy</em></span>
+    </div>
+    <div class="item">
+      <span class="n">2</span>
+      <span class="ti">shared memory/block 줄이기<em>SM 당 ~100 KB 의 거래 자원</em></span>
+      <span class="what">tile 을 작게. 또는 한 buffer 를 시간으로 재사용 (load 와 compute 가 다른 자리 share).</span>
+      <span class="gain">+10-50%<em>occupancy</em></span>
+    </div>
+    <div class="item">
+      <span class="n">3</span>
+      <span class="ti">block size 조정<em>32의 배수, 보통 128/256/512</em></span>
+      <span class="what">너무 작으면 (예: 32) max threads/SM 한도가 binding. 너무 크면 register 한도가 binding.</span>
+      <span class="gain">±5-20%</span>
+    </div>
+    <div class="item">
+      <span class="n">4</span>
+      <span class="ti">grid 키우기<em>SM 당 충분한 wave</em></span>
+      <span class="what">grid 가 GPU 의 SM 수보다 적으면 일부 SM idle. 입력 padding 또는 work 분할 변경.</span>
+      <span class="gain">+10-100%<em>tail effect 제거</em></span>
+    </div>
+  </div>
+
+  <p>강의에서 Mark 가 짚는 미묘한 사실 — <strong>“higher occupancy 가 항상 좋은 건 아니다.”</strong> compute-bound 커널은 80% → 60% 떨어져도 거의 차이 없을 수 있다. <em>memory-bound 커널에서만 occupancy 가 진짜 중요</em>. roofline 위에서 자기 위치를 알면 어느 자리에 노력을 할지 정해진다.</p>
+
+  <div class="callout cool">
+    <div class="label">CUDA Occupancy Calculator</div>
+    <p>강의 시점부터는 NCU 에 통합. <code>ncu --set full</code> 의 occupancy section 이 <em>theoretical occupancy</em> 와 <em>achieved occupancy</em> 둘 다 보여준다. 차이가 크면 — 보통 <strong>tail effect 또는 divergence</strong> 가 원인.</p>
+  </div>
+</section>
+
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>[03] warp divergence</b><span>· if-else 의 비용</span></div>
+    <h2>warp 안에서 thread 들이 다른 path 를 타면 — 두 path 가 직렬</h2>
+  </div>
+  <p class="sec-lede">warp 의 32 thread 는 lockstep 으로 한 instruction 을 같이 실행. <code>if (cond) A else B</code> 형태에서 일부 thread 는 cond=true, 일부는 false 면 — <strong>두 branch 를 순차 실행, 각자 자기 반쪽이 idle</strong>. 이게 warp divergence.</p>
+
+  <div class="l8-warp">
+    <div class="lane">
+      <span class="nm">divergent</span>
+      <div class="threads">
+        <span class="t a">A</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t b">B</span>
+        <span class="t a">A</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t b">B</span>
+        <span class="t a">A</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t b">B</span>
+        <span class="t a">A</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t a">A</span><span class="t b">B</span><span class="t b">B</span>
+      </div>
+    </div>
+    <div class="lane">
+      <span class="nm">A 실행</span>
+      <div class="threads">
+        <span class="t a">·</span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t idle"></span>
+        <span class="t a">·</span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t idle"></span>
+        <span class="t a">·</span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t idle"></span>
+        <span class="t a">·</span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t a">·</span><span class="t idle"></span><span class="t idle"></span>
+      </div>
+    </div>
+    <div class="lane">
+      <span class="nm">B 실행</span>
+      <div class="threads">
+        <span class="t idle"></span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t b">·</span>
+        <span class="t idle"></span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t b">·</span>
+        <span class="t idle"></span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t b">·</span>
+        <span class="t idle"></span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t idle"></span><span class="t b">·</span><span class="t b">·</span>
+      </div>
+    </div>
+    <div style="margin-top:8px;color:var(--ink-soft);font-size:11px"><strong>두 path 가 직렬</strong>로 실행. 각 path 동안 다른 path 의 thread 들은 idle. 같은 일을 한 path 에 모으면 절반의 시간.</div>
+  </div>
+
+<pre><code><span style="color:#A99E89">// divergence.cu — Mark 의 demo (요약)</span>
+<span style="color:#A99E89">// before: divergent</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> processArrayWithDivergence(<span style="color:#E7B369">int</span>* data, <span style="color:#E7B369">int</span> N) {
+  <span style="color:#E7B369">int</span> idx = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (idx &lt; N) {
+    <span style="color:#E7B369">if</span> (data[idx] % <span style="color:#E7B369">2</span> == <span style="color:#E7B369">0</span>) data[idx] = data[idx] * <span style="color:#E7B369">2</span>;     <span style="color:#A99E89">// path A</span>
+    <span style="color:#E7B369">else</span>                          data[idx] = data[idx] + <span style="color:#E7B369">1</span>;     <span style="color:#A99E89">// path B</span>
+  }
+}
+
+<span style="color:#A99E89">// after: branchless via predicate</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> processArrayWithoutDivergence(<span style="color:#E7B369">int</span>* data, <span style="color:#E7B369">int</span> N) {
+  <span style="color:#E7B369">int</span> idx = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (idx &lt; N) {
+    <span style="color:#E7B369">int</span> isEven = !(data[idx] % <span style="color:#E7B369">2</span>);
+    data[idx] = isEven * (data[idx] * <span style="color:#E7B369">2</span>) + (!isEven) * (data[idx] + <span style="color:#E7B369">1</span>);
+  }
+}</code></pre>
+
+  <div class="callout">
+    <div class="label">predicate 변환의 한계</div>
+    <p>위 코드는 두 branch 가 가벼울 때만 효과적. branch 안의 일이 무거우면 — <strong>두 branch 를 모두 매번 실행</strong>하는 게 더 비싸다. 그때는 <em>data 자체를 sort 해서 같은 warp 안에 같은 path 의 thread 들만 모이게</em> (data layout 변환). 이건 <a href="lecture_009.html">L009</a> Reductions 에서 본격.</p>
+  </div>
+</section>
+
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>[04] thread coarsening</b><span>· 한 thread 가 더 많은 일</span></div>
+    <h2>“한 thread = 한 element” 가 항상 답이 아니다</h2>
+  </div>
+  <p class="sec-lede">PMPP 의 첫 패턴 (한 thread = 한 출력 element) 은 단순하지만, <strong>같은 입력을 여러 thread 가 다시 읽는 비효율</strong>을 유발할 수 있다. <em>한 thread 가 N 개 element 를 책임지면</em>, 같은 입력을 register 에 한 번 load 해서 N 번 사용. memory traffic 이 1/N.</p>
+
+<pre><code><span style="color:#A99E89">// coarsening.cu — naive 한 thread = 한 element</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> reduce_naive(<span style="color:#E7B369">float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n) {
+  <span style="color:#A99E89">// 한 thread 가 한 element 만 읽고 곧바로 sync/reduce ...</span>
+}
+
+<span style="color:#A99E89">// coarsened — 한 thread 가 4 element 를 register 에 누적</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> reduce_coarsened(<span style="color:#E7B369">float</span>* in, <span style="color:#E7B369">float</span>* out, <span style="color:#E7B369">int</span> n) {
+  <span style="color:#E7B369">int</span> tid  = blockIdx.x * blockDim.x * <span style="color:#E7B369">4</span> + threadIdx.x;
+  <span style="color:#E7B369">float</span> sum = <span style="color:#E7B369">0</span>;
+  sum += in[tid + <span style="color:#E7B369">0</span> * blockDim.x];
+  sum += in[tid + <span style="color:#E7B369">1</span> * blockDim.x];
+  sum += in[tid + <span style="color:#E7B369">2</span> * blockDim.x];
+  sum += in[tid + <span style="color:#E7B369">3</span> * blockDim.x];   <span style="color:#A99E89">// 4 element 를 한 thread 안에서</span>
+  <span style="color:#A99E89">// 그 다음 shared / sync / block-reduce ...</span>
+}</code></pre>
+
+  <div class="split rev">
+    <div>
+      <p>이 변환의 효과들.</p>
+      <ul>
+        <li><strong>coalescing 유지</strong> — thread 들이 stride <code>blockDim.x</code> 로 떨어진 element 를 읽으니, 한 warp 가 한 transaction.</li>
+        <li><strong>register reuse</strong> — sum 변수가 register 에 살아 있어 매번 HBM 안 감.</li>
+        <li><strong>thread 수 감소</strong> — block 수가 1/4. occupancy 가 떨어질 수 있음 — N 의 결정이 trade-off.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">coarsening 과 occupancy</div>
+        <p>N 이 너무 크면 — block 수가 SM 수보다 작아져 일부 SM idle. 또 한 thread 의 register 사용이 늘어 occupancy 떨어짐. 보통 <strong>N = 4 또는 8 정도</strong>가 sweet spot.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>[05] privatization</b><span>· atomic 을 register 로</span></div>
+    <h2>여러 thread 가 같은 자리에 atomicAdd 한다 — block 안에서 먼저 모은다</h2>
+  </div>
+  <p class="sec-lede">histogram 같은 패턴이 대표적. 여러 thread 가 같은 bin 에 <code>atomicAdd</code>. atomic 이 직렬화 → 느림. 해결책 — <strong>block 안에서 먼저 shared 의 local histogram 에 atomic, block 끝에 한 번씩만 global 에 atomic</strong>. atomic 의 contention 이 N → N/blockDim.</p>
+
+<pre><code><span style="color:#A99E89">// privatization.cu — naive global atomic</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> hist_naive(<span style="color:#E7B369">int</span>* data, <span style="color:#E7B369">int</span>* hist, <span style="color:#E7B369">int</span> n, <span style="color:#E7B369">int</span> nbins) {
+  <span style="color:#E7B369">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (i &lt; n) atomicAdd(&amp;hist[data[i] % nbins], <span style="color:#E7B369">1</span>);  <span style="color:#A99E89">// global atomic — contention</span>
+}
+
+<span style="color:#A99E89">// privatized — shared 안에서 먼저</span>
+<span style="color:#E7B369">__global__</span> <span style="color:#E7B369">void</span> hist_private(<span style="color:#E7B369">int</span>* data, <span style="color:#E7B369">int</span>* hist, <span style="color:#E7B369">int</span> n, <span style="color:#E7B369">int</span> nbins) {
+  <span style="color:#E7B369">extern</span> <span style="color:#E7B369">__shared__</span> <span style="color:#E7B369">int</span> local_hist[];          <span style="color:#A99E89">// per-block</span>
+  <span style="color:#E7B369">for</span> (<span style="color:#E7B369">int</span> j = threadIdx.x; j &lt; nbins; j += blockDim.x)
+    local_hist[j] = <span style="color:#E7B369">0</span>;
+  __syncthreads();
+
+  <span style="color:#E7B369">int</span> i = blockIdx.x * blockDim.x + threadIdx.x;
+  <span style="color:#E7B369">if</span> (i &lt; n) atomicAdd(&amp;local_hist[data[i] % nbins], <span style="color:#E7B369">1</span>);  <span style="color:#A99E89">// shared atomic — fast</span>
+  __syncthreads();
+
+  <span style="color:#E7B369">for</span> (<span style="color:#E7B369">int</span> j = threadIdx.x; j &lt; nbins; j += blockDim.x)
+    atomicAdd(&amp;hist[j], local_hist[j]);   <span style="color:#A99E89">// global atomic — block 당 한 번</span>
+}</code></pre>
+
+  <p>privatization 은 <em>“한 작업 의 결과를 어디에 모으는가”</em> 의 layered 결정. block 안에서 shared 로 모으고, 그 다음 grid 단위로 global 로 모으는 hierarchical reduction 이 같은 패턴. <a href="lecture_009.html">L009</a> 에서 full 형태.</p>
+</section>
+
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>[06] tiling 의 다음 단</b><span>· register tiling, double buffer</span></div>
+    <h2>L005 의 shared tiling 위에 한 단 더</h2>
+  </div>
+  <p class="sec-lede">L005 의 tiled matmul 은 “한 thread = 한 출력 element”. 다음 단은 <strong>한 thread 가 register 에 작은 sub-tile (예: 4×4) 을 들고 있게</strong>. 같은 shared element 를 한 thread 가 여러 번 사용 → register reuse. 이게 <em>register tiling</em>.</p>
+
+  <p>그 다음 단이 <strong>double buffering</strong> — 다음 phase 의 load 와 현재 phase 의 compute 를 overlap. shared memory 를 두 buffer 로 나누고 ping-pong. Hopper 의 <code>cp.async</code> 또는 software pipelining 으로 구현.</p>
+
+  <div class="l8-cklist">
+    <div class="item">
+      <span class="n">A</span>
+      <span class="ti">register tiling<em>thread 당 작은 sub-tile</em></span>
+      <span class="what">한 thread 가 4×4 또는 8×8 출력 책임. shared 의 한 element 가 여러 번 register 에서 사용. <code>cuBLAS</code> 의 비밀.</span>
+      <span class="gain">×2-4<em>cuBLAS 격차 좁힘</em></span>
+    </div>
+    <div class="item">
+      <span class="n">B</span>
+      <span class="ti">double buffering<em>load 와 compute overlap</em></span>
+      <span class="what">shared 두 buffer · 한쪽이 load, 다른 쪽 compute. 다음 phase 의 HBM 시간을 hide.</span>
+      <span class="gain">+10-30%</span>
+    </div>
+    <div class="item">
+      <span class="n">C</span>
+      <span class="ti">vectorized loads<em>float4, __ldg</em></span>
+      <span class="what">한 instruction 으로 4 float load. memory bandwidth 의 효율 ↑. <code>reinterpret_cast&lt;float4*&gt;</code>.</span>
+      <span class="gain">+10-50%</span>
+    </div>
+    <div class="item">
+      <span class="n">D</span>
+      <span class="ti">Tensor Core<em>WMMA / MMA instruction</em></span>
+      <span class="what">한 instruction 에 16×16 matmul. fp16/bf16/int8 의 dedicated unit. CUTLASS 의 본론.</span>
+      <span class="gain">×4-10<em>peak FLOPs</em></span>
+    </div>
+  </div>
+
+  <p>이 4단의 추가가 <strong>L005 의 tiled matmul 을 cuBLAS 의 거의 1배까지</strong> 끌어올린다. 하지만 그게 production 에서의 답인 적은 거의 없다 — cuBLAS 가 이미 잘 한다. <em>직접 짜는 가치는 fused (예: matmul + bias + relu) 또는 unusual shape</em>.</p>
+</section>
+
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>체크리스트의 운영 방법</b><span>· 언제 어느 항목부터</span></div>
+    <h2>매뉴얼을 위에서 아래로 따르지 마라 — NCU 의 hint 가 시작점</h2>
+  </div>
+  <p class="sec-lede">강의의 의도적 메시지. <em>“이 6개 항목을 위에서 아래로 다 적용하지 마라.”</em> 대신 — NCU 의 hint 를 보고 <strong>어느 항목이 자기 커널에 해당하는지부터</strong>.</p>
+
+  <div class="l8-cklist">
+    <div class="item">
+      <span class="n">①</span>
+      <span class="ti">NCU 첫 hint — “memory throughput 낮음”<em>L1/L2 throughput 이 의외로 낮음</em></span>
+      <span class="what">→ <strong>coalescing</strong> 를 의심. tensor 가 contiguous 인지, indexing 의 마지막 차원이 stride 1 인지. 또는 <strong>tiling</strong> 으로 reuse 잡기.</span>
+      <span class="gain">[01] [06]</span>
+    </div>
+    <div class="item">
+      <span class="n">②</span>
+      <span class="ti">NCU 다음 hint — “achieved occupancy 낮음”<em>theoretical 과 큰 차이</em></span>
+      <span class="what">→ <strong>register pressure</strong> 의심. <code>-Xptxas=-v</code> 로 register 수 확인. 또는 grid 가 작아 <strong>tail effect</strong>.</span>
+      <span class="gain">[02]</span>
+    </div>
+    <div class="item">
+      <span class="n">③</span>
+      <span class="ti">NCU — “warp execution efficiency 낮음”<em>active 비율이 낮음</em></span>
+      <span class="what">→ <strong>warp divergence</strong>. 같은 warp 안의 thread 들이 다른 path. predicate 또는 data 정렬.</span>
+      <span class="gain">[03]</span>
+    </div>
+    <div class="item">
+      <span class="n">④</span>
+      <span class="ti">NCU — “long scoreboard stall”<em>memory dependency 가 dominant</em></span>
+      <span class="what">→ <strong>occupancy 부족 + latency hiding 실패</strong>. <strong>coarsening</strong> 으로 register reuse, 또는 occupancy ↑.</span>
+      <span class="gain">[02] [04]</span>
+    </div>
+    <div class="item">
+      <span class="n">⑤</span>
+      <span class="ti">NCU — “atomic 이 시간의 N%”<em>contention</em></span>
+      <span class="what">→ <strong>privatization</strong>. block 안 shared 로 먼저 모음.</span>
+      <span class="gain">[05]</span>
+    </div>
+    <div class="item">
+      <span class="n">⑥</span>
+      <span class="ti">아무 hint 도 actionable 안 보임<em>peak 의 70%↑</em></span>
+      <span class="what">→ <strong>여기서 멈춘다</strong>. 직접 CUDA 의 다음 단 (Tensor Core, double buffer) 은 cuBLAS 와의 거리가 작은 자리에서만.</span>
+      <span class="gain">stop</span>
+    </div>
+  </div>
+
+  <div class="pull">“6개 항목을 모두 적용해서 빠른 커널을 만드는 게 아니라, NCU 가 하나를 가리키면 그 하나를 한다. 다음 hint 가 새 항목이면 또 그 하나.”<span class="by">학습 노트 · L008 §09</span></div>
+</section>
+
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">L008 의 6개 항목 + 운영 방법.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">DRAM 의 위치</div>
+      <div class="d">register 1 cycle, shared 30, L2 200, DRAM 400+. 모든 최적화의 첫 표적은 “DRAM 안 가기”.</div>
+    </div>
+    <div class="term">
+      <div class="t">[01] coalescing</div>
+      <div class="d">한 warp 의 thread 들이 인접 32 word 를 읽으면 1 transaction. 흩어지면 32. PyTorch 에선 <code>is_contiguous</code>.</div>
+    </div>
+    <div class="term">
+      <div class="t">[02] occupancy</div>
+      <div class="d">register/thread, shared/block, max threads 의 가장 빡빡한 자리. memory-bound 면 중요.</div>
+    </div>
+    <div class="term">
+      <div class="t">[03] divergence</div>
+      <div class="d">warp 안 if-else 가 같은 warp 의 thread 들 사이에 갈라지면 두 path 직렬. predicate 또는 data 정렬.</div>
+    </div>
+    <div class="term">
+      <div class="t">[04] coarsening</div>
+      <div class="d">한 thread 가 N element. register reuse + thread 수 감소. N=4-8 가 sweet spot.</div>
+    </div>
+    <div class="term">
+      <div class="t">[05] privatization</div>
+      <div class="d">global atomic 을 shared atomic + block 끝에 global 한 번. histogram 의 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">[06] tiling 다음 단</div>
+      <div class="d">register tiling · double buffer · vectorized load · Tensor Core. cuBLAS 와의 거리.</div>
+    </div>
+    <div class="term">
+      <div class="t">운영 원칙</div>
+      <div class="d">위에서 아래로 다 적용하지 말라. NCU 의 hint 가 가리키는 한 항목만.</div>
+    </div>
+    <div class="term">
+      <div class="t">멈출 신호</div>
+      <div class="d">peak 의 70%↑, actionable hint 없음. 더 짜낼 수 있어도 ROI 가 작음.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=SGhfUhlowB4" target="_blank" rel="noopener">youtube.com/watch?v=SGhfUhlowB4</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://docs.google.com/presentation/d/1cvVpf3ChFFiY4Kf25S4e4sPY6Y5uRUO-X-A4nJ7IhFE/edit" target="_blank" rel="noopener">Google Slides</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v">
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/coalesce.cu" target="_blank" rel="noopener">coalesce.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/divergence.cu" target="_blank" rel="noopener">divergence.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/occupancy.cu" target="_blank" rel="noopener">occupancy.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/coarsening.cu" target="_blank" rel="noopener">coarsening.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/privatization.cu" target="_blank" rel="noopener">privatization.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/privatization2.cu" target="_blank" rel="noopener">privatization2.cu</a> ·
+        <a href="https://github.com/gpu-mode/lectures/blob/main/lecture_008/tiling.cu" target="_blank" rel="noopener">tiling.cu</a>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_008" target="_blank" rel="noopener">gpu-mode/lectures/lecture_008</a></span>
+    </div>
+    <div class="row">
+      <span class="k">참고</span>
+      <span class="v">PMPP Ch.6 (Performance considerations) · Mei et al. <em>Demystifying GPU Microarchitecture</em> · Soumith Chintala <em>“Speed bottlenecks”</em></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>7개 .cu 모두 빌드 · NCU 측정</strong> — repo clone, <code>nvcc</code> 로 빌드, <code>ncu</code> 로 측정. 강의의 결과와 자기 GPU 의 결과를 비교.</li>
+    <li><strong>coalesce.cu 의 stride 변경</strong> — stride 2 → 4, 8, 16. 시간 변화. memory throughput metric 의 변화.</li>
+    <li><strong>divergence.cu 의 predicate 검증</strong> — 두 버전의 결과가 정확히 같은지, 시간이 정말 짧아지는지.</li>
+    <li><strong>occupancy.cu 의 block size sweep</strong> — 32, 64, 128, 256, 512, 1024. occupancy 와 시간의 비-단조 관계 확인.</li>
+    <li><strong>coarsening.cu 의 N sweep</strong> — N = 1, 2, 4, 8, 16. register 사용량 (<code>-Xptxas=-v</code>) 과 시간의 관계.</li>
+    <li><strong>privatization.cu 와 privatization2.cu 비교</strong> — 두 변형의 차이가 무엇인가. global atomic 의 비중을 NCU profile 에서.</li>
+    <li><strong>자기 PyTorch model 의 한 hot kernel</strong> — <code>ncu --set full</code> 로 hint 를 받고, 매핑되는 항목 하나 선택해서 적용.</li>
+    <li><strong>한 페이지 운영 매뉴얼</strong> — “자기 model 의 가장 느린 kernel 에 ① ~ ⑥ 의 어떤 항목이 해당하나” 의 일대일 매핑을 페이지로.</li>
+  </ol>
+</section>
+
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 체크리스트가 어디에서 다시 등장하는지</h2>
+  </div>
+  <p class="sec-lede">L008 의 6개 항목이 거의 모든 후속 강의의 reference frame.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">Profiling CUDA kernels in PyTorch</div>
+      <div class="by">Mark Saroufim — NCU 의 hint 를 받는 도구. 이 강의의 직접 prequel.</div>
+    </a>
+    <a class="conn" href="lecture_004.html">
+      <div class="n">L004</div>
+      <div class="ti">Compute and Memory Basics</div>
+      <div class="by">Thomas Viehmann — roofline · occupancy · memory hierarchy 의 정량.</div>
+    </a>
+    <a class="conn" href="lecture_005.html">
+      <div class="n">L005</div>
+      <div class="ti">Going Further with CUDA for Python</div>
+      <div class="by">Jeremy Howard — [06] tiling 의 첫 단계. shared memory 매핑.</div>
+    </a>
+    <a class="conn" href="lecture_009.html">
+      <div class="n">L009</div>
+      <div class="ti">Reductions</div>
+      <div class="by">Mark Saroufim — [05] privatization 과 [03] divergence 의 본론. 이 강의의 직속 후속.</div>
+    </a>
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">Flash Attention</div>
+      <div class="by">Tri Dao — [06] tiling 의 attention 적용. online softmax + tile.</div>
+    </a>
+    <a class="conn" href="lecture_023.html">
+      <div class="n">L023</div>
+      <div class="ti">Tensor Cores · CUTLASS</div>
+      <div class="by">Andrew Kerr — register tiling + double buffer + Tensor Core 의 본격 사례</div>
+    </a>
+    <a class="conn" href="lecture_036.html">
+      <div class="n">L036</div>
+      <div class="ti">CUTLASS &amp; CuTe</div>
+      <div class="by">Cris Cecka — tiling 의 layout abstraction. 이 강의의 [06] 의 production 형태.</div>
+    </a>
+    <a class="conn" href="lecture_056.html">
+      <div class="n">L056</div>
+      <div class="ti">Kernel Benchmarking Tales</div>
+      <div class="by">— 이 강의의 “체크리스트 적용 일기” 의 후속</div>
+    </a>
+  </div>
+</section>
+
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">강의 안에서 흐릿하게 지나간 자리들과, 자기 환경에서 직접 측정해야 손에 박힐 사실들.</p>
+  <ul>
+    <li><strong>각 항목별 정확한 가속 비율</strong> — 강의에서 일부 항목 (coalesce 의 시간 차) 만 NCU 로 측정. 7개 .cu 의 before/after 시간을 자기 GPU 에서 모두 측정해 표로.</li>
+    <li><strong>cloud 환경의 NCU 제한</strong> — Mark 가 “most cloud providers 에서 NCU 가 잘 안 된다” 고 명시. lambda labs 같은 specific provider 또는 자기 desktop 이 필요.</li>
+    <li><strong>Triton autotune 과 같은 항목의 매핑</strong> — Triton 에서 BLOCK_SIZE / num_warps / num_stages 의 sweep 이 [02] [04] [06] 의 자동 적용. 강의에서 명시적 매핑 안 함.</li>
+    <li><strong>Hopper (H100) 의 새 항목</strong> — <code>cp.async</code>, distributed shared memory, TMA. 이 강의는 Ampere 기준. 새 항목들의 위치는 별도 자료.</li>
+    <li><strong>Bank conflict</strong> — 강의에서 거의 안 다룸. shared 가 32 bank 인 사실과 stride 에 따른 conflict 회피는 [06] tiling 의 디테일에서.</li>
+    <li><strong>privatization 의 두 변형</strong> — <code>privatization.cu</code> 와 <code>privatization2.cu</code> 의 차이. 강의에서 두 패턴 모두 등장하지만 정확한 차이 (per-warp vs per-block 의 변형 등) 는 코드 직접 확인 필요. <em>(확인 필요)</em></li>
+    <li><strong>occupancy 와 latency hiding 의 정량</strong> — 100% vs 50% 가 memory-bound 와 compute-bound 에서 각각 얼마나 차이 — 강의에서 정성적. 자기 커널에서 직접.</li>
+  </ul>
+</section>
+
+<div class="artnav">
+  <a href="lecture_007.html">
+    <span class="lbl">← Lecture 007</span>
+    <span class="nm">Charles Hernandez — quantization 의 dtype 사다리</span>
+  </a>
+  <a class="nxt" href="lecture_009.html">
+    <span class="lbl">Lecture 009 →</span>
+    <span class="nm">Mark Saroufim — Reductions, atomic, warp shuffle</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L008 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L019 · Data Processing on GPUs · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l19-stack{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;gap:6px}
+.l19-stack .layer{display:grid;grid-template-columns:130px 1fr 90px;gap:12px;padding:12px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l19-stack .layer .lvl{color:var(--accent);font-weight:700}
+.l19-stack .layer .nm{color:var(--ink)}
+.l19-stack .layer .nm em{display:block;font-style:normal;color:var(--ink-soft);font-size:11px;margin-top:2px}
+.l19-stack .layer .where{color:var(--muted);font-size:11px;text-align:right}
+.l19-stack .layer.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l19-csv{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:8px}
+.l19-csv .row{display:grid;grid-template-columns:60px 1fr;gap:10px}
+.l19-csv .row .ix{color:var(--accent);font-weight:700}
+.l19-csv .row .data{color:var(--ink)}
+.l19-csv .row .data span.cs{color:var(--accent)}
+.l19-csv .row .data span.nl{color:var(--warn)}
+.l19-csv .row.hl{background:var(--bg-soft);border-radius:4px;padding:4px 6px}
+
+.l19-cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l19-cmp .col{padding:14px;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px}
+.l19-cmp .col h4{margin:0 0 10px;font-family:'Pretendard',sans-serif;font-size:13px;color:var(--ink)}
+.l19-cmp .col ul{margin:0;padding-left:18px;color:var(--ink-soft);line-height:1.7;font-size:12.5px}
+.l19-cmp .col.hi{border-color:var(--accent)}
+
+@media(max-width:760px){
+  .l19-cmp{grid-template-columns:1fr}
+  .l19-stack .layer{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_018.html">← L018</a>
+    <a href="lecture_020.html">L020 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L019</span>
+    <span>Data Processing on GPUs</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Data Processing on GPUs</h1>
+  <p class="dek"><em>“ML 이 아닌 GPU 컴퓨팅”</em> 의 영역 — CSV/Parquet 파싱, dataframe filter/groupby/join 같은 SQL-스타일 연산을 어떻게 GPU 위에서 수십 GB/s 로 돌리는가. 전 cuDF 메인테이너이자 Voltron Data 의 Devavret Makkar 가 보여주는 <strong>scan · 해시맵 · atomic · dictionary encoding</strong> 같은 GPU 데이터 엔지니어링의 빌딩블록들.</p>
+
+  <div class="chips">
+    <span class="chip hi">cuDF</span>
+    <span class="chip hi">CSV/Parquet</span>
+    <span class="chip hi">scan</span>
+    <span class="chip hi">hashmap on GPU</span>
+    <span class="chip hi">atomic</span>
+    <span class="chip">dictionary encoding</span>
+    <span class="chip">1-Billion-Row Challenge</span>
+    <span class="chip">groupby</span>
+    <span class="chip">Voltron Data</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">D</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Devavret Makkar</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Voltron Data · ex-cuDF maintainer (NVIDIA)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L019</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Devavret Makkar</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">cuDF source 까기</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why GPUs for data?</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">왜 데이터가 GPU 로 가는가</span><span class="em">bandwidth math</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">CSV 파싱이 왜 어려운가</span><span class="em">variable-length records</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">scan 으로 CSV 파싱하기</span><span class="em">prefix-sum based parser</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">groupby — atomic 으로 누적</span><span class="em">hash · atomic · aggregate</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">GPU 위 hashmap 의 구조</span><span class="em">cuco · open addressing</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">1-Billion-Row Challenge</span><span class="em">tailor-made vs general API</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">Parquet · dictionary encoding</span><span class="em">file format on GPU</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">Voltron — query engine 으로</span><span class="em">SQL → GPU plan</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why GPUs for data?</span></div>
+    <h2>“ML 안 하는 GPU 컴퓨팅” 의 가장 큰 영역 — data engineering</h2>
+  </div>
+  <p class="sec-lede">GPU Mode 시리즈의 다른 강의들이 거의 다 모델 학습/추론 에 초점을 맞췄다면, 이 강의는 명시적으로 <em>“데이터 엔지니어링이 GPU 에서 어떻게 일어나는가”</em> 를 깐다. SQL 쿼리, ETL 파이프라인, dataframe API — pandas 같은 인터페이스인데 backend 는 CUDA.</p>
+
+  <p>강의가 깐 큰 질문 세 개.</p>
+  <ol>
+    <li><strong>왜 데이터 처리를 GPU 에서 하는가</strong> — 의외로 “GPU 가 빠르니까” 가 아니다. 정확한 답은 <em>HBM 의 대역폭</em>(§ 02).</li>
+    <li><strong>CSV 같은 가변길이 레코드를 GPU 에서 어떻게 파싱하는가</strong> — sequential 하게 line-by-line 도는 게 inherent 한 알고리즘인데, GPU 는 sequential 을 못 한다. <em>scan</em> 으로 푼다(§ 04).</li>
+    <li><strong>groupby/aggregation 같은 SQL 기본기는 어떻게 짜는가</strong> — atomic + GPU hashmap 의 조합(§ 05–06).</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“같은 작업을 CPU 에서 30 GB/s 로 한다 → GPU 에서 1.5 TB/s HBM 으로 한다” 의 50× 가 데이터 엔지니어링이 GPU 로 옮겨가는 진짜 이유. 모델 학습보다 <strong>I/O 가 dominant</strong> 한 영역이라, 더더욱 메모리 대역폭이 중요하다.</p>
+  </div>
+
+  <div class="pull">“useful 한 데이터셋의 평균 크기가 LLM 모델보다 훨씬 크다 — 그게 GPU 데이터 처리가 의미 있는 이유.”<span class="by">Devavret Makkar (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>왜 데이터가 GPU 로 가는가</b><span>· bandwidth math</span></div>
+    <h2>같은 SQL 쿼리, 50× 짧은 시간 — 산수의 이유</h2>
+  </div>
+  <p class="sec-lede">강의 도입의 한 figure. CPU DRAM 의 대역폭과 GPU HBM 의 대역폭을 같은 축에 놓는다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CPU DRAM vs GPU HBM 대역폭</span><span>같은 데이터, 다른 read 시간</span></div>
+    <div class="bars">
+      <div class="bar"><span class="lbl">DDR5 — CPU server</span><span class="track"><span class="fill" style="width:6%;background:var(--cool-2)"></span></span><span class="val">~100 GB/s</span></div>
+      <div class="bar"><span class="lbl">HBM2e — A100</span><span class="track"><span class="fill" style="width:60%;background:var(--accent)"></span></span><span class="val">~2.0 TB/s</span></div>
+      <div class="bar"><span class="lbl">HBM3 — H100</span><span class="track"><span class="fill" style="width:90%;background:var(--accent)"></span></span><span class="val">~3.0 TB/s</span></div>
+      <div class="bar"><span class="lbl">HBM3e — H200/B200</span><span class="track"><span class="fill" style="width:100%;background:var(--accent)"></span></span><span class="val">~4.8 TB/s</span></div>
+    </div>
+    <div class="viz-note">memory-bound op (filter, groupby, scan…) 의 시간은 거의 트래픽/대역폭. <strong>HBM 이 30× 빠르면 같은 op 가 30× 빠르다</strong>. 단순한 산수.</div>
+  </div>
+
+  <p>그런데 데이터가 처음부터 GPU 위에 있을 리는 없다 — disk → CPU memory → GPU memory 의 PCIe 단계를 지난다. 그래서 <em>“disk 에서 한 번만 읽고, 그 다음 모든 처리는 GPU 안에서”</em> 의 패턴이 표준. cuDF 의 <code>read_csv</code> · <code>read_parquet</code> 가 처음부터 GPU 메모리로 직접 적재하는 이유다.</p>
+
+  <div class="callout cool">
+    <div class="label">PCIe 우회 — GPUDirect Storage</div>
+    <p>최신 setup 에서는 NVMe → GPU memory 를 PCIe 직접 DMA 로 — CPU 안 거침. cuDF + KvikIO + GDS 조합이 그 영역. 이 강의에서는 짧게 언급되지만, 데이터 엔지니어링 측면에서 점점 중요해지는 자리.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>CSV 파싱이 왜 어려운가</b><span>· variable-length records</span></div>
+    <h2>“line 하나 = thread 하나” 가 안 되는 이유</h2>
+  </div>
+  <p class="sec-lede">행렬 곱 같은 GPU 일은 — “element 위치가 자기 thread 가 어디 있는지” 가 곧바로 결정된다. CSV 는 다르다. <strong>line N 이 어디서 시작하는지를 알려면 line 0..N-1 을 다 읽어야 한다</strong>. inherent 한 sequential dependency.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 같은 byte stream 안의 row 경계</span><span>byte offset → row index</span></div>
+    <div class="l19-csv">
+      <div class="row"><span class="ix">byte</span><span class="data">0&nbsp;&nbsp;1&nbsp;&nbsp;2&nbsp;&nbsp;3&nbsp;&nbsp;4&nbsp;&nbsp;5&nbsp;&nbsp;6&nbsp;&nbsp;7&nbsp;&nbsp;8&nbsp;&nbsp;9&nbsp;10&nbsp;11&nbsp;12&nbsp;13&nbsp;14&nbsp;15</span></div>
+      <div class="row hl"><span class="ix">data</span><span class="data">P<span class="cs">,</span>1<span class="cs">,</span>3<span class="nl">\n</span>Q<span class="cs">,</span>2<span class="cs">,</span>4<span class="nl">\n</span>R<span class="cs">,</span>3<span class="cs">,</span>5</span></div>
+      <div class="row"><span class="ix">row 0</span><span class="data">[0..3]   "P,1,3"</span></div>
+      <div class="row"><span class="ix">row 1</span><span class="data">[4..7]   "Q,2,4"</span></div>
+      <div class="row"><span class="ix">row 2</span><span class="data">[8..14]  "R,3,5"</span></div>
+    </div>
+    <div class="viz-note"><code>\n</code> 의 위치를 모르면 어느 byte 가 어느 row 인지 알 수 없다. 그리고 byte 의 “이게 \n 인지” 는 byte 자체로 결정 — sequential dependency 가 아니다. <strong>parallel 하게 \n 위치 찾기</strong> 만 가능하면, 거기서부터 다시 row 단위 처리가 parallel 해진다.</div>
+  </div>
+
+  <p>강의의 작은 트릭 — <em>bytestream 을 청크로 나누고 각 청크의 시작 부근에서 가까운 \n 까지 skip 한 자리를 row 시작으로 본다</em>. partial line 은 두 청크의 경계에서 합치기. 이렇게 하면 <strong>대략적인 parallelism</strong> 은 얻지만 정확한 row index 는 아직 모른다 — 거기서 scan 이 들어온다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>scan 으로 CSV 파싱하기</b><span>· prefix-sum based parser</span></div>
+    <h2>“이 byte 가 몇 번째 row 의 몇 번째 column 인가” — 한 prefix-sum 으로 답한다</h2>
+  </div>
+  <p class="sec-lede">강의에서 Devavret 이 가장 흥미롭다고 강조한 부분. 동료의 PhD thesis 였던 아이디어 — <em>“CSV/JSON 파싱 전체를 scan 의 합성으로 표현”</em>. 핵심은 한 byte 의 “role” (newline, separator, quote, escape, …) 이 inputs 자체에서만 결정되고, 그 role 의 누적이 곧 row/col index 라는 사실.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CSV 파싱의 scan 분해</span><span>byte → token → cell index</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">1</div><div class="nm">tokenize</div><div class="dt">byte → {NL, COMMA, OTHER} · 1:1 map (parallel)</div></div>
+      <div class="stage hi"><div class="sn">2</div><div class="nm">scan(NL → +1)</div><div class="dt">prefix-sum: 누적 newline 수 = 현재 row index</div></div>
+      <div class="stage hi"><div class="sn">3</div><div class="nm">scan(COMMA → +1, NL → 0 reset)</div><div class="dt">segmented scan: 현재 row 안 col index</div></div>
+      <div class="stage"><div class="sn">4</div><div class="nm">gather</div><div class="dt">(row, col) → cell start byte / end byte</div></div>
+      <div class="stage"><div class="sn">5</div><div class="nm">parse cell</div><div class="dt">parallel — 각 cell 을 자기 thread 가 atoi/atof</div></div>
+    </div>
+    <div class="viz-note">단계 2, 3 은 정확히 scan / segmented scan — <a href="lecture_020.html">L020</a> 의 알고리즘이 여기서 데이터 엔지니어링의 핵심 기본기로 등장한다. <strong>scan 은 GPU 데이터 엔지니어링의 가장 중요한 primitive</strong>.</div>
+  </div>
+
+  <p>quote 안에 들어 있는 comma 는 어떻게 처리하나? — quote 의 toggle 도 scan 으로 표현된다 (XOR 누적). 강의는 깊이 들어가지 않지만, 같은 idea 의 확장.</p>
+
+  <div class="callout">
+    <div class="label">JSON 파싱도 같은 패턴</div>
+    <p>cuDF 의 JSON 파서도 거의 같은 구조 — bracket nesting depth 를 scan 으로 누적. 그리고 그 depth 가 변하는 자리가 token boundary. <em>simdjson</em> 이 CPU 위에서 같은 idea 를 SIMD 로 구현한 것.</p>
+  </div>
+
+  <div class="pull">“같은 데이터를 한 번만 통과하면서 — newline 누적, comma 누적, quote 토글이 모두 scan 의 합성으로 표현된다. CSV 파싱이 곧 prefix-sum 문제다.”<span class="by">Devavret Makkar (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>groupby — atomic 으로 누적</b><span>· hash · atomic · aggregate</span></div>
+    <h2>“같은 key 를 만난 thread 들이 어떻게 같은 자리에 더하는가”</h2>
+  </div>
+  <p class="sec-lede">SQL 의 가장 흔한 연산 — <code>SELECT city, AVG(temp) FROM measurements GROUP BY city</code>. 이걸 GPU 에서 짜는 표준 패턴이 <strong>hash → atomic add</strong>. 강의의 핵심 두 figure 중 하나.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · groupby aggregate 의 핵심 흐름</span><span>thread → hash → atomic 누적</span></div>
+    <div class="l19-stack">
+      <div class="layer"><span class="lvl">L0 · row</span><span class="nm">한 row → 한 thread<em>row 의 key 와 value 를 register 에 load</em></span><span class="where">parallel</span></div>
+      <div class="layer hi"><span class="lvl">L1 · hash</span><span class="nm">hash(key) → bucket index<em>open addressing — linear probe</em></span><span class="where">on-chip</span></div>
+      <div class="layer hi"><span class="lvl">L2 · atomic</span><span class="nm">atomicAdd(&amp;sum[bucket], value)<br>atomicAdd(&amp;count[bucket], 1)<em>같은 bucket 을 친 thread 들끼리 직렬화</em></span><span class="where">global memory</span></div>
+      <div class="layer"><span class="lvl">L3 · finalize</span><span class="nm">avg = sum / count<em>bucket 별 1 thread 가 한 번씩</em></span><span class="where">parallel</span></div>
+    </div>
+    <div class="viz-note">contention — 같은 도시가 자주 나오면 그 bucket 위에서 atomic 이 직렬화. <strong>하지만 GPU atomic 은 매우 빠르다</strong>. 특히 같은 SM 안의 thread 끼리는 L2 위에서 atomic 이 끝남(HBM 까지 안 감). § 06 의 hashmap 디자인이 이 contention 을 더 줄이는 트릭.</div>
+  </div>
+
+  <p>강의의 한 가지 디테일 — bucket 수가 너무 작으면 collision 이 폭발하고, 너무 크면 메모리 낭비. 일반적인 cuDF/cuco 의 default 는 <em>load factor 50% 정도로 bucket array allocate</em>. dictionary 처럼 unique key 를 미리 알면 perfect hash 도 가능.</p>
+
+  <div class="callout">
+    <div class="label">왜 sort-based 가 아닌가</div>
+    <p>CPU 의 표준 groupby 는 “sort 후 같은 key 의 연속 구간을 reduce”. GPU 에서는 sort 가 비싸다 (O(n log n)). hash + atomic 이 거의 항상 빠르다. 다만 cardinality 가 매우 높을 때(unique 가 많을 때) sort-then-reduce 가 메모리 측면에서 유리한 경우도 있다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>GPU 위 hashmap 의 구조</b><span>· cuco · open addressing</span></div>
+    <h2>“GPU 에서는 hashmap 이 자료구조가 아니라 array 이다”</h2>
+  </div>
+  <p class="sec-lede">강의에서 Devavret 이 강조한 메시지. CPU 의 <code>std::unordered_map</code> 같은 chained hashmap 은 GPU 에서 잘 안 도는다 — pointer chasing 이 random read 를 만든다. GPU 는 항상 <strong>open addressing</strong> 의 flat array.</p>
+
+  <div class="l19-cmp">
+    <div class="col">
+      <h4>CPU style — chained</h4>
+      <ul>
+        <li>bucket → linked list of (key, value) nodes</li>
+        <li>collision → list 에 append</li>
+        <li>random pointer chasing → cache miss</li>
+        <li>CUDA 에서 거의 못 씀</li>
+      </ul>
+    </div>
+    <div class="col hi">
+      <h4>GPU style — open addressing</h4>
+      <ul>
+        <li>flat array of slots — slot = (key, value)</li>
+        <li>hash → start index, collision → probe (linear/quadratic)</li>
+        <li>contiguous read → coalesced</li>
+        <li>insertion 도 atomic CAS 한 번으로 끝</li>
+        <li><a href="https://github.com/NVIDIA/cuCollections" target="_blank" rel="noopener">cuCollections (cuco)</a> 의 표준 구조</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><code><span style="color:#A99E89">// GPU hashmap insert — 핵심만</span>
+__device__ <span style="color:#E7B369">void</span> insert(slot_t* table, <span style="color:#E7B369">int</span> capacity, K key, V val) {
+  <span style="color:#E7B369">int</span> idx = hash(key) % capacity;
+  <span style="color:#E7B369">while</span> (<span style="color:#E7B369">true</span>) {
+    <span style="color:#A99E89">// CAS — empty slot 을 잡으면 내가 차지</span>
+    K prev = atomicCAS(&amp;table[idx].key, EMPTY, key);
+    <span style="color:#E7B369">if</span> (prev == EMPTY) {       <span style="color:#A99E89">// 새 entry — value 초기화</span>
+      atomicAdd(&amp;table[idx].value, val);
+      <span style="color:#E7B369">return</span>;
+    }
+    <span style="color:#E7B369">if</span> (prev == key) {         <span style="color:#A99E89">// 이미 같은 key 의 entry — 누적</span>
+      atomicAdd(&amp;table[idx].value, val);
+      <span style="color:#E7B369">return</span>;
+    }
+    idx = (idx + <span style="color:#E7B369">1</span>) % capacity; <span style="color:#A99E89">// linear probe</span>
+  }
+}</code></pre>
+
+  <p>그리고 강의의 또 한 자리 — <strong>shared memory 안 hashmap</strong>. 작은 cardinality (수백~수천 unique) 면 block 하나가 자기 hashmap 을 SRAM 안에 두고 끝낸다. 그 다음 block 들의 결과를 hierarchy 로 합친다. cuDF 의 groupby 가 정확히 이 패턴.</p>
+
+  <div class="callout cool">
+    <div class="label">Devavret 이 직접 다시 짠 사례</div>
+    <p>강의 끝부분에서 Parquet writer 의 dictionary encoding 커널 이야기 — 기존 hand-tuned 커널이 device memory 까지 자주 갔는데, <em>shared memory 안에 hashmap 을 두고 거의 안 나가게</em> 다시 짰더니 더 빨라졌다는 일화. on-chip 우선의 구조적 이득이 직접 손에 잡히는 자리.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>1-Billion-Row Challenge</b><span>· tailor-made vs general API</span></div>
+    <h2>같은 문제를 두 가지로 — 손으로 짠 커널 vs cuDF/SQL 일반 API</h2>
+  </div>
+  <p class="sec-lede">강의의 가장 구체적인 케이스 스터디. <a href="https://1brc.dev/" target="_blank" rel="noopener">1 Billion Row Challenge</a> — 10억 줄의 (도시, 온도) 측정값에서 도시별 min/avg/max 를 뽑아라. CPU 에서 ~10초 안에 푸는 게 목표. GPU 에서 두 접근.</p>
+
+  <div class="l19-cmp">
+    <div class="col">
+      <h4>접근 A — tailor-made kernel</h4>
+      <ul>
+        <li>도시 unique 가 ~400 개 (작음 — 사전 알려져 있음)</li>
+        <li>shared memory 안에 도시별 (sum, count, min, max) 4-tuple 두기</li>
+        <li>한 번 read · per-thread parse · atomic update on shared</li>
+        <li>block 간 합치기로 마무리</li>
+        <li><strong>한 kernel 안에서 끝</strong>. 데이터를 한 번만 통과.</li>
+      </ul>
+    </div>
+    <div class="col hi">
+      <h4>접근 B — general SQL/cuDF</h4>
+      <ul>
+        <li><code>read_csv</code> → 모든 column dtype/parse</li>
+        <li><code>groupby('city').agg(['min','mean','max'])</code></li>
+        <li>SQL 엔진은 plan 만들어 — scan, hash, aggregate 단계가 분리됨</li>
+        <li>중간 buffer 가 HBM 에 머무름</li>
+        <li>generic 한 만큼 데이터 통과 횟수가 많음</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>강의에서 보여준 결과 — tailor-made 가 더 빠르긴 하지만 차이가 생각만큼 크진 않다. SQL engine 도 well-engineered 면 데이터 통과를 1–2 회로 압축한다. <em>“손으로 짠 커널의 이득은 알고리즘적 통합이고, SQL 엔진의 이득은 generality”</em> 의 trade-off 가 명확히 드러나는 사례.</p>
+
+  <div class="callout">
+    <div class="label">tailor-made 의 큰 이점</div>
+    <p>“한 번만 통과해도 된다”. min/avg/max/count 를 한 atomic 묶음으로 누적. SQL plan 은 (a) parse, (b) groupby aggregate (c) result projection 의 3 단계가 따로 데이터를 만진다. 그 차이가 cardinality 가 클 때 더 벌어진다.</p>
+  </div>
+
+  <div class="pull">“tailor-made 커널은 <em>이 데이터에 대해</em> 한 번만 통과하면 된다는 사전 지식을 직접 utilize. 일반 API 는 그 사전 지식을 표현할 자리가 없다.”<span class="by">Devavret Makkar (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>Parquet · dictionary encoding</b><span>· file format on GPU</span></div>
+    <h2>columnar 파일이 GPU 와 잘 맞는 이유</h2>
+  </div>
+  <p class="sec-lede">CSV 가 가변길이의 row-oriented 면, Parquet 는 columnar + 사전 디코드 가능한 메타데이터를 들고 있다. row group / page / dictionary 의 계층. <strong>각 column 이 contiguous 하게 저장되어 있어 GPU coalesced load 와 자연스럽게 맞는다</strong>.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Parquet 파일의 계층</span><span>row group → column chunk → page</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">1</div><div class="nm">file</div><div class="dt">N row groups · footer 에 메타데이터</div></div>
+      <div class="stage"><div class="sn">2</div><div class="nm">row group</div><div class="dt">M columns · 각 column chunk 가 독립 압축</div></div>
+      <div class="stage hi"><div class="sn">3</div><div class="nm">column chunk</div><div class="dt">K pages · 각 page 가 independent encode</div></div>
+      <div class="stage"><div class="sn">4</div><div class="nm">page</div><div class="dt">RLE / DICT / PLAIN — encode scheme</div></div>
+    </div>
+    <div class="viz-note">중요한 건 — <strong>page 단위가 독립적으로 디코드 가능</strong>. GPU 에서는 page 하나당 block 하나를 띄워 parallel decode. cuDF 의 Parquet reader 가 그 구조.</div>
+  </div>
+
+  <p>그리고 dictionary encoding — column 의 값이 적은 unique 면, 사전(dictionary) 한 번 + 인덱스 array. 압축 + lookup 효율 둘 다 좋아진다. 강의에서 Devavret 이 <em>“cuDF Parquet writer 의 dictionary encoding 커널을 다시 짰던”</em> 일화 (§ 06 참고) 가 이 자리.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>Voltron — query engine 으로</b><span>· SQL → GPU plan</span></div>
+    <h2>cuDF 가 dataframe 이라면, Voltron 은 SQL engine</h2>
+  </div>
+  <p class="sec-lede">Devavret 의 현재 회사 Voltron Data 의 제품 — Theseus / Velox 같은 GPU-native query engine. SQL 을 받아서 <em>GPU 친화적 execution plan</em> 으로 컴파일해서 돌린다. cuDF 가 “손으로 호출하는 라이브러리” 라면 Voltron 은 “DB 처럼 쓴다”.</p>
+
+  <div class="callout">
+    <div class="label">SQL → GPU plan 의 단계</div>
+    <p>(1) SQL parse → logical plan. (2) optimizer → join order, predicate pushdown, projection pruning. (3) <strong>GPU-aware physical plan</strong> — 어떤 op 가 GPU 에서 도는지, multi-GPU 면 어떤 column 이 어디 있는지. (4) execution — scan/filter/groupby/join 이 § 04–06 의 primitive 위에서 도는 것.</p>
+  </div>
+
+  <p>이 영역의 큰 통찰 — <em>“데이터 엔지니어링이 GPU 로 옮겨가는 건, ML 이 GPU 로 옮겨간 패턴의 5–10년 뒤 반복”</em>. 같은 hardware/software 스택을 다른 도메인에서 다시 쓰는 흐름.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 5분 안에 손으로 잡혀야 할 것</h2>
+  </div>
+  <p class="sec-lede">데이터 엔지니어링이 GPU 에서 어떻게 돌아가는지의 첫 mental model — 그 핵심 사실들.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">대역폭 산수</div>
+      <div class="d">CPU DDR5 ~100 GB/s, GPU HBM3 ~3 TB/s. 같은 memory-bound op 가 약 30× 빠른 게 GPU 데이터 엔지니어링의 본질.</div>
+    </div>
+    <div class="term">
+      <div class="t">CSV = scan 문제</div>
+      <div class="d">newline 누적이 row index, comma 누적이 col index — segmented scan 으로 분해. <a href="lecture_020.html">L020 scan</a> 이 이 강의의 사전 지식.</div>
+    </div>
+    <div class="term">
+      <div class="t">groupby = hash + atomic</div>
+      <div class="d">한 row 한 thread → hash bucket → atomic add. shared memory 안 hashmap 으로 contention 을 줄임.</div>
+    </div>
+    <div class="term">
+      <div class="t">open addressing only</div>
+      <div class="d">GPU hashmap 은 항상 flat array + linear probe. chained map 은 pointer chasing 으로 느림. <code>cuCollections</code> 가 표준.</div>
+    </div>
+    <div class="term">
+      <div class="t">tailor-made vs general</div>
+      <div class="d">한 도메인 사전 지식이 있으면 tailor-made 가 데이터 통과를 1 회로 압축. SQL engine 은 generality 의 가격으로 N 회 통과.</div>
+    </div>
+    <div class="term">
+      <div class="t">Parquet 의 page</div>
+      <div class="d">독립 디코드 가능. block 하나당 page 하나로 parallel decode. dictionary encoding 으로 압축 + lookup.</div>
+    </div>
+    <div class="term">
+      <div class="t">GPUDirect Storage</div>
+      <div class="d">NVMe → GPU 직접 DMA. CPU 안 거치고. cuDF + KvikIO 조합으로 큰 데이터 read 의 PCIe 비용을 잡음.</div>
+    </div>
+    <div class="term">
+      <div class="t">data engineering ⊃ ML</div>
+      <div class="d">평균 데이터셋이 모델보다 훨씬 큼. GPU 가 ML 을 거쳐 데이터로 확장되는 흐름.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=FUBrIgdIuh0" target="_blank" rel="noopener">youtube.com/watch?v=FUBrIgdIuh0</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Speaker</span>
+      <span class="v"><a href="https://github.com/devavret" target="_blank" rel="noopener">github.com/devavret</a></span>
+    </div>
+    <div class="row">
+      <span class="k">관련 라이브러리</span>
+      <span class="v">
+        <a href="https://github.com/rapidsai/cudf" target="_blank" rel="noopener">cuDF</a> ·
+        <a href="https://github.com/NVIDIA/cuCollections" target="_blank" rel="noopener">cuCollections (cuco)</a> ·
+        <a href="https://github.com/rapidsai/kvikio" target="_blank" rel="noopener">KvikIO</a>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">참고</span>
+      <span class="v">
+        <a href="https://1brc.dev/" target="_blank" rel="noopener">1 Billion Row Challenge</a> ·
+        <a href="https://voltrondata.com/" target="_blank" rel="noopener">Voltron Data</a>
+      </span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>cuDF first run</strong> — 1 GB 정도의 CSV 를 pandas 와 cuDF 로 같은 groupby 돌려보고 시간 비교. 차이가 30× 가까운지 확인.</li>
+    <li><strong>scan 으로 \n 위치 찾기</strong> — 작은 byte stream 위에서 newline 위치를 직접 prefix-sum 으로 누적하는 CUDA 커널 짜기. <code>cub::DeviceScan</code> 활용.</li>
+    <li><strong>shared memory hashmap</strong> — 100 unique key 에 대해 block 하나가 SRAM 위에 hashmap 하나 두고 atomic 누적. 이후 block 간 합치기.</li>
+    <li><strong>1BRC tailor kernel</strong> — 자기가 직접 작은 1BRC clone (10M rows) 을 짜고 — SQL/pandas vs cuDF vs tailor kernel 세 시간 비교.</li>
+    <li><strong>cuCollections 직접 써보기</strong> — <code>cuco::static_map</code> 으로 unique counting 같은 작업. open addressing 의 insert 함수 source 직접 읽기.</li>
+    <li><strong>Parquet page-level parallel</strong> — 작은 Parquet 파일의 column chunk 안 page 수를 footer 에서 읽고, page 단위 parallel decode 가 가능한지 head 만 본다.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 primitive 가 다른 자리에서 어떻게 다시 등장하는지</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_020.html">
+      <div class="n">L020</div>
+      <div class="ti">Scan Algorithm</div>
+      <div class="by">Izzat El Haj — § 04 의 CSV 파싱 스캔이 의존하는 알고리즘 자체</div>
+    </a>
+    <a class="conn" href="lecture_021.html">
+      <div class="n">L021</div>
+      <div class="ti">Scan Algorithm Part 2</div>
+      <div class="by">— large-array scan, 즉 GB 단위 CSV 의 \n 누적의 실전 구현</div>
+    </a>
+    <a class="conn" href="lecture_024.html">
+      <div class="n">L024</div>
+      <div class="ti">Scan at the Speed of Light</div>
+      <div class="by">— scan 의 한계 (memory copy bandwidth) 를 본격 분석. 데이터 엔지니어링 성능 상한선</div>
+    </a>
+    <a class="conn" href="lecture_009.html">
+      <div class="n">L009</div>
+      <div class="ti">Reductions</div>
+      <div class="by">— groupby aggregate 의 내부 reduce. atomic 의 대안 알고리즘</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">— § 06 의 hashmap 커널을 NCU 로 분석할 때의 도구 모음</div>
+    </a>
+    <a class="conn" href="lecture_010.html">
+      <div class="n">L010</div>
+      <div class="ti">Build a Prod Ready CUDA library</div>
+      <div class="by">— cuDF 같은 라이브러리를 어떻게 build/test 하는지의 메타 강의</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>scan-based CSV parser 의 정확한 구현</strong> — 강의에서 reference 한 PhD thesis/paper 의 정확한 출처는 자막에서 명시되지 않음. 추적 필요 (확인 필요).</li>
+    <li><strong>cuDF 의 groupby kernel 위치</strong> — repo 의 <code>cpp/src/groupby/hash/</code> 안 코드를 직접 읽으면 § 05–06 의 mental model 과 정확히 어떻게 매칭되는지 확인 가능.</li>
+    <li><strong>1BRC 의 GPU 결과</strong> — 강의에서 정확한 시간 숫자가 명시되지 않음. tailor-made vs cuDF 의 차이 % 가 얼마인지 자기 GPU 에서 재현 필요.</li>
+    <li><strong>Voltron 의 internals</strong> — Theseus 가 actually 어떻게 SQL → GPU plan 을 만드는지 강의에서 깊이 들어가지 않음. 별도로 paper / blog 추적.</li>
+    <li><strong>JSON 파싱의 stack-based 분해</strong> — § 04 의 callout 에서 언급한 nesting depth scan. simdjson 의 알고리즘과 GPU 버전의 차이는 후속 자료로 보강 필요.</li>
+    <li><strong>multi-GPU groupby</strong> — 강의는 single-GPU 위주. multi-GPU 에서 hash partition + shuffle 이 어떻게 도는지는 RAPIDS 의 dask-cuDF 영역.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 대역폭 그래프와 % 분포는 표준 spec sheet 에 근거한 예시. 실제 환경에서 측정값은 thermal/PCIe topology 등에 따라 차이가 날 수 있다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_018.html">
+    <span class="lbl">← Lecture 018</span>
+    <span class="nm">Fusing Kernels — Kapil Sharma</span>
+  </a>
+  <a class="nxt" href="lecture_020.html">
+    <span class="lbl">Lecture 020 →</span>
+    <span class="nm">Scan Algorithm — Izzat El Haj 의 prefix-sum 정식 강의</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L019 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

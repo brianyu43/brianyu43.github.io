@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L060 · Optimizing Linear Attention · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l60-bars{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l60-bars .row{display:grid;grid-template-columns:170px 1fr 90px;gap:10px;align-items:center}
+.l60-bars .lbl{color:var(--ink-soft)}
+.l60-bars .bar{height:18px;background:var(--bg-soft);border-radius:3px;overflow:hidden}
+.l60-bars .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.l60-bars .bar.cool span{background:var(--cool)}
+.l60-bars .bar.good span{background:var(--good)}
+.l60-bars .bar.warn span{background:var(--warn)}
+.l60-bars .val{color:var(--ink);font-weight:700;text-align:right}
+
+.l60-eq{background:var(--code-bg);color:var(--code-fg);padding:18px 22px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13.5px;line-height:1.7;margin:12px 0}
+.l60-eq .label{color:#A99B7A;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
+.l60-eq .eq{color:#E7B369}
+.l60-eq .note{color:#A99E89;font-size:11.5px;margin-top:6px;font-style:italic}
+
+.l60-fam{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l60-fam .col{background:var(--paper);padding:14px 14px}
+.l60-fam .col h4{margin:0 0 4px;font-family:'Pretendard',sans-serif;font-size:14px;color:var(--ink);font-weight:700}
+.l60-fam .col .y{font-size:10.5px;color:var(--accent);letter-spacing:.12em}
+.l60-fam .col p{font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin:6px 0 0}
+.l60-fam .col .row{display:flex;justify-content:space-between;font-size:11px;border-top:1px dashed var(--line-soft);padding:4px 0;margin-top:4px}
+.l60-fam .col .row .k{color:var(--muted)}
+.l60-fam .col .row .v{color:var(--ink);font-weight:600}
+
+.l60-chunks{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:8px;background:var(--bg-soft);border-radius:6px}
+.l60-chunks .ck{aspect-ratio:1;display:grid;place-items:center;background:var(--paper-deep);color:var(--muted);border-radius:2px}
+.l60-chunks .ck.intra{background:var(--accent);color:var(--paper)}
+.l60-chunks .ck.inter{background:var(--cool);color:var(--paper)}
+.l60-chunks .ck.s{background:var(--accent-2);color:var(--paper)}
+@media (max-width:760px){.l60-fam{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_059.html">← L059</a>
+    <a href="lecture_061.html">L061 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L060</span>
+    <span>2025 · Linear attn</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>Optimizing Linear Attention</h1>
+  <p class="dek"><strong>quadratic attention 의 N² 을 N 으로 떨어뜨리는</strong> linear attention 의 큰 가족 — Linear-Attn / RetNet / Mamba / RWKV / GLA / DeltaNet — 을 한 자리에 모으고, GPU 위에서 진짜로 빠르게 돌리려면 어떤 수학적 형태를 써야 하는지를 깐다. Songlin Yang 의 핵심 contribution 인 <em>chunk-wise parallel</em> form 과 <em>flash-linear-attention</em> 라이브러리가 이 강의의 중심.</p>
+
+  <div class="chips">
+    <span class="chip hi">linear attention</span>
+    <span class="chip hi">Mamba / SSM</span>
+    <span class="chip hi">RWKV</span>
+    <span class="chip hi">RetNet</span>
+    <span class="chip hi">GLA</span>
+    <span class="chip">chunk-wise parallel</span>
+    <span class="chip">FLA library</span>
+    <span class="chip">hybrid sliding-linear</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">S</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Songlin Yang</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">MIT CSAIL · GLA / FLA / DeltaNet 저자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L060</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Songlin Yang</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell warn"><div class="lbl">자료 상태</div><div class="val">transcript 없음 · 논문 기반</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why linear attn</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">quadratic attention 의 한계</span><span class="em">N² 의 분포</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">linear attention 의 수식</span><span class="em">kernel trick · state</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">RWKV/Mamba/RetNet/GLA 비교</span><span class="em">family tree</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">chunk-wise parallel 알고리즘</span><span class="em">intra · inter chunk</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">hardware-friendly 형태</span><span class="em">matmul-form · tensor cores</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">정확도 vs 속도 trade-off</span><span class="em">recall · long ctx</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">hybrid 패턴</span><span class="em">sliding window + linear</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 방향</span><span class="em">DeltaNet · Gated · Test-time</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">FLA repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why linear attn</span></div>
+    <h2>linear attention 이 “이론적으로 빠르다” 가 아니라 — GPU 위에서 정말 빠르게 도는 형태</h2>
+  </div>
+  <p class="sec-lede">2020 년 Linear Attention (Katharopoulos et al.) 이 처음 제안된 이래로 — RWKV, RetNet, Mamba, GLA, DeltaNet 까지 — 가족이 거대해졌다. <em>이론적</em> 으로는 모두 quadratic 의 N² 을 N 으로 줄인다. 그런데 실제 GPU 위에서 dense softmax-attention 보다 <strong>빠르게 도는</strong> 구현은 거의 없었다. Songlin Yang 의 일련의 work — <em>flash-linear-attention</em> 라이브러리, GLA / DeltaNet / Gated DeltaProduct — 이 그 gap 을 메운다.</p>
+
+  <p>강의 transcript 가 비어 있으므로 본 노트는 <strong>flash-linear-attention</strong> repo, GLA 논문 (<em>Gated Linear Attention Transformers with Hardware-Efficient Training</em>, 2023), 그리고 SSM/linear-attn duality 관련 자료를 base 로 재구성한다. 강의가 다룬 정확한 비중은 확인 필요.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>linear attention 의 이야기는 <em>두 단계</em>로 나뉜다. (a) <strong>수학적 형태</strong> — kernel trick / RNN-like state / outer product 누적. (b) <strong>hardware 친화적 알고리즘</strong> — chunk-wise parallel form 으로 sequence 를 자르고, intra-chunk 는 quadratic 이지만 작아서 OK, inter-chunk 는 matmul 로 연결. 이 두 단계가 분리되어야 GPU 위에서 진짜로 빨라진다.</p>
+  </div>
+
+  <div class="pull">“linear attention 의 진짜 도전은 N² 을 N 으로 만드는 게 아니다 — GPU 의 tensor core 를 쓰면서 N 으로 만드는 것.”<span class="by">Songlin Yang / 확인 필요</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>quadratic 의 한계</b><span>· N² 의 분포</span></div>
+    <h2>softmax attention 의 비용은 길이 N 에 quadratic 으로 폭발한다</h2>
+  </div>
+  <p class="sec-lede">표준 softmax attention 의 비용을 다시 한 번 — <code>Attn(Q,K,V) = softmax(QK^T/√d) V</code>. 메모리는 <code>O(N²)</code>, FLOPs 도 <code>O(N²·d)</code>. FlashAttention 이 메모리는 O(N) 으로 줄였지만 FLOPs 는 여전히 N². long context (32K, 128K, 1M) 에서 이게 곧장 문제.</p>
+
+  <div class="split">
+    <div>
+      <p>구체적으로 어디가 아픈지 — <strong>training</strong> 과 <strong>inference</strong> 에서 다르게 나타난다.</p>
+      <ul>
+        <li><strong>training</strong>: 한 forward 에 N² compute. Llama-3 8B, 32K context = ~10 GFLOPs/token (attention 만), 즉 <em>전체 training compute 의 30%+</em>. context 가 늘면 dominant 가 됨.</li>
+        <li><strong>inference (decode)</strong>: 매 step 마다 KV cache <code>O(N·layers·d)</code> 를 read. KV memory 가 model weights 보다 커진다 — 32K context 에서 70B 의 KV ≈ 5 GB / req.</li>
+      </ul>
+      <p>linear attention 은 두 비용을 모두 떨어뜨린다 — training 의 N² 을 N 으로, inference 의 KV cache 를 fixed-size <em>state</em> 로 (= <code>d² × layers</code>, sequence 와 무관).</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · quadratic vs linear, 길이별 attention FLOPs</span><span>d=128</span></div>
+        <div class="l60-bars">
+          <div class="row"><span class="lbl">N=2K · softmax</span><div class="bar"><span style="width:10%"></span></div><span class="val">1×</span></div>
+          <div class="row"><span class="lbl">N=8K · softmax</span><div class="bar warn"><span style="width:30%"></span></div><span class="val">16×</span></div>
+          <div class="row"><span class="lbl">N=32K · softmax</span><div class="bar warn"><span style="width:80%"></span></div><span class="val">256×</span></div>
+          <div class="row"><span class="lbl">N=128K · softmax</span><div class="bar warn"><span style="width:100%"></span></div><span class="val">4096×</span></div>
+          <div class="row"><span class="lbl">N=128K · linear</span><div class="bar good"><span style="width:7%"></span></div><span class="val">64×</span></div>
+        </div>
+        <div class="viz-note">128K 에서 quadratic 이 4096×, linear 가 64×. <strong>64× 차이</strong>. 32K 까지는 차이가 작아서 softmax 가 여전히 dominant — long-context regime 으로 갈 때 의미가 폭발.</div>
+      </div>
+    </div>
+  </div>
+
+  <p>그런데 hardware 입장에서는 한 가지 미묘한 점이 있다. softmax attention 은 FlashAttention 으로 <em>tensor core 를 100% 쓴다</em>. linear attention 은 자연스럽게는 element-wise 연산이 많아 <em>tensor core 를 안 쓴다</em>. 그래서 같은 N 에서 linear 가 quadratic 보다 <strong>느릴 수도 있다</strong>. 이게 강의의 핵심 frame — <em>linear 의 이론적 우위가 hardware 우위가 되려면 형태를 다시 짜야 한다</em>.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>linear attention 의 수식</b><span>· kernel trick · state</span></div>
+    <h2>softmax 를 떼면 attention 이 RNN 이 된다 — 그 정확한 수식</h2>
+  </div>
+  <p class="sec-lede">linear attention 의 출발 idea — softmax 의 비선형성을 떼고 <code>φ(Q)·φ(K)^T</code> 같은 kernel feature map 으로 대체하면 — 결합법칙이 적용된다. <code>(QK^T)V = Q(K^T V)</code>. 오른쪽 형태는 N 에 대해 <strong>linear</strong>.</p>
+
+  <div class="l60-eq">
+    <div class="label">표준 softmax attention</div>
+    <span class="eq">o_t = Σᵢ₌₁ᵗ exp(qₜ·kᵢ/√d) · vᵢ / Z_t</span>
+    <div class="note">→ N² 메모리, t 마다 모든 과거 (k,v) 를 봐야 함</div>
+  </div>
+
+  <div class="l60-eq">
+    <div class="label">linear attention (kernel trick)</div>
+    <span class="eq">o_t = Σᵢ₌₁ᵗ φ(qₜ)·φ(kᵢ) · vᵢ<br>     = φ(qₜ) · ( Σᵢ₌₁ᵗ φ(kᵢ) ⊗ vᵢ )<br>     = φ(qₜ) · S_t</span>
+    <div class="note">S_t = Σᵢ φ(kᵢ) ⊗ vᵢ 가 d × d 의 fixed-size state. RNN-like recurrence 로 표현 가능.</div>
+  </div>
+
+  <div class="l60-eq">
+    <div class="label">RNN 형태 (recurrence)</div>
+    <span class="eq">S_t = S_{t-1} + φ(kₜ) ⊗ vₜ<br>o_t = φ(qₜ) · S_t</span>
+    <div class="note">매 step O(d²) 비용. 모든 과거 토큰의 정보가 d×d state 안에 압축.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>이 형태의 의미 — <strong>linear attention 은 정확히 RNN 이다</strong>. softmax 라는 non-linear similarity 를 dot-product (또는 그 변형) 로 바꾸면, attention 이 fixed-size hidden state S_t 를 갖는 RNN 으로 다시 쓸 수 있다.</p>
+      <p>그러면 자연스럽게 트레이드 오프가 보인다.</p>
+      <ul>
+        <li><strong>장점</strong>: inference 시 KV cache 가 state d×d 한 개로 압축. sequence 와 무관한 메모리. throughput 이 길이에 거의 무관.</li>
+        <li><strong>단점</strong>: 정보가 d×d state 안에 ‘섞여서’ 들어간다. 특정 토큰을 selectively recall 하기 어렵다 — 이게 RWKV / Linear Attn 이 long-context QA 에서 약한 이유.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">왜 그냥 안 빠른가</div>
+        <p>RNN form 은 <em>매 step 의 의존성</em> 때문에 sequence 차원으로 parallel 이 안 된다. 한 step 의 S_t 가 다음 step 에 필요. GPU 의 1024 thread 가 동시에 일을 못 한다. 이걸 풀려고 — chunk-wise parallel (§05) 와 hardware-friendly form (§06) 이 등장.</p>
+      </div>
+      <p>이 RNN 등가성은 GPU 입장에서 <em>parallel scan</em> (Mamba 의 selective scan) 또는 <em>chunk-wise matmul</em> (GLA / RetNet) 으로 풀 수 있다는 사실로 이어진다. 두 길이 어떻게 다른지가 가족별 architectural 차이의 근원.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>가족 비교</b><span>· family tree</span></div>
+    <h2>같은 RNN 형태의 다른 변형들 — gating / decay / data-dependent</h2>
+  </div>
+  <p class="sec-lede">linear attention 가족의 모든 모델은 <em>S_t = α_t · S_{t-1} + β_t · (k_t ⊗ v_t)</em> 의 변형으로 정리된다. 어떤 게 α, β 가 되는지가 모델을 구분한다.</p>
+
+  <div class="l60-fam">
+    <div class="col">
+      <h4>Linear Attn (2020)</h4>
+      <div class="y">Katharopoulos</div>
+      <p>α_t = 1, β_t = 1. φ(k) 만 쓴다. 단순. recall 약함.</p>
+      <div class="row"><span class="k">decay</span><span class="v">없음</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">없음</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+    <div class="col">
+      <h4>RetNet (2023)</h4>
+      <div class="y">Microsoft</div>
+      <p>α_t = γ (scalar). 시간에 따라 exponential decay. parallel form 가능.</p>
+      <div class="row"><span class="k">decay</span><span class="v">scalar γ</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">없음</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+    <div class="col">
+      <h4>RWKV (v4–v7)</h4>
+      <div class="y">Bo Peng et al.</div>
+      <p>α_t 가 channel-wise vector. WKV operator. v6, v7 은 receptance 의 data-dep.</p>
+      <div class="row"><span class="k">decay</span><span class="v">channel</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">v5+</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+    <div class="col">
+      <h4>GLA (Songlin · 2023)</h4>
+      <div class="y">MIT</div>
+      <p>α_t 가 data-dependent vector — input 에서 학습. hardware-friendly chunk form.</p>
+      <div class="row"><span class="k">decay</span><span class="v">data-dep</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">α_t = σ(Wx)</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+  </div>
+
+  <div class="l60-fam" style="margin-top:8px">
+    <div class="col">
+      <h4>Mamba S6 (2023)</h4>
+      <div class="y">Albert Gu</div>
+      <p>SSM 출발. selective scan 으로 input-dep A,B,C. continuous-time discretize.</p>
+      <div class="row"><span class="k">decay</span><span class="v">data-dep A</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">data-dep B,C</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">N (≪ d²)</span></div>
+    </div>
+    <div class="col">
+      <h4>Mamba2 (2024)</h4>
+      <div class="y">Tri Dao et al.</div>
+      <p>SSM ↔ linear-attn duality 를 명시. matmul-form 으로 tensor core 활용.</p>
+      <div class="row"><span class="k">decay</span><span class="v">scalar A</span></div>
+      <div class="row"><span class="k">gate</span><span class="v">B, C</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×N</span></div>
+    </div>
+    <div class="col">
+      <h4>DeltaNet (Songlin · 2024)</h4>
+      <div class="y">MIT</div>
+      <p>delta rule — state update 가 (β k ⊗ (v − S k)) 형태. associative recall 강함.</p>
+      <div class="row"><span class="k">decay</span><span class="v">β k</span></div>
+      <div class="row"><span class="k">update</span><span class="v">delta rule</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+    <div class="col">
+      <h4>Gated DeltaNet (2024+)</h4>
+      <div class="y">Songlin · NVIDIA</div>
+      <p>DeltaNet + GLA 의 gate 추가. 현재 가장 강한 linear-attn 변형 중 하나 (확인 필요).</p>
+      <div class="row"><span class="k">decay</span><span class="v">α_t</span></div>
+      <div class="row"><span class="k">update</span><span class="v">delta + gate</span></div>
+      <div class="row"><span class="k">state size</span><span class="v">d×d</span></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">가족의 진화 축</div>
+    <p>(1) <strong>decay 가 점점 더 fine-grained</strong> — none → scalar → channel → data-dependent. 각 단계가 long-context recall 을 향상. (2) <strong>state update 가 단순 누적에서 delta-rule 로</strong> — 새 정보를 단순히 더하는 게 아니라 기존 S 를 보고 “수정”. associative recall 향상. (3) <strong>전부 hardware-friendly chunk form 을 갖추기 시작</strong> — Songlin 의 FLA 가 통일된 framework.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>chunk-wise parallel</b><span>· intra · inter chunk</span></div>
+    <h2>sequence 를 chunk 로 자르고 — chunk 안은 quadratic, chunk 사이는 matmul</h2>
+  </div>
+  <p class="sec-lede">linear attention 을 GPU 위에서 빠르게 돌리는 핵심 트릭. <strong>sequence 를 chunk (예: C=64) 로 자르고</strong>:</p>
+  <ol>
+    <li><strong>intra-chunk</strong>: chunk 안에서는 표준 attention 처럼 quadratic. <code>C² = 4096</code> — 작아서 BF16 tensor core 위에서 빠름.</li>
+    <li><strong>inter-chunk</strong>: chunk i 의 정보를 chunk i+1 에 전달할 때 — chunk-aggregated state S_i 를 한 번 만들고 matmul 로 다음 chunk 에 적용. 이 부분이 N/C 번 = linear.</li>
+  </ol>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · chunk-wise parallel attention pattern</span><span>N=8 chunks · 각 C 토큰</span></div>
+    <div class="l60-chunks">
+      <div class="ck intra">i₁</div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div>
+      <div class="ck inter">↓</div><div class="ck intra">i₂</div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div>
+      <div class="ck inter">·</div><div class="ck inter">↓</div><div class="ck intra">i₃</div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div>
+      <div class="ck inter">·</div><div class="ck inter">·</div><div class="ck inter">↓</div><div class="ck intra">i₄</div><div class="ck"></div><div class="ck"></div><div class="ck"></div><div class="ck"></div>
+      <div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck inter">↓</div><div class="ck intra">i₅</div><div class="ck"></div><div class="ck"></div><div class="ck"></div>
+      <div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck inter">↓</div><div class="ck intra">i₆</div><div class="ck"></div><div class="ck"></div>
+      <div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck inter">↓</div><div class="ck intra">i₇</div><div class="ck"></div>
+      <div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck s">·</div><div class="ck inter">↓</div><div class="ck intra">i₈</div>
+    </div>
+    <div class="viz-note"><span style="color:var(--accent)">■ intra-chunk</span> attention (작은 quadratic, tensor core), <span style="color:var(--cool)">■ inter-chunk</span> propagation (state matmul), <span style="color:var(--accent-2)">■ via chunk state S</span> (이전 chunks 의 누적). <strong>N² 의 N=N_chunks·C 가 sub-quadratic 으로 분해</strong>.</div>
+  </div>
+
+  <div class="l60-eq">
+    <div class="label">chunk-wise form</div>
+    <span class="eq">// chunk i 의 출력<br>O_i = Q_i · S_{i-1}              // inter-chunk: 이전 state 사용<br>     + Σ (Q_i K_j^T D_{ij}) V_j   // intra-chunk: quadratic in C<br><br>// chunk i 끝나면 state 갱신<br>S_i = α_i · S_{i-1} + Σⱼ k_j ⊗ v_j  // 이 chunk 의 새 정보 누적</span>
+    <div class="note">D_{ij} 는 decay mask (RetNet 의 γ, GLA 의 data-dep α 등). 가족마다 모양이 약간 다르지만 이 framework 가 통합.</div>
+  </div>
+
+  <div class="pull">“linear attention 을 정말 GPU 위에서 빠르게 돌리려면 — RNN 으로 풀 수 있다는 사실은 잊고, chunk 안의 작은 quadratic + chunk 간 matmul 의 hybrid 로 다시 쓴다.”<span class="by">Songlin Yang / GLA paper · 확인 필요</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>hardware-friendly form</b><span>· matmul-form · tensor cores</span></div>
+    <h2>tensor core 를 쓰지 못하는 구현은 dense attention 보다 느리다</h2>
+  </div>
+  <p class="sec-lede">linear attention 의 reference 구현은 대부분 element-wise + small reductions. 그러면 — H100 의 BF16 Tensor Core 가 990 TFLOPs 인데 — element-wise 는 <strong>~100 TFLOPs</strong> 도 못 친다. 같은 FLOPs 라도 tensor core 가 10× 더 빠르다는 뜻. linear attention 을 정말 빠르게 만들려면 모든 계산을 <em>matmul 형태</em>로 다시 써야 한다.</p>
+
+  <div class="split">
+    <div>
+      <p>Songlin 의 flash-linear-attention 의 디자인 원칙:</p>
+      <ul>
+        <li><strong>state update 를 outer-product matmul 로</strong> — <code>S = αS + k ⊗ v</code> 를 <code>S = αS + K^T V</code> (chunk 차원으로 펼친) matmul 로.</li>
+        <li><strong>decay 를 mask 로 곱한 K, V 형태</strong> — D_{ij} 를 pre-compute 해서 K' = K ⊙ D, V' = V ⊙ D 로 만든 뒤 표준 matmul 로 attention.</li>
+        <li><strong>tile 단위 fused kernel</strong> — Triton 으로 짠다. SRAM 안에서 chunk 의 S 가 머무르도록.</li>
+        <li><strong>autograd 에서도 matmul</strong> — backward 도 같은 형태로 (역방향 chunk traversal).</li>
+      </ul>
+      <p>이 결과로 — flash-linear-attention 의 GLA 커널이 같은 N=32K 에서 FlashAttention2 보다 <strong>~2× 빠르다</strong> (확인 필요 — 모델·hardware 별 변동). 그리고 정확한 N → ∞ scaling 에서 attention 보다 격차가 폭발적으로 커진다.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · element-wise vs matmul-form 의 throughput</span><span>H100 BF16</span></div>
+        <div class="l60-bars">
+          <div class="row"><span class="lbl">element-wise (naive)</span><div class="bar"><span style="width:8%"></span></div><span class="val">~80 TF</span></div>
+          <div class="row"><span class="lbl">tile-fused</span><div class="bar cool"><span style="width:25%"></span></div><span class="val">~250 TF</span></div>
+          <div class="row"><span class="lbl">matmul-form</span><div class="bar good"><span style="width:90%"></span></div><span class="val">~890 TF</span></div>
+          <div class="row"><span class="lbl">peak BF16</span><div class="bar"><span style="width:100%;background:var(--paper-deep)"></span></div><span class="val">990 TF</span></div>
+        </div>
+        <div class="viz-note">같은 algorithm, 같은 FLOPs 인데 — 형태에 따라 <strong>10× 차이</strong>. tensor core 활용이 단순한 “구현 디테일” 이 아니라 architecture choice 의 일부.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">flash-linear-attention library</div>
+    <p>Songlin 이 메인테인하는 <code>fla-org/flash-linear-attention</code> 가 — Triton 으로 짠 chunked-matmul-form 커널 묶음. GLA, RetNet, RWKV, Mamba2, DeltaNet, Gated DeltaNet 모두 같은 framework 위에. <strong>이 라이브러리가 곧 강의의 코드 부록</strong>이라고 봐야 함.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>정확도 vs 속도</b><span>· recall · long ctx</span></div>
+    <h2>linear attention 의 약점은 항상 recall — needle in a haystack</h2>
+  </div>
+  <p class="sec-lede">linear attention 가족의 일관된 약점 — <strong>특정 토큰을 정확히 회상하는 능력</strong>. 이유는 명확하다 — 모든 정보가 fixed-size state d×d 에 압축되므로, 충분히 긴 sequence 에서는 정보가 “찌그러진다”. <em>needle in a haystack</em>, <em>multi-key retrieval</em>, <em>copying</em> 같은 task 에서 softmax attention 보다 약한 게 표준 결과.</p>
+
+  <div class="l60-bars">
+    <div class="row"><span class="lbl">softmax · recall</span><div class="bar good"><span style="width:97%"></span></div><span class="val">97%</span></div>
+    <div class="row"><span class="lbl">RetNet · recall</span><div class="bar warn"><span style="width:55%"></span></div><span class="val">55%</span></div>
+    <div class="row"><span class="lbl">Mamba · recall</span><div class="bar cool"><span style="width:65%"></span></div><span class="val">65%</span></div>
+    <div class="row"><span class="lbl">GLA · recall</span><div class="bar cool"><span style="width:78%"></span></div><span class="val">78%</span></div>
+    <div class="row"><span class="lbl">DeltaNet · recall</span><div class="bar good"><span style="width:88%"></span></div><span class="val">88%</span></div>
+    <div class="row"><span class="lbl">Hybrid (slide+linear)</span><div class="bar good"><span style="width:95%"></span></div><span class="val">95%</span></div>
+  </div>
+  <p style="margin-top:8px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace">예시 수치 (확인 필요) — <em>MQAR (multi-query associative recall)</em> 같은 synthetic benchmark 의 일반적 트렌드. 절대값은 모델 크기 / context 길이 / training data 에 따라 변동.</p>
+
+  <div class="split rev">
+    <div>
+      <p>그래서 가족의 진화 축이 명확하다 — <strong>recall 향상</strong>이 거의 모든 새 변형의 motivation. </p>
+      <ul>
+        <li>RetNet → GLA: <em>data-dependent decay</em> 로 “이 토큰은 더 오래 기억해” 라고 학습.</li>
+        <li>GLA → DeltaNet: <em>delta rule</em> — 새 토큰이 들어오면 기존 state 의 관련 영역만 수정. 깨끗한 overwrite.</li>
+        <li>DeltaNet → Gated DeltaNet: <em>gate + delta</em> 둘 다 — recall 과 forget 모두 학습.</li>
+      </ul>
+      <p>그럼에도 불구하고 — pure linear 가 softmax 의 recall 을 완전히 따라잡았다고 보긴 어렵다. 이게 hybrid 패턴 (§08) 이 실용적으로 가장 의미 있는 이유.</p>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">언제 linear 가 충분한가</div>
+        <p>recall 이 critical 하지 않은 task — language modeling 의 perplexity, long-form generation, 일반적 reasoning — 에서는 GLA / DeltaNet 이 softmax 와 거의 같은 품질을 1/10 비용으로 낸다. <em>retrieval-heavy</em> (needle, multi-key, 정확한 copy) 에서는 hybrid 가 안전.</p>
+      </div>
+      <p>최근 (2024–25) 트렌드 — <strong>완전 linear 모델</strong> (RWKV, Mamba) 보다 <strong>hybrid</strong> (대부분 linear, 일부 layer 만 softmax) 가 production 채택률이 높아지는 중. Jamba, Zamba, Samba 같은 모델들.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>hybrid 패턴</b><span>· sliding window + linear</span></div>
+    <h2>대부분의 layer 는 linear, 몇 개만 softmax — 비용은 linear 에 가깝고 recall 은 softmax 에 가깝다</h2>
+  </div>
+  <p class="sec-lede">2024 의 가장 실용적인 architecture 트렌드 — <strong>hybrid</strong>. transformer 의 일부 layer 를 linear 로, 일부를 softmax (또는 sliding window) 로. 비용의 대부분은 linear 가 차지하지만, softmax layer 가 “정밀 recall” 의 detail 을 가져간다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 흔한 hybrid 패턴 비교</span><span>32-layer 모델</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">A</div><div class="nm">all-softmax</div><div class="dt">표준 transformer · cost 100%</div></div>
+      <div class="stage"><div class="sn">B</div><div class="nm">all-linear</div><div class="dt">RWKV/GLA · cost 15%, recall 78%</div></div>
+      <div class="stage hi"><div class="sn">C</div><div class="nm">hybrid 7:1</div><div class="dt">7 linear + 1 softmax/sliding · cost 25%, recall 95%</div></div>
+      <div class="stage"><div class="sn">D</div><div class="nm">interleaved</div><div class="dt">4 linear + 4 sliding 반복 · cost 30%, recall 97%</div></div>
+    </div>
+    <div class="viz-note">hybrid 의 sweet spot — <strong>매 7~8 layer 마다 한 layer 의 softmax</strong>. Jamba, Samba, Zamba 가 이 비율 근처. 더 줄이면 recall, 더 늘리면 cost.</div>
+  </div>
+
+  <ul>
+    <li><strong>Jamba (AI21)</strong>: Mamba + softmax + MoE. 8 layer 중 1 이 softmax. 256K context 까지 학습.</li>
+    <li><strong>Samba (Microsoft)</strong>: Mamba + sliding window. softmax 대신 짧은 window attention 으로 — local recall 만 살림. 성능 좋음.</li>
+    <li><strong>Zamba</strong>: Mamba + shared softmax block (한 block 을 여러 layer 가 공유).</li>
+    <li><strong>최근 NVIDIA Nemotron-H</strong>: Mamba2 + softmax 의 hybrid (확인 필요).</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">왜 sliding window 가 좋은 hybrid 짝인가</div>
+    <p>linear attention 이 약한 영역은 <em>정밀 local lookup</em>. <em>“방금 그 토큰”</em> 을 정확히 찾는 일. sliding window attention 이 정확히 이 영역을 — 메모리/시간 모두 적게 — 보강. <strong>linear (long-range, fuzzy) + sliding (short-range, exact)</strong> 의 조합이 인지적으로 자연스러움.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 방향</b><span>· DeltaNet · Gated · Test-time</span></div>
+    <h2>2024 후반 ~ 2025 의 새로운 변형들</h2>
+  </div>
+
+  <ul>
+    <li><strong>Gated DeltaNet / DeltaProduct</strong> — Songlin 그룹과 NVIDIA 의 collaboration. delta rule + gate 의 결합. 같은 cost 에서 가장 강한 recall (확인 필요 — 빠르게 진화 중).</li>
+    <li><strong>Test-time Training (TTT)</strong> — Sun et al. 2024. linear attention 을 “학습 가능한 RNN” 으로 보고, hidden state 를 inner gradient descent 로 update. attention 이 곧 implicit fine-tune.</li>
+    <li><strong>state expansion</strong> — d×d state 를 여러 head 에 분산해 effective state 를 키움. RWKV-7, Mamba2 의 한 갈래.</li>
+    <li><strong>SSM ↔ linear-attn duality</strong> 의 통합 view — Mamba2 paper 가 SSM 과 linear-attn 이 본질적으로 같은 framework 임을 명시. 두 영역의 trick 이 서로 옮겨짐.</li>
+    <li><strong>compiler 통합</strong> — flash-linear-attention 이 PyTorch 의 <code>torch.compile</code> 과 jointly. 새 모델을 빠르게 prototyping 할 수 있게.</li>
+  </ul>
+
+  <div class="pull">“다음 5년의 attention 은 — 한 가지 형태가 아니라 — quadratic / linear / sliding 이 layer 단위로 섞이고, 각각이 자기 자리를 학습하는 형태로 갈 가능성이 크다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· FLA repo</span></div>
+    <h2>다시 열었을 때 빠르게 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">linear attn = RNN</div>
+      <div class="d">softmax 빼면 fixed-size state d×d 의 RNN. KV cache → state.</div>
+    </div>
+    <div class="term">
+      <div class="t">chunk-wise parallel form</div>
+      <div class="d">sequence 를 chunk 로 자름. intra=quadratic(작음), inter=matmul. tensor core 활용.</div>
+    </div>
+    <div class="term">
+      <div class="t">decay 의 진화</div>
+      <div class="d">none → scalar (Ret) → channel (RWKV) → data-dep (GLA, Mamba2). 각 단계 recall 향상.</div>
+    </div>
+    <div class="term">
+      <div class="t">delta rule</div>
+      <div class="d">단순 누적 대신 (β k ⊗ (v − Sk)). associative recall 강함. DeltaNet 핵심.</div>
+    </div>
+    <div class="term">
+      <div class="t">recall 약점</div>
+      <div class="d">needle/copy 에서 softmax 보다 떨어짐. fixed state 압축의 본질적 한계.</div>
+    </div>
+    <div class="term">
+      <div class="t">hybrid sweet spot</div>
+      <div class="d">7~8 layer 중 1 개를 softmax 또는 sliding. 비용 ~25%, recall ~95%.</div>
+    </div>
+    <div class="term">
+      <div class="t">matmul-form 필수</div>
+      <div class="d">element-wise 구현은 tensor core 못 씀 → 같은 algorithm 의 10× 차이.</div>
+    </div>
+    <div class="term">
+      <div class="t">FLA library</div>
+      <div class="d"><code>fla-org/flash-linear-attention</code> · Triton chunked-matmul. 가족 전체 한 framework.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=RTJKXK5L8gw" target="_blank" rel="noopener">youtube.com/watch?v=RTJKXK5L8gw</a></span>
+    </div>
+    <div class="row">
+      <span class="k">FLA Repo</span>
+      <span class="v"><a href="https://github.com/fla-org/flash-linear-attention" target="_blank" rel="noopener">fla-org/flash-linear-attention</a></span>
+    </div>
+    <div class="row">
+      <span class="k">GLA Paper</span>
+      <span class="v"><a href="https://arxiv.org/abs/2312.06635" target="_blank" rel="noopener">Gated Linear Attention · arXiv:2312.06635</a></span>
+    </div>
+    <div class="row">
+      <span class="k">DeltaNet</span>
+      <span class="v"><a href="https://arxiv.org/abs/2406.06484" target="_blank" rel="noopener">Parallelizing Linear Transformers with Delta Rule · arXiv:2406.06484</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Mamba2</span>
+      <span class="v"><a href="https://arxiv.org/abs/2405.21060" target="_blank" rel="noopener">Mamba2 · arXiv:2405.21060</a> · SSM ↔ linear-attn duality</span>
+    </div>
+    <div class="row">
+      <span class="k">Linear Attn 원조</span>
+      <span class="v"><a href="https://arxiv.org/abs/2006.16236" target="_blank" rel="noopener">Katharopoulos et al. 2020 · arXiv:2006.16236</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>FLA 설치 + GLA 한번 forward</strong> — <code>pip install flash-linear-attention</code>. <code>fla.ops.gla.fused_chunk_gla</code> 로 같은 (Q,K,V) 에서 forward. 결과 모양 / 속도 확인.</li>
+    <li><strong>FlashAttention2 와 head-to-head</strong> — 같은 hidden=128, N ∈ {2K, 8K, 32K, 128K} sweep. ms 측정. crossover 가 어디서 일어나는지 plot.</li>
+    <li><strong>chunk size sweep</strong> — GLA 의 BLOCK_SIZE_C ∈ {16, 32, 64, 128, 256}. chunk 가 너무 크면 intra 가 quadratic 으로 폭발, 너무 작으면 launch overhead.</li>
+    <li><strong>recall 검증</strong> — synthetic MQAR task 에 GLA / DeltaNet 학습. softmax baseline 과 비교. context 별 정확도 곡선.</li>
+    <li><strong>hybrid 모델 학습</strong> — 6 GLA + 2 sliding-attn layer 의 hybrid. 같은 token budget 에서 perplexity 비교.</li>
+    <li><strong>state 크기 vs recall 의 trade-off</strong> — head dim 을 키우면 state d² 도 커짐. recall 향상되지만 state 메모리 폭발. sweet spot 찾기.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로</b><span>· connections</span></div>
+    <h2>이 강의의 frame 이 다음에 어디에 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">FlashAttention</div>
+      <div class="by">— quadratic 의 tile-based version. linear attn 이 푸는 같은 문제의 다른 길</div>
+    </a>
+    <a class="conn" href="lecture_011.html">
+      <div class="n">L011</div>
+      <div class="ti">Sparse Attention</div>
+      <div class="by">— sparsity 로 N² 줄이는 방향. linear 와는 또 다른 갈래</div>
+    </a>
+    <a class="conn" href="lecture_046.html">
+      <div class="n">L046</div>
+      <div class="ti">SSM / Mamba</div>
+      <div class="by">— 같은 가족의 SSM 출발점. duality 통해 linear-attn 과 통합</div>
+    </a>
+    <a class="conn" href="lecture_065.html">
+      <div class="n">L065</div>
+      <div class="ti">Neighborhood Attention</div>
+      <div class="by">— local attention 의 다른 구현. hybrid 의 sliding window 짝</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton internals</div>
+      <div class="by">— FLA 가 의존하는 Triton 의 lowering / autotuning 기초</div>
+    </a>
+    <a class="conn" href="lecture_058.html">
+      <div class="n">L058</div>
+      <div class="ti">Disaggregated LLM Inference</div>
+      <div class="by">— linear 의 fixed-state 가 disagg KV migration 의 비용을 거의 0 으로 만드는 시나리오</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>transcript 가 비어 있어 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>강의에서 다룬 가족의 정확한 범위</strong> — RWKV / Mamba / RetNet / GLA / DeltaNet 중 어느 것에 시간을 더 썼는지 미확인. Songlin 본인 work 인 GLA / DeltaNet 위주일 가능성.</li>
+    <li><strong>chunk-wise 의 backward 처리</strong> — backward 도 같은 chunked-matmul 형태로 짜야 효율이 나오는데 — 강의에서 이 부분의 디테일이 어디까지 다뤄졌는지 미확인.</li>
+    <li><strong>구체적 benchmark 수치</strong> — 본 노트의 수치는 일반적 트렌드 재구성. 강의에서 보여줬을 정확한 H100 / A100 수치는 미확인.</li>
+    <li><strong>훈련 안정성</strong> — gated linear attn 은 학습 초기에 gate 의 saturation / decay 의 vanishing 같은 문제가 있을 수 있다. 강의에서 학습 hyperparameter 권장값을 보여줬는지 미확인.</li>
+    <li><strong>SSM (Mamba) 와의 duality 깊이</strong> — Mamba2 paper 의 framework 를 강의에서 어떻게 깔았는지. SSM 출발 vs linear-attn 출발 둘 중 어디에 더 무게를 뒀는지.</li>
+    <li><strong>production 채택 사례</strong> — Jamba, Falcon-Mamba 외에 강의에서 언급된 다른 production 모델이 있는지.</li>
+    <li><strong>hardware 별 차이</strong> — H100 / A100 / consumer GPU 에서 chunk-wise form 의 sweet spot 이 다를 수 있음. 강의 안 자세한 분석 미확인.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 수치 (TFLOPs, recall %, throughput 비교) 는 일반적 산수와 FLA / 가족 논문들의 트렌드를 재구성한 예시값이다. 자기 hardware / 자기 모델에서 직접 측정 후에만 절대값을 인용할 것.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_059.html">
+    <span class="lbl">← Lecture 059</span>
+    <span class="nm">FastVideo — sliding tile 이 video DiT 에서 어떻게 구현되는지</span>
+  </a>
+  <a class="nxt" href="lecture_061.html">
+    <span class="lbl">Lecture 061 →</span>
+    <span class="nm">D-Matrix Corsair — linear attn 과 dataflow inference 칩의 만남</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L060 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

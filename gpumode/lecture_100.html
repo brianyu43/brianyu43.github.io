@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L100 · InferenceX — Continuous OSS Inference Benchmarking · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l100-pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l100-pipe .step{padding:12px 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l100-pipe .step .ax{color:var(--accent);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.l100-pipe .step .nm{color:var(--ink);font-weight:700;font-size:13px;font-family:'Pretendard',sans-serif;margin-bottom:6px}
+.l100-pipe .step .d{color:var(--ink-soft);line-height:1.45;font-size:11px}
+
+.l100-board{display:grid;grid-template-columns:50px 1.4fr 1fr 1fr 1fr 90px;font-family:'JetBrains Mono',monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.l100-board>div{padding:9px 11px;border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
+.l100-board>div:nth-child(6n){border-right:0}
+.l100-board .h{background:var(--bg-soft);font-weight:700;color:var(--ink);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.l100-board .rk{color:var(--accent);font-weight:700;text-align:right}
+.l100-board .nm{color:var(--ink);font-weight:600}
+.l100-board .v{color:var(--ink-soft)}
+.l100-board .ok{color:var(--good);font-weight:700}
+.l100-board .mid{color:var(--accent);font-weight:700}
+.l100-board .row1{background:var(--bg-soft)}
+
+.l100-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l100-metrics .m{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l100-metrics .m .nm{color:var(--ink);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif;margin-bottom:6px}
+.l100-metrics .m .ax{color:var(--muted);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.l100-metrics .m .d{color:var(--ink-soft);line-height:1.55}
+.l100-metrics .m code{font-size:11px}
+
+.l100-tl{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px}
+.l100-tl .row{display:grid;grid-template-columns:90px 1fr 80px;gap:10px;align-items:center;margin:5px 0}
+.l100-tl .nm{color:var(--ink-soft)}
+.l100-tl .bar{position:relative;height:18px;background:var(--bg-soft);border-radius:3px}
+.l100-tl .bar .e{position:absolute;top:2px;height:14px;border-radius:2px;color:var(--paper);font-weight:700;font-size:9px;padding:0 4px;display:grid;place-items:center;letter-spacing:.04em;white-space:nowrap}
+.l100-tl .bar .e.ttft{background:var(--accent)}
+.l100-tl .bar .e.tg{background:var(--cool)}
+.l100-tl .bar .e.idle{background:var(--paper-deep);color:var(--ink-soft)}
+.l100-tl .lab{color:var(--ink);text-align:right;font-weight:700;font-size:11px}
+
+@media (max-width:760px){
+  .l100-pipe{grid-template-columns:1fr 1fr}
+  .l100-board{grid-template-columns:40px 1fr 1fr}
+  .l100-metrics{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_099.html">← L099</a>
+    <a href="lecture_101.html">L101 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L100</span>
+    <span>2025 · OSS Inference</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>InferenceX — Continuous OSS Inference Benchmarking</h1>
+  <p class="dek">vLLM, SGLang, TensorRT-LLM, llama.cpp, LMDeploy, MLC-LLM 의 <em>한 주 전</em> 성능을 어떻게 신뢰성 있게 비교할 것인가. <strong>매주 자동으로 도는 대규모 OSS inference benchmark suite</strong> 의 설계와 metric, 자동화 파이프라인, leaderboard 의 운영. 강의 자막은 실패했지만, 같은 자리에서 도는 OSS benchmark 들의 디자인 — vLLM benchmarks, SGLang bench, MLPerf Inference, NVIDIA gaiacomp — 을 근거로 재구성한 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">vLLM</span>
+    <span class="chip hi">SGLang</span>
+    <span class="chip hi">TensorRT-LLM</span>
+    <span class="chip hi">leaderboard</span>
+    <span class="chip">TTFT</span>
+    <span class="chip">TPOT</span>
+    <span class="chip">throughput</span>
+    <span class="chip">CI / scheduled run</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">K</div>
+      <div>
+        <div class="role">Speakers</div>
+        <div class="nm">Kimbo Chen · Cam Quilici · Bryan Shan</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">InferenceX team · 확인 필요</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L100</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">3 명 · InferenceX</div></div>
+    <div class="cell warn"><div class="lbl">자막</div><div class="val">failed · 재구성</div></div>
+    <div class="cell"><div class="lbl">분류</div><div class="val">infra · benchmarking</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">OSS benchmark 의 baseline 부재</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">OSS inference 의 baseline 확보 어려움</span><span class="em">왜 이걸 매주 돌려야 하는가</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">InferenceX 설계</span><span class="em">infra · runner · DB</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">metric 정의</span><span class="em">TTFT · TPOT · throughput</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">자동화 파이프라인</span><span class="em">image · workload · runner</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">leaderboard</span><span class="em">표시와 비교 UX</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">채택 사례</span><span class="em">엔진별 user 효과</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">production 활용</span><span class="em">조직이 InferenceX 를 쓰는 길</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음</span><span class="em">FP4 · MoE · multi-modal</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의와 잇기</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· OSS benchmark 의 baseline 부재</span></div>
+    <h2>“이번 주 vLLM 이 SGLang 보다 빠른가” 에 누가 답할 것인가</h2>
+  </div>
+  <p class="sec-lede">OSS LLM inference 엔진은 — vLLM · SGLang · TensorRT-LLM · llama.cpp · LMDeploy · MLC-LLM — 매주 큰 변경을 commit 한다. 한 주 전의 비교가 다음 주에는 무효. 그런데 <strong>“방금 release 된 vLLM v0.6.x 는 같은 모델 / 같은 GPU 에서 SGLang v0.4.x 보다 빠른가”</strong> 에 답할 수 있는 신뢰성 있는 단일 source 가 사실상 없다.</p>
+
+  <p>강의가 던지는 세 개의 질문.</p>
+  <ol>
+    <li><strong>OSS inference engine 들의 성능을 통일된 프로토콜로 측정하는 시스템을 어떻게 만드는가</strong> — 각 엔진의 native interface 를 고려하면서.</li>
+    <li><strong>이 측정을 매주 / 매일 자동으로 갱신하면서 결과를 신뢰할 만하게 유지하는가</strong> — GPU 변동성, kernel 변동성, network 변동성을 다 흡수하면서.</li>
+    <li><strong>비교 결과를 사람이 직관적으로 읽을 수 있게 어떻게 노출하는가</strong> — leaderboard, dashboard, API.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p><strong>“Continuous benchmarking 은 CI 다”</strong> — InferenceX 의 핵심 frame. unit test 가 코드의 정확성을 매 commit 마다 확인하듯, inference benchmark 가 시스템의 성능을 매 release 마다 확인. 두 stack 의 기술적 요구사항은 거의 같다 — automation, reproducibility, alerting.</p>
+  </div>
+
+  <div class="pull">“OSS engine 들은 빠르게 진화한다. 어제의 leaderboard 가 오늘은 거짓. 그래서 <em>continuous</em> 가 필요하다.”<span class="by">학습 노트 · 확인 필요</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>OSS inference 의 baseline 확보 어려움</b><span>· 왜 이걸 매주 돌려야 하는가</span></div>
+    <h2>“같은 GPU, 같은 모델, 다른 엔진” 의 대조표가 의외로 안 만들어진다</h2>
+  </div>
+  <p class="sec-lede">비교를 직접 해보려고 하면 알게 되는 사실들 — 각 엔진의 launch 인터페이스, prompt 구조, 측정 metric 정의, GPU 사양 표기법이 모두 다르다. <em>“공정한 비교”</em> 가 사실상 인프라 문제다.</p>
+
+  <ul>
+    <li><strong>엔진마다 다른 launch 방법</strong> — vLLM 의 <code>vllm serve</code>, SGLang 의 <code>sglang.launch_server</code>, TensorRT-LLM 의 <code>trtllm-build</code> 후 trt 엔진 build, llama.cpp 의 <code>./server</code>. 같은 행동을 위해 4 가지 명령어.</li>
+    <li><strong>prompt format 의 변동</strong> — chat template, system prompt, max tokens 의 default 값이 엔진마다 다름. 결과의 작은 perplexity 차이가 누적되면 throughput 에 영향.</li>
+    <li><strong>quantization 표기</strong> — FP16/BF16/FP8/INT8/INT4 의 “default” 가 엔진마다 다르고, 같은 “FP8” 도 e4m3 인지 e5m2 인지 표기 안 됨.</li>
+    <li><strong>측정 metric</strong> — TTFT 를 client 에서 잴 것인가 server 에서 잴 것인가. TPOT 의 분모는 generated tokens 인가 total tokens 인가. 차이가 30% 이상일 수 있음.</li>
+    <li><strong>warmup</strong> — 첫 request 는 거의 항상 outlier (kernel cache 가 비어 있음). warmup 횟수가 엔진마다 달라야 fair.</li>
+  </ul>
+
+  <p>이 모든 차이를 정리해 <strong>한 protocol 로 rerun 가능한 하니스</strong>를 만드는 게 — 사실 이 강의의 절반 이상의 무게중심.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>InferenceX 설계</b><span>· infra · runner · storage</span></div>
+    <h2>한 batch run 의 anatomy</h2>
+  </div>
+  <p class="sec-lede">전체 시스템은 다섯 단계의 파이프라인으로 잘린다. 각 단계가 분리되어 있어 한 단계 실패가 전체를 죽이지 않는다 — CI 의 표준 패턴.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · InferenceX 의 한 주간 흐름</span><span>weekly run pipeline</span></div>
+    <div class="l100-pipe">
+      <div class="step">
+        <div class="ax">01</div>
+        <div class="nm">Detect</div>
+        <div class="d">각 엔진 repo 의 last release tag 를 polling. 새 tag 가 잡히면 trigger.</div>
+      </div>
+      <div class="step">
+        <div class="ax">02</div>
+        <div class="nm">Build / Pull</div>
+        <div class="d">Docker image 를 build 또는 official image pull. CUDA / driver 버전을 일치.</div>
+      </div>
+      <div class="step">
+        <div class="ax">03</div>
+        <div class="nm">Run on isolated GPU</div>
+        <div class="d">A100 · H100 · L40S · 4090 · MI300 등 fleet 위에서 동일 workload 실행. 한 GPU 에 한 run.</div>
+      </div>
+      <div class="step">
+        <div class="ax">04</div>
+        <div class="nm">Collect metrics</div>
+        <div class="d">TTFT · TPOT · throughput · GPU mem · server CPU 모두 수집. JSON 으로 남김.</div>
+      </div>
+      <div class="step">
+        <div class="ax">05</div>
+        <div class="nm">Publish</div>
+        <div class="d">leaderboard DB 에 commit. 직전 주와 비교해 regression 감지 시 alert.</div>
+      </div>
+    </div>
+    <div class="viz-note">이 5 단계가 <strong>매주 자동으로</strong> 돈다. 사람의 개입은 — alert 가 떴을 때 — “regression 을 upstream 에 알릴 것인가” 결정하는 한 자리만.</div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">isolation 의 중요성</div>
+    <p>한 host 에 두 엔진을 동시에 띄우면 GPU memory pressure 와 host CPU contention 으로 서로 영향을 준다. <strong>한 run = 한 GPU 전용</strong>이 InferenceX 류 시스템의 표준. 이게 fleet 비용을 만들어내지만 결과의 reproducibility 가 보장된다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>metric 정의</b><span>· TTFT · TPOT · throughput</span></div>
+    <h2>“ms” 라고 같은 단위지만 정의에 따라 30% 차이가 나는 자리들</h2>
+  </div>
+  <p class="sec-lede">LLM inference 의 표준 metric 은 셋 — <strong>TTFT</strong> (Time-To-First-Token), <strong>TPOT</strong> (Time-Per-Output-Token), <strong>throughput</strong> (tokens/sec). 정확한 정의가 있어야 비교가 의미 있다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 한 request 의 timeline 위 metric 분해</span><span>client 시점</span></div>
+    <div class="l100-tl">
+      <div class="row">
+        <span class="nm">request</span>
+        <div class="bar"><div class="e ttft" style="left:1%;width:18%">prefill (TTFT)</div><div class="e tg" style="left:20%;width:75%">decode (TPOT × N tokens)</div></div>
+        <span class="lab">end</span>
+      </div>
+      <div class="row">
+        <span class="nm">batch concur</span>
+        <div class="bar"><div class="e ttft" style="left:1%;width:8%">prefill</div><div class="e idle" style="left:10%;width:6%">queue</div><div class="e tg" style="left:17%;width:78%">batched decode</div></div>
+        <span class="lab">throughput↑</span>
+      </div>
+    </div>
+    <div class="viz-note">single-stream 에서는 TTFT 와 TPOT 가 깨끗하지만, concurrent batch 에서는 — 같은 request 가 다른 request 와 묶여서 — TPOT 가 늘고 throughput 은 늘어난다. <strong>두 영역 모두 측정해야</strong> latency-sensitive vs throughput-sensitive 를 구분 가능.</div>
+  </div>
+
+  <div class="l100-metrics">
+    <div class="m">
+      <div class="ax">METRIC 01</div>
+      <div class="nm">TTFT · Time-To-First-Token</div>
+      <div class="d">request 발송 시점 → 첫 token 수신 시점. <em>chat 응답성</em>의 직접 지표. server-side prefill 시간 + queue + network. <strong>median 과 P99 둘 다 보고</strong>해야 한다.</div>
+    </div>
+    <div class="m">
+      <div class="ax">METRIC 02</div>
+      <div class="nm">TPOT / ITL · 토큰 간 시간</div>
+      <div class="d">두 번째 token 부터의 token 간 평균 시간. decode loop 의 효율을 본다. continuous batching 의 성능이 여기서 드러남. <em>tail latency 가 중요</em> — 한 token 이 50ms 늦으면 전체 streaming 이 끊긴다.</div>
+    </div>
+    <div class="m">
+      <div class="ax">METRIC 03</div>
+      <div class="nm">Throughput</div>
+      <div class="d">전체 시스템의 tokens/sec. concurrency 와 같이 봐야 의미. <code>tokens/sec @ N=64</code> 같은 표기. <em>SLA 주변에서의 throughput</em> 이 production 의 진짜 지표.</div>
+    </div>
+    <div class="m">
+      <div class="ax">METRIC 04</div>
+      <div class="nm">SLA-throughput frontier</div>
+      <div class="d">“TPOT P95 < 50ms 를 만족하면서 가장 높은 throughput”. 단순한 max throughput 보다 production 친화적. 두 metric 의 조합으로 plot.</div>
+    </div>
+    <div class="m">
+      <div class="ax">METRIC 05</div>
+      <div class="nm">GPU memory peak</div>
+      <div class="d">실제 점유한 max VRAM. KV cache 정책에 따라 큰 차이. <em>OOM 직전</em>까지 가는 엔진이 throughput 에 유리하지만 안전 마진이 작음.</div>
+    </div>
+    <div class="m">
+      <div class="ax">METRIC 06</div>
+      <div class="nm">Cost per 1M tokens</div>
+      <div class="d">throughput × GPU price × time. 동일 GPU + 다른 엔진 비교의 가장 직관적 metric. cloud 가격 변동을 흡수하기 위해 GPU-hour 기준으로 정규화.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>자동화 파이프라인</b><span>· image · workload · runner · storage</span></div>
+    <h2>매주 도는 하니스의 부품</h2>
+  </div>
+  <p class="sec-lede">자동화 stack 은 다섯 부품으로 뜯어 본다. 각 부품의 책임이 깔끔하게 분리되어 있어야 — 한 엔진이 추가될 때 다른 부품을 안 건드린다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">엔진 image</div>
+      <div class="d">Dockerfile per engine. official image 가 있으면 사용, 없으면 fork 의 release tag 로 build. CUDA 버전은 image base 가 결정.</div>
+    </div>
+    <div class="term">
+      <div class="t">workload spec</div>
+      <div class="d">YAML 파일. 모델 (Llama-3.1-8B-Instruct, Qwen2.5-7B-Instruct, ...), max-context, prompt distribution (ShareGPT-style), concurrency level, total requests.</div>
+    </div>
+    <div class="term">
+      <div class="t">runner</div>
+      <div class="d">Python orchestrator. image 띄우고 → warmup → 측정 → cleanup. timeout 과 retry 로직. failure 도 metadata 로 기록.</div>
+    </div>
+    <div class="term">
+      <div class="t">load generator</div>
+      <div class="d">async HTTP client. concurrency level 을 내부에서 관리. 각 request 의 client-side TTFT/TPOT/throughput 를 정확히 측정.</div>
+    </div>
+    <div class="term">
+      <div class="t">storage</div>
+      <div class="d">PostgreSQL or BigQuery. <code>(engine, version, model, gpu, timestamp, metric, value)</code> 의 long-format. analytics 친화적.</div>
+    </div>
+    <div class="term">
+      <div class="t">scheduler</div>
+      <div class="d">cron / Airflow / Dagster. 매주 / 매 release 의 trigger. fleet 의 GPU 가용성을 고려해 queue.</div>
+    </div>
+    <div class="term">
+      <div class="t">alerting</div>
+      <div class="d">한 엔진의 throughput 이 직전 release 대비 -10% 이상 떨어지면 alert. upstream maintainer 에 자동으로 알림 (확인 필요).</div>
+    </div>
+    <div class="term">
+      <div class="t">leaderboard frontend</div>
+      <div class="d">React / Next.js. 같은 모델 / 같은 GPU 에서의 cross-engine 비교, 시간축 (history) 비교, regression 표시.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>leaderboard</b><span>· 표시와 비교 UX</span></div>
+    <h2>“가장 빠른 엔진은?” 에 답하는 표</h2>
+  </div>
+  <p class="sec-lede">leaderboard 는 단순한 표가 아니다 — 한 엔진의 “빠르다” 가 다른 엔진에서 어느 차원인지 (TTFT? throughput? cost?) 가 즉시 보여야 한다. 한 모델 / 한 GPU 의 한 케이스를 표로 풀면 다음 모양.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Llama-3.1-8B · H100 80GB · 예시 (확인 필요)</span><span>concurrency = 64</span></div>
+    <div class="l100-board">
+      <div class="h">RK</div><div class="h">엔진 / 버전</div><div class="h">TTFT P50</div><div class="h">TPOT P95</div><div class="h">Throughput</div><div class="h">변화</div>
+      <div class="rk row1">1</div><div class="nm row1">SGLang v0.4.x</div><div class="v row1">120 ms</div><div class="v row1">22 ms</div><div class="ok row1">9.2k tok/s</div><div class="mid row1">+8%</div>
+      <div class="rk">2</div><div class="nm">vLLM v0.6.x</div><div class="v">130 ms</div><div class="v">25 ms</div><div class="ok">8.5k tok/s</div><div class="v">+3%</div>
+      <div class="rk">3</div><div class="nm">TRT-LLM 0.13</div><div class="v">95 ms</div><div class="v">21 ms</div><div class="ok">8.1k tok/s</div><div class="v">±0%</div>
+      <div class="rk">4</div><div class="nm">LMDeploy v0.6</div><div class="v">140 ms</div><div class="v">28 ms</div><div class="v">7.0k tok/s</div><div class="v">+5%</div>
+      <div class="rk">5</div><div class="nm">MLC-LLM nightly</div><div class="v">160 ms</div><div class="v">32 ms</div><div class="v">5.8k tok/s</div><div class="v">-2%</div>
+      <div class="rk">6</div><div class="nm">llama.cpp b3xxx</div><div class="v">220 ms</div><div class="v">40 ms</div><div class="v">3.1k tok/s</div><div class="v">+1%</div>
+    </div>
+    <div class="viz-note">이런 표 한 장이 — <strong>“이번 주 SGLang 이 가장 throughput-friendly, TRT-LLM 이 가장 latency-friendly”</strong> — 같은 사실을 한눈에 답한다. 위 수치는 오픈된 community benchmarks 의 일반적 경향을 정리한 예시이며 실제 InferenceX 결과는 별도. (확인 필요)</div>
+  </div>
+
+  <p>좋은 leaderboard 의 두 가지 부가 기능 — <em>history</em> (한 엔진의 시간 축 추이) 와 <em>delta highlight</em> (직전 release 대비 +/-). 사람은 “현재 순위” 보다 “변화” 에 반응하는 게 보통이다. SGLang 이 v0.3 → v0.4 에서 +8% 가 떴다는 사실이 단순한 1위보다 정보량이 많다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>채택 사례</b><span>· 엔진별 user 효과</span></div>
+    <h2>InferenceX 가 OSS 생태계에 만든 변화</h2>
+  </div>
+  <p class="sec-lede">benchmark suite 의 목적은 <em>측정</em> 이 아니라 <em>피드백 루프</em>. 누가 그 루프를 활용하고 있는가 — 이 강의의 가장 흥미로운 부분.</p>
+
+  <ul>
+    <li><strong>엔진 maintainer</strong> — release 직후 InferenceX 에서 자동으로 측정된 결과를 본다. regression 이 있으면 다음 release 전에 fix. <em>“performance CI for free”</em>.</li>
+    <li><strong>모델 vendor</strong> — Llama 3.1 / Qwen 2.5 / Mistral 출시 시 — 어느 엔진에서 가장 잘 도는지를 InferenceX 결과를 인용해 추천.</li>
+    <li><strong>cloud / GPU vendor</strong> — H100 vs H200 vs B200 의 inference 성능 차이를 객관 데이터로. 영업 자료에 인용.</li>
+    <li><strong>application engineer</strong> — “어떤 엔진을 deploy 할까” 의 결정에 leaderboard 의 직접 참조.</li>
+    <li><strong>연구자</strong> — 새 attention kernel / KV cache 정책의 실험 결과를 InferenceX 와 비교. baseline 제공의 가치.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">생태계의 미묘함 · 확인 필요</div>
+    <p>OSS engine 사이의 경쟁이 — 건강한 압력으로 작용하는 동시에 — 일부 엔진이 “benchmark gaming” 으로 흐를 가능성도 존재. InferenceX 가 의도적으로 <em>workload distribution 을 다양화</em> (chat / RAG / long-context / batch) 하는 건 그 게이밍을 막기 위한 디자인.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>production 활용</b><span>· 조직이 InferenceX 를 쓰는 길</span></div>
+    <h2>“public leaderboard” 를 넘어 internal 결정에 들어가는 자리</h2>
+  </div>
+  <p class="sec-lede">조직 안에서 InferenceX 류의 결과를 어떻게 의사결정에 끌어 쓰는가 — 강의가 production 에 닿는 부분.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">엔진 선택</div>
+      <div class="d">workload (chat / batch / long-context) 와 SLA (TTFT P95) 의 조합으로 leaderboard 필터링. 한 엔진이 모든 자리에 우월하지 않음.</div>
+    </div>
+    <div class="term">
+      <div class="t">capacity planning</div>
+      <div class="d">throughput × concurrency 곡선으로 GPU 수 산정. cost-per-1M-tokens 가 cloud 견적의 직접 input.</div>
+    </div>
+    <div class="term">
+      <div class="t">internal CI 로 fork</div>
+      <div class="d">자체 모델 / 자체 workload 로 InferenceX 의 harness 를 fork. release 마다 자동 측정.</div>
+    </div>
+    <div class="term">
+      <div class="t">vendor 협상</div>
+      <div class="d">cloud / hardware vendor 에 “vLLM 에서 동일 GPU 의 다른 cloud 가 +10% 빠르다” 같은 객관 자료 제시.</div>
+    </div>
+    <div class="term">
+      <div class="t">regression alarm</div>
+      <div class="d">production 에 deploy 하기 전, 새 엔진 release 의 InferenceX 점수를 자동 검토. 큰 regression 이면 hold.</div>
+    </div>
+    <div class="term">
+      <div class="t">SLA reporting</div>
+      <div class="d">고객 SLA report 의 “기대 latency” 항목을 InferenceX 결과의 P95 로 보정.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음</b><span>· FP4 · MoE · multi-modal · speculative decoding</span></div>
+    <h2>2025 의 추가 차원들</h2>
+  </div>
+  <p class="sec-lede">benchmark suite 의 가장 큰 design challenge 는 — <em>“어떤 새 차원을 다음 분기에 추가할 것인가”</em>. 강의 시점에서 명확한 후보들.</p>
+
+  <ul>
+    <li><strong>FP4 inference (Blackwell)</strong> — B200 의 native FP4. 기존 FP8 / FP16 와 다른 metric 가 필요.</li>
+    <li><strong>MoE (DeepSeek-V3, Mixtral 등)</strong> — 모든 token 이 같은 비용이 아닌 모델. expert 활성도 추적이 새 차원.</li>
+    <li><strong>speculative decoding</strong> — draft + target 모델의 결합. throughput 이 단일 forward 와 다른 의미.</li>
+    <li><strong>multi-modal</strong> — vision + LLM. 이미지 입력의 prefill 비용이 텍스트와 다른 양상.</li>
+    <li><strong>long-context (128k+)</strong> — KV cache 가 GPU memory 를 압도. 다른 종류의 SLA 가 필요.</li>
+    <li><strong>RAG / tool calling pipeline</strong> — single-step 이 아닌 multi-hop. end-to-end latency 가 새 metric.</li>
+  </ul>
+
+  <div class="pull">“각 차원이 추가될 때마다 — 새 workload, 새 metric, 새 비교축 — leaderboard 는 한 단계 더 복잡해진다. UX 의 challenge 가 시간이 지날수록 커짐.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모</b><span>· key takeaways · refs</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">continuous benchmarking = CI</div>
+      <div class="d">unit test 가 정확성을, benchmark 가 성능을. 같은 자동화 stack 의 다른 metric.</div>
+    </div>
+    <div class="term">
+      <div class="t">5 단계 파이프라인</div>
+      <div class="d">Detect → Build → Run → Collect → Publish. 각 단계 분리. 한 엔진 추가 = 한 단계만 수정.</div>
+    </div>
+    <div class="term">
+      <div class="t">3 핵심 metric</div>
+      <div class="d">TTFT (responsiveness), TPOT (decode efficiency), throughput. 셋의 조합으로 SLA-throughput frontier.</div>
+    </div>
+    <div class="term">
+      <div class="t">isolation</div>
+      <div class="d">한 run = 한 GPU. 비용을 만들지만 reproducibility 의 절대 조건.</div>
+    </div>
+    <div class="term">
+      <div class="t">delta highlight</div>
+      <div class="d">leaderboard 는 순위가 아니라 변화 가 정보량. 직전 release 대비 +/- 를 강조.</div>
+    </div>
+    <div class="term">
+      <div class="t">workload diversity</div>
+      <div class="d">chat / RAG / long-context / batch. game 막기와 production 매핑 둘 다.</div>
+    </div>
+    <div class="term">
+      <div class="t">엔진별 spectrum</div>
+      <div class="d">SGLang, vLLM, TRT-LLM, LMDeploy, MLC-LLM, llama.cpp 가 같은 모델에서 서로 다른 trade-off.</div>
+    </div>
+    <div class="term">
+      <div class="t">조직 활용</div>
+      <div class="d">엔진 선택, capacity planning, vendor 협상, regression alarm. internal CI 로 fork 하는 게 자연스러운 길.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=kPBTBl7xvEY" target="_blank" rel="noopener">youtube.com/watch?v=kPBTBl7xvEY</a> · transcript failed</span>
+    </div>
+    <div class="row">
+      <span class="k">vLLM benchmarks</span>
+      <span class="v"><a href="https://github.com/vllm-project/vllm/tree/main/benchmarks" target="_blank" rel="noopener">github.com/vllm-project/vllm/benchmarks</a></span>
+    </div>
+    <div class="row">
+      <span class="k">SGLang bench</span>
+      <span class="v"><a href="https://github.com/sgl-project/sglang/tree/main/benchmark" target="_blank" rel="noopener">github.com/sgl-project/sglang/benchmark</a></span>
+    </div>
+    <div class="row">
+      <span class="k">MLPerf Inference</span>
+      <span class="v"><a href="https://mlcommons.org/benchmarks/inference-datacenter/" target="_blank" rel="noopener">mlcommons.org/benchmarks/inference-datacenter</a> · 표준 benchmark</span>
+    </div>
+    <div class="row">
+      <span class="k">TensorRT-LLM bench</span>
+      <span class="v"><a href="https://github.com/NVIDIA/TensorRT-LLM/tree/main/benchmarks" target="_blank" rel="noopener">github.com/NVIDIA/TensorRT-LLM/benchmarks</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>vLLM 단일 측정</strong> — 한 모델 (Llama-3.1-8B-Instruct), 한 GPU (자기 환경) 에서 vLLM 의 native benchmark 를 돌려 TTFT / TPOT / throughput 을 측정. 정의 차이를 직접 확인.</li>
+    <li><strong>SGLang 동일 측정</strong> — 같은 모델 / GPU 에 SGLang. 결과의 차이가 30% 이상 나면 측정 protocol 이 다른 것.</li>
+    <li><strong>workload spec YAML</strong> — 두 측정을 같은 spec 으로 통일. concurrency, prompt distribution, max tokens.</li>
+    <li><strong>storage</strong> — 결과를 sqlite 에 (engine, version, model, metric, value) 형식으로 저장. cross-run 비교를 SQL 로.</li>
+    <li><strong>weekly cron</strong> — 위 4 단계를 GitHub Actions 의 schedule trigger 로. 매주 결과가 자동으로 쌓이는지 확인.</li>
+    <li><strong>regression alarm</strong> — 새 결과가 직전과 -10% 이상 차이 나면 GitHub issue 자동 생성. 작은 자동화의 큰 가치.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>InferenceX 의 frame 이 다른 강의에서 어떻게 재등장하는가</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_098.html">
+      <div class="n">L098</div>
+      <div class="ti">GPU Observability</div>
+      <div class="by">production telemetry stack — InferenceX 의 server-side metric 수집과 직접 연결</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA kernel profiling</div>
+      <div class="by">하위 layer 의 측정 — InferenceX 가 본 result 를 해석할 때의 dev-side profile</div>
+    </a>
+    <a class="conn" href="lecture_087.html">
+      <div class="n">L087</div>
+      <div class="ti">vLLM internals</div>
+      <div class="by">엔진 한 개의 깊이 — InferenceX 의 수치 차이를 디버깅할 때 진입</div>
+    </a>
+    <a class="conn" href="lecture_065.html">
+      <div class="n">L065</div>
+      <div class="ti">SGLang</div>
+      <div class="by">leaderboard 상위에 자주 등장 — 같은 자리에서의 다른 엔진의 깊이</div>
+    </a>
+    <a class="conn" href="lecture_088.html">
+      <div class="n">L088</div>
+      <div class="ti">TensorRT-LLM</div>
+      <div class="by">latency-friendly 자리의 대표 — InferenceX 의 TTFT P50 leader</div>
+    </a>
+    <a class="conn" href="lecture_099.html">
+      <div class="n">L099</div>
+      <div class="ti">Distributed ML on consumer</div>
+      <div class="by">consumer 에서의 inference 측 — 같은 motif</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>InferenceX 의 정확한 host 와 URL</strong> — 강의에서 leaderboard 의 실제 site 를 보여줬을 가능성. 자막 실패로 미확인. (확인 필요)</li>
+    <li><strong>fleet 구성</strong> — 어떤 GPU 를 fleet 으로 쓰는지 (cloud rented vs 자체 hardware). 비용 모델. (확인 필요)</li>
+    <li><strong>regression alert 메커니즘</strong> — Slack? GitHub issue? upstream 에 자동 PR? (확인 필요)</li>
+    <li><strong>workload distribution</strong> — ShareGPT 기반? 자체 dataset? RAG 트래픽 시뮬레이션 어떻게? (확인 필요)</li>
+    <li><strong>publication / paper</strong> — 강의에서 발표한 시스템이 paper / blog 로 정리됐는지. (확인 필요)</li>
+    <li><strong>license / 공개 범위</strong> — harness 코드가 OSS 인지, 결과만 OSS 인지. (확인 필요)</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 leaderboard 표 (§ 06) 의 수치는 <strong>2024–2025 의 OSS engine benchmarks 의 일반적 추세를 정리한 예시</strong>이며 InferenceX 의 실제 결과와 다를 수 있다. 실제 결과는 해당 site 와 강의 영상에서 확인 필요. 시스템 설계의 5 단계 파이프라인은 vLLM benchmarks, SGLang bench, MLPerf 의 공통 패턴으로부터 일반화한 것.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_099.html">
+    <span class="lbl">← Lecture 099</span>
+    <span class="nm">Distributed ML on consumer devices</span>
+  </a>
+  <a class="nxt" href="lecture_101.html">
+    <span class="lbl">Lecture 101 →</span>
+    <span class="nm">Learning CUTLASS the hard way — Kapil Sharma</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L100 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

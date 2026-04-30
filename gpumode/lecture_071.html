@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L071 · FlexOlmo · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l71-tab{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l71-tab .h{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:10px;color:var(--muted);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:0 14px 6px;border-bottom:1px solid var(--line-soft)}
+.l71-tab .row{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:10px;padding:9px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;margin-top:6px;align-items:center}
+.l71-tab .row .nm{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l71-tab .row .v{color:var(--ink-soft)}
+.l71-tab .row .v.hi{color:var(--accent);font-weight:700}
+.l71-tab .row.hi{border-color:var(--accent)}
+
+.l71-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.l71-card{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.l71-card .h{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
+.l71-card .b{color:var(--ink);font-size:14px;font-weight:600;font-family:'Pretendard',sans-serif;margin-bottom:4px}
+.l71-card .d{color:var(--ink-soft);font-size:12.5px;line-height:1.5}
+.l71-card.acc{border-color:var(--accent);background:var(--bg-soft)}
+
+.l71-flow{font-family:'JetBrains Mono',monospace;font-size:11.5px;display:grid;grid-template-columns:1fr;gap:6px}
+.l71-flow .step{display:grid;grid-template-columns:34px 1fr 100px;gap:12px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l71-flow .step .ix{color:var(--accent);font-weight:700}
+.l71-flow .step .nm{color:var(--ink)}
+.l71-flow .step .nm em{font-style:normal;color:var(--ink-soft);display:block;font-size:11.5px;margin-top:2px}
+.l71-flow .step .ph{color:var(--cool);font-weight:700;text-align:right;font-size:11px}
+.l71-flow .step.hi{border-color:var(--accent)}
+
+@media (max-width:760px){
+  .l71-grid{grid-template-columns:1fr}
+  .l71-tab .h,.l71-tab .row{grid-template-columns:1.2fr 1fr 1fr}
+  .l71-tab .h span:nth-child(n+4),.l71-tab .row .v:nth-child(n+4){display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_070.html">← L070</a>
+    <a href="lecture_072.html">L072 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L071</span>
+    <span>2025 · ScaleML Series</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>FlexOlmo — Open Language Models for Flexible Data Use</h1>
+  <p class="dek">"open language model" 은 weight 만 공개하는 게 아니다. <strong>학습 데이터, 데이터 거버넌스, 사후 데이터 제거 (opt-out, takedown), 라이선스 추적</strong>까지가 전부 풀려야 한다. Sewon Min 의 FlexOlmo 는 — Olmo 시리즈의 다음 세대 — 데이터를 <em>모듈화 가능한 단위</em>로 다루는 학습 framework. 데이터 컨트리뷰터가 자기 데이터를 학습에서 빼고 싶을 때 <strong>모델을 처음부터 다시 학습하지 않고도</strong> 그 영향을 제거할 수 있는 구조.</p>
+
+  <div class="chips">
+    <span class="chip hi">open LM</span>
+    <span class="chip hi">data governance</span>
+    <span class="chip hi">opt-out</span>
+    <span class="chip">FlexOlmo</span>
+    <span class="chip">Olmo 2</span>
+    <span class="chip">data unlearning</span>
+    <span class="chip">licensing</span>
+    <span class="chip">reproducibility</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">S</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Sewon Min</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">UC Berkeley · AI2 · OLMo 시리즈 핵심 연구자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L071</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Sewon Min</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">시리즈</div><div class="val">ScaleML</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why flexible data use</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">open LM 의 데이터 거버넌스</span><span class="em">what "open" means</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">flexible data use 의 의미</span><span class="em">modular data</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">학습 파이프라인</span><span class="em">FlexOlmo training</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">평가 결과</span><span class="em">benchmark vs Olmo</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">reproducibility</span><span class="em">full stack openness</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">라이선싱</span><span class="em">data ↔ weight</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">채택 사례</span><span class="em">downstream</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 방향</span><span class="em">unlearning frontier</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· Why flexible data use</span></div>
+    <h2>"open" 은 weight 공개가 아니다 — 데이터 책임이 같이 따라온다</h2>
+  </div>
+  <p class="sec-lede">"open language model" 의 정의가 2024-2025 사이에 본격적으로 쪼개지고 있다. <em>weight 공개 (open-weight)</em> vs <em>학습 데이터 + 코드 + 모델 모두 공개 (fully open)</em>. Llama 는 weight, Olmo 는 fully open 의 표준. 그러나 fully open 도 새 question 에 부딪힌다 — <strong>한 번 공개된 데이터의 사용을 사후에 제어할 수 있는가</strong>?</p>
+
+  <p>강의의 출발 question 셋.</p>
+  <ol>
+    <li><strong>open LM 의 진짜 약속이 무엇인가</strong> — weight 공개만으로는 reproducible 도 trustworthy 도 아니다. 학습 데이터가 같이 풀려야 한다.</li>
+    <li><strong>data contributor 가 사후에 자기 데이터 제거를 요청하면 어떻게 하는가</strong> — 처음부터 다시 학습하면 수개월 + 수억 원. 다른 mechanism 이 필요.</li>
+    <li><strong>flexible data use 의 framework 가 가능한가</strong> — FlexOlmo 의 답: 데이터를 modular 단위로 다루고, expert mixture 로 학습하면 부분 제거가 가능.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>"open" 은 단일 axis 가 아니라 <strong>multi-axis</strong>다. weight, 학습 데이터, 학습 코드, 평가 데이터, log, intermediate checkpoint, opt-out mechanism — 각자 다른 axis. FlexOlmo 는 그 중 가장 어려운 “data flexibility” 축에 서 있다.</p>
+  </div>
+
+  <div class="pull">"weight 공개는 시작일 뿐이다 — 학습 데이터가 비공개라면 reproducibility 도 책임도 부족하다."<span class="by">강의 §1 재구성 · Sewon Min</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>open LM 의 데이터 거버넌스</b><span>· What "open" really means</span></div>
+    <h2>"open" 의 6 단계 — 어디서 어디까지 풀려야 하는가</h2>
+  </div>
+  <p class="sec-lede">open LM 의 spectrum. 같은 “open” 단어를 쓰는 모델들이 사실 매우 다른 단계에 있다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · openness 6 단계</span><span>weight only → fully reproducible</span></div>
+    <div class="l71-tab">
+      <div class="h"><span>단계</span><span>weight</span><span>코드</span><span>데이터</span><span>opt-out</span></div>
+      <div class="row"><span class="nm">closed (GPT-4)</span><span class="v">×</span><span class="v">×</span><span class="v">×</span><span class="v">×</span></div>
+      <div class="row"><span class="nm">weight-restricted (Llama)</span><span class="v">제한</span><span class="v">×</span><span class="v">×</span><span class="v">×</span></div>
+      <div class="row"><span class="nm">weight-open (Mistral)</span><span class="v">○</span><span class="v">×</span><span class="v">×</span><span class="v">×</span></div>
+      <div class="row"><span class="nm">code-open (Llama 3 weights+code)</span><span class="v">○</span><span class="v">○</span><span class="v">×</span><span class="v">×</span></div>
+      <div class="row hi"><span class="nm">fully-open (OLMo, Pythia)</span><span class="v hi">○</span><span class="v hi">○</span><span class="v hi">○</span><span class="v">×</span></div>
+      <div class="row hi"><span class="nm">flexible-open (FlexOlmo)</span><span class="v hi">○</span><span class="v hi">○</span><span class="v hi">○</span><span class="v hi">○</span></div>
+    </div>
+    <div class="viz-note">FlexOlmo 의 unique 한 axis 는 <strong>opt-out</strong>. 이전까지의 fully-open (OLMo, Pythia) 는 데이터까지 공개하지만 사후 제거는 다루지 않음. FlexOlmo 는 그 layer 를 추가.</div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">왜 fully-open 만으로 부족한가</h3>
+  <ul>
+    <li><strong>저작권 회수</strong> — 데이터 출처가 사후에 license 변경 또는 takedown 요청. 모델 안에 그 데이터의 영향이 남아 있음.</li>
+    <li><strong>개인정보 회수 (right to be forgotten)</strong> — GDPR, EU AI Act. 특정 사용자의 데이터를 학습에서 제거할 의무.</li>
+    <li><strong>유해 데이터 제거</strong> — 학습 후 발견된 toxic / biased subset 의 사후 제거.</li>
+    <li><strong>commercial vs research split</strong> — 같은 데이터의 일부 만 commercial 사용 허용. flexible 한 변형 (variant) 학습 필요.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">법적 요구의 시간 척도</div>
+    <p>EU AI Act, GDPR 의 압력은 <em>"학습 후 N개월 안에 제거 요청을 처리할 수 있어야 한다"</em>의 형태. 처음부터 재학습 (수개월 + 수백만 달러) 은 사실상 불가능. <strong>flexibility 가 법적 compliance 의 prerequisite</strong>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>flexible data use 의 의미</b><span>· Modular data</span></div>
+    <h2>data 를 module 처럼 다룬다 — 빼낼 수 있는 단위</h2>
+  </div>
+  <p class="sec-lede">FlexOlmo 의 핵심 기술 idea — <strong>data 를 module 단위로 학습</strong>. 한 module 의 영향이 모델 안의 한 부분에 localized 되도록. 그 부분을 빼면 그 module 의 영향이 빠진다.</p>
+
+  <div class="split">
+    <div>
+      <p>구체적 mechanism (paper / 강의의 일반적 형태, 정확한 디테일은 paper 확인 필요).</p>
+      <ul>
+        <li><strong>data partition</strong> — 학습 corpus 를 의미적/소스별로 partition. 예: web, books, code, news, scientific.</li>
+        <li><strong>expert assignment</strong> — 각 partition 이 별도의 expert (또는 LoRA module, sub-network) 를 학습. mixture-of-experts 와 같은 가족.</li>
+        <li><strong>shared backbone</strong> — 공통 backbone 은 모든 partition 으로 학습. 일반 능력 (어휘, 문법, 일반 지식).</li>
+        <li><strong>data removal</strong> — 한 partition 을 제거하려면 그 expert 를 모델에서 분리. backbone 은 유지 — 부분 unlearn.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="label">이론적 한계</div>
+        <p>완벽한 unlearn 은 불가능 — backbone 에 영향이 일부 남음. <em>"approximate unlearn"</em> 이 현실. FlexOlmo 의 measure — unlearn 후 모델이 그 데이터의 정보를 얼마나 retain 하는지의 정량화.</p>
+      </div>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · FlexOlmo 의 modular structure</span><span>shared + expert</span></div>
+        <svg viewBox="0 0 400 300" width="100%" height="300" style="font-family:'JetBrains Mono',monospace">
+          <!-- backbone -->
+          <rect x="50" y="20" width="300" height="60" class="box-cool"/>
+          <text x="200" y="55" class="tx-hi" text-anchor="middle">SHARED BACKBONE</text>
+          <text x="200" y="72" class="tx-hi" text-anchor="middle" style="font-size:9px">all partitions train this</text>
+          <!-- expert 1 -->
+          <rect x="30" y="120" width="80" height="60" class="box-acc"/>
+          <text x="70" y="148" class="tx-hi" text-anchor="middle">EXPERT</text>
+          <text x="70" y="162" class="tx-hi" text-anchor="middle">web</text>
+          <!-- expert 2 -->
+          <rect x="120" y="120" width="80" height="60" class="box-acc"/>
+          <text x="160" y="148" class="tx-hi" text-anchor="middle">EXPERT</text>
+          <text x="160" y="162" class="tx-hi" text-anchor="middle">books</text>
+          <!-- expert 3 -->
+          <rect x="210" y="120" width="80" height="60" class="box-acc"/>
+          <text x="250" y="148" class="tx-hi" text-anchor="middle">EXPERT</text>
+          <text x="250" y="162" class="tx-hi" text-anchor="middle">code</text>
+          <!-- expert 4 (removed) -->
+          <rect x="300" y="120" width="80" height="60" class="box-paper" stroke-dasharray="4,3"/>
+          <text x="340" y="148" class="tx" text-anchor="middle">EXPERT</text>
+          <text x="340" y="162" class="tx" text-anchor="middle">news ✕</text>
+          <!-- arrows -->
+          <line x1="70" y1="120" x2="200" y2="80" class="cool"/>
+          <line x1="160" y1="120" x2="200" y2="80" class="cool"/>
+          <line x1="250" y1="120" x2="200" y2="80" class="cool"/>
+          <line x1="340" y1="120" x2="200" y2="80" class="cool" stroke-dasharray="3,3"/>
+          <!-- bottom annotation -->
+          <text x="200" y="220" class="lbl" text-anchor="middle">router 가 input 따라 expert 선택</text>
+          <text x="200" y="240" class="lbl" text-anchor="middle">한 expert 제거 → 그 데이터 partition 의 영향 제거</text>
+          <text x="200" y="260" class="lbl-hi" text-anchor="middle">backbone 영향은 일부 잔존 (approximate unlearn)</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">MoE 와의 관계</h3>
+  <p>구조적으로 mixture-of-experts (MoE) 와 같다 — Mixtral, DeepSeek-MoE 의 형태. 그러나 <strong>routing 의 의미가 다르다</strong>. MoE 의 routing 은 token 마다 학습된 router 가 결정. FlexOlmo 의 expert 는 <em>data partition 자체로 정해짐</em>. 학습 시 routing 이 supervised — “이 token 은 web partition 에서 왔으니 web expert 로”.</p>
+
+  <p>이 차이가 핵심 — supervised routing 덕분에 expert ↔ partition 의 mapping 이 명시적. unlearn 이 가능한 이유.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>학습 파이프라인</b><span>· FlexOlmo training</span></div>
+    <h2>data → partition → expert → eval 의 전체 흐름</h2>
+  </div>
+  <p class="sec-lede">FlexOlmo 학습의 단계별 흐름. OLMo 의 학습 framework 와 어디가 같고 어디가 다른가.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · FlexOlmo 학습 5 단계</span><span>data → expert</span></div>
+    <div class="l71-flow">
+      <div class="step">
+        <span class="ix">01</span>
+        <span class="nm">data partitioning <em>corpus 를 source/license/topic 단위로 split. 각 partition 에 ID 부여</em></span>
+        <span class="ph">data prep</span>
+      </div>
+      <div class="step hi">
+        <span class="ix">02</span>
+        <span class="nm">backbone pretrain <em>모든 partition 데이터로 backbone 만 학습. 일반 능력 build-up</em></span>
+        <span class="ph">phase A</span>
+      </div>
+      <div class="step hi">
+        <span class="ix">03</span>
+        <span class="nm">expert specialization <em>각 partition 에 해당하는 expert head 만 학습. backbone freeze 또는 low-LR</em></span>
+        <span class="ph">phase B</span>
+      </div>
+      <div class="step">
+        <span class="ix">04</span>
+        <span class="nm">joint fine-tune <em>backbone + experts 를 end-to-end. data partition tag 가 routing 에 들어감</em></span>
+        <span class="ph">phase C</span>
+      </div>
+      <div class="step">
+        <span class="ix">05</span>
+        <span class="nm">eval + opt-out test <em>일부 expert 제거 후 모델이 그 데이터의 정보를 얼마나 retain 하는지 측정</em></span>
+        <span class="ph">eval</span>
+      </div>
+    </div>
+    <div class="viz-note">phase A + B + C 의 분리가 핵심 — backbone 의 일반 능력과 expert 의 특화 능력을 분리해 학습. 사후 제거 시 phase C 의 일부만 영향.</div>
+  </div>
+
+  <h3 style="font-size:17px;margin:22px 0 10px;color:var(--ink)">학습 cost</h3>
+  <p>Olmo 같은 baseline 대비 cost 비교 (paper 의 수치는 확인 필요).</p>
+  <ul>
+    <li><strong>training compute</strong> — 비슷하거나 +10-20% (expert 가 추가 parameter 라).</li>
+    <li><strong>inference compute</strong> — MoE 와 같이 active parameter 만 사용. dense 모델보다 빠를 수 있음.</li>
+    <li><strong>opt-out cost</strong> — expert 한 개 제거는 거의 0 cost. backbone 도 retrain 하면 일부 비용 (그러나 처음부터 다시 학습보다 훨씬 적음).</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">trade-off — 일반화 vs 분리</div>
+    <p>completely separated experts → unlearn 이 깨끗. 그러나 expert 들이 서로 도움이 안 됨, 일반화 ↓. <em>shared backbone 의 비율</em>이 trade-off knob — 너무 크면 unlearn 비효율, 너무 작으면 일반화 비효율. paper 의 ablation 이 이 sweet spot 을 찾는 부분.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>평가 결과</b><span>· Benchmark vs Olmo</span></div>
+    <h2>"flexibility 의 비용은 얼마인가" — 표준 벤치마크의 시점</h2>
+  </div>
+  <p class="sec-lede">FlexOlmo 의 자연스러운 question — flexibility 를 위해 일반 능력을 얼마나 희생하는가? paper 의 결과는 "거의 없음" (확인 필요).</p>
+
+  <div class="l71-grid">
+    <div class="l71-card acc">
+      <div class="h">표준 벤치마크</div>
+      <div class="b">MMLU, HellaSwag, ARC</div>
+      <div class="d">FlexOlmo 가 OLMo 와 같은 token 수 학습에서 ±1% 안. expert 구조의 추가 capacity 가 일부 분야에서 유리.</div>
+    </div>
+    <div class="l71-card acc">
+      <div class="h">unlearn metric</div>
+      <div class="b">membership inference attack</div>
+      <div class="d">expert 제거 후 그 partition 의 데이터에 대해 모델의 confidence / perplexity 가 얼마나 떨어지는지. <em>처음부터 학습 안 한 baseline 과 거의 같음</em> — 진짜 unlearn 이 일어남.</div>
+    </div>
+    <div class="l71-card">
+      <div class="h">retention metric</div>
+      <div class="b">backbone 잔류</div>
+      <div class="d">expert 제거 후에도 backbone 에 약간의 retain 정보가 남음. 이게 “approximate unlearn” 의 한계 — 그러나 standard fine-tune unlearn 보다 훨씬 적음.</div>
+    </div>
+    <div class="l71-card">
+      <div class="h">downstream</div>
+      <div class="b">application별 평가</div>
+      <div class="d">code, math, multilingual 같은 specialized 평가에서 expert 별로 다른 강점. 각 expert 가 자기 partition 의 패턴을 잘 잡음.</div>
+    </div>
+  </div>
+
+  <div class="pull">"flexibility 가 free lunch 는 아니지만 — 표준 벤치마크에서 ±1% 의 비용으로 사후 unlearn 가능성을 얻는다."<span class="by">paper Abstract 재구성</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>reproducibility</b><span>· Full stack openness</span></div>
+    <h2>weights 만 풀어서는 같은 모델 다시 만들 수 없다</h2>
+  </div>
+  <p class="sec-lede">OLMo 시리즈의 입장에서 reproducibility 의 spec — 다음 모두를 공개해야 누군가가 같은 모델을 다시 만들 수 있다.</p>
+
+  <ul>
+    <li><strong>data</strong> — 학습에 쓴 모든 데이터. partition 단위까지. Dolma corpus 같은 형태.</li>
+    <li><strong>data preprocessing code</strong> — tokenizer, filtering, deduplication. seed 까지.</li>
+    <li><strong>training code</strong> — 분산 학습 framework. hyperparameter 전체.</li>
+    <li><strong>checkpoint cadence</strong> — 마지막만이 아니라 중간 step 도 공개. learning curve 의 검증 가능.</li>
+    <li><strong>eval suite</strong> — eval 에 쓴 코드와 prompt template. eval 결과 reproducible.</li>
+    <li><strong>hardware spec + log</strong> — exact GPU type, count, schedule. timing 의 reproducibility.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">왜 이게 중요한가</div>
+    <p>같은 모델을 다시 만들 수 없으면 — 학습의 ablation 도, 안전성 검증도, 의도되지 않은 행동 분석도 third-party 가 할 수 없다. <em>개방성은 기술이 아니라 governance</em>. open LM community 의 큰 collective work.</p>
+  </div>
+
+  <p>FlexOlmo 는 OLMo 의 reproducibility 표준에 <strong>data partition manifest</strong> 를 추가한다 — 어느 데이터가 어느 expert 에 들어갔는지의 명시적 매핑. 사후 opt-out 시 어느 expert 가 영향받는지 추적 가능.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>라이선싱</b><span>· Data ↔ weight</span></div>
+    <h2>학습 데이터의 license 와 모델 weight 의 license 의 관계</h2>
+  </div>
+  <p class="sec-lede">"AI 모델의 라이선싱" 은 data, code, weight 셋이 다르게 흘러갈 수 있다는 점에서 복잡. FlexOlmo 의 입장은 — <em>“데이터의 license 는 expert 단위로 추적해, 적절한 commercial 사용 가능 변형을 빌드한다”</em>.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 라이선스 흐름</span><span>data → weight</span></div>
+    <div class="l71-tab">
+      <div class="h"><span>레이어</span><span>일반</span><span>FlexOlmo 의 입장</span><span>예</span></div>
+      <div class="row"><span class="nm">학습 데이터</span><span class="v">다양</span><span class="v">partition 별 명시</span><span class="v">CC-BY · MIT · ND</span></div>
+      <div class="row"><span class="nm">학습 코드</span><span class="v">Apache</span><span class="v">Apache 2.0</span><span class="v">표준</span></div>
+      <div class="row"><span class="nm">backbone weight</span><span class="v">다양</span><span class="v hi">commercial 친화적</span><span class="v">Apache 2.0</span></div>
+      <div class="row"><span class="nm">expert weight</span><span class="v">N/A</span><span class="v hi">data partition 따름</span><span class="v">non-comm 가능</span></div>
+      <div class="row"><span class="nm">전체 모델 (조합)</span><span class="v">제일 strict</span><span class="v hi">최저 공통 분모</span><span class="v">자동 결정</span></div>
+    </div>
+    <div class="viz-note">FlexOlmo 의 unique 한 형태 — <strong>expert 별로 license 가 다름</strong>. 사용자가 "commercial-only" 변형이 필요하면 commercial-friendly expert 만 결합. 같은 모델의 여러 변종이 자연스럽게 생김.</div>
+  </div>
+
+  <div class="callout">
+    <div class="label">실전 의미</div>
+    <p>같은 FlexOlmo 가 두 가지 distribution 을 가질 수 있다 — <em>(a) 모든 expert 포함, research only</em>, <em>(b) commercial-friendly expert 만, commercial OK</em>. 사용자는 자기 use case 에 맞는 변형을 선택. 이 구조 자체가 "flexible data use" 의 의미.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>채택 사례</b><span>· Downstream</span></div>
+    <h2>FlexOlmo 의 시점에서 누가 어떻게 활용하는가</h2>
+  </div>
+  <p class="sec-lede">FlexOlmo 가 2025 시점에서 새로운 모델인 만큼, 채택은 초기. 강의에서 언급될 수 있는 / 자연스러운 사례들 (확인 필요).</p>
+
+  <ul>
+    <li><strong>academic research</strong> — full reproducibility 가 중요한 학술 환경. data partition 가 ablation 의 dimension 으로 자연스럽게 들어감.</li>
+    <li><strong>regulated industry</strong> — 의료, 법률, 금융. 사후 데이터 회수 가능성이 compliance 의 prerequisite 가 되는 도메인.</li>
+    <li><strong>multilingual</strong> — 각 언어를 expert 로. 일부 언어만 commercial license, 나머지는 research only 같은 hybrid.</li>
+    <li><strong>continual learning</strong> — 새 데이터 partition 을 새 expert 로 추가. backbone 은 그대로. <em>incremental learning 의 cleaner 한 framework</em>.</li>
+    <li><strong>specialized derivatives</strong> — code expert 만 떼서 code-only 모델, scientific expert 만 떼서 science-only 모델. 같은 원본에서 여러 specialized model.</li>
+  </ul>
+
+  <div class="pull">"한 모델이 여러 모델이 된다 — 같은 backbone 위에 다른 expert 조합으로. modular 의 진짜 power 는 여기."<span class="by">학습 노트 · §8</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 방향</b><span>· Unlearning frontier</span></div>
+    <h2>flexibility 의 frontier — 어디까지 갈 수 있는가</h2>
+  </div>
+
+  <ul>
+    <li><strong>true unlearning</strong> — backbone 의 잔류 정보 까지 제거. 이론적으로는 어렵지만 frontier research.</li>
+    <li><strong>fine-grained partition</strong> — 현재는 source-level partition. <em>document-level, token-level</em> partition 으로 더 정교한 unlearn 가능성.</li>
+    <li><strong>delegated training</strong> — 데이터 contributor 가 자기 expert 를 직접 학습해 backbone 에 plug-in. <em>federated learning</em> 와 같은 가족.</li>
+    <li><strong>privacy-preserving training</strong> — differential privacy + flexible expert 의 합성. 이론적/공학적 question.</li>
+    <li><strong>governance protocol</strong> — opt-out 요청을 누가 받고 누가 검증하고 누가 적용하는가. 기술 외 framework.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">큰 그림</div>
+    <p>FlexOlmo 는 단일 paper 가 아니라 <em>open LM 의 governance 표준</em>의 시작. 5년 후 “open LM” 의 기본 자격에 “opt-out 가능” 이 들어갈 가능성. EU AI Act 같은 규제가 이 흐름을 가속화.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· Key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">openness 6 단계</div>
+      <div class="d">closed → weight-restricted → weight-open → code-open → fully-open → flexible-open. FlexOlmo 는 마지막.</div>
+    </div>
+    <div class="term">
+      <div class="t">data flexibility</div>
+      <div class="d">사후 데이터 제거 가능. EU AI Act 의 right to be forgotten 의 prerequisite.</div>
+    </div>
+    <div class="term">
+      <div class="t">modular data</div>
+      <div class="d">data → partition → expert. supervised routing 으로 mapping 명시화.</div>
+    </div>
+    <div class="term">
+      <div class="t">3-phase 학습</div>
+      <div class="d">backbone pretrain → expert specialization → joint fine-tune.</div>
+    </div>
+    <div class="term">
+      <div class="t">approximate unlearn</div>
+      <div class="d">expert 제거 거의 깨끗, backbone 에 약간 잔류. 완벽 아님.</div>
+    </div>
+    <div class="term">
+      <div class="t">flexibility 비용</div>
+      <div class="d">표준 벤치마크 ±1% 안. 사실상 free.</div>
+    </div>
+    <div class="term">
+      <div class="t">expert 별 license</div>
+      <div class="d">commercial-only 변형 가능. 같은 backbone 의 여러 distribution.</div>
+    </div>
+    <div class="term">
+      <div class="t">reproducibility 표준</div>
+      <div class="d">data + code + weight + log + ckpt + eval 모두 공개. data partition manifest 추가.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=KorF7Xpozhg" target="_blank" rel="noopener">youtube.com/watch?v=KorF7Xpozhg</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_071/ScaleML_FlexOlmo.pdf" target="_blank" rel="noopener">ScaleML_FlexOlmo.pdf</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Repo</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/tree/main/lecture_071" target="_blank" rel="noopener">gpu-mode/lectures/lecture_071</a></span>
+    </div>
+    <div class="row">
+      <span class="k">관련</span>
+      <span class="v">OLMo (AI2), Pythia (EleutherAI), Dolma corpus — fully-open 의 가족</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>OLMo / FlexOlmo 직접 다운로드</strong> — Hugging Face 에서 weight + tokenizer + 학습 데이터 manifest 까지 다운. 실제 partition 의 모양 직접 확인.</li>
+    <li><strong>data partition 분석</strong> — Dolma corpus 의 source distribution 시각화. partition 을 어떻게 나눠야 자연스러운지 직접 시도.</li>
+    <li><strong>expert 제거 실험</strong> — FlexOlmo 의 expert 한 개를 mask out 한 inference. 그 partition 의 평가 데이터에 대한 perplexity 변화 측정.</li>
+    <li><strong>membership inference</strong> — 제거 전후의 모델에 대해 그 partition 의 데이터로 MIA 공격. unlearn 의 정량적 측정.</li>
+    <li><strong>baseline 비교</strong> — 같은 size 의 OLMo 와 FlexOlmo 를 MMLU 등에서 비교. flexibility 의 비용 직접 측정.</li>
+    <li><strong>data manifest 작성</strong> — 자기 학습 데이터를 partition 단위로 명시. license, source, opt-out path 까지. open LM 의 governance hygiene.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· Connections</span></div>
+    <h2>open LM / data governance / system 의 가족</h2>
+  </div>
+  <p class="sec-lede">FlexOlmo 는 ScaleML 시리즈 안에서 data layer 의 핵심. system / inference / quantization 강의들의 데이터 거버넌스 기준점.</p>
+
+  <div class="conns">
+    <a class="conn" href="lecture_072.html">
+      <div class="n">L072</div>
+      <div class="ti">Long-context modeling</div>
+      <div class="by">ScaleML 시리즈 동료. inference 측면</div>
+    </a>
+    <a class="conn" href="lecture_073.html">
+      <div class="n">L073</div>
+      <div class="ti">Quantization in LMs</div>
+      <div class="by">ScaleML 시리즈 동료. compression 측면</div>
+    </a>
+    <a class="conn" href="lecture_069.html">
+      <div class="n">L069</div>
+      <div class="ti">Quartet 4-bit training</div>
+      <div class="by">학습 효율 측면 — flexible 데이터와 직교 dimension</div>
+    </a>
+    <a class="conn" href="lecture_007.html">
+      <div class="n">L007</div>
+      <div class="ti">Advanced quantization</div>
+      <div class="by">open weight 위 추가 압축</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">학습 kernel 최적화 — 같은 학습 framework 의 시스템 레이어</div>
+    </a>
+    <a class="conn" href="lecture_066.html">
+      <div class="n">L066</div>
+      <div class="ti">Game Arena</div>
+      <div class="by">eval reproducibility 의 같은 가족 question</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· Open questions</span></div>
+    <h2>이 노트가 의도적으로 비워둔 자리들</h2>
+  </div>
+  <ul>
+    <li><strong>FlexOlmo 의 정확한 architecture</strong> — 본문은 “MoE 와 같은 가족” 의 일반화된 표현. paper 가 publish 되면 정확한 구조 (expert 수, sharing ratio, routing 방식) 로 교체.</li>
+    <li><strong>벤치마크 수치</strong> — “±1% 안” 은 paper Abstract 의 정성 패턴 추정. 정확한 표는 paper §5 Tables 확인 필요.</li>
+    <li><strong>opt-out 요청 처리 protocol</strong> — 기술적 mechanism 외의 governance side. 강의에서 언급됐는지 확인 필요.</li>
+    <li><strong>OLMo 2 / FlexOlmo 의 release timing</strong> — AI2 의 release schedule 추적 필요.</li>
+    <li><strong>commercial 채택 사례</strong> — §08 의 사례는 일반 추정. 실 케이스는 강의 영상 / paper 확인 필요.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본문은 GPU Mode 노트의 partial summary + Sewon Min 의 OLMo 시리즈 저술 + 일반 fully-open LM 도메인 지식을 합성한 것. paper 자체의 정확한 표현이 필요한 곳은 영상 transcript 또는 publish 된 arXiv 가 가용해진 후 교체 권장.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_070.html">
+    <span class="lbl">← Lecture 070</span>
+    <span class="nm">PCCL Fault-tolerant collectives</span>
+  </a>
+  <a class="nxt" href="lecture_072.html">
+    <span class="lbl">Lecture 072 →</span>
+    <span class="nm">Efficient Long-Context Modeling — Guangxuan Xiao</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L071 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L081 · High-performance Functional Data-Parallel Array Programming · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.fk-soac{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.fk-soac .cell{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.fk-soac .cell .lbl{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.fk-soac .cell .nm{color:var(--ink);font-weight:700;font-size:14px;margin:6px 0 4px;font-family:'Pretendard',sans-serif}
+.fk-soac .cell .sg{color:var(--ink-soft);font-size:11px;line-height:1.4;font-family:'JetBrains Mono',monospace;background:var(--bg-soft);padding:4px 8px;border-radius:3px;margin-top:4px}
+.fk-soac .cell .dt{color:var(--ink-soft);font-size:11.5px;line-height:1.45;margin-top:6px}
+
+.fk-cmp{font-family:'JetBrains Mono',monospace;font-size:12px}
+.fk-cmp table{width:100%;border-collapse:collapse}
+.fk-cmp th{padding:10px;background:var(--bg-soft);text-align:left;border-bottom:2px solid var(--line);font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.fk-cmp td{padding:10px;border-bottom:1px solid var(--line-soft);color:var(--ink-soft);vertical-align:top}
+.fk-cmp td:first-child{font-weight:700;color:var(--ink);width:160px}
+.fk-cmp .hi{color:var(--accent);font-weight:600}
+
+.fk-comp{display:grid;grid-template-columns:1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.fk-comp .stage{display:grid;grid-template-columns:60px 200px 1fr;gap:14px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.fk-comp .stage .n{color:var(--accent);font-weight:700;font-size:11px}
+.fk-comp .stage .nm{color:var(--ink);font-weight:600;font-size:13px}
+.fk-comp .stage .dt{color:var(--ink-soft);font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_080.html">← L080</a>
+    <a href="lecture_082.html">L082 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L081</span>
+    <span>2025</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>High-performance Purely Functional Data-Parallel Array Programming</h1>
+  <p class="dek">Triton 과 ThunderKittens 의 풍경 옆에 <em>전혀 다른 길</em> — Troels Henriksen 이 만든 <strong>Futhark</strong>. 사용자는 map/reduce/scan 같은 <em>SOAC (Second-Order Array Combinator)</em> 만 적고, AOT 컴파일러가 GPU 코드로 떨어뜨린다. CUDA 의 lifetime 문제 없이 nested parallelism 을 표현하는 functional 답안의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">Futhark</span>
+    <span class="chip hi">SOAC</span>
+    <span class="chip hi">functional</span>
+    <span class="chip hi">data-parallel</span>
+    <span class="chip">Copenhagen</span>
+    <span class="chip">prefix sum</span>
+    <span class="chip">flat parallelism</span>
+    <span class="chip">array language</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker"><div class="av">T</div><div><div class="role">Speaker</div><div class="nm">Troels Henriksen</div><div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">University of Copenhagen · Futhark 개발 lead</div></div></div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L081</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High</div></div>
+    <div class="cell warn"><div class="lbl">자막</div><div class="val">failed</div></div>
+    <div class="cell"><div class="lbl">출신</div><div class="val">academic / open</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>SUB-CHAPTERS · 12 SECTIONS</span><span>↓ jump to</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why this lecture exists</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">functional array language 의 가치</span><span class="em">why functional</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">컴파일 모델</span><span class="em">how Futhark lowers</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">GPU mapping</span><span class="em">SOAC → kernel</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">prefix sum 등 빌딩블록</span><span class="em">scan, reduce, segmented</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">ML 적용</span><span class="em">where Futhark fits</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">채택 사례</span><span class="em">production users</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">다른 array language 와 비교</span><span class="em">APL · Halide · JAX</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">한계</span><span class="em">caveats</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로의 연결</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why this lecture exists</span></div>
+    <h2>"GPU 프로그래밍은 왜 매번 같은 boilerplate 인가" 의 다른 답</h2>
+  </div>
+  <p class="sec-lede">CUDA / Triton 의 풍경에서 사용자는 거의 항상 <em>같은 일</em>을 반복한다 — index 계산, tile 분할, shared memory 의 lifetime 관리, race 회피. 이 boilerplate 가 본질적인가, 아니면 잘못된 추상의 부산물인가?</p>
+
+  <p>Futhark 는 후자의 답에 베팅한다. <strong>functional 추상 (map, reduce, scan, segmented reduce)</strong> 으로 표현된 알고리즘은 컴파일러가 <em>자동으로 효율적 병렬 코드</em>로 lowering 할 수 있다. 사용자는 알고리즘만 적고 lifetime / race / vectorization 은 컴파일러의 책임.</p>
+
+  <p>강의의 frame.</p>
+  <ol>
+    <li><strong>data-parallel 의 본질은 functional 이다</strong> — map/reduce/scan 은 모두 closure-form 으로 정의 가능. side effect 가 없으면 compiler 가 reorder, fuse, parallelize 가능.</li>
+    <li><strong>nested parallelism 의 문제</strong> — <code>map (\x -> map f x) y</code> 같은 nested 패턴이 자연스럽지만 GPU 의 grid/block 모델에 직접 mapping 안 됨. Futhark 의 <em>flattening</em> 이 이 자리를 푼다.</li>
+    <li><strong>AOT 컴파일</strong> — Python jit 이 아닌 ahead-of-time. C / CUDA / OpenCL 코드 생성. 결과물이 일반 binary 처럼 deploy 가능.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>GPU 프로그래밍을 <strong>"자료구조 위에서 reduce/scan 의 합성"</strong> 으로 다시 본다. 이게 어색해 보일 수 있지만 — 사실 이미 익숙한 패러다임이다 (NumPy, JAX, MapReduce 가 모두 이 frame). Futhark 는 그것을 GPU 위에서 native 로 끌어내는 시도.</p>
+  </div>
+
+  <div class="pull">"GPU 의 모든 빠른 코드는 결국 reduce 와 scan 의 합성으로 쓸 수 있다 — 그러니 그걸 first-class 로 두자."<span class="by">Troels Henriksen · 확인 필요</span></div>
+</section>
+
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>functional array language 의 가치</b><span>· why functional</span></div>
+    <h2>side effect 가 없으면 compiler 가 자유롭다</h2>
+  </div>
+  <p class="sec-lede">Futhark 가 "purely functional" 임을 강조하는 이유 — side effect 가 없는 코드는 컴파일러가 거의 자유롭게 reorder, fuse, parallelize 할 수 있다.</p>
+
+  <ul>
+    <li><strong>fusion 이 자동</strong> — <code>map f (map g xs)</code> 가 <code>map (f . g) xs</code> 로 자동 변환. 중간 array 가 메모리에 안 떨어진다. (loop fusion + deforestation)</li>
+    <li><strong>data dependency 가 명시적</strong> — 함수의 input/output 으로 모든 의존이 표현. shared mutable state 가 없어 race condition 자체가 없음.</li>
+    <li><strong>reorder 자유</strong> — <code>map f xs ++ map g ys</code> 의 두 map 이 독립이면 컴파일러가 동시 실행으로 합칠 수 있다.</li>
+    <li><strong>autodiff 자연</strong> — pure function 의 derivative 는 컴파일러가 직접 계산. JAX 의 <code>jax.grad</code> 와 같은 idea, 하지만 Futhark 는 ahead-of-time.</li>
+    <li><strong>uniqueness type</strong> — Futhark 의 escape — "in-place update" 가 필요하면 uniqueness 로 표현. functional 의 본질을 유지하면서도 효율적 mutation 가능.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">왜 이게 GPU 에 특히 좋은가</div>
+    <p>GPU 는 본질적으로 SIMD/SIMT 모델 — <em>같은 일을 다른 데이터에 동시에</em>. 이건 정확히 <strong>map</strong> 의 모양이다. functional 추상이 hardware 의 모양과 1:1. CUDA 의 thread index 계산은 그 1:1 mapping 을 사람이 매번 손으로 하는 것.</p>
+  </div>
+</section>
+
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>컴파일 모델</b><span>· how Futhark lowers</span></div>
+    <h2>C / CUDA / OpenCL 로 떨어지기까지의 단계</h2>
+  </div>
+
+  <div class="fk-comp">
+    <div class="stage">
+      <span class="n">L0</span>
+      <span class="nm">Futhark source</span>
+      <span class="dt"><code>.fut</code> 파일. ML-family 문법. SOAC 와 일반 함수의 합성</span>
+    </div>
+    <div class="stage">
+      <span class="n">L1</span>
+      <span class="nm">SOACS IR</span>
+      <span class="dt">map / reduce / scan 등 high-level 추상이 살아 있는 IR</span>
+    </div>
+    <div class="stage">
+      <span class="n">L2</span>
+      <span class="nm">fusion + flattening</span>
+      <span class="dt">nested parallelism 을 flat 으로 변환. 인접 SOAC 합치기</span>
+    </div>
+    <div class="stage">
+      <span class="n">L3</span>
+      <span class="nm">low-level kernel IR</span>
+      <span class="dt">flat kernel 들 — segmented reduce / map 의 unrolled 형태</span>
+    </div>
+    <div class="stage">
+      <span class="n">L4</span>
+      <span class="nm">backend 선택</span>
+      <span class="dt">CUDA · OpenCL · multicore C · HIP · sequential C</span>
+    </div>
+    <div class="stage">
+      <span class="n">L5</span>
+      <span class="nm">코드 생성</span>
+      <span class="dt">최종 .c / .cu 파일. nvcc / clang 으로 binary 빌드</span>
+    </div>
+  </div>
+
+  <p>이 pipeline 의 핵심 — <strong>fusion 과 flattening 이 가장 가치 있는 단계</strong>. fusion 은 중간 array 를 없애 memory bandwidth 절감, flattening 은 nested parallelism 을 GPU 의 grid/block 위에 mapping.</p>
+
+  <div class="split">
+    <div>
+      <p>flattening 의 의미를 풀어본다.</p>
+      <ul>
+        <li><strong>regular nested</strong> — <code>map (\x -> map f x) xs</code> — inner map 의 size 가 같으면 outer × inner 평면을 하나의 grid 로 펼친다. 자명.</li>
+        <li><strong>irregular nested</strong> — inner size 가 다르면 (variable-sized rows) — segmented operations 으로 변환. row offset 배열을 들고 다닌다.</li>
+        <li><strong>scan 의 nested</strong> — outer map 안의 scan. segmented scan 으로 변환.</li>
+      </ul>
+      <p>이 단계의 어려움은 <em>"flattening 이 항상 효율적이지 않다"</em> 는 점. 작은 inner size 면 thread divergence 비용이 큼. 컴파일러가 heuristic 으로 결정.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89">-- Futhark source — sparse matmul</span>
+<span style="color:#E7B369">def</span> sparse_matmul (rows: [][]i32) (vals: [][]f32) (x: []f32) =
+  map2 (\row vs ->
+    reduce (+) <span style="color:#E7B369">0</span>f32
+    (map2 (\j v -> v * x[j]) row vs))
+    rows vals
+
+<span style="color:#A99E89">-- 컴파일러가 만드는 형태 (개념)</span>
+<span style="color:#A99E89">-- 1. nested map → segmented map</span>
+<span style="color:#A99E89">-- 2. inner reduce → segmented reduce</span>
+<span style="color:#A99E89">-- 3. flatten 으로 single kernel</span>
+
+<span style="color:#A99E89">-- 결과: 한 번의 kernel launch,</span>
+<span style="color:#A99E89">--       row 마다 다른 길이를 segment scan 으로 처리</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>GPU mapping</b><span>· SOAC → kernel</span></div>
+    <h2>map / reduce / scan 이 grid/block/thread 위로 떨어지는 방식</h2>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · SOAC composition diagram</span><span>functional → CUDA grid/block/thread</span></div>
+    <svg viewBox="0 0 720 320" width="100%" height="320">
+      <!-- top: source -->
+      <rect x="40" y="20" width="640" height="50" class="box-paper"/>
+      <text x="360" y="44" class="tx" text-anchor="middle" style="font-weight:700">map (\x -> reduce (+) 0 (scan (+) 0 (map g x))) xs</text>
+      <text x="360" y="60" class="tx" text-anchor="middle" style="font-size:11px;fill:var(--muted)">composed SOAC pipeline</text>
+
+      <!-- arrows -->
+      <path d="M360 70 L360 100" class="acc"/>
+      <text x="370" y="85" class="lbl-hi">fusion</text>
+
+      <!-- middle: fused IR -->
+      <rect x="160" y="100" width="400" height="50" class="box-acc"/>
+      <text x="360" y="124" class="tx-hi" text-anchor="middle" style="font-weight:700">fused: map (\x -> sum_of_prefix_sum_of_g x) xs</text>
+      <text x="360" y="140" class="tx-hi" text-anchor="middle" style="font-size:11px">single SOAC, inner = composed</text>
+
+      <path d="M360 150 L360 180" class="acc"/>
+      <text x="370" y="165" class="lbl-hi">flatten + lowering</text>
+
+      <!-- bottom: GPU mapping -->
+      <rect x="40" y="180" width="200" height="120" class="box-cool"/>
+      <text x="140" y="206" class="tx-hi" text-anchor="middle" style="font-weight:700">grid</text>
+      <text x="140" y="224" class="tx-hi" text-anchor="middle" style="font-size:11px">outer map → blocks</text>
+      <text x="140" y="248" class="tx-hi" text-anchor="middle" style="font-size:10px">block per "x"</text>
+      <text x="140" y="266" class="tx-hi" text-anchor="middle" style="font-size:10px">size = N (outer)</text>
+
+      <rect x="260" y="180" width="200" height="120" style="fill:var(--cool-2)"/>
+      <text x="360" y="206" class="tx-hi" text-anchor="middle" style="font-weight:700">block</text>
+      <text x="360" y="224" class="tx-hi" text-anchor="middle" style="font-size:11px">inner scan → SMEM scan</text>
+      <text x="360" y="248" class="tx-hi" text-anchor="middle" style="font-size:10px">cooperative</text>
+      <text x="360" y="266" class="tx-hi" text-anchor="middle" style="font-size:10px">block-level reduce</text>
+
+      <rect x="480" y="180" width="200" height="120" class="box-acc" opacity="0.85"/>
+      <text x="580" y="206" class="tx-hi" text-anchor="middle" style="font-weight:700">thread</text>
+      <text x="580" y="224" class="tx-hi" text-anchor="middle" style="font-size:11px">inner map (g) → register</text>
+      <text x="580" y="248" class="tx-hi" text-anchor="middle" style="font-size:10px">per-element work</text>
+      <text x="580" y="266" class="tx-hi" text-anchor="middle" style="font-size:10px">vectorized load</text>
+    </svg>
+    <div class="viz-note">SOAC 의 <strong>composition 패턴</strong>이 GPU 의 <strong>3-level hierarchy</strong> 와 자연스럽게 만난다 — 외곽 map → grid, 중간 scan → block (cooperative), 안쪽 map → thread. 사용자는 이 mapping 을 직접 안 적는다.</div>
+  </div>
+
+  <div class="fk-soac">
+    <div class="cell">
+      <div class="lbl">map</div>
+      <div class="nm">map f xs</div>
+      <div class="sg">[a] → (a → b) → [b]</div>
+      <div class="dt">완전 독립 element-wise. 가장 자연스러운 GPU primitive.</div>
+    </div>
+    <div class="cell">
+      <div class="lbl">reduce</div>
+      <div class="nm">reduce f e xs</div>
+      <div class="sg">[a] → (a → a → a) → a → a</div>
+      <div class="dt">associative 이면 tree-reduce 로 O(log n). f 는 monoid.</div>
+    </div>
+    <div class="cell">
+      <div class="lbl">scan</div>
+      <div class="nm">scan f e xs</div>
+      <div class="sg">[a] → (a → a → a) → a → [a]</div>
+      <div class="dt">prefix sum 의 일반화. work-efficient parallel scan 구현.</div>
+    </div>
+    <div class="cell">
+      <div class="lbl">filter</div>
+      <div class="nm">filter p xs</div>
+      <div class="sg">[a] → (a → bool) → [a]</div>
+      <div class="dt">scan 으로 표현 가능 — index 누적 후 compaction.</div>
+    </div>
+    <div class="cell">
+      <div class="lbl">scatter</div>
+      <div class="nm">scatter dst is vs</div>
+      <div class="sg">[a] → [i32] → [a] → [a]</div>
+      <div class="dt">indexed write. uniqueness type 으로 in-place 가능.</div>
+    </div>
+    <div class="cell">
+      <div class="lbl">stream_red</div>
+      <div class="nm">stream_red op f xs</div>
+      <div class="sg">chunk 단위 reduce</div>
+      <div class="dt">large array 의 sequential 한 chunk 처리 — register tiling.</div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>prefix sum 등 빌딩블록</b><span>· scan, reduce, segmented</span></div>
+    <h2>"work-efficient parallel scan" 이 모든 것의 base</h2>
+  </div>
+  <p class="sec-lede">Futhark 의 모든 algorithm 이 결국 <strong>map/reduce/scan</strong> 의 합성. 그 중에서도 scan 이 핵심 — 한 단계 더 깊은 병렬화의 도구.</p>
+
+  <p>parallel scan 은 1980 년 Blelloch 의 work-efficient algorithm 으로 잘 알려져 있다. n 개 element 의 prefix sum 을 O(log n) depth 로, total work O(n) 으로 계산.</p>
+
+  <ul>
+    <li><strong>up-sweep + down-sweep</strong> — tree 모양의 두 단계. up 에서 partial reduce, down 에서 prefix 누적.</li>
+    <li><strong>segmented scan</strong> — 같은 array 안의 여러 segment 별 prefix 를 한 번에. flag array 가 segment 경계 표시.</li>
+    <li><strong>radix sort 의 base</strong> — sorting 도 결국 scan 의 합성. Futhark 의 sort 가 scan 위에 짜여 있다.</li>
+    <li><strong>SpMV 와 그래프 알고리즘</strong> — sparse matrix-vector, BFS, connected components — 모두 segmented scan 의 응용.</li>
+    <li><strong>regex match / parsing</strong> — semigroup scan 으로 표현 가능. functional 추상의 강점이 진하게 드러나는 자리.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">왜 scan 이 GPU 에 특히 좋은가</div>
+    <p>scan 은 <strong>local 작업 + tree reduction + broadcast</strong> 의 합성. CUDA 의 warp shuffle, block 단위 reduce 와 1:1. CUB, Thrust 같은 라이브러리가 모두 정교한 scan 구현을 가지고 있다 — Futhark 는 그것들을 사람이 매번 부르지 않게 추상.</p>
+  </div>
+
+  <div class="pull">"GPU 위에서 빠른 모든 알고리즘은 reduce 와 scan 의 합성이다 — Futhark 는 그것을 사용자의 손에서 뗀다."<span class="by">학습 노트</span></div>
+</section>
+
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>ML 적용</b><span>· where Futhark fits</span></div>
+    <h2>"Futhark 로 LLM 을 짤 수 있는가" 의 답</h2>
+  </div>
+  <p class="sec-lede">Futhark 의 ML 적용 가능성 — 강의에서 Troels 가 명시적으로 짚는 자리. 결론은 "<em>가능하지만 지금은 PyTorch / JAX 만큼 큰 모델을 cover 하기는 어렵다</em>".</p>
+
+  <ul>
+    <li><strong>autodiff</strong> — Futhark 가 first-class 로 지원. functional 코드의 derivative 를 컴파일러가 자동 생성. JAX 의 <code>jax.grad</code> 와 비슷, 하지만 ahead-of-time.</li>
+    <li><strong>일반 computational kernel</strong> — convolution, pooling, batch norm 같은 표준 ML op. Futhark 로 짠 reference 구현이 cuDNN 의 80-90% 정도 성능을 낼 수 있다 (확인 필요).</li>
+    <li><strong>비표준 op</strong> — research 영역의 새 op 를 빠르게 prototype 하는 자리. PyTorch/JAX 처럼 자세한 indexing 안 해도 됨.</li>
+    <li><strong>BSP-style 분산</strong> — multi-GPU 를 functional 로 표현. distributed Futhark 가 진행 중 (확인 필요).</li>
+  </ul>
+
+  <p>그러나 <strong>한계</strong>도 명확하다.</p>
+  <ul>
+    <li>Hopper / Blackwell 의 새 명령 (TMA, WGMMA, tcgen05.mma) 의 흡수 속도가 느리다. tensor core 코드 생성이 일반 CUDA backend 보다 늦음.</li>
+    <li>FlashAttention / FA3 / FA4 같은 깊은 트릭은 Futhark 의 추상으로는 표현 어려움. side effect 와 fine-grained control 이 필요.</li>
+    <li>PyTorch / JAX 의 ecosystem (model zoo, dataset, deployment) 부재.</li>
+  </ul>
+
+  <div class="callout cool">
+    <div class="label">"실용적 자리"</div>
+    <p>Futhark 가 빛나는 자리 — <strong>커스텀 ML / 과학 계산 알고리즘</strong>. 예: 새 attention variant 의 reference, image processing pipeline, simulation. PyTorch 의 default op 안에 없는 자리에 prototype 으로 좋다.</p>
+  </div>
+</section>
+
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>채택 사례</b><span>· production users</span></div>
+    <h2>"academic 출신, 실제 production 에서 쓰이는가" 의 답</h2>
+  </div>
+
+  <ul>
+    <li><strong>Copenhagen 대학 강의</strong> — array programming / parallel computing 강의의 standard tool. 학부 수업 자료 다수 공개.</li>
+    <li><strong>HIPERFIT center</strong> — high-performance financial computing. Monte Carlo simulation, option pricing 같은 자리.</li>
+    <li><strong>특정 회사 (financial / scientific)</strong> — Futhark 의 ahead-of-time 컴파일이 production binary 와 잘 맞음. 정확한 회사 명단은 확인 필요.</li>
+    <li><strong>research 도구</strong> — array language 와 parallel programming 연구의 base. Accelerate (Haskell GPU), SaC, Single-Assignment C 같은 다른 functional 언어의 비교 대상.</li>
+    <li><strong>Python integration</strong> — Futhark 로 짠 모듈을 Python 에서 import. NumPy 와 자연스럽게 결합.</li>
+  </ul>
+
+  <p>큰 그림 — <strong>Futhark 는 산업 default 가 아니지만 niche 의 strong tool</strong>. JAX/PyTorch 가 cover 안 하는 자리, 또는 functional 추상이 코드 정확성에 결정적인 자리.</p>
+</section>
+
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>다른 array language 와 비교</b><span>· APL · Halide · JAX</span></div>
+    <h2>같은 산을 오르는 다른 길들</h2>
+  </div>
+
+  <div class="fk-cmp">
+    <table>
+      <thead><tr><th>language</th><th>패러다임</th><th>compile</th><th>GPU</th><th>사용처</th></tr></thead>
+      <tbody>
+        <tr><td>Futhark</td><td>pure functional</td><td class="hi">AOT</td><td class="hi">CUDA / HIP</td><td>HPC, custom ML, prototype</td></tr>
+        <tr><td>APL / J / Q</td><td>array calculus</td><td>interpreted</td><td>제한적</td><td>finance, data analysis</td></tr>
+        <tr><td>Halide</td><td>schedule-separated</td><td>JIT/AOT</td><td>CUDA / Metal</td><td>image processing</td></tr>
+        <tr><td>JAX (Pallas)</td><td>functional + tracing</td><td>JIT (XLA)</td><td>TPU / GPU</td><td>ML research</td></tr>
+        <tr><td>Accelerate (Haskell)</td><td>pure functional</td><td>JIT</td><td>CUDA</td><td>academic, niche</td></tr>
+        <tr><td>SaC</td><td>single-assignment C</td><td>AOT</td><td>제한적</td><td>academic</td></tr>
+        <tr><td>Triton</td><td>tile DSL</td><td>JIT</td><td>CUDA</td><td>ML kernel</td></tr>
+        <tr><td>NumPy</td><td>imperative array</td><td>interpreted</td><td>cuPy 별도</td><td>data analysis, ML</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>핵심 비교 차원.</p>
+  <ul>
+    <li><strong>JAX vs Futhark</strong> — 둘 다 functional, 둘 다 autodiff. JAX 는 JIT (Python 에서 trace), Futhark 는 AOT (binary 생성). JAX 가 ML 생태계 dominant, Futhark 는 HPC niche.</li>
+    <li><strong>Halide vs Futhark</strong> — Halide 는 algorithm 과 schedule 을 분리 (사용자가 schedule 도 직접 적음). Futhark 는 schedule 도 컴파일러가 자동. 둘 다 image processing 에서 채택.</li>
+    <li><strong>APL/J vs Futhark</strong> — APL 류는 interpreted, 짧은 표현식. Futhark 는 compiled, 더 길고 type-safe. parallel 능력 차이가 큼.</li>
+    <li><strong>Triton vs Futhark</strong> — Triton 은 tile-level imperative, Futhark 는 array-level functional. 추상 레벨이 다름. Triton 이 ML kernel default, Futhark 가 HPC default.</li>
+  </ul>
+
+  <div class="pull">"functional array language 는 항상 niche 였다 — 대중화하지는 못했지만, 그 추상이 옳다는 사실은 JAX 의 존재로 증명됐다."<span class="by">학습 노트</span></div>
+</section>
+
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>한계</b><span>· caveats</span></div>
+    <h2>Futhark 가 못하는 것들</h2>
+  </div>
+
+  <ul>
+    <li><strong>fine-grained GPU 통제 부재</strong> — TMA, WGMMA, tcgen05.mma 같은 새 명령을 직접 부를 방법이 없다. ThunderKittens / 직접 CUDA 가 필요한 자리는 Futhark 로 못 짠다.</li>
+    <li><strong>side-effectful 알고리즘의 표현 어려움</strong> — race-based 알고리즘 (Hogwild SGD, lock-free hash map) 은 functional 추상에 자연스럽게 안 들어간다.</li>
+    <li><strong>autodiff 의 한계</strong> — 일반 ML operator 는 좋지만, FlashAttention 같은 algorithm 의 backward 가 efficient 하게 안 나옴.</li>
+    <li><strong>ML ecosystem 부재</strong> — model zoo, datasets, deployment infrastructure 가 PyTorch/JAX 에 비해 빈약.</li>
+    <li><strong>학습 곡선의 ML 면</strong> — ML family 문법 (Haskell-like) 이 Python 에 익숙한 데이터 과학자에게 진입 장벽.</li>
+    <li><strong>커뮤니티 크기</strong> — academic 중심. 산업 채택 작아 production 사례가 적다.</li>
+    <li><strong>새 hardware 흡수 속도</strong> — 새 칩의 새 명령이 Futhark backend 에 들어가기까지 시간 걸림. NVIDIA 인프라보다 latency 큼.</li>
+  </ul>
+</section>
+
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">SOAC</div><div class="d">Second-Order Array Combinator. map/reduce/scan/scatter 등. Futhark 의 first-class primitive.</div></div>
+    <div class="term"><div class="t">pure functional</div><div class="d">side effect 없음. 컴파일러가 reorder, fuse, parallelize 자유. race condition 본질적 부재.</div></div>
+    <div class="term"><div class="t">flattening</div><div class="d">nested parallelism 을 grid/block 위 flat 으로. regular vs irregular 처리 다름.</div></div>
+    <div class="term"><div class="t">fusion + deforestation</div><div class="d">map (map f) → map (f . id). 중간 array 안 만든다. memory bandwidth 절감.</div></div>
+    <div class="term"><div class="t">work-efficient scan</div><div class="d">Blelloch up-sweep + down-sweep. O(n) work, O(log n) depth. 모든 알고리즘의 base.</div></div>
+    <div class="term"><div class="t">uniqueness type</div><div class="d">in-place update 의 functional escape. mutation 을 표현하면서도 race 안전.</div></div>
+    <div class="term"><div class="t">AOT 컴파일</div><div class="d">CUDA / OpenCL / HIP / multicore C 로 떨어짐. Python 모듈로도 export. binary deploy.</div></div>
+    <div class="term"><div class="t">ML niche</div><div class="d">새 op prototype, custom 과학 계산, research. cuDNN / FA4 같은 hand-tuned 자리는 못함.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row"><span class="k">YouTube</span><span class="v">강의 영상 (확인 필요)</span></div>
+    <div class="row"><span class="k">Site</span><span class="v"><a href="https://futhark-lang.org" target="_blank" rel="noopener">futhark-lang.org</a></span></div>
+    <div class="row"><span class="k">Repo</span><span class="v"><a href="https://github.com/diku-dk/futhark" target="_blank" rel="noopener">github.com/diku-dk/futhark</a></span></div>
+    <div class="row"><span class="k">Book</span><span class="v"><a href="https://futhark-book.readthedocs.io" target="_blank" rel="noopener">Parallel Programming in Futhark</a></span></div>
+    <div class="row"><span class="k">Related</span><span class="v">Halide · Accelerate · SaC · Co-dfns · JAX</span></div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>hello-world</strong> — Futhark 설치, 1-D dot product. <code>map2 (*) xs ys |> reduce (+) 0</code>. CUDA backend 로 컴파일, Python 에서 호출.</li>
+    <li><strong>prefix sum 직접 짜기</strong> — Blelloch scan 을 Futhark 의 <code>scan (+) 0</code> 으로. 같은 알고리즘을 raw CUDA 로 짜고 코드 길이 비교.</li>
+    <li><strong>fusion 효과 확인</strong> — <code>map f (map g xs)</code> 의 IR dump. 컴파일러가 두 map 을 합쳤는지 직접 확인.</li>
+    <li><strong>segmented reduce</strong> — variable-row matrix 의 row-wise sum. flag array 로 segment 표시. CUB 의 SegmentedReduce 와 성능 비교.</li>
+    <li><strong>mini ML</strong> — 3-layer MLP 의 forward + backward 를 Futhark 로. autodiff <code>vjp</code> 사용. 결과를 PyTorch 와 atol 비교.</li>
+    <li><strong>raw CUDA backend 출력 읽기</strong> — Futhark 의 <code>--save-cuda</code> 로 생성된 .cu 파일. 사람이 짠 CUDA 와 어떻게 다른지 직접.</li>
+  </ol>
+</section>
+
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로의 연결</b><span>· connections</span></div>
+    <h2>이 강의가 시리즈 안에서 어디로 이어지는가</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_021.html"><div class="n">L021</div><div class="ti">Scan</div><div class="by">parallel prefix scan 의 base — Futhark 의 핵심 primitive</div></a>
+    <a class="conn" href="lecture_077.html"><div class="n">L077</div><div class="ti">DSLs for GPU Kernels</div><div class="by">Futhark 가 가지는 다른 추상 레벨의 자리</div></a>
+    <a class="conn" href="lecture_018.html"><div class="n">L018</div><div class="ti">Fusing Kernels</div><div class="by">fusion 의 base — Futhark 의 자동 fusion 이 어떻게 이를 흡수</div></a>
+    <a class="conn" href="lecture_053.html"><div class="n">L053</div><div class="ti">torch.compile</div><div class="by">graph 단계 compiler — Futhark 의 자매 idea</div></a>
+    <a class="conn" href="lecture_074.html"><div class="n">L074</div><div class="ti">PaTH Attention</div><div class="by">prefix Householder product = Futhark 의 자연 표현</div></a>
+    <a class="conn" href="lecture_079.html"><div class="n">L079</div><div class="ti">Mirage MPK</div><div class="by">super-optimizer — Futhark 의 schedule 자동화의 다른 방향</div></a>
+  </div>
+</section>
+
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>cuDNN 대비 성능 격차의 정확한 수치</strong> — § 06 의 80-90% 추정. 실제 conv2d / matmul 별 측정.</li>
+    <li><strong>새 hardware 흡수 timeline</strong> — Hopper TMA / WGMMA 가 Futhark 에 들어왔는지. Blackwell 은?</li>
+    <li><strong>distributed Futhark</strong> — multi-GPU 가 어디까지 진행됐는지. Iris (L078) 같은 추상과의 차이.</li>
+    <li><strong>autodiff 의 production 성숙도</strong> — vjp / jvp 의 사용 사례. JAX 와의 비교.</li>
+    <li><strong>PyTorch 통합</strong> — Futhark 모듈을 PyTorch 의 custom op 으로 wrap 하는 표준 방법.</li>
+    <li><strong>research 채택의 변화</strong> — 강의 시점 이후 ML research 에서 Futhark 의 채택이 늘었는지.</li>
+    <li><strong>flat parallelism 의 효율 곡선</strong> — irregular nested 에서 컴파일러의 결정이 사람의 manual flatten 보다 좋은가.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트는 Futhark 공식 site / 도메인 지식 (functional array programming, parallel scan) / 강의 metadata 의 재구성. 모든 절대 수치는 시점 의존 — futhark-lang.org 와 책 직접 참조 권장. 강의의 정확한 demo 코드와 측정은 영상 직접 확인 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_080.html"><span class="lbl">← Lecture 080</span><span class="nm">How FlashAttention 4 Works</span></a>
+  <a class="nxt" href="lecture_082.html"><span class="lbl">Lecture 082 →</span><span class="nm">다음 강의로</span></a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L081 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

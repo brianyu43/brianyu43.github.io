@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L047 · KernelBot · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l47-flow{display:grid;gap:6px;font-family:'JetBrains Mono',monospace;font-size:12px;margin:14px 0}
+.l47-flow .step{display:grid;grid-template-columns:60px 1fr 130px;gap:14px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l47-flow .step .n{color:var(--accent);font-weight:700;font-size:14px}
+.l47-flow .step .nm{color:var(--ink);font-weight:600;font-size:13px;font-family:'Pretendard',sans-serif}
+.l47-flow .step .nm em{display:block;font-style:normal;color:var(--ink-soft);font-weight:400;font-size:11.5px;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.l47-flow .step .who{color:var(--muted);font-size:10.5px;text-align:right;letter-spacing:.06em}
+.l47-flow .step.hi{background:var(--bg-soft);border-color:var(--accent)}
+
+.l47-board{display:grid;gap:4px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l47-board .h{display:grid;grid-template-columns:40px 1fr 80px 100px 80px;gap:10px;padding:6px 12px;color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.l47-board .row{display:grid;grid-template-columns:40px 1fr 80px 100px 80px;gap:10px;padding:8px 12px;background:var(--paper);border:1px solid var(--line);border-radius:4px;align-items:center}
+.l47-board .row.gold{border-color:var(--accent);background:var(--bg-soft)}
+.l47-board .row .rk{color:var(--accent);font-weight:700;font-size:13px}
+.l47-board .row .rk.gold{color:var(--accent)}
+.l47-board .row .who{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif}
+.l47-board .row .ms{color:var(--good);font-weight:700;text-align:right;font-size:12px}
+.l47-board .row .gpu{color:var(--ink-soft);text-align:center}
+.l47-board .row .lang{color:var(--muted);font-size:10px;text-align:center}
+
+.l47-arch{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l47-arch .it{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l47-arch .it .k{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.06em}
+.l47-arch .it .v{color:var(--ink);font-size:13px;font-weight:700;font-family:'Pretendard',sans-serif;margin:4px 0}
+.l47-arch .it .d{color:var(--ink-soft);font-size:11.5px;line-height:1.45}
+
+.l47-msg{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--code-bg);color:var(--code-fg);padding:14px 18px;border-radius:8px;margin:12px 0;line-height:1.6}
+.l47-msg .u{color:#9ec5d4}
+.l47-msg .b{color:#e7b369}
+.l47-msg .ok{color:#9bbf7c}
+.l47-msg .bad{color:#dc8a6e}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_046.html">← L046</a>
+    <a href="lecture_048.html">L048 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L047</span>
+    <span>2025 · APR</span>
+    <span class="pri low">Low priority · 커뮤니티 도구</span>
+    <span class="stat bad">transcript · 실패 · KernelBot 공개 정보 기반</span>
+  </div>
+  <h1>KernelBot · Benchmark GPU Kernels on Discord</h1>
+  <p class="dek">GPU Mode 디스코드 서버 안에서 도는 <strong>커널 벤치마크 봇</strong>의 운영 시스템. 사용자가 채널에 코드 한 덩이를 올리면 봇이 자동으로 빌드, 정확성 검증, latency 측정, leaderboard 업데이트까지. <em>커널 최적화의 게임화</em>가 어떤 학습 효과를 만드는가. transcript 누락된 강의이므로 본 노트는 KernelBot 의 공개 운영 정보 + GPU Mode 커뮤니티 자료 위에서 정리.</p>
+
+  <div class="chips">
+    <span class="chip hi">KernelBot</span>
+    <span class="chip hi">Discord</span>
+    <span class="chip hi">leaderboard</span>
+    <span class="chip">정확성 검증</span>
+    <span class="chip">latency 측정</span>
+    <span class="chip">커뮤니티 학습</span>
+    <span class="chip">PyTorch · CUDA · Triton</span>
+    <span class="chip">multi-GPU 지원</span>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L047</div></div>
+    <div class="cell warn"><div class="lbl">스피커</div><div class="val">미상 · KernelBot 운영진</div></div>
+    <div class="cell"><div class="lbl">학습 우선순위</div><div class="val">Low · 직접 사용이 더 빠름</div></div>
+    <div class="cell warn"><div class="lbl">상태</div><div class="val">transcript fetch failed</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 봇이 필요한가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">자동화의 가치</span><span class="em">매번 손으로 측정하지 않는다</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">Discord 봇 워크플로</span><span class="em">command → build → run</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">채점 기준</span><span class="em">correctness · latency</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">leaderboard 구조</span><span class="em">problem · GPU · 언어</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">커뮤니티 contribution 패턴</span><span class="em">문제 추가 · 검증</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">어떤 커널이 최적화되는가</span><span class="em">GEMM · attention · sort</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">사례 학습</span><span class="em">leaderboard 의 1위 코드</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 단계</span><span class="em">multi-GPU · LLM 직접 평가</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 봇이 필요한가</span></div>
+    <h2>커널 최적화 = 게임 — 측정 인프라가 곧 게임 룰</h2>
+  </div>
+  <p class="sec-lede">GPU 커널 최적화의 학습 곡선이 가파른 이유 중 하나 — <em>측정 자체가 어렵다</em>. 자기 GPU 가 있어야 하고, async timing 패턴 알아야 하고, warmup/sync/baseline 다 챙겨야 하고, 비교할 baseline 도 직접 만들어야 한다. KernelBot 은 이 모든 단계를 봇 한 줄 명령으로 줄이는 시스템.</p>
+
+  <p>강의 transcript 가 누락되었지만 KernelBot 자체가 공개된 시스템 (GPU Mode 디스코드에서 도는). 본 노트는 KernelBot 의 운영 정보 + GPU Mode 커뮤니티의 공개 자료를 베이스로 강의 토픽을 추정한다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame · 추정</div>
+    <p>KernelBot 의 핵심 통찰 — <strong>측정의 마찰을 0 으로 만들면 학습이 가속된다</strong>. 사용자가 새 커널 idea 가 있으면 디스코드 채널에 코드 올리고 한 명령. 30초 안에 정확성 + latency + leaderboard 위치까지 받는다. 이 빠른 feedback loop 가 곧 학습 가속 메커니즘.</p>
+  </div>
+
+  <div class="pull">“측정 인프라를 공유 자원으로 만들면 — 모든 사람이 매번 자기 환경 세팅 안 해도 된다. 마찰이 0 에 가까워질수록 시도 횟수가 폭발한다.”<span class="by">학습 노트 · 커뮤니티 메커니즘 정리</span></div>
+
+  <p>이 강의가 가리키는 자리 — single-user 의 도구가 아니라 <strong>커뮤니티 운영 자료</strong>. 같은 GPU(같은 baseline) 위에서 여러 사람이 같은 문제를 풀면 — leaderboard 가 자동으로 “어느 trick 이 어디서 효과적인지” 의 데이터셋이 된다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>커널 벤치마크 자동화의 가치</b><span>· 매번 손으로 측정하지 않는다</span></div>
+    <h2>“손으로 측정” 의 5가지 함정 — 봇이 한 번에 모두 해결</h2>
+  </div>
+  <p class="sec-lede">L001 / L056 의 어휘로 정리하면 — 손으로 GPU 커널 측정할 때 흔히 무너지는 자리들이 있다. KernelBot 은 이 자리들 모두에 sane default 를 박는다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">async timing</div>
+      <div class="d">CUDA Event + warmup + synchronize. 잘못 짜면 launch overhead 만 측정. KernelBot 은 항상 같은 패턴.</div>
+    </div>
+    <div class="term">
+      <div class="t">baseline 동일성</div>
+      <div class="d">새 커널 vs PyTorch reference 의 비교가 같은 환경에서. 사람마다 다른 GPU 사용 시 비교 불가. 봇은 항상 같은 GPU.</div>
+    </div>
+    <div class="term">
+      <div class="t">정확성 검증</div>
+      <div class="d">빠르지만 잘못된 결과는 무가치. KernelBot 은 reference 와 element-wise 비교를 항상 먼저.</div>
+    </div>
+    <div class="term">
+      <div class="t">통계적 안정성</div>
+      <div class="d">한 번 측정으로 끝나면 noise. 여러 번 + 분포 (median, p50, p99) 가 표준. 봇이 자동.</div>
+    </div>
+    <div class="term">
+      <div class="t">환경 격리</div>
+      <div class="d">자기 데스크탑 환경에 다른 process 가 GPU 사용 중이면 noise. 봇은 깨끗한 sandbox.</div>
+    </div>
+    <div class="term">
+      <div class="t">leaderboard 비교</div>
+      <div class="d">자기 결과가 SOTA 와 어디까지 가까운지 즉시 보임. 외부 벤치마크 페이퍼 안 찾아도 됨.</div>
+    </div>
+  </div>
+
+  <p>이 6개의 default 가 <em>“그냥 쉬워서”</em> 가 아니라 — 사용자의 학습 곡선에서 진짜 마찰이 있던 자리들이다. 마찰이 줄면 시도 횟수가 늘고 시도 횟수가 늘면 학습이 가속.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>Discord 봇 워크플로</b><span>· command → build → run → score</span></div>
+    <h2>한 명령에서 결과까지의 전체 시퀀스</h2>
+  </div>
+  <p class="sec-lede">KernelBot 의 사용자 경험 — 디스코드 채널에서 명령 한 번. 그 한 명령 뒤에서 일어나는 일.</p>
+
+  <div class="l47-msg">
+    <span class="u">@user · #leaderboard</span><br>
+    <span class="b">/leaderboard submit</span> problem:vector_add gpu:H100 lang:cuda<br>
+    <span class="u">[코드 첨부 — vector_add.cu]</span>
+    <br><br>
+    <span class="b">@KernelBot</span> 작업 시작 #38421<br>
+    <span class="ok">✓</span> compile (1.2s)<br>
+    <span class="ok">✓</span> correctness check (matched ref · max_diff = 0.0)<br>
+    <span class="ok">✓</span> benchmark (mean 0.014 ms · p99 0.018 ms · 50 runs)<br>
+    <br>
+    <span class="ok">RANK 3 / 28</span> on H100 · CUDA<br>
+    <span class="u">submission saved · view leaderboard at ...</span>
+  </div>
+
+  <div class="l47-flow">
+    <div class="step"><span class="n">1</span><span class="nm">사용자 명령<em>/leaderboard submit problem:... gpu:... lang:...</em></span><span class="who">user · Discord</span></div>
+    <div class="step"><span class="n">2</span><span class="nm">queue 등록<em>봇이 작업 ID 부여, 사용자에게 acknowledge</em></span><span class="who">bot · queue</span></div>
+    <div class="step"><span class="n">3</span><span class="nm">sandbox 컨테이너<em>격리된 환경에 코드 + reference 설치</em></span><span class="who">runner · isolated</span></div>
+    <div class="step"><span class="n">4</span><span class="nm">build<em>nvcc / triton compile / pytorch import</em></span><span class="who">runner · build</span></div>
+    <div class="step"><span class="n">5</span><span class="nm">correctness check<em>reference 와 element-wise 비교 (epsilon 허용)</em></span><span class="who">runner · validate</span></div>
+    <div class="step hi"><span class="n">6</span><span class="nm">benchmark<em>warmup 5+ · 측정 50+ · CUDA Event</em></span><span class="who">runner · measure</span></div>
+    <div class="step"><span class="n">7</span><span class="nm">결과 정리<em>median, p99, std, throughput</em></span><span class="who">runner · stats</span></div>
+    <div class="step"><span class="n">8</span><span class="nm">leaderboard 업데이트<em>data store + Discord 채널 알림</em></span><span class="who">bot · publish</span></div>
+  </div>
+
+  <div class="callout">
+    <div class="label">sandbox 의 무게</div>
+    <p>"임의의 코드를 컴파일+실행" 은 보안 측면에서 위험하다. 컨테이너 격리, GPU access 제한, network 차단, time limit, memory limit 모두 필요. KernelBot 의 implementation 절반이 사실 이 sandbox 인프라.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>채점 기준</b><span>· correctness 먼저, 그 다음 latency</span></div>
+    <h2>“빠르지만 틀림” 은 0점 — 정확성이 먼저</h2>
+  </div>
+  <p class="sec-lede">leaderboard 의 점수 함수가 명확해야 게임이 의미 있다. KernelBot 의 채점 기준 두 단계.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">① correctness</div>
+      <div class="d">reference 함수 (PyTorch eager) 와 element-wise 비교. dtype 별 epsilon — FP32 1e-5, FP16 1e-3, BF16 1e-2 등. 통과 못하면 leaderboard 에 들어가지 않음.</div>
+    </div>
+    <div class="term">
+      <div class="t">② latency</div>
+      <div class="d">CUDA Event 기반 wall time. warmup 후 50회 이상. <strong>median</strong> 또는 <strong>min</strong> 이 leaderboard 점수. p99 / std 도 같이 표시.</div>
+    </div>
+    <div class="term">
+      <div class="t">throughput 환산</div>
+      <div class="d">문제별 known FLOPs 또는 bandwidth 로 환산. peak 의 % 도 같이 표시.</div>
+    </div>
+    <div class="term">
+      <div class="t">tie-breaker</div>
+      <div class="d">latency 1% 이내면 — 코드 줄 수, 또는 제출 시간 순. 또는 단순히 동률.</div>
+    </div>
+    <div class="term">
+      <div class="t">제출 횟수 제한</div>
+      <div class="d">spam 방지. 한 사용자 / 한 문제 / 시간당 최대 N회. 마찰을 너무 줄이면 leaderboard 가 noise 로 가득.</div>
+    </div>
+    <div class="term">
+      <div class="t">deterministic seed</div>
+      <div class="d">정확성 비교에서 random input 의 경우 같은 seed. 여러 사용자가 같은 input 으로.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">정확성 epsilon 의 미묘함</div>
+    <p>FP16 / BF16 의 GEMM 결과는 reduction 순서에 따라 다르다. 사용자의 fast 커널이 PyTorch 와 element-wise 정확히 일치할 수 없는 경우가 흔하다. epsilon 를 너무 좁게 잡으면 valid optimization 이 거부됨, 너무 넓으면 buggy 커널이 통과. <em>실용적 경계</em>를 잡는 게 운영의 한 축.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>leaderboard 구조</b><span>· problem · GPU · 언어</span></div>
+    <h2>한 leaderboard 가 아니라 — N개의 작은 leaderboard 가 묶인 격자</h2>
+  </div>
+  <p class="sec-lede">"누가 GPU 커널을 가장 빠르게 짜는가" 같은 단일 leaderboard 는 무의미하다. 같은 GPU, 같은 문제, 같은 언어에서만 비교 가능. KernelBot 의 leaderboard 는 <strong>3차원 격자</strong>.</p>
+
+  <div class="l47-board">
+    <div class="h"><span>RK</span><span>USER</span><span>MEDIAN</span><span>P99</span><span>LANG</span></div>
+    <div class="row gold"><span class="rk gold">1</span><span class="who">@gpu_wizard</span><span class="ms">0.011 ms</span><span class="gpu">0.014</span><span class="lang">CUDA</span></div>
+    <div class="row"><span class="rk">2</span><span class="who">@triton_master</span><span class="ms">0.013 ms</span><span class="gpu">0.016</span><span class="lang">Triton</span></div>
+    <div class="row"><span class="rk">3</span><span class="who">@user</span><span class="ms">0.014 ms</span><span class="gpu">0.018</span><span class="lang">CUDA</span></div>
+    <div class="row"><span class="rk">4</span><span class="who">@hopper_fan</span><span class="ms">0.016 ms</span><span class="gpu">0.020</span><span class="lang">CUDA</span></div>
+    <div class="row"><span class="rk">5</span><span class="who">@torchitan</span><span class="ms">0.022 ms</span><span class="gpu">0.025</span><span class="lang">PyTorch</span></div>
+    <div class="row"><span class="rk">6</span><span class="who">@learner</span><span class="ms">0.025 ms</span><span class="gpu">0.029</span><span class="lang">PyTorch</span></div>
+  </div>
+  <p style="font-size:11px;color:var(--muted);margin-top:8px">↑ leaderboard 예시 — problem: vector_add · GPU: H100 (예시 데이터)</p>
+
+  <div class="l47-arch">
+    <div class="it"><div class="k">P</div><div class="v">problem</div><div class="d">vector_add, matmul_fp16, softmax, attention_qk, sort, reduce, ...</div></div>
+    <div class="it"><div class="k">G</div><div class="v">GPU</div><div class="d">A100, H100, RTX 4090, T4, 또는 GPU 별로 별도 leaderboard</div></div>
+    <div class="it"><div class="k">L</div><div class="v">language</div><div class="d">CUDA, Triton, PyTorch eager, JAX/Pallas, ROCm</div></div>
+    <div class="it"><div class="k">S</div><div class="v">size</div><div class="d">같은 문제도 입력 사이즈별 — small (1K), medium (1M), large (1B)</div></div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 격자가 더 정직한가</div>
+    <p>같은 vector_add 라도 GPU 가 다르면 비교 불가능. CUDA 와 PyTorch 를 한 leaderboard 에 같이 두는 것도 노이즈 — PyTorch 는 어차피 일정 비율로 느릴 수밖에. <strong>격자로 분리</strong>하면 “같은 조건” 안에서의 진짜 격차가 보인다. 그리고 같은 problem 의 다른 GPU 결과를 같이 보면 — <em>"내 코드가 H100 에서 효과적이지만 A100 에선 안 빠르네"</em> 같은 흥미로운 데이터가 나온다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>커뮤니티 contribution 패턴</b><span>· 문제 추가 · reference 검증</span></div>
+    <h2>운영진만 만드는 게 아니다 — 사용자도 문제를 추가</h2>
+  </div>
+  <p class="sec-lede">KernelBot 같은 시스템의 long-term 가치는 <strong>문제의 다양성</strong>에 달려 있다. 운영진 혼자 모든 문제 추가하면 곧 정체. 커뮤니티가 새 문제를 제출하는 메커니즘.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">문제 제출 양식</div>
+      <div class="d">PR 또는 봇 명령으로 — reference Python 함수 + 입력 generator + verification function + 예시 timing baseline.</div>
+    </div>
+    <div class="term">
+      <div class="t">문제 검증</div>
+      <div class="d">운영진이 reference 가 정말 정답인지, baseline 이 적절한지 확인. correctness epsilon 결정.</div>
+    </div>
+    <div class="term">
+      <div class="t">문제 분류</div>
+      <div class="d">난이도 (intro / intermediate / hard), 영역 (linear algebra / sort / reduce / fused).</div>
+    </div>
+    <div class="term">
+      <div class="t">평가 주기</div>
+      <div class="d">각 문제마다 weekly digest. 누가 1위, 격차의 변화. 커뮤니티 활성화.</div>
+    </div>
+    <div class="term">
+      <div class="t">사용자 ranking</div>
+      <div class="d">개인이 leaderboard 들 위에서 누적 점수. "GPU Mode 의 elite" 가시화.</div>
+    </div>
+    <div class="term">
+      <div class="t">코드 공개 정책</div>
+      <div class="d">제출 후 일정 기간 (1주?) 후 코드 공개. 학습 자료가 됨. 또는 1위만 공개 등.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>어떤 커널이 최적화되는가</b><span>· GEMM · attention · sort · reduce</span></div>
+    <h2>leaderboard 에 자주 등장하는 문제 카테고리</h2>
+  </div>
+  <p class="sec-lede">KernelBot 같은 시스템에서 자연스럽게 표적이 되는 커널들. 사용자가 <em>실제로 도전하고 싶어하는</em> 자리들.</p>
+
+  <div class="l47-arch">
+    <div class="it"><div class="k">CORE</div><div class="v">vector_add</div><div class="d">가장 단순. 모든 GPU 학습의 첫 커널. baseline 이 명확.</div></div>
+    <div class="it"><div class="k">CORE</div><div class="v">matmul</div><div class="d">FP16 / BF16 / FP8. cuBLAS 가 baseline. tile 사이즈 sweep, 새 instruction 활용.</div></div>
+    <div class="it"><div class="k">FUSED</div><div class="v">layernorm</div><div class="d">elementwise + reduce + scale. fusion 의 첫 사례.</div></div>
+    <div class="it"><div class="k">FUSED</div><div class="v">softmax</div><div class="d">online algorithm + reduction. attention 의 sub-component.</div></div>
+    <div class="it"><div class="k">ATTN</div><div class="v">attention QK</div><div class="d">FlashAttention 패턴. baseline 이 SDPA. tile + online softmax.</div></div>
+    <div class="it"><div class="k">REDUC</div><div class="v">argmax / topk</div><div class="d">reduction + 정렬. warp shuffle 활용.</div></div>
+    <div class="it"><div class="k">REDUC</div><div class="v">sort</div><div class="d">radix sort. CUB 가 baseline. multi-pass.</div></div>
+    <div class="it"><div class="k">QUANT</div><div class="v">int4 dequant + matmul</div><div class="d">LLM inference 에 직접. weight-only quantization 의 표준.</div></div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">왜 이런 커널이 인기인가</div>
+    <p>두 조건: <strong>baseline 이 분명</strong>(PyTorch eager 또는 cuBLAS) 하고, <strong>변화시킬 수 있는 dimension 이 풍부</strong>. 이 두 조건 만족하는 커널들이 leaderboard 위에서 흥미롭다. 단순한 elementwise 는 PyTorch 가 이미 빠른 자리라 격차 만들기 어렵고, 너무 복잡한 end-to-end 는 측정이 모호해진다. <em>적당한 복잡도의 building block</em> 이 sweet spot.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>사례 학습</b><span>· leaderboard 의 1위 코드 어떻게 짜였는가</span></div>
+    <h2>제출 코드의 공개가 학습 자료로 — 가장 좋은 해설서</h2>
+  </div>
+  <p class="sec-lede">KernelBot 의 가장 큰 부산물은 leaderboard 자체가 아니라 — <strong>1위 코드들의 archive</strong>. 같은 문제의 best 솔루션이 시간에 따라 어떻게 진화했는지가 그대로 학습 자료.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">반복 패턴</div>
+      <div class="d">같은 문제의 1위가 PyTorch → Triton → CUDA 로 진화. 또는 CUDA 안에서 naive → tiled → async copy → warp specialize.</div>
+    </div>
+    <div class="term">
+      <div class="t">trick 의 출처</div>
+      <div class="d">coalescing, vectorized load (float4), warp shuffle, async pipeline, register tiling — leaderboard 위 코드에서 한 줄씩 학습.</div>
+    </div>
+    <div class="term">
+      <div class="t">언어별 격차</div>
+      <div class="d">같은 문제의 PyTorch 1위 vs CUDA 1위 비율. 어떤 문제는 PyTorch 가 거의 같고, 어떤 문제는 CUDA 가 10배 빠르다. 패턴이 보임.</div>
+    </div>
+    <div class="term">
+      <div class="t">GPU 별 격차</div>
+      <div class="d">같은 코드의 H100 vs A100 vs RTX. 어떤 trick 이 architecture-specific 인지.</div>
+    </div>
+  </div>
+
+  <div class="pull">“커널 최적화는 책으로 배우기 어렵다 — 다른 사람의 코드를 읽고 자기 코드와 비교하면서 배운다. leaderboard archive 가 가장 좋은 해설서다.”<span class="by">학습 노트 · 커뮤니티 학습 정리</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 단계</b><span>· multi-GPU · LLM 직접 평가</span></div>
+    <h2>KernelBot 의 미래 — 어디로 확장될 수 있는가</h2>
+  </div>
+  <p class="sec-lede">강의 시점 (2025-04) 에 KernelBot 이 향하고 있던 자리들. transcript 가 없어 정확한 로드맵은 추정이지만, 자연스러운 확장 방향이 분명하다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">multi-GPU 문제</div>
+      <div class="d">all-reduce, distributed GEMM (L046), pipeline parallel. 봇이 multi-GPU sandbox 를 띄울 수 있어야 함.</div>
+    </div>
+    <div class="term">
+      <div class="t">LLM 직접 평가</div>
+      <div class="d">end-to-end inference latency. 토큰/초. 입력 길이 / batch 별 격자.</div>
+    </div>
+    <div class="term">
+      <div class="t">새 아키텍처</div>
+      <div class="d">Blackwell GB200, AMD MI300, Apple M-series. 같은 문제의 cross-vendor 비교.</div>
+    </div>
+    <div class="term">
+      <div class="t">AI 가 coder</div>
+      <div class="d">LLM 이 KernelBot 에 직접 제출. 사람과의 격차 측정. 학습 데이터로 활용.</div>
+    </div>
+    <div class="term">
+      <div class="t">교육 통합</div>
+      <div class="d">대학 GPU 강의에서 과제 → KernelBot 자동 채점. 일관된 환경에서 학생 비교.</div>
+    </div>
+    <div class="term">
+      <div class="t">기업 내부판</div>
+      <div class="d">private KernelBot. 기업 내부 GPU 인프라에 같은 워크플로 적용. CI 통합.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 자료</b><span>· key takeaways</span></div>
+
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">측정 마찰 = 학습 마찰</div>
+      <div class="d">async timing / baseline / sandbox / 통계 — 모두 봇이 처리. 시도 횟수 폭발.</div>
+    </div>
+    <div class="term">
+      <div class="t">leaderboard = 격자</div>
+      <div class="d">problem × GPU × language × size. 단일 leaderboard 는 무의미.</div>
+    </div>
+    <div class="term">
+      <div class="t">correctness 먼저</div>
+      <div class="d">epsilon 통과 못 하면 0점. dtype 별 epsilon 의 실용 경계.</div>
+    </div>
+    <div class="term">
+      <div class="t">median + p99 같이</div>
+      <div class="d">단일 측정은 noise. median 이 ranking, p99 가 stability 신호.</div>
+    </div>
+    <div class="term">
+      <div class="t">코드 archive 의 가치</div>
+      <div class="d">leaderboard 자체보다 1위 코드의 진화가 학습 자료.</div>
+    </div>
+    <div class="term">
+      <div class="t">커뮤니티 contribution</div>
+      <div class="d">운영진 혼자 문제 추가는 정체. 사용자 PR 메커니즘 필요.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=wiaiv9_TgN4" target="_blank" rel="noopener">youtube.com/watch?v=wiaiv9_TgN4</a> · 길이 미상</span>
+    </div>
+    <div class="row">
+      <span class="k">GPU Mode Discord</span>
+      <span class="v"><a href="https://discord.gg/gpumode" target="_blank" rel="noopener">discord.gg/gpumode</a> · KernelBot 도는 채널</span>
+    </div>
+    <div class="row">
+      <span class="k">관련 시스템</span>
+      <span class="v">Tianqi Chen 의 mlc.ai bench, NVIDIA cuBenchmark, MLPerf 등</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA Profiling</div>
+      <div class="by">Mark Saroufim — async timing 패턴. KernelBot 이 자동화한 자리</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">leaderboard 위 1위 코드가 이 체크리스트의 항목들을 다 채움</div>
+    </a>
+    <a class="conn" href="lecture_043.html">
+      <div class="n">L043</div>
+      <div class="ti">int8 tensorcore matmul</div>
+      <div class="by">Erik Schultheis — KernelBot 의 채점 기준 언급 ("score based on rough guidelines")</div>
+    </a>
+    <a class="conn" href="lecture_056.html">
+      <div class="n">L056</div>
+      <div class="ti">Kernel Benchmarking Tales</div>
+      <div class="by">benchmark 정확도의 함정 — KernelBot 의 디자인 결정 배경</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+
+  </div>
+  <p class="sec-lede">transcript 가 없어 강의의 정확한 강조점을 잡기 어렵다. 영상 직접 확인이 필요한 사항들.</p>
+
+  <ul>
+    <li><strong>강의 speaker</strong> — 영상 메타데이터에 speaker 누락. KernelBot 운영진(예: Mark Saroufim 또는 GPU Mode core team)일 가능성. 영상 직접 확인 필요.</li>
+    <li><strong>구체적 운영 수치</strong> — 등록 사용자 수, 제출 횟수, leaderboard 의 문제 수 — 영상에서 발화된 수치 직접 확인.</li>
+    <li><strong>sandbox 인프라의 실제 구현</strong> — Docker / Kubernetes / 자체 솔루션. GPU 격리 방식 — MIG / dedicated nodes. 영상 확인 필요.</li>
+    <li><strong>채점 epsilon 의 실제 값</strong> — 본 노트의 1e-3 / 1e-2 같은 값은 일반적 표준. KernelBot 의 실제 정책이 더 엄격한지 느슨한지 영상 확인.</li>
+    <li><strong>1위 코드 공개 정책</strong> — 본 노트는 "공개" 가정. 실제로 비공개일 수 있음. 영상 확인.</li>
+    <li><strong>경쟁 시스템과의 차이</strong> — Tianqi Chen 의 mlc.ai bench, NVIDIA 의 cuBenchmark 같은 시스템과 어떻게 다른지 — 영상이 다뤘는지.</li>
+    <li><strong>cheating 방지</strong> — 사용자가 reference 함수 자체를 호출하는 등의 cheating. 어떻게 막는지 — 영상 확인.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트는 KernelBot 의 공개 운영 모습 + GPU Mode 디스코드의 일반적 작동을 베이스로 강의 토픽을 추정. 모든 sub-section 의 디테일은 강의의 발화 인용이 아니라 시스템 일반론의 정리. 실제 강의의 강조점과 운영 정책의 정확한 모양은 영상 직접 확인 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_046.html">
+    <span class="lbl">← Lecture 046</span>
+    <span class="nm">Distributed GEMM — Ali Hassani</span>
+  </a>
+  <a class="nxt" href="lecture_048.html">
+    <span class="lbl">Lecture 048 →</span>
+    <span class="nm">Ultra Scale Playbook — Nouamane Tazi</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L047 · transcript-failed · domain-knowledge supplement · 2026</span>
+</footer>
+
+</body>
+</html>

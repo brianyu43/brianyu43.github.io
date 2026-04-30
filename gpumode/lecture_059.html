@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L059 · FastVideo · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l59-cost{display:grid;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l59-cost .row{display:grid;grid-template-columns:200px 1fr 90px;gap:10px;align-items:center}
+.l59-cost .lbl{color:var(--ink-soft)}
+.l59-cost .bar{height:18px;background:var(--bg-soft);border-radius:3px;overflow:hidden}
+.l59-cost .bar span{display:block;height:100%;background:var(--accent);border-radius:3px}
+.l59-cost .bar.cool span{background:var(--cool)}
+.l59-cost .bar.warn span{background:var(--warn)}
+.l59-cost .val{color:var(--ink);font-weight:700;text-align:right}
+
+.l59-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:8px;background:var(--bg-soft);border-radius:6px}
+.l59-grid .cell{aspect-ratio:1;display:grid;place-items:center;background:var(--paper-deep);color:var(--muted);border-radius:2px}
+.l59-grid .cell.s{background:var(--accent);color:var(--paper)}
+.l59-grid .cell.t{background:var(--cool);color:var(--paper)}
+.l59-grid .cell.st{background:var(--accent-2);color:var(--paper)}
+
+.l59-stages{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.l59-stages .col{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:18px}
+.l59-stages .col h4{margin:0 0 8px;font-size:15px;color:var(--ink)}
+.l59-stages .col .ttl{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;margin-bottom:6px}
+.l59-stages .col p{font-size:13px;color:var(--ink-soft);line-height:1.55;margin:0 0 8px}
+.l59-stages .col code{font-size:11.5px}
+@media (max-width:760px){.l59-stages{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_058.html">← L058</a>
+    <a href="lecture_060.html">L060 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L059</span>
+    <span>2025 · Video diffusion</span>
+    <span class="pri">Mid priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>FastVideo — 비디오 디퓨전 가속</h1>
+  <p class="dek">텍스트→비디오 모델 (HunyuanVideo, CogVideoX, Wan2 등) 의 inference 비용은 image diffusion 의 <strong>수백 배</strong>다 — frame 수 × spatial × temporal attention. <em>FastVideo</em> 는 UCSD-Hao AI Lab 의 오픈소스 스택으로, sliding tile attention · sequence parallel · distillation · quantization 을 한 묶음으로 제공해 비디오 한 클립의 wall-clock 을 분 단위에서 초 단위로 끌어내린다. 이 노트는 그 가속 트릭들을 한 자리에 정리한다.</p>
+
+  <div class="chips">
+    <span class="chip hi">video diffusion</span>
+    <span class="chip hi">DiT</span>
+    <span class="chip hi">sliding tile attention (STA)</span>
+    <span class="chip hi">sequence parallel</span>
+    <span class="chip">consistency distillation</span>
+    <span class="chip">FP8</span>
+    <span class="chip">HunyuanVideo</span>
+    <span class="chip">CogVideoX</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">F</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">미상 (Hao AI Lab · 확인 필요)</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">FastVideo 메인테이너 — Peiyuan Zhang / Hao Zhang lab 후보</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L059</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Missing</div></div>
+    <div class="cell"><div class="lbl">학습 우선순위</div><div class="val">Mid · 흐름 잡기</div></div>
+    <div class="cell warn"><div class="lbl">자료 상태</div><div class="val">transcript 없음 · repo 기반</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">why fastvideo</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">video diffusion 의 비용 구조</span><span class="em">where the FLOPs go</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">spatial / temporal 분리</span><span class="em">3D-attn factorization</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">attention 메모리 회계</span><span class="em">N² 의 폭발</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">KV cache 변형 — 비디오 특이</span><span class="em">there is no KV in pure DiT</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">inference 가속 트릭들</span><span class="em">STA · seq-parallel · distill</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">채택 사례와 모델</span><span class="em">HunyuanVideo · Wan2</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">image diffusion 과의 차이</span><span class="em">scale, not just length</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 단계</span><span class="em">streaming · long-form</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways · repo</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· why fastvideo</span></div>
+    <h2>한 클립 만드는 데 H100 8장에서 5분 — 이 비용을 한 자리수 내려야 한다</h2>
+  </div>
+  <p class="sec-lede">2024–25 의 텍스트→비디오 오픈소스 모델 (HunyuanVideo 13B, CogVideoX-5B, Wan2.1) 은 5초/24fps/720p 클립 하나에 H100×8 으로 <strong>3~10분</strong> 이 걸린다. <em>FastVideo</em> 의 미션은 이 시간을 — 모델 품질 손실 거의 없이 — <strong>10× 이상</strong> 끌어내리는 것. 강의는 그 트릭 묶음의 인벤토리.</p>
+
+  <p>Transcript 가 비어 있으므로 이 노트는 <strong>FastVideo 의 GitHub repo</strong> (<code>hao-ai-lab/FastVideo</code>) 와 그 위의 두 핵심 논문 — <em>Sliding Tile Attention</em> (2025), <em>Fast Video Generation with Sliding Tile Attention</em> — 그리고 sequence parallel 관련 자료를 base 로 재구성. 강의에서 어떤 비중으로 어느 컴포넌트를 다뤘는지는 확인 필요.</p>
+
+  <div class="callout">
+    <div class="label">FastVideo 가 묶는 것</div>
+    <p>FastVideo 는 단일 트릭이 아니라 <strong>가속 스택</strong>이다. (1) 효율적 attention (Sliding Tile Attention), (2) 분산 inference (sequence parallel · Ulysses · Ring), (3) distillation (consistency / step distillation), (4) quantization (FP8 / INT8). 사용자는 모델만 가져오면 같은 API 로 여러 트릭을 켜고 끈다.</p>
+  </div>
+
+  <div class="pull">“image diffusion 의 가속 트릭이 비디오에 그대로 안 옮겨진다 — 비용 구조가 다르고, attention 의 형태가 다르다.”<span class="by">FastVideo 저자들 / 확인 필요</span></div>
+
+  <p>강의의 frame 은 따라서 — (§02) 비용이 어디서 발생하는지를 본 뒤 → (§03–04) 비디오 attention 의 특이성을 깔고 → (§06) FastVideo 가 거기에 어떤 트릭을 박는지를 차례로 본다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>비용 구조</b><span>· where the FLOPs go</span></div>
+    <h2>token 수가 image 의 100~1000 배다 — 그 산수가 모든 것을 지배한다</h2>
+  </div>
+  <p class="sec-lede">video DiT 의 한 sample 안 token 수를 산수로 잡아보자. <code>F = frames</code> (예: 121), <code>H × W</code> = latent spatial dim (e.g. 90×160 for 720p), VAE 가 spatial / temporal 모두 압축한 후. 한 token 이 한 (frame, h, w) 좌표 → <strong>token 수 ≈ F × H × W ≈ 121 × 90 × 160 ≈ 1.74M</strong>.</p>
+
+  <div class="split">
+    <div>
+      <p>비교 — text 토큰 수는 보통 <code>~256</code>, image diffusion 의 latent 토큰은 <code>~4K</code>. 비디오는 <strong>1.7M</strong>. 그러면 attention 의 <em>quadratic</em> 항이:</p>
+      <ul>
+        <li>image (4K tokens): <code>4K² = 16M</code> attention scores per layer.</li>
+        <li>video (1.7M tokens): <code>1.7M² = 2.9 × 10¹²</code> scores per layer. <strong>180,000× 더 많다</strong>.</li>
+      </ul>
+      <p>물론 실제로는 모델이 각 timestep 에서 한 번씩 forward 하는 게 아니라 — diffusion 은 <strong>50개 step</strong> (또는 distill 후 4~8 step) 을 도는 inference. 그래서 wall-clock = 50 × layer_count × per-layer-cost.</p>
+      <p>FLOPs 로 다시 — H100 (BF16, ~990 TFLOPs) 에서 100% saturate 시 5초 클립 ≈ 60초 wall-clock. 실제는 <em>몇 분</em>. 즉 H100 utilization 이 10–20% 수준이라는 뜻 → 가속 여지 거대.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · 비디오 한 클립의 비용 분해</span><span>HunyuanVideo 13B · 5s 720p</span></div>
+        <div class="l59-cost">
+          <div class="row"><span class="lbl">3D self-attention</span><div class="bar warn"><span style="width:78%"></span></div><span class="val">78%</span></div>
+          <div class="row"><span class="lbl">cross-attention (text)</span><div class="bar"><span style="width:6%"></span></div><span class="val">6%</span></div>
+          <div class="row"><span class="lbl">FFN / MLP</span><div class="bar cool"><span style="width:14%"></span></div><span class="val">14%</span></div>
+          <div class="row"><span class="lbl">VAE encode/decode</span><div class="bar"><span style="width:2%"></span></div><span class="val">2%</span></div>
+        </div>
+        <div class="viz-note">attention 이 <strong>거의 4/5</strong>. 비디오 가속의 첫 번째 표적은 항상 attention. 수치 예시 — 정확한 분포는 모델 / 해상도 / step 수에 따라 변동 (확인 필요).</div>
+      </div>
+    </div>
+  </div>
+
+  <p>이 attention dominance 가 sliding tile attention 의 동기다. attention 자체를 <strong>local</strong> 로 줄이면 N² 의 N 이 작아진다. 비디오에서는 “3D local” — frame 안 spatial 과 frame 사이 temporal 양쪽으로 인접한 토큰만 보면 된다는 가정.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>spatial · temporal 분리</b><span>· 3D-attn factorization</span></div>
+    <h2>full 3D attention vs factorized — 두 갈래의 trade-off</h2>
+  </div>
+  <p class="sec-lede">비디오 DiT 가 attention 을 어떻게 잡느냐는 architecture 의 큰 갈림길이다. 두 갈래가 있다 — (a) <strong>full 3D self-attention</strong> 이 모든 (t,h,w) 토큰을 다 본다. (b) <strong>factorized</strong> — spatial attention 과 temporal attention 을 분리. HunyuanVideo / CogVideoX 가 (a), 일부 초기 모델과 LTX-Video 가 (b) 의 변형.</p>
+
+  <div class="l59-stages">
+    <div class="col">
+      <div class="ttl">(a) Full 3D Self-Attention</div>
+      <h4>모든 토큰이 모든 토큰을 본다</h4>
+      <p>매 layer 가 <code>(F·H·W)² · d</code> 비용. 품질이 가장 좋고 motion consistency 가 강하다. <strong>HunyuanVideo, CogVideoX, Wan2</strong> 가 이 길.</p>
+      <p>비용이 거대해서 가속 트릭이 거의 필수 — sliding tile / FlashAttn3 / sequence parallel 이 모두 여기 박힌다.</p>
+    </div>
+    <div class="col">
+      <div class="ttl">(b) Factorized</div>
+      <h4>spatial → temporal 두 단계로 분리</h4>
+      <p>spatial attention 은 한 frame 안에서만 (<code>(H·W)²</code>), temporal 은 한 (h,w) 좌표를 따라서만 (<code>F²</code>). <strong>비용이 거의 1/F</strong>. 초기 video diffusion (Make-A-Video 등) 이 채택.</p>
+      <p>단점 — long-range motion / global coherence 가 떨어진다. SOTA 모델들은 (a) 로 돌아가는 추세, 가속은 sliding 같은 sparsification 으로 푼다.</p>
+    </div>
+  </div>
+
+  <div class="viz" style="margin-top:18px">
+    <div class="viz-cap"><span>FIG · 3D token grid 위에서 두 attention 패턴</span><span>F=4 · H×W=4×4 의 단순화</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <div>
+        <div style="font-size:12px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;margin-bottom:6px">full 3D — 한 query 가 64개 모두 본다</div>
+        <div class="l59-grid">
+          <div class="cell st">q</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div>
+          <div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div>
+          <div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div>
+          <div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div><div class="cell st">·</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;margin-bottom:6px">factorized — spatial(7) + temporal(3)</div>
+        <div class="l59-grid">
+          <div class="cell s">q</div><div class="cell s">·</div><div class="cell s">·</div><div class="cell s">·</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell s">·</div><div class="cell s">·</div><div class="cell s">·</div><div class="cell s">·</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell t">·</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell t">·</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        </div>
+      </div>
+    </div>
+    <div class="viz-note">factorized 는 cross-frame 정보가 한 (h,w) 라인을 통해서만 흐른다 — motion 이 빠른 객체에서 ghost / inconsistency 가 발생. SOTA 비디오 모델이 full 3D 로 돌아간 이유.</div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>attention 메모리</b><span>· N² 의 폭발</span></div>
+    <h2>1.7M tokens 의 attention matrix 는 절대 만들 수 없다</h2>
+  </div>
+  <p class="sec-lede">N² 메모리 항이 비디오에서 얼마나 무서운지 — <code>1.7M × 1.7M × 2 bytes (BF16) ≈ 5.7 TB</code>. 한 layer 의 attention scores 가 <strong>HBM 80 GB 의 70배</strong>. 따라서 비디오 attention 은 <em>처음부터 FlashAttention</em> 위에서만 가능하다 — softmax 를 tile 단위로 online 으로 도는 길.</p>
+
+  <div class="split">
+    <div>
+      <p>FlashAttention v2 / v3 이 비디오 inference 의 출발점이다. 그래도 한계가 있다.</p>
+      <ul>
+        <li><strong>FlashAttn 이 quadratic 의 비용 자체는 못 줄인다</strong> — 단지 메모리를 O(N) 으로 줄여줄 뿐. compute 비용은 여전히 <code>1.7M² · d</code>.</li>
+        <li><strong>8개 GPU 로 분산해도 한 query 가 모든 KV 를 봐야 한다</strong> — sequence parallel 이 필요. 단순한 TP 는 효과 없음.</li>
+        <li><strong>local 가정으로 sparsify 하면 N² → N·k</strong> — sliding window / sliding tile. k 는 보통 attention window size (예: 4K).</li>
+      </ul>
+      <p>sliding tile attention 은 (3) 의 길이다. 비디오 토큰 grid 가 3D 이므로 — 인접한 (Δt, Δh, Δw) tile 안의 토큰만 attend. 일반적으로 (3, 6, 6) 정도 → 각 query 가 약 100~500 개 KV 만 본다.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · attention 비용 vs 메모리</span><span>5s/720p 비디오</span></div>
+        <div class="l59-cost">
+          <div class="row"><span class="lbl">naive scores 메모리</span><div class="bar warn"><span style="width:100%"></span></div><span class="val">5.7 TB</span></div>
+          <div class="row"><span class="lbl">+ FlashAttn</span><div class="bar good"><span style="width:0.7%"></span></div><span class="val">~40 MB</span></div>
+          <div class="row"><span class="lbl">+ STA (3,6,6)</span><div class="bar good"><span style="width:0.05%"></span></div><span class="val">~3 MB</span></div>
+          <div class="row" style="border-top:1px solid var(--line-soft);padding-top:6px;margin-top:4px"><span class="lbl">attention FLOPs (full)</span><div class="bar warn"><span style="width:100%"></span></div><span class="val">100%</span></div>
+          <div class="row"><span class="lbl">+ STA only</span><div class="bar good"><span style="width:6%"></span></div><span class="val">~6%</span></div>
+        </div>
+        <div class="viz-note">FlashAttn 으로 메모리 OK 가 됐지만 <strong>compute 비용은 여전히 quadratic</strong>. STA 가 그 자리를 친다 — 메모리·compute 둘 다 떨어뜨림. 수치는 일반적 산수의 예시 (확인 필요).</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>KV cache 변형</b><span>· no KV in pure DiT</span></div>
+    <h2>비디오 diffusion 은 LLM 의 KV cache 와 다른 형태로 KV 를 다룬다</h2>
+  </div>
+  <p class="sec-lede">LLM inference 에서 KV cache 는 <em>autoregressive</em> step 사이에 K,V 를 누적하는 구조다. video DiT 는 <strong>non-autoregressive</strong> diffusion — 한 step 에서 모든 token 을 동시에 본다. KV 가 “쌓이지” 않는다. 그래서 KV cache reuse 의 frame 자체가 다르다.</p>
+
+  <div class="split rev">
+    <div>
+      <p>그럼에도 불구하고 KV 라는 이름의 텐서는 매 layer 안에서 만들어진다 — Q, K, V projection. video diffusion 의 KV 관련 절약 전략은 다음 4가지가 흔하다 (FastVideo 와 다른 가속 라이브러리 통합):</p>
+      <ol>
+        <li><strong>step 간 KV reuse (TeaCache)</strong> — 인접한 timestep 사이에 attention output 이 거의 변하지 않는다는 관찰을 이용해 일부 step 에서 prev KV/output 을 재사용. 5~10% 품질 손실로 1.5~2× speedup.</li>
+        <li><strong>FlashAttention 의 layer-wise KV reuse</strong> — 같은 step 안 layer 사이의 KV 패턴 reuse. 효과가 제한적.</li>
+        <li><strong>spatial-temporal token pruning</strong> — 변화가 적은 영역의 token 을 attention 에서 빼고 나중에 reconstruction. (확인 필요)</li>
+        <li><strong>cross-attention KV reuse</strong> — text condition 이 timestep 마다 같으므로 text KV 를 한 번만 계산해 모든 step 에서 공유. 이건 거의 모든 구현이 자동으로 한다.</li>
+      </ol>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">TeaCache 의 직관</div>
+        <p>diffusion step <em>t → t+1</em> 사이에 noise schedule 이 천천히 변한다 — 특히 <em>중간 step</em> (denoising 의 가운데 구간) 에서. 그러면 같은 위치의 attention output 이 거의 같다. <em>“이 step 의 self-attention 출력을 새로 만들지 말고 prev step 의 결과로 대체”</em> — 가벼운 residual blending 으로 품질 보전.</p>
+      </div>
+      <p>FastVideo 는 TeaCache 와 비슷한 step-skipping 트릭을 distillation 과 결합한다. distill 후 step 수가 <strong>50 → 4~8</strong> 로 줄면 TeaCache 의 이득은 줄지만, 그래도 step 사이에서 더 짧은 reuse 윈도우가 가능.</p>
+    </div>
+  </div>
+
+  <p>요약하면 — 비디오 diffusion 의 “KV cache” 는 LLM 의 그것과 의미가 다르다. autoregressive 의 누적이 아니라 <em>step / layer 간 redundancy 의 구조</em>를 의미한다. 이 사실을 LLM 영역에서 넘어온 사람은 자주 헷갈린다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>가속 트릭 묶음</b><span>· STA · seq-parallel · distill</span></div>
+    <h2>FastVideo 가 stack 으로 제공하는 4가지</h2>
+  </div>
+  <p class="sec-lede">FastVideo 의 진짜 가치는 — <em>각 트릭이 따로 있는 게 아니라 한 묶음으로 켤 수 있다</em>는 점. 대표적인 4가지를 묶어둔다.</p>
+
+  <h3 style="font-size:18px;margin:20px 0 10px;color:var(--ink)">1. Sliding Tile Attention (STA)</h3>
+  <p>비디오 grid 위에서 <em>3D local 만 attend</em>. window 가 (T_w, H_w, W_w) — 보통 (3, 6, 6) 또는 (5, 8, 8). FlashAttention 의 mask 안에 박혀서 GPU 위에서 dense attention 만큼 효율적. <strong>full attention 대비 6~10× speedup</strong>, FID 2~5% 손실 (확인 필요).</p>
+
+  <h3 style="font-size:18px;margin:20px 0 10px;color:var(--ink)">2. Sequence Parallel (Ulysses · Ring)</h3>
+  <p>토큰 1.7M 을 GPU 8장에 나눠 들고 attention 만 cross-GPU 로 도는 방식. <em>Ulysses</em> 는 attention 직전에 head 차원으로 all-to-all, 직후에 다시 all-to-all. <em>Ring</em> 은 KV 를 ring 으로 돌려가며 마주친 query 와 attend. video DiT 에서는 둘 다 채택 — Ulysses 가 더 간단, Ring 이 더 큰 sequence 에 강하다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · sequence parallel 의 두 변형</span><span>8 GPU · 1.7M tokens</span></div>
+    <div class="pipe">
+      <div class="stage"><div class="sn">A</div><div class="nm">Ulysses</div><div class="dt">all-to-all on head dim</div></div>
+      <div class="stage hi"><div class="sn">B</div><div class="nm">Ring</div><div class="dt">KV rotation between GPUs</div></div>
+      <div class="stage"><div class="sn">C</div><div class="nm">USP (Unified)</div><div class="dt">Ulysses + Ring 결합</div></div>
+    </div>
+    <div class="viz-note">FastVideo 는 USP (Unified Sequence Parallel) 도 지원. 큰 모델 + 큰 sequence 에서 Ulysses 의 통신 효율 + Ring 의 메모리 친화성을 결합. (확인 필요 — 정확한 dispatch 조건)</div>
+  </div>
+
+  <h3 style="font-size:18px;margin:20px 0 10px;color:var(--ink)">3. Step Distillation (consistency / progressive)</h3>
+  <p>50 step diffusion 을 4~8 step 으로 축소. teacher 모델로 student 를 학습 — student 는 한 step 에서 teacher 의 여러 step 결과를 흉내. <strong>품질 손실 적게 6~10× 시간 절약</strong>. FastVideo 가 distillation 학습 코드까지 제공해 사용자가 자기 모델을 distill 할 수 있다는 점이 다른 가속 라이브러리와 차이.</p>
+
+  <h3 style="font-size:18px;margin:20px 0 10px;color:var(--ink)">4. Quantization (FP8 / INT8)</h3>
+  <p>Hopper 의 FP8 Tensor Core 로 GEMM weight + activation 을 8-bit. <strong>1.5~2× speedup, 메모리 절반</strong>. text encoder 와 VAE 도 같이 quantize. 일반적으로 attention 의 softmax 만 BF16 유지.</p>
+
+  <div class="callout">
+    <div class="label">스택의 효과 — 다 켜면</div>
+    <p>STA + sequence parallel + distill + FP8 의 <em>곱셈 효과</em>로 — HunyuanVideo 13B 의 5초 720p 클립이 H100×8 에서 <strong>3분 → 15초 수준</strong>. 정확한 조합 / 수치는 모델별로 다름 (FastVideo README 참조 — 확인 필요).</p>
+  </div>
+
+  <div class="pull">“가속의 한 트릭이 5~10× 인데 4개 합치면 곱이 아니라 합 가깝게 떨어진다 — 이미 빠른 path 에서 다음 트릭이 누르는 자리가 좁아진다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>채택 사례 · 모델</b><span>· HunyuanVideo · Wan2</span></div>
+    <h2>FastVideo 가 곧장 지원하는 모델들</h2>
+  </div>
+  <p class="sec-lede">2025 년 시점에 FastVideo 는 다음 오픈소스 비디오 모델들을 first-class 로 지원한다 (확인 필요 — 활성 개발 중이라 목록 변동).</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">HunyuanVideo (Tencent · 13B)</div>
+      <div class="d">full 3D self-attention. STA + 8-GPU sequence parallel + distillation 의 reference 모델. 5s 720p in ~15s.</div>
+    </div>
+    <div class="term">
+      <div class="t">CogVideoX (Zhipu · 5B)</div>
+      <div class="d">full 3D + text-video joint encoder. FastVideo 가 USP 와 FP8 위주로 가속. (확인 필요)</div>
+    </div>
+    <div class="term">
+      <div class="t">Wan2.1 (Alibaba · 14B)</div>
+      <div class="d">2025 발표 모델. FastVideo 가 STA window 를 모델에 맞게 튜닝해서 reference 가속 제공.</div>
+    </div>
+    <div class="term">
+      <div class="t">LTX-Video (Lightricks)</div>
+      <div class="d">factorized + DiT 의 hybrid. FastVideo 의 STA 가 잘 안 맞을 수 있음 (factorized 영역) — 확인 필요.</div>
+    </div>
+    <div class="term">
+      <div class="t">Mochi-1 (Genmo)</div>
+      <div class="d">1024 token-per-frame 의 dense DiT. STA 효과 큼. (확인 필요)</div>
+    </div>
+    <div class="term">
+      <div class="t">Stepvideo · Pyramid-Flow</div>
+      <div class="d">기타 — FastVideo issue tracker 에 community 의 채택 요청 활발.</div>
+    </div>
+  </div>
+
+  <p>중요한 패턴 — FastVideo 의 STA window 와 distill schedule 은 <em>모델마다 sweep</em>이 필요하다. 같은 (3,6,6) 가 모든 모델에 최적이 아니다. 일반적으로 — 강한 motion 이 있는 모델일수록 temporal window 를 키운다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>image diff 와의 차이</b><span>· scale, not just length</span></div>
+    <h2>비디오는 image 의 “F배” 가 아니라 “F×attention² × distill 곤란” 이다</h2>
+  </div>
+  <p class="sec-lede">image diffusion 의 가속 트릭이 비디오에 그대로 옮겨지지 않는 이유를 정리한다. 같은 DiT, 같은 timestep, 같은 noise schedule 인데 어디서 다른가.</p>
+
+  <div class="l59-stages">
+    <div class="col">
+      <div class="ttl">Image Diffusion (SD3, FLUX 등)</div>
+      <h4>이런 트릭들이 잘 통한다</h4>
+      <p><strong>step distillation</strong> (Lightning, LCM) — 50 → 4 step 이 거의 무손실. <strong>knowledge distillation</strong> 으로 작은 모델로 옮기는 게 쉬움. <strong>memory pinch</strong> 가 약해서 single GPU 로 충분.</p>
+      <p>attention 비용이 작아서 (~4K tokens) — sliding window 이득이 적다. 대부분 가속이 step 수 줄이는 데 집중.</p>
+    </div>
+    <div class="col">
+      <div class="ttl">Video Diffusion</div>
+      <h4>전혀 다른 cost regime</h4>
+      <p><strong>distillation 어렵다</strong> — temporal consistency 를 student 가 흉내내기 어려움. 4-step distill 의 품질 손실이 image 보다 큼. <strong>multi-GPU 필수</strong> — sequence parallel 이 있어야 메모리에 들어감.</p>
+      <p>attention 이 dominant — sliding tile / FlashAttn3 의 절대값 이득이 image 와 비교 안 될 만큼 큼. <strong>가속 stack 의 첫 표적이 항상 attention</strong>.</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">옮겨지지 않는 트릭들</div>
+    <p>image 에서 잘 도는 — (1) torch.compile + fused conv (비디오는 attention dominant), (2) 4-step distill (비디오는 temporal coherence 손실 큼), (3) single-GPU half-precision (비디오는 메모리에 안 들어감). FastVideo 는 그래서 비디오 전용 stack 으로 따로 만들어진다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 단계</b><span>· streaming · long-form</span></div>
+    <h2>5초 이상 — long-form 비디오로 가는 길</h2>
+  </div>
+  <p class="sec-lede">현재 SOTA 오픈 비디오 모델의 한계는 5–10초. 1분 이상의 long-form 비디오는 — naive 하게 하면 attention N² 이 100× 더 커진다. 다음 단계의 가속 / architecture 는 이 길을 푼다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · 비디오 길이별 비용 곡선</span><span>token 수 vs attention cost</span></div>
+    <div class="l59-cost">
+      <div class="row"><span class="lbl">5s · 1.7M tokens</span><div class="bar"><span style="width:5%"></span></div><span class="val">1×</span></div>
+      <div class="row"><span class="lbl">10s · 3.4M tokens</span><div class="bar cool"><span style="width:18%"></span></div><span class="val">4×</span></div>
+      <div class="row"><span class="lbl">30s · 10M</span><div class="bar warn"><span style="width:50%"></span></div><span class="val">36×</span></div>
+      <div class="row"><span class="lbl">60s · 20M</span><div class="bar warn"><span style="width:100%"></span></div><span class="val">144×</span></div>
+    </div>
+    <div class="viz-note">naive full-attention 의 cost 가 N² 라 1분 비디오는 5초의 144 배. STA 같은 local window 면 N 으로 떨어진다 (12×). 그래서 long-form 으로 갈수록 sliding 의 이득이 더 크다.</div>
+  </div>
+
+  <ul>
+    <li><strong>streaming generation</strong> — 5초씩 생성해 chunk 로 이어붙이는 패턴. inter-chunk consistency 를 KV reuse 또는 latent context 로 유지. 확인 필요.</li>
+    <li><strong>autoregressive video DiT</strong> — 일부 frame 을 condition 으로 다음 frame 을 만드는 hybrid. KV cache 가 LLM 처럼 누적되는 형태로 돌아옴 → LLM 가속 트릭 (vLLM-style) 이 다시 의미를 갖는다.</li>
+    <li><strong>hierarchical generation</strong> — 저해상도 비디오 먼저 → upsample. spatial / temporal 모두 cascade.</li>
+    <li><strong>3D VAE 의 압축률 향상</strong> — 같은 픽셀 비디오가 더 적은 latent 토큰으로. 이게 가장 깨끗한 길 — token 수 자체를 줄이면 모든 가속 트릭이 무료로 함께 빨라진다.</li>
+  </ul>
+
+  <div class="pull">“video diffusion 의 다음 가속은 attention 트릭이 아니라 — token 의 정의 자체 (VAE 압축) 와 generation 패러다임 (auto-regressive vs full-step) 에서 나올 가능성이 크다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways · repo</span></div>
+    <h2>다시 열었을 때 빨리 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">video token 산수</div>
+      <div class="d"><code>F × H × W</code> ≈ 1.7M for 5s/720p. attention N² 가 거의 모든 비용.</div>
+    </div>
+    <div class="term">
+      <div class="t">Sliding Tile Attention</div>
+      <div class="d">3D local window (T,H,W) — 보통 (3,6,6). full 대비 6~10× speedup. FlashAttn3 위에 박힘.</div>
+    </div>
+    <div class="term">
+      <div class="t">sequence parallel</div>
+      <div class="d">Ulysses(all-to-all) / Ring(KV rotation) / USP. 비디오는 single-GPU 에 안 들어감 → 필수.</div>
+    </div>
+    <div class="term">
+      <div class="t">step distillation</div>
+      <div class="d">50 → 4~8 step. 비디오에서는 image 보다 손실 큼. teacher 코드까지 FastVideo 가 제공.</div>
+    </div>
+    <div class="term">
+      <div class="t">FP8 quantization</div>
+      <div class="d">Hopper 의 FP8 Tensor Core. 1.5~2×. softmax 만 BF16 유지.</div>
+    </div>
+    <div class="term">
+      <div class="t">step skipping (TeaCache)</div>
+      <div class="d">중간 step 에서 prev 결과 재사용. distill 과 결합 시 효과 감소.</div>
+    </div>
+    <div class="term">
+      <div class="t">image diff 와 차이</div>
+      <div class="d">image: step distill 이 dominant. video: attention reduction 이 dominant.</div>
+    </div>
+    <div class="term">
+      <div class="t">long-form 의 trade-off</div>
+      <div class="d">naive cost N². sliding 이면 N. streaming / hierarchical 이 다음 답.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=tquHfKqKo1s" target="_blank" rel="noopener">youtube.com/watch?v=tquHfKqKo1s</a></span>
+    </div>
+    <div class="row">
+      <span class="k">FastVideo Repo</span>
+      <span class="v"><a href="https://github.com/hao-ai-lab/FastVideo" target="_blank" rel="noopener">github.com/hao-ai-lab/FastVideo</a></span>
+    </div>
+    <div class="row">
+      <span class="k">STA Paper</span>
+      <span class="v"><a href="https://arxiv.org/abs/2502.04507" target="_blank" rel="noopener">Sliding Tile Attention · arXiv:2502.04507</a> (확인 필요 - 2025)</span>
+    </div>
+    <div class="row">
+      <span class="k">HunyuanVideo</span>
+      <span class="v"><a href="https://github.com/Tencent/HunyuanVideo" target="_blank" rel="noopener">Tencent/HunyuanVideo</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Wan2.1</span>
+      <span class="v"><a href="https://github.com/Wan-Video/Wan2.1" target="_blank" rel="noopener">Wan-Video/Wan2.1</a> (확인 필요)</span>
+    </div>
+    <div class="row">
+      <span class="k">USP / xfuser</span>
+      <span class="v"><a href="https://github.com/xdit-project/xDiT" target="_blank" rel="noopener">xdit-project/xDiT</a> · sequence parallel 라이브러리</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>HunyuanVideo baseline</strong> — H100×8 에서 5초 720p 클립 한 번 생성. wall-clock 기록.</li>
+    <li><strong>FastVideo 로 같은 클립</strong> — STA + sequence parallel + FP8 켜고 같은 prompt 재생성. wall-clock 비교 + side-by-side 시각 품질 검증.</li>
+    <li><strong>STA window sweep</strong> — (3,6,6) / (3,8,8) / (5,8,8) 중 어느 게 가장 좋은 trade-off 인지 자기 prompt 분포에서 확인. 빠른 motion 시 temporal window 의 영향이 큼.</li>
+    <li><strong>distill checkpoint 만들기</strong> — FastVideo 의 distill 스크립트로 50→4 step student 학습. teacher 와 FID 비교.</li>
+    <li><strong>Nsight 으로 attention dominance 검증</strong> — 한 generation step 의 ncu / nsys trace. attention 이 정말 78% 비용인지 자기 GPU 에서 확인.</li>
+    <li><strong>긴 prompt vs 짧은 prompt</strong> — text condition 의 길이가 cross-attn 비용을 얼마나 흔드는지 측정. (보통 적음)</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로</b><span>· connections</span></div>
+    <h2>이 강의의 트릭이 다른 강의에서 어떻게 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_065.html">
+      <div class="n">L065</div>
+      <div class="ti">Neighborhood Attention</div>
+      <div class="by">Ali Hassani — STA 와 같은 가족 (3D local window). 2D 영상에서 출발.</div>
+    </a>
+    <a class="conn" href="lecture_011.html">
+      <div class="n">L011</div>
+      <div class="ti">Sparse Attention</div>
+      <div class="by">— sliding window / block sparse 의 LLM 영역 버전</div>
+    </a>
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">Flash Attention</div>
+      <div class="by">— STA 가 deps. tile-wise online softmax 가 모든 비디오 가속의 baseline</div>
+    </a>
+    <a class="conn" href="lecture_064.html">
+      <div class="n">L064</div>
+      <div class="ti">Multi-GPU programming</div>
+      <div class="by">Markus Hrywniak — sequence parallel 이 의존하는 collectives 기초</div>
+    </a>
+    <a class="conn" href="lecture_036.html">
+      <div class="n">L036</div>
+      <div class="ti">Diffusion model 가속</div>
+      <div class="by">— image diff 의 트릭. FastVideo 와 비교</div>
+    </a>
+    <a class="conn" href="lecture_058.html">
+      <div class="n">L058</div>
+      <div class="ti">Disaggregated LLM Inference</div>
+      <div class="by">— 자원 분리의 frame. 비디오에서는 다른 형태로 등장</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>transcript 가 비어 있어 직접 검증해야 할 것들</h2>
+  </div>
+  <p class="sec-lede">강의 자체의 transcript / 슬라이드가 없어 — 본문은 FastVideo repo / STA 논문 / 일반적 video diffusion 가속 자료의 재구성. 영상 시청으로 검증할 사실들.</p>
+  <ul>
+    <li><strong>발표자 정체</strong> — Hao AI Lab 의 Peiyuan Zhang (FastVideo 메인테이너) 또는 Hao Zhang 본인 가능성. 확인 필요.</li>
+    <li><strong>STA window 의 권장 default</strong> — (3,6,6) 와 (5,8,8) 중 어느 쪽이 강의에서 권장됐는지. 모델에 따라 다른 default 가 있을 가능성.</li>
+    <li><strong>distillation recipe</strong> — consistency 인지 progressive 인지, teacher 로부터 몇 epoch 학습하는지 — 강의 안 구체 수치는 미확인. repo 안에 있을 가능성.</li>
+    <li><strong>FP8 의 정확도 영향</strong> — 강의에서 FID / quality metric 비교가 등장했는지. FP8 attention 의 안정성은 모델별로 다름.</li>
+    <li><strong>sequence parallel 의 communication 비용</strong> — Ulysses 의 all-to-all 이 1.7M token 에서 얼마나 비싼지 timeline 비교. 강의에서 직접 보여줬을 가능성.</li>
+    <li><strong>HunyuanVideo / Wan2 의 license / production 사용</strong> — 강의 시점의 모델 라이선스 / commercial 사용 가능성 미확인.</li>
+    <li><strong>음성 / multi-modal 통합</strong> — FastVideo 가 audio-conditioned 비디오까지 다루는지 확인 필요.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>본 노트의 모든 시간 수치 (3분 → 15초 등) 와 비용 분포 (78% attention 등) 는 일반적 산수와 FastVideo README 의 트렌드를 재구성한 예시값이다. 자기 GPU / 자기 모델에서 직접 측정하지 않은 절대값은 그대로 인용하지 말 것.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_058.html">
+    <span class="lbl">← Lecture 058</span>
+    <span class="nm">Disaggregated LLM — 자원 분리 frame 의 LLM 버전</span>
+  </a>
+  <a class="nxt" href="lecture_060.html">
+    <span class="lbl">Lecture 060 →</span>
+    <span class="nm">Linear Attention — quadratic 을 푸는 다른 방향</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L059 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

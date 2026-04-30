@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L023 · Tensor Cores · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l23-evo{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l23-evo .gen{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l23-evo .gen.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l23-evo .gen h4{margin:0 0 6px;font-family:'Pretendard',sans-serif;font-size:13px;color:var(--ink)}
+.l23-evo .gen .arch{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.04em}
+.l23-evo .gen .desc{color:var(--ink-soft);font-size:11.5px;margin-top:6px;line-height:1.6}
+.l23-evo .gen .shp{font-family:'JetBrains Mono',monospace;color:var(--ink);font-size:11px;margin-top:6px}
+
+.l23-tile{font-family:'JetBrains Mono',monospace;font-size:11px}
+.l23-tile svg{width:100%;max-width:540px;height:auto;display:block;margin:0 auto}
+.l23-tile rect{stroke:var(--line);stroke-width:1}
+.l23-tile rect.A{fill:var(--accent);fill-opacity:.85}
+.l23-tile rect.B{fill:var(--cool);fill-opacity:.85}
+.l23-tile rect.C{fill:var(--accent-2);fill-opacity:.85}
+.l23-tile rect.tile{fill:var(--paper);stroke:var(--line)}
+.l23-tile text{fill:var(--paper);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600}
+.l23-tile text.lbl{fill:var(--ink);font-weight:500;font-size:11px}
+
+.l23-stack{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;gap:6px}
+.l23-stack .layer{display:grid;grid-template-columns:140px 1fr 130px;gap:12px;padding:10px 14px;background:var(--paper);border:1px solid var(--line);border-radius:6px;align-items:center}
+.l23-stack .layer .lvl{color:var(--accent);font-weight:700}
+.l23-stack .layer .nm{color:var(--ink)}
+.l23-stack .layer .nm em{display:block;font-style:normal;color:var(--ink-soft);font-size:11px;margin-top:2px}
+.l23-stack .layer .where{color:var(--muted);font-size:11px;text-align:right}
+.l23-stack .layer.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+@media(max-width:760px){.l23-evo{grid-template-columns:1fr 1fr}.l23-stack .layer{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_022.html">← L022</a>
+    <a href="lecture_024.html">L024 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L023</span>
+    <span>Tensor Cores · CUTLASS · CuTe</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · slides · available</span>
+  </div>
+  <h1>Tensor Cores</h1>
+  <p class="dek">Volta 부터 Hopper 까지 — 한 instruction 으로 작은 행렬 곱을 끝내는 hardware unit 이 어떻게 진화했는가. 그리고 그 위에 올라가는 software stack <strong>CUTLASS · CuTe · Collective</strong> 의 layered abstraction. NVIDIA Architecture 의 Vijay Thakkar 와 Pradeep Ramani 가 직접 와서 보여주는 hardware MMA 와 그 사용자 facing API 의 학습 노트.</p>
+
+  <div class="chips">
+    <span class="chip hi">Tensor Core MMA</span>
+    <span class="chip hi">CUTLASS</span>
+    <span class="chip hi">CuTe</span>
+    <span class="chip hi">WGMMA · TMA</span>
+    <span class="chip hi">FP16 · BF16 · FP8</span>
+    <span class="chip">Volta → Hopper</span>
+    <span class="chip">collective MMA</span>
+    <span class="chip">epilogue fusion</span>
+    <span class="chip">tile-based programming</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">V</div>
+      <div>
+        <div class="role">Speakers</div>
+        <div class="nm">Vijay Thakkar &amp; Pradeep Ramani</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">NVIDIA · CUTLASS / CuTe core team</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L023</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Vijay Thakkar &amp; Pradeep Ramani</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">CUTLASS example 직접</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 이 강의가 존재하는가</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">Tensor Core 의 진화</span><span class="em">Volta → Hopper</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">FP16 · BF16 · TF32 · FP8</span><span class="em">정밀도 와 throughput</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">mma.sync vs WMMA vs WGMMA</span><span class="em">PTX instruction 의 layer</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">tile shape · M N K</span><span class="em">layout · swizzle</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">CUTLASS 의 layered API</span><span class="em">collective · kernel · device</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">CuTe — layout 의 algebra</span><span class="em">tile-based programming</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">Hopper 의 새 기능들</span><span class="em">TMA · WGMMA · async</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">HBM 대역폭과의 관계</span><span class="em">peak FLOPs vs feed</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드 자료</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 이 강의가 존재하는가</span></div>
+    <h2>Tensor Core 위에서 “정상속도” 까지 짜내려면 — 그 layer 들을 안다</h2>
+  </div>
+  <p class="sec-lede">현대 GPU 의 산술 power 의 95%+ 가 Tensor Core 에서 나온다 (FP16 기준 H100 의 989 TFLOPS 중 ~95%). 그런데 평범한 CUDA 커널은 거의 자연스럽게 그 unit 을 못 쓴다 — <code>mma.sync</code> 같은 PTX 또는 그 위 abstraction (<code>wmma::</code>, CUTLASS) 을 명시적으로 호출해야 한다.</p>
+
+  <p>강의가 깐 큰 질문 세 개.</p>
+  <ol>
+    <li><strong>Tensor Core 가 어떻게 4 세대를 거치며 진화했는가</strong> — Volta 의 m16n16k16 부터 Hopper 의 m64n256k16 WGMMA 까지(§ 02).</li>
+    <li><strong>그 hardware 위에 올라가는 software 의 layer 가 어떻게 쌓여 있는가</strong> — CUTLASS 의 collective / kernel / device 3 단계와 CuTe 의 layout algebra(§ 06–07).</li>
+    <li><strong>이걸 왜 알아야 하는가</strong> — FlashAttention, GEMM 변형, custom epilogue 같은 모든 modern 커널이 이 stack 위에서 짜인다.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“CUTLASS 는 한 layer 만 써도 되고, 모든 layer 를 써도 된다”. 가장 흔한 entry — <strong>collective builder</strong> 한 줄로 GEMM 한 번. 더 깊이 들어가야 할 때는 layer 별로 customize. 강의의 backbone 메시지는 — <em>“tensor core 는 복잡한데, 그 복잡함의 대부분은 여러 layer 의 helper 들로 가려져 있다”</em>.</p>
+  </div>
+
+  <div class="pull">“tensor core 를 동작하게 만드는 건 hardware 가 아니라 layout 이다 — 같은 hardware 가 다른 layout 으로는 동작도 안 한다.”<span class="by">Vijay Thakkar (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>Tensor Core 의 진화</b><span>· Volta → Hopper</span></div>
+    <h2>4 세대 — 더 큰 tile, 더 적은 thread, 더 많은 dtype</h2>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Tensor Core 4 세대</span><span>같은 idea, 다른 size</span></div>
+    <div class="l23-evo">
+      <div class="gen">
+        <div class="arch">Volta · 2017</div>
+        <h4>1st gen TC</h4>
+        <div class="shp">m16n16k16 (FP16)</div>
+        <div class="desc">한 warp 가 4×4 sub-tiles 들을 들고 — sub-warp granularity. <code>wmma::</code> API 등장.</div>
+      </div>
+      <div class="gen">
+        <div class="arch">Turing · 2018</div>
+        <h4>2nd gen</h4>
+        <div class="shp">+ INT8 · INT4</div>
+        <div class="desc">inference 용 저정밀. 같은 tile size 골격, 새 dtype.</div>
+      </div>
+      <div class="gen hi">
+        <div class="arch">Ampere · 2020</div>
+        <h4>3rd gen</h4>
+        <div class="shp">m16n8k16 (BF16/FP16)<br>+ TF32 · sparsity</div>
+        <div class="desc">warp-level <code>mma.sync</code> 의 표준. 4 warps cooperatively for SM-wide tile. async copy 도 등장.</div>
+      </div>
+      <div class="gen hi">
+        <div class="arch">Hopper · 2022</div>
+        <h4>4th gen</h4>
+        <div class="shp">WGMMA m64n256k16<br>+ FP8 (E4M3·E5M2)</div>
+        <div class="desc">warp-group MMA — 4 warp 이 한 묶음. shared memory 에서 직접 read. TMA 와 함께 async pipeline.</div>
+      </div>
+    </div>
+    <div class="viz-note">한 instruction 의 tile size 가 16×16×16 → 64×256×16 으로 256× 커졌다. 그만큼 instruction 한 번의 일이 커지고 — 동시에 instruction 이 <em>asynchronous</em> 화 되어, MMA 가 도는 동안 다음 tile load 가 동시에 진행됨.</div>
+  </div>
+
+  <p>strict 한 의미에서 — <strong>한 instruction 이 끝내는 산술의 양이 256배 커졌다</strong>. instruction 자체가 길어진 게 아니라, hardware 가 그 한 명령에 더 많은 일을 한다. 같은 산술 throughput 을 더 적은 instruction 으로 — instruction issue overhead 가 비례적으로 줄어든다.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>FP16 · BF16 · TF32 · FP8</b><span>· 정밀도와 throughput</span></div>
+    <h2>같은 hardware, 다른 dtype — throughput 이 정확히 비례한다</h2>
+  </div>
+  <p class="sec-lede">현대 Tensor Core 는 다양한 dtype 을 지원. 각 dtype 의 throughput 은 거의 정확히 bit width 에 반비례.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">FP16 (half)</div>
+      <div class="d">10-bit mantissa, 5-bit exponent. 학습/추론 모두. dynamic range 좁음 — overflow 위험. loss scaling 필요.</div>
+    </div>
+    <div class="term">
+      <div class="t">BF16</div>
+      <div class="d">7-bit mantissa, 8-bit exponent (= FP32 와 같은 range). gradient 안전. 현대 학습의 표준. throughput 은 FP16 과 동일.</div>
+    </div>
+    <div class="term">
+      <div class="t">TF32</div>
+      <div class="d">10-bit mantissa, 8-bit exponent. FP32 와 호환되지만 산술은 19-bit 정밀도. <em>FP32 코드를 TF32 로 묵시 변환</em>해주는 게 Ampere 의 표준 동작.</div>
+    </div>
+    <div class="term">
+      <div class="t">FP8 — E4M3</div>
+      <div class="d">4-bit exponent, 3-bit mantissa. forward 에 자연. throughput FP16 의 2×.</div>
+    </div>
+    <div class="term">
+      <div class="t">FP8 — E5M2</div>
+      <div class="d">5-bit exponent, 2-bit mantissa. backward gradient (큰 dynamic range) 에 자연.</div>
+    </div>
+    <div class="term">
+      <div class="t">INT8 / INT4</div>
+      <div class="d">inference 용 quantize. 정확도 보전을 위해 calibration / QAT 가 필요한 경우 많음.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">throughput 의 산수 (H100 SXM)</div>
+    <p>FP32 (cuda core) — 67 TFLOPS. FP16/BF16 (TC) — 989 TFLOPS. FP8 (TC) — 1979 TFLOPS. 거의 정확히 dtype bit width 에 반비례. <em>“같은 시간에 2× 더 많은 산술 — 그 대가는 정밀도 손실”</em>의 trade-off 가 명확.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>mma.sync vs WMMA vs WGMMA</b><span>· PTX instruction 의 layer</span></div>
+    <h2>같은 hardware, 세 abstraction layer</h2>
+  </div>
+
+  <div class="l23-stack">
+    <div class="layer"><span class="lvl">L0 · PTX</span><span class="nm"><code>mma.sync</code> (Ampere) / <code>wgmma.mma_async</code> (Hopper)<em>warp 또는 warp-group 이 직접 호출하는 instruction</em></span><span class="where">SASS 가깝게</span></div>
+    <div class="layer"><span class="lvl">L1 · WMMA</span><span class="nm"><code>nvcuda::wmma::</code> C++ API<em>fragment 단위 — 사용자가 thread 별 데이터 위치를 추상화</em></span><span class="where">CUDA SDK</span></div>
+    <div class="layer hi"><span class="lvl">L2 · CuTe MMA atom</span><span class="nm"><code>SM80_16x8x16_F32F16F16F32_TN</code> 같은 atom<em>layout 정보가 type 에 박혀 있음 — compile-time</em></span><span class="where">CUTLASS 4.x</span></div>
+    <div class="layer hi"><span class="lvl">L3 · Collective MMA</span><span class="nm"><code>cutlass::gemm::collective::CollectiveMma</code><em>4 warps cooperative — SM-wide tile</em></span><span class="where">CUTLASS</span></div>
+    <div class="layer"><span class="lvl">L4 · GEMM kernel</span><span class="nm"><code>cutlass::gemm::kernel::GemmUniversal</code><em>전체 GEMM kernel 로 wrap</em></span><span class="where">CUTLASS</span></div>
+    <div class="layer"><span class="lvl">L5 · Device adapter</span><span class="nm"><code>cutlass::gemm::device::Gemm</code><em>host 에서 호출하는 cuBLAS-like API</em></span><span class="where">CUTLASS</span></div>
+  </div>
+
+  <p>강의의 강한 메시지 — <em>“각 layer 가 독립적으로 customize 가능”</em>. 가장 흔한 entry 가 L5 (cuBLAS-like 한 줄). 새 dtype 이나 새 epilogue 가 필요하면 L3 만 새로 짜고 L4–L5 는 재사용. 진짜 새 hardware feature 면 L2 까지 내려간다.</p>
+
+  <div class="callout">
+    <div class="label">왜 이런 layered 디자인인가</div>
+    <p>tensor core 의 layout 제약이 워낙 미묘해서 — “register 의 어느 lane 에 어느 element 가 있는지” 까지 정해져 있다. 이 layout 을 <strong>type system 안에</strong> 넣어 — compile time 에 잘못된 결합을 막는 게 CUTLASS/CuTe 의 핵심 디자인 결정.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>tile shape · M N K</b><span>· layout · swizzle</span></div>
+    <h2>한 MMA instruction 의 “모양” — 그리고 그 모양의 register 분배</h2>
+  </div>
+  <p class="sec-lede">Ampere 의 표준 instruction <code>mma.sync.aligned.m16n8k16.f32.f16.f16.f32</code>. 의미 — 한 warp(32 thread) 가 협동해 <strong>16×16 의 A · 16×8 의 B → 16×8 의 C</strong> 를 곱한다. 그런데 “어느 thread 가 A 의 어느 element 를 들고 있는가” 가 정확히 정해져 있다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · m16n8k16 의 thread-layout (개념)</span><span>32 thread 가 A·B·C 를 어떻게 나눠 듬</span></div>
+    <div class="l23-tile">
+      <svg viewBox="0 0 540 220">
+        <!-- A matrix 16x16 -->
+        <text x="80" y="14" class="lbl" text-anchor="middle">A · 16×16 (FP16)</text>
+        <rect x="20" y="20" width="120" height="120" class="A"/>
+        <text x="80" y="86" text-anchor="middle">A</text>
+        <text x="80" y="155" class="lbl" text-anchor="middle">8 element/thread</text>
+
+        <text x="225" y="14" class="lbl" text-anchor="middle">×</text>
+        <text x="225" y="86" text-anchor="middle" class="lbl">×</text>
+
+        <!-- B matrix 16x8 -->
+        <text x="290" y="14" class="lbl" text-anchor="middle">B · 16×8 (FP16)</text>
+        <rect x="250" y="20" width="80" height="120" class="B"/>
+        <text x="290" y="86" text-anchor="middle">B</text>
+        <text x="290" y="155" class="lbl" text-anchor="middle">4 element/thread</text>
+
+        <text x="375" y="14" class="lbl" text-anchor="middle">=</text>
+        <text x="375" y="86" text-anchor="middle" class="lbl">=</text>
+
+        <!-- C matrix 16x8 -->
+        <text x="450" y="14" class="lbl" text-anchor="middle">C · 16×8 (FP32 acc)</text>
+        <rect x="410" y="20" width="80" height="120" class="C"/>
+        <text x="450" y="86" text-anchor="middle">C</text>
+        <text x="450" y="155" class="lbl" text-anchor="middle">4 element/thread</text>
+
+        <!-- bottom -->
+        <text x="270" y="195" text-anchor="middle" class="lbl">한 warp 32 thread · 한 instruction 으로 8×16×8×2 = 2048 산술 (4096 FLOPs)</text>
+      </svg>
+    </div>
+    <div class="viz-note">A 의 16×16 = 256 element 를 32 thread 가 나누면 thread 당 8 element. C accumulator 는 thread 당 4 element. 이 분배가 hardware 가 강제. 사용자는 — 데이터를 register 에 올릴 때 이 분배에 맞춰 올려야 함. 안 맞으면 <code>__shfl</code> 등으로 재배치 필요(비싸다).</div>
+  </div>
+
+  <p>그리고 <strong>swizzle</strong> — shared memory 의 layout 을 비틀어 같은 32-thread access 가 bank conflict 없이 도게 만드는 것. CUTLASS 의 layout type 이 이 swizzle 정보를 자동으로 담는다.</p>
+
+  <div class="callout">
+    <div class="label">왜 이게 까다로운가</div>
+    <p>(1) shared memory 의 32 bank conflict 회피. (2) MMA 가 요구하는 thread-별 element 분배. (3) global memory coalesced load. <em>세 제약을 동시에 만족하는 layout 이 swizzle</em>. 손으로 짜기 매우 어려운 자리 — CUTLASS 가 이걸 type 으로 박아서 자동화한다.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>CUTLASS 의 layered API</b><span>· collective · kernel · device</span></div>
+    <h2>“가장 위 한 줄” 로도 동작하고, “가장 깊이” 도 들어갈 수 있는 stack</h2>
+  </div>
+  <p class="sec-lede">실제 사용자 코드 예시. 같은 GEMM 을 두 layer 에서.</p>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:15px;margin:0 0 8px;color:var(--ink)">Device API — cuBLAS-like 한 줄</h3>
+<pre><code><span style="color:#E7B369">using</span> Gemm = cutlass::gemm::device::GemmUniversalAdapter&lt;
+  cutlass::gemm::kernel::DefaultGemmUniversal&lt;
+    half_t, RowMajor,    <span style="color:#A99E89">// A</span>
+    half_t, ColMajor,    <span style="color:#A99E89">// B</span>
+    float,  RowMajor,    <span style="color:#A99E89">// C</span>
+    float                <span style="color:#A99E89">// acc</span>
+  &gt;::GemmKernel&gt;;
+
+Gemm gemm;
+gemm({{M,N,K}, {dA,K}, {dB,K}, {dC,N}, {dC,N}, {alpha, beta}});</code></pre>
+    </div>
+    <div>
+      <h3 style="font-size:15px;margin:0 0 8px;color:var(--ink)">Collective Builder — 한 단계 내려가</h3>
+<pre><code><span style="color:#E7B369">using</span> CollectiveOp = cutlass::gemm::collective::CollectiveBuilder&lt;
+  arch::Sm90, arch::OpClassTensorOp,
+  half_t, LayoutA, <span style="color:#E7B369">8</span>,
+  half_t, LayoutB, <span style="color:#E7B369">8</span>,
+  float,
+  Shape&lt;_128, _256, _64&gt;,    <span style="color:#A99E89">// CTA tile shape</span>
+  Shape&lt;_2, _1, _1&gt;,          <span style="color:#A99E89">// cluster</span>
+  collective::StageCountAuto,
+  collective::KernelTmaWarpSpecializedPingpong
+&gt;::CollectiveOp;</code></pre>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">강의의 작은 demo</div>
+    <p>강의에서 Vijay 가 보여준 단계적 변형 — 같은 collective 위에서 (a) default schedule, (b) persistent + pingpong schedule, (c) ping pong + 5 stages 로 옮겨가면서 throughput 이 80% → 92% → 96% 로 올라감. <em>“코드의 큰 부분은 그대로, schedule 만 swap”</em>. layered abstraction 의 직접적 증거.</p>
+  </div>
+
+  <div class="pull">“localize your changes to the smallest subset that is affected — 새 epilogue 가 필요하면 collective 만 새로 짜고 schedule/kernel 은 재사용.”<span class="by">Vijay Thakkar (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>CuTe — layout 의 algebra</b><span>· tile-based programming</span></div>
+    <h2>“tensor 의 layout 을 type 으로 표현해 compile-time 에 검증”</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 4.x 의 핵심 새 abstraction. tensor 의 (shape, stride) 를 단순한 metadata 가 아니라 <strong>compile-time 에 알려진 type</strong> 으로 들고 다닌다. 그 위에 layout 의 algebra (composition, complement, divide, product) 가 정의돼 있다.</p>
+
+<pre><code><span style="color:#A99E89">// CuTe 핵심 — tensor 의 layout</span>
+<span style="color:#E7B369">using</span> Shape  = cute::Shape&lt;_128, _256&gt;;      <span style="color:#A99E89">// (M=128, N=256)</span>
+<span style="color:#E7B369">using</span> Stride = cute::Stride&lt;_256, _1&gt;;       <span style="color:#A99E89">// row-major</span>
+<span style="color:#E7B369">using</span> Layout = cute::Layout&lt;Shape, Stride&gt;;
+
+cute::Tensor t = cute::make_tensor(ptr, Layout{});
+<span style="color:#A99E89">// t 는 type 안에 layout 을 다 알고 있음</span>
+
+<span style="color:#A99E89">// tile 분해 — type-level 연산</span>
+<span style="color:#E7B369">auto</span> tCgC = local_tile(t, Shape&lt;_64, _64&gt;{}, make_coord(_, _));
+<span style="color:#A99E89">// tCgC 는 (64×64) tile 들의 tensor of tensors</span></code></pre>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">layout = (shape, stride)</div>
+      <div class="d">tensor 의 spatial 표현. shape 가 size, stride 가 next-element offset. row-major / col-major / swizzle 등이 stride 패턴으로 표현됨.</div>
+    </div>
+    <div class="term">
+      <div class="t">composition</div>
+      <div class="d">두 layout 을 합성. 한 tensor 를 다른 tensor 의 “관점” 에서 본다. matmul 의 A·B → C 의 index 변환을 합성으로 표현.</div>
+    </div>
+    <div class="term">
+      <div class="t">tiling</div>
+      <div class="d">한 layout 을 더 작은 tile 의 layout 으로 분해. <code>local_tile</code>, <code>logical_divide</code>. CTA tile, warp tile, MMA atom 까지의 hierarchy.</div>
+    </div>
+    <div class="term">
+      <div class="t">copy atom</div>
+      <div class="d">"이 layout 의 source 에서 저 layout 의 dest 로 데이터를 옮기는 한 instruction". <code>cp.async</code>, TMA 등.</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">왜 type-level 이어야 하나</div>
+    <p>layout 정보가 runtime 에만 있으면 — 한 step 마다 if 로 분기하느라 instruction 효율이 떨어진다. type 안에 박혀 있으면 — <em>compile time 에 모든 분기가 inline</em>, runtime 에는 곧장 mma instruction sequence 만 남는다. C++ template 메타프로그래밍이 hardware-tier 성능에 매핑되는 자리.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>Hopper 의 새 기능들</b><span>· TMA · WGMMA · async</span></div>
+    <h2>“데이터 이동도 instruction 한 번 — MMA 도 한 번 — 둘이 동시에 도는”</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">TMA (Tensor Memory Accelerator)</div>
+      <div class="d">global → shared memory 의 “bulk copy” 를 한 instruction 으로. tensor 의 shape, stride, dtype 정보를 descriptor 에 넣고 hardware DMA 가 실행. ALU 가 풀려난다.</div>
+    </div>
+    <div class="term">
+      <div class="t">WGMMA (Warp-Group MMA)</div>
+      <div class="d">4 warp = 1 warp-group 이 한 묶음으로 한 큰 MMA 를 함. m64n256k16 같은 큰 tile. <strong>shared memory 에서 직접 read</strong> — register 로 미리 load 안 해도 됨.</div>
+    </div>
+    <div class="term">
+      <div class="t">async pipeline</div>
+      <div class="d">MMA 가 도는 동안 다음 tile 을 TMA 로 load. 두 instruction 이 동시에 진행. <code>cp.async.bulk</code> + <code>wgmma.commit_group</code> + <code>wgmma.wait_group</code> 의 패턴.</div>
+    </div>
+    <div class="term">
+      <div class="t">distributed shared memory</div>
+      <div class="d">cluster (인접 SM 들의 묶음) 의 SM 간 shared memory 가 서로 access 가능. cross-SM tile 통신.</div>
+    </div>
+    <div class="term">
+      <div class="t">FP8 dtype</div>
+      <div class="d">E4M3, E5M2 두 변종. throughput FP16 의 2×. dynamic range 가 좁아 per-tensor scaling 필요.</div>
+    </div>
+    <div class="term">
+      <div class="t">warp specialization</div>
+      <div class="d">한 block 안 일부 warp 는 producer (TMA load), 일부 warp 는 consumer (WGMMA). pipeline parallelism.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">CUTLASS 의 새 schedule 들</div>
+    <p>Hopper 위의 <code>KernelTmaWarpSpecialized</code>, <code>KernelTmaWarpSpecializedPingpong</code>, <code>KernelTmaWarpSpecializedCooperative</code> 등 — 같은 collective 위에서 <em>“producer 와 consumer 의 분배”</em> 가 다른 schedule. 각 schedule 별로 강한 영역이 다름. autotune 의 새로운 차원.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>HBM 대역폭과의 관계</b><span>· peak FLOPs vs feed</span></div>
+    <h2>“TC 가 peak 으로 돌게 하려면 HBM 이 그만큼 빨라야 한다”</h2>
+  </div>
+  <p class="sec-lede">arithmetic intensity 의 회계. H100 의 peak — FP16 989 TFLOPS, HBM 3 TB/s. 비율 ≈ <strong>329 FLOP/byte</strong> 가 필요하다 (peak utilization 을 위해). 모든 GEMM 이 이 임계값을 넘는 건 아니다.</p>
+
+  <div class="callout">
+    <div class="label">arithmetic intensity 의 산수</div>
+    <p>(M, N, K) GEMM — 산술 ≈ 2·M·N·K, byte ≈ 2·(M·K + K·N + M·N) (FP16). intensity = 산술/byte = M·N·K / (M·K + K·N + M·N). 이 값이 크려면 — M, N, K 모두 충분히 커야 함. <strong>K 가 작은 GEMV 는 거의 항상 memory-bound</strong>, decode 의 weight read 가 그 영역 (<a href="lecture_022.html">L022</a> § 02).</p>
+  </div>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · roofline — TC peak 도달 가능성</span><span>arithmetic intensity 별</span></div>
+    <div class="bars">
+      <div class="bar"><span class="lbl">GEMV (decode) · M=1, N=4096, K=4096</span><span class="track"><span class="fill" style="width:8%;background:var(--warn)"></span></span><span class="val">~1 FLOP/byte · memory-bound</span></div>
+      <div class="bar"><span class="lbl">small GEMM · 64·64·64</span><span class="track"><span class="fill" style="width:18%;background:var(--accent-2)"></span></span><span class="val">~32 FLOP/byte</span></div>
+      <div class="bar"><span class="lbl">medium GEMM · 512·512·512</span><span class="track"><span class="fill" style="width:55%;background:var(--accent)"></span></span><span class="val">~170 FLOP/byte</span></div>
+      <div class="bar"><span class="lbl">large GEMM · 4096·4096·4096</span><span class="track"><span class="fill" style="width:95%;background:var(--good)"></span></span><span class="val">~1365 FLOP/byte · TC peak</span></div>
+      <div class="bar"><span class="lbl">FlashAttention forward (long seq)</span><span class="track"><span class="fill" style="width:75%;background:var(--accent)"></span></span><span class="val">~250 FLOP/byte</span></div>
+    </div>
+    <div class="viz-note">큰 GEMM 만이 TC peak 에 가까이 간다. medium 이하 size 는 memory 가 dominant — 그래서 attention/decode 같은 워크로드는 “HBM 이 bottleneck” 이 표준 분석.</div>
+  </div>
+
+  <div class="pull">“tensor core 의 peak 를 보는 건 — large GEMM 의 매우 좋은 case 에서. 실전 LLM 의 평균은 그 절반에서 한참 떨어진다.”<span class="by">Pradeep Ramani (요약)</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드 자료</b><span>· key takeaways</span></div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">4 세대 진화</div>
+      <div class="d">Volta (m16n16k16) → Ampere (m16n8k16, async copy) → Hopper (WGMMA m64n256k16, TMA, FP8). 한 instruction 의 일이 256× 커짐.</div>
+    </div>
+    <div class="term">
+      <div class="t">layout 이 핵심</div>
+      <div class="d">tensor core 는 thread 별 element 위치가 hardware 가 강제. swizzle, stride, fragment 의 정렬이 안 맞으면 결과가 틀리거나 매우 느려짐.</div>
+    </div>
+    <div class="term">
+      <div class="t">CUTLASS 의 6 layer</div>
+      <div class="d">PTX → WMMA → CuTe atom → Collective → kernel → device. 각 layer 가 독립 customize. 한 줄로도 동작하고 깊이도 들어감.</div>
+    </div>
+    <div class="term">
+      <div class="t">CuTe = layout algebra</div>
+      <div class="d">tensor 의 (shape, stride) 가 type 안에 박힘. composition, tiling, copy/MMA atom 의 algebra. compile-time inline.</div>
+    </div>
+    <div class="term">
+      <div class="t">dtype 의 throughput 산수</div>
+      <div class="d">FP32 < FP16/BF16 < FP8 < INT4. 거의 정확히 bit width 에 반비례. H100 peak: FP16 989 TFLOPS, FP8 1979.</div>
+    </div>
+    <div class="term">
+      <div class="t">Hopper 의 async</div>
+      <div class="d">TMA 로 데이터 이동, WGMMA 로 산술 — 두 instruction 이 동시에. warp specialization 으로 producer/consumer 분리.</div>
+    </div>
+    <div class="term">
+      <div class="t">arithmetic intensity 임계</div>
+      <div class="d">H100 FP16 — 329 FLOP/byte 필요. 작은 GEMM/GEMV 는 거의 항상 memory-bound.</div>
+    </div>
+    <div class="term">
+      <div class="t">epilogue fusion</div>
+      <div class="d">Collective 의 epilogue visitor 로 bias/activation/scale 을 register 단계에서 fuse. <a href="lecture_018.html">L018</a> § 07 의 LoRA 가 그 패턴.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=hQ9GPnV0-50" target="_blank" rel="noopener">youtube.com/watch?v=hQ9GPnV0-50</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://drive.google.com/file/d/18sthk6IUOKbdtFphpm_jZNXoJenbWR8m/view" target="_blank" rel="noopener">Google Drive — Tensor Cores 강의 자료</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Repos</span>
+      <span class="v">
+        <a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">NVIDIA/cutlass</a> ·
+        <a href="https://github.com/NVIDIA/cutlass/tree/main/examples" target="_blank" rel="noopener">CUTLASS examples</a> ·
+        <a href="https://github.com/NVIDIA/cutlass/tree/main/include/cute" target="_blank" rel="noopener">CuTe headers</a>
+      </span>
+    </div>
+    <div class="row">
+      <span class="k">PTX docs</span>
+      <span class="v"><a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-mma" target="_blank" rel="noopener">PTX ISA — mma.sync / wgmma</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>WMMA hello</strong> — <code>nvcuda::wmma</code> API 로 16×16×16 GEMM 한 번. fragment load/store/mma 의 순서 손에 박기.</li>
+    <li><strong>CUTLASS 한 줄</strong> — <code>cutlass::gemm::device::Gemm</code> 으로 cuBLAS 와 throughput 비교. 큰 GEMM (4096^3) 에서 두 라이브러리가 거의 같은 peak 에 닿는지.</li>
+    <li><strong>collective builder swap</strong> — 같은 GEMM 에 schedule 을 default → pingpong → cooperative 로 바꿔보고 시간 비교.</li>
+    <li><strong>arithmetic intensity 측정</strong> — 작은 GEMM / 큰 GEMM / GEMV 세 종 — intensity 계산 + 실제 tensor core utilization NCU 로 측정. roofline 그리기.</li>
+    <li><strong>CuTe layout play</strong> — <code>cute::print_layout</code> 으로 row-major / col-major / swizzle 의 stride 직접 출력. <code>local_tile</code> 의 결과가 어떤 layout 을 가지는지.</li>
+    <li><strong>FP8 GEMM</strong> — H100 환경이라면 <code>cutlass::gemm::device::Gemm</code> 의 FP8 변종을 띄워보고 FP16 대비 throughput 2× 확인.</li>
+    <li><strong>epilogue fusion</strong> — bias + ReLU 가 fuse 된 GEMM 을 collective 의 EpilogueVisitor 로. 이 강의의 <a href="lecture_018.html">L018</a> 와 직접 연결.</li>
+    <li><strong>SASS 확인</strong> — 작은 mma kernel 의 SASS dump (<code>cuobjdump --dump-sass</code>). 실제 명령이 <code>HMMA</code> / <code>QGMMA</code> 로 박혀 있는지.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Kapil Sharma — § 06 의 epilogue fusion 의 LoRA 케이스. CUTLASS abstraction 의 직접 응용</div>
+    </a>
+    <a class="conn" href="lecture_012.html">
+      <div class="n">L012</div>
+      <div class="ti">Flash Attention</div>
+      <div class="by">— FlashAttention 이 CUTLASS/CuTe 위에서 짜여 있음. 이 강의의 사용 사례</div>
+    </a>
+    <a class="conn" href="lecture_025.html">
+      <div class="n">L025</div>
+      <div class="ti">Composable Kernel (CK)</div>
+      <div class="by">Haocong Wang — AMD 의 CUTLASS 대응. 같은 idea, 다른 hardware</div>
+    </a>
+    <a class="conn" href="lecture_022.html">
+      <div class="n">L022</div>
+      <div class="ti">Speculative Decoding</div>
+      <div class="by">— § 09 의 “batch 큰 영역에서 compute-bound” 의 그 compute 자체</div>
+    </a>
+    <a class="conn" href="lecture_034.html">
+      <div class="n">L034</div>
+      <div class="ti">Low Bit Triton Kernels</div>
+      <div class="by">— § 03 의 FP8/INT4 dtype 을 Triton 에서 어떻게 다루는지의 자리</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">— § 09 의 roofline 분석 도구. NCU 의 “TC utilization” metric</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">— LLM 학습 fused 커널이 CUTLASS / Triton 위에 어떻게 올라가는지</div>
+    </a>
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">Kapil Sharma — Triton 이 자체적으로 어떻게 mma instruction 을 emit 하는지</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+
+  <ul>
+    <li><strong>WGMMA layout 의 정확한 thread 분배</strong> — 64×256×16 의 4 warp 가 element 를 어떻게 나누는지의 정확한 표는 강의에서 자세히 안 보여줌. PTX docs 직접 확인 필요.</li>
+    <li><strong>warp specialization schedule 의 trade-off</strong> — pingpong vs cooperative vs persistent 의 성능 차이가 어떤 GEMM shape 에서 어떻게 갈리는지. autotune 결과를 직접 봐야.</li>
+    <li><strong>Blackwell 의 5세대 TC</strong> — 강의 시점 (2024) 이후의 generation. 새 instruction (<code>wgmma3</code>?) 과 dtype (FP4?) 은 후속 자료.</li>
+    <li><strong>distributed shared memory 의 사용 사례</strong> — Hopper cluster 의 DSMEM 이 실제 어떤 커널에서 큰 이득을 주는지의 구체 사례는 별도 추적.</li>
+    <li><strong>CuTe 의 learning curve</strong> — type-level layout 이 처음에 매우 어렵다. 정식 학습 path (CUTLASS examples 의 어떤 순서) 는 강의에서 짧게만 언급.</li>
+    <li><strong>FP8 의 calibration</strong> — dynamic range 가 좁아 per-tensor scale 이 필요. 학습 안정성을 위한 정식 recipe 는 별도 자료.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 throughput 숫자(989 TFLOPS 등)는 NVIDIA 공식 spec sheet 의 H100 SXM 기준. 실제 측정값은 thermal/power/cooling 환경에 따라 더 낮을 수 있다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_022.html">
+    <span class="lbl">← Lecture 022</span>
+    <span class="nm">Hacker's Guide to Speculative Decoding in vLLM</span>
+  </a>
+  <a class="nxt" href="lecture_024.html">
+    <span class="lbl">Lecture 024 →</span>
+    <span class="nm">Scan at the Speed of Light — Jake Hemstad &amp; Georgii Evtushenko</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L023 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

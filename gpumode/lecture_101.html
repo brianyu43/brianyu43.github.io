@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L101 · Learning CUTLASS the hard way · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l101-hier{display:grid;grid-template-columns:1fr;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l101-hier .lvl{display:grid;grid-template-columns:140px 1fr 130px;gap:12px;padding:11px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l101-hier .lvl .lab{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:.04em}
+.l101-hier .lvl .nm{color:var(--ink);font-weight:700;font-size:13px;font-family:'Pretendard',sans-serif}
+.l101-hier .lvl .nm em{color:var(--muted);font-style:normal;font-size:11px;font-weight:500;display:block;margin-top:2px}
+.l101-hier .lvl .what{color:var(--ink-soft);text-align:right;line-height:1.45}
+.l101-hier .lvl.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l101-hier .lvl.lvl-warn{border-color:var(--warn)}
+
+.l101-loop{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.l101-loop .step{padding:11px 11px;background:var(--paper);border:1px solid var(--line);border-radius:8px;position:relative}
+.l101-loop .step .ax{color:var(--accent);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.l101-loop .step .nm{color:var(--ink);font-weight:700;font-size:12.5px;font-family:'Pretendard',sans-serif;margin-bottom:5px}
+.l101-loop .step .d{color:var(--ink-soft);line-height:1.45;font-size:11px}
+.l101-loop .step.hi{border-color:var(--accent);background:var(--bg-soft)}
+
+.l101-traps{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l101-traps .trap{padding:13px 14px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l101-traps .trap .nm{color:var(--ink);font-weight:700;font-size:13px;font-family:'Pretendard',sans-serif;margin-bottom:4px}
+.l101-traps .trap .ax{color:var(--warn);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.l101-traps .trap .d{color:var(--ink-soft);line-height:1.5}
+
+.l101-paths{display:grid;grid-template-columns:1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.l101-paths .p{display:grid;grid-template-columns:60px 1fr;gap:14px;padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:center}
+.l101-paths .p .ix{color:var(--accent);font-weight:700;font-size:18px;font-family:'Pretendard',sans-serif}
+.l101-paths .p .body .nm{color:var(--ink);font-weight:700;font-size:14px;font-family:'Pretendard',sans-serif;margin-bottom:4px}
+.l101-paths .p .body .d{color:var(--ink-soft);line-height:1.55}
+
+@media (max-width:760px){
+  .l101-hier .lvl{grid-template-columns:1fr}
+  .l101-hier .lvl .what{text-align:left}
+  .l101-loop{grid-template-columns:1fr 1fr}
+  .l101-traps{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_100.html">← L100</a>
+    <a href="lecture_102.html">L102 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L101</span>
+    <span>2025 · CUTLASS</span>
+    <span class="pri high">High priority</span>
+    <span class="stat bad">transcript · failed</span>
+  </div>
+  <h1>Learning CUTLASS the hard way</h1>
+  <p class="dek">CUTLASS — NVIDIA 의 GEMM/Attention 템플릿 라이브러리 — 가 “어렵다” 는 평판은 두 개의 <em>다른</em> 어려움이 합쳐진 결과다. C++ 템플릿 메타프로그래밍의 어려움 + GPU 아키텍처의 어려움. Kapil Sharma 가 <a href="lecture_029.html">L029 Triton Internals</a> 에 이어 같은 자세로 — <strong>“이미 도는 코드를 위에서 아래로 추적하면서 매번 한 layer 씩만 이해한다”</strong> — CUTLASS 를 풀어가는 학습 노트. 자막은 실패했으나 발표자의 공개 자료, NVIDIA / Colfax 의 tutorial, 그리고 <code>cutlass/media/docs</code> 의 정리에서 같은 path 를 재구성했다.</p>
+
+  <div class="chips">
+    <span class="chip hi">CUTLASS</span>
+    <span class="chip hi">CuTe</span>
+    <span class="chip hi">Mainloop</span>
+    <span class="chip hi">Epilogue</span>
+    <span class="chip hi">CollectiveOp</span>
+    <span class="chip">GEMM</span>
+    <span class="chip">FlashAttention</span>
+    <span class="chip">TMA</span>
+    <span class="chip">Hopper</span>
+    <span class="chip">Layout</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">K</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Kapil Sharma</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">L029 (Triton Internals) 의 같은 발표자 — practitioner-side learning notes</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L101</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Kapil Sharma</div></div>
+    <div class="cell warn"><div class="lbl">자막</div><div class="val">failed · 재구성</div></div>
+    <div class="cell good"><div class="lbl">priority</div><div class="val">High · 정독</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">왜 “the hard way”</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">CUTLASS 학습 곡선의 이유</span><span class="em">왜 어렵게 느껴지는가</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">처음 만나는 추상</span><span class="em">Mainloop · Epilogue · Collective</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">CuTe layout 의 진입</span><span class="em">Shape · Stride · Layout function</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">GEMM step-by-step</span><span class="em">tile · cp.async · WGMMA · epilogue</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">attention 응용</span><span class="em">FlashAttention3 in CUTLASS</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">자주 빠지는 함정</span><span class="em">common pitfalls</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">학습 자료 navigation</span><span class="em">어디서부터 무엇을 읽는가</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">다음 단계</span><span class="em">CuTe DSL · Python 인터페이스</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의와 잇기</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· 왜 “the hard way”</span></div>
+    <h2>“공식 example 을 따라가도 왜 GEMM 한 줄이 안 잡히는가”</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 의 공식 자료는 양도 많고 깊이도 있다. 하지만 처음 들어온 사람은 — example 을 다 돌려보고 docs 를 다 읽어도 — <strong>“내가 짠 GEMM 한 줄이 동작하지 않을 때 어디서부터 무엇을 봐야 하는가”</strong> 가 안 잡힌다. 이 강의가 풀려는 문제가 정확히 이 자리.</p>
+
+  <p>강의가 던지는 두 개의 질문.</p>
+  <ol>
+    <li><strong>CUTLASS 의 추상 hierarchy 를 어떻게 머리에 넣는가</strong> — 한 번에 다 이해하지 않고, 위에서 아래로 한 layer 씩.</li>
+    <li><strong>어떤 자료를 어떤 순서로 읽으면 학습 곡선이 가장 가파르지 않은가</strong> — 시간을 가장 적게 쓰는 path.</li>
+  </ol>
+
+  <p>발표자의 자세는 <em>practitioner-honest</em>. 이 강의는 “CUTLASS 가 쉽다” 는 광고가 아니라 — <em>“CUTLASS 가 어렵다는 사실 자체를 우회하지 않고, 그 어려움을 단계로 나누어 학습 가능한 chunk 로 만든다”</em>. L029 Triton Internals 와 같은 자세의 follow-up.</p>
+
+  <div class="callout">
+    <div class="label">강의의 인지적 frame</div>
+    <p>“the hard way” 는 더 어렵게 한다는 뜻이 아니라 — <strong>지름길을 의도적으로 거부하고, layer 별로 정확히 이해하기</strong> 의 자세. Kapil 의 메시지는 <em>“처음 한 번 정확히 따라가면 이후 GEMM kernel 은 변형”</em>.</p>
+  </div>
+
+  <div class="pull">“CUTLASS 의 헷갈림은 거의 항상 <em>두 layer 를 동시에 보려고 해서</em> 생긴다. 한 번에 한 layer.”<span class="by">학습 노트 · Kapil 의 자세</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>CUTLASS 학습 곡선의 이유</b><span>· 왜 어렵게 느껴지는가</span></div>
+    <h2>두 종류의 어려움이 한꺼번에 들어와서</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 가 어려운 이유를 분해하면 — <strong>서로 직교적인 두 차원의 어려움</strong>이 같은 코드 라인에 합쳐져 있다는 사실이 드러난다. 이 둘을 분리해서 따로따로 정복하는 게 강의의 첫 학습 전략.</p>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">차원 1 — C++ 템플릿 메타프로그래밍</h3>
+      <p>CUTLASS 는 type-level 로 모든 결정을 내린다. <em>tile size, stages, layout, swizzle, predication</em> 모두 template parameter. 한 GEMM kernel 의 type signature 가 화면 한 페이지를 넘긴다.</p>
+      <p>이 layer 의 어려움은 — <strong>error message 가 인간이 읽을 수 없는 형태</strong>로 나온다는 점. <code>candidate template ignored: substitution failure</code> 류의 SFINAE error 가 50줄로 떨어진다.</p>
+      <p>해결 전략 — <em>기존 template instantiation 을 출발점으로</em>. 빈 캔버스에서 시작하지 않고, <code>cutlass::gemm::device::Gemm&lt;...&gt;</code> 의 known-working alias 부터 시작해서 한 parameter 만 바꿔본다.</p>
+    </div>
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">차원 2 — GPU 아키텍처 디테일</h3>
+      <p>같은 코드가 — TMA, WGMMA, async copy, register tile, swizzle, predication — 모두 알아야 의미가 잡힌다. Hopper(H100) 의 새 명령들 (<code>wgmma.mma_async</code>, <code>cp.async.bulk.tensor</code>) 이 “예전 CUDA 패턴” 과 어떻게 다른지를 알아야 mainloop 가 읽힌다.</p>
+      <p>이 layer 의 어려움은 — <strong>아키텍처 변화의 절대 속도</strong>. Ampere → Hopper → Blackwell 마다 mainloop 의 큰 골격이 바뀐다. 한 번 배운 패턴이 1.5년만에 바뀐다.</p>
+      <p>해결 전략 — <em>한 아키텍처 (보통 H100) 한 케이스를 정확히 통과</em>. 그 다음 다른 케이스로 옮길 때 무엇이 변했는지를 비교 학습.</p>
+      <div class="callout cool">
+        <div class="label">Kapil 의 메시지</div>
+        <p>“두 차원을 동시에 풀려고 하지 마라. <em>먼저 C++ 으로</em> 한 known-working kernel 을 손에 잡고 빌드 → 실행 → 측정. <em>그 다음에야</em> mainloop 안의 cp.async 한 줄을 이해하기 시작한다.”</p>
+      </div>
+    </div>
+  </div>
+
+  <p>그래서 학습 곡선은 — 머리 속에서는 한 곡선이지만 — 실제로는 <strong>두 곡선의 합</strong>이다. 한 쪽을 평평하게 만들고 다른 쪽을 올라가는 게 “the hard way” 의 진짜 의미.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>처음 만나는 추상</b><span>· Mainloop · Epilogue · CollectiveOp</span></div>
+    <h2>CUTLASS 3.x 의 class hierarchy — 큰 골격</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 3.x (CuTe-based) 의 한 GEMM kernel 의 클래스 hierarchy 를 layer 로 풀면 다음 5 단. 위에서 아래로 — 각 layer 가 무엇을 결정하고 무엇을 다음 layer 에 위임하는지.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · CUTLASS 3.x GEMM 의 class hierarchy</span><span>top-down 학습 path</span></div>
+    <div class="l101-hier">
+      <div class="lvl">
+        <span class="lab">LEVEL 0</span>
+        <span class="nm">cutlass::gemm::device::GemmUniversalAdapter<em>사용자 facing — kernel 을 launch</em></span>
+        <span class="what">한 줄로 GEMM 을 호출. 내부의 type 결정은 모두 wrapped.</span>
+      </div>
+      <div class="lvl">
+        <span class="lab">LEVEL 1</span>
+        <span class="nm">kernel::GemmUniversal&lt;CollectiveMainloop, CollectiveEpilogue, TileScheduler&gt;<em>kernel 진입점</em></span>
+        <span class="what">grid 의 전체 흐름 — for tile : load → compute → store. 세 동료가 합쳐서 한 SM 에서 한 tile 을 처리.</span>
+      </div>
+      <div class="lvl hi">
+        <span class="lab">LEVEL 2</span>
+        <span class="nm">collective::CollectiveMma<em>mainloop = data load + tensor core math</em></span>
+        <span class="what">cp.async.bulk + wgmma 의 stage-pipelined loop. 가장 “GEMM 답다”.</span>
+      </div>
+      <div class="lvl hi">
+        <span class="lab">LEVEL 3</span>
+        <span class="nm">collective::CollectiveEpilogue<em>epilogue = bias + activation + store</em></span>
+        <span class="what">accumulator 를 register 에서 받아 fused op (relu, scale, bias) 후 global mem 에 store. activation 도 여기.</span>
+      </div>
+      <div class="lvl">
+        <span class="lab">LEVEL 4</span>
+        <span class="nm">cute::* primitives<em>copy / mma / tile / partition</em></span>
+        <span class="what">위 모든 layer 의 building block. <code>cute::copy</code>, <code>cute::gemm</code>, <code>cute::partition_S</code>, <code>cute::local_tile</code>.</span>
+      </div>
+    </div>
+    <div class="viz-note">CUTLASS 2.x 는 같은 일을 다른 단으로 나눴다 (warp-level / threadblock-level / device-level). 3.x 의 가장 큰 변화는 — <strong>collective</strong> 추상이 mainloop 와 epilogue 를 분리해 user 가 둘 중 하나만 swap 하기 쉬워졌다는 것.</div>
+  </div>
+
+  <div class="callout">
+    <div class="label">학습의 첫 stop</div>
+    <p>처음 한 달은 — Level 0–1 만 본다. 즉 <strong>“GEMM 을 한 번 launch” 까지만</strong>. <code>device::GemmUniversalAdapter</code> 의 type alias 를 가져와 example 을 컴파일하고 측정. mainloop 안은 보지 않는다. 이 단계에서 “CUTLASS 의 빌드 시스템이 어떤 모양” 만 손에 잡힌다.</p>
+  </div>
+
+  <p>두 번째 달 — Level 2 (mainloop) 만. epilogue 는 그대로 두고 mainloop 안의 stages 와 tile size 를 바꿔본다. <em>“성능이 어디서 만들어지는가”</em> 의 첫 답이 여기서 나온다.</p>
+  <p>세 번째 달 — Level 3 (epilogue). bias / activation / scaling 의 fused 패턴을 직접 짜본다. 이 단계에서 처음으로 <em>CuTe 의 layout</em>을 만지게 된다 — accumulator → output tensor 의 mapping.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>CuTe layout 의 진입</b><span>· Shape · Stride · Layout function</span></div>
+    <h2>CUTLASS 3.x 의 모든 길은 CuTe layout 을 거친다</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 2.x 에서는 layout 이 <em>iterator pattern</em> 으로 표현됐다. 3.x 부터는 layout 이 일급 객체 — <strong><code>Layout = (Shape, Stride)</code></strong>. 이 한 줄을 정확히 이해하는 게 모든 mainloop / epilogue 코드의 출발점.</p>
+
+  <div class="split rev">
+    <div>
+<pre><code><span style="color:#A99E89">// 가장 단순한 row-major 4×2</span>
+<span style="color:#E7B369">using</span> ShapeA  = Shape&lt;_4, _2&gt;;
+<span style="color:#E7B369">using</span> StrideA = Stride&lt;_2, _1&gt;;
+<span style="color:#E7B369">using</span> LayoutA = Layout&lt;ShapeA, StrideA&gt;;
+
+<span style="color:#A99E89">// 좌표 (i,j) → index = 2*i + 1*j</span>
+
+<span style="color:#A99E89">// hierarchical — block 안에 sub-block</span>
+<span style="color:#E7B369">using</span> Hier = Layout&lt;Shape&lt;_2, Shape&lt;_2,_2&gt;&gt;,
+                     Stride&lt;_4, Stride&lt;_2,_1&gt;&gt;&gt;;
+
+<span style="color:#A99E89">// 좌표 (i, (j0, j1)) → index = 4*i + 2*j0 + 1*j1</span></code></pre>
+      <p>두 예시의 차이가 — <em>“flat layout 만으로는 표현 못하는 구조가 hierarchical 로 자연스럽게 표현된다”</em> — CuTe 의 가장 큰 contribution 의 한 면.</p>
+    </div>
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">Layout = 좌표 → index 의 함수</h3>
+      <p>핵심 직관 한 줄 — <strong>“Layout 은 함수다.”</strong> 좌표 (자연 좌표 또는 1-D 좌표) 를 받아 메모리 index 를 돌려준다. <code>crd2idx(coord, layout)</code> 가 그 함수.</p>
+      <ul>
+        <li><strong>Shape</strong> — 도메인 (좌표 공간).</li>
+        <li><strong>Stride</strong> — 좌표를 index 로 mapping 하는 가중치.</li>
+        <li><strong>Layout(coord)</strong> — Shape 의 좌표를 받아 Stride 와 inner product 한 값.</li>
+      </ul>
+      <div class="callout cool">
+        <div class="label">왜 함수로 봐야 하는가</div>
+        <p>모든 layout algebra (composition, divide, product, complement) 가 <em>함수의 합성과 분해</em> 의 의미를 갖는다. 이 시각이 잡히면 <code>logical_divide</code> 같은 연산이 자연스럽게 “tile 로 자르기” 의 의미로 보인다.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:17px;margin:18px 0 8px;color:var(--ink)">layout algebra — 자주 쓰는 5 연산</h3>
+  <div class="terms">
+    <div class="term">
+      <div class="t">coalesce</div>
+      <div class="d">호환 가능한 mode 들을 합쳐 더 단순한 layout 으로. <code>(_2,_4):(_1,_2)</code> → <code>_8:_1</code>. 같은 함수, 더 짧은 표기.</div>
+    </div>
+    <div class="term">
+      <div class="t">composition (∘)</div>
+      <div class="d">함수 합성. <code>R(c) = A(B(c))</code>. 1-D layout 을 2-D 로 다시 보거나, 한 layout 을 다른 layout 으로 “관통” 하기.</div>
+    </div>
+    <div class="term">
+      <div class="t">complement</div>
+      <div class="d">한 layout 이 안 채운 자리. tile 의 “나머지” 를 표현. divide 의 짝.</div>
+    </div>
+    <div class="term">
+      <div class="t">logical_divide</div>
+      <div class="d">tile 로 자르기 — “건드리는 좌표 vs 안 건드리는 좌표” 로 분해. <em>이게 “tiling” 의 정식 정의</em>.</div>
+    </div>
+    <div class="term">
+      <div class="t">logical_product</div>
+      <div class="d">한 layout 을 다른 layout 의 모양대로 복제. tile 의 grid 를 만들 때.</div>
+    </div>
+    <div class="term">
+      <div class="t">zipped_divide / blocked_product</div>
+      <div class="d">divide / product 의 사용자 친화 wrapper. tile 별로 좌표 접근이 깔끔해진다.</div>
+    </div>
+  </div>
+
+  <div class="pull">“Layout 을 함수로 보지 못하면 — divide, product, complement 가 모두 magical 하게 느껴진다. 함수로 본 뒤에는 — <em>당연한 합성/분해</em> 다.”<span class="by">학습 노트</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>GEMM step-by-step</b><span>· tile · cp.async.bulk · WGMMA · epilogue</span></div>
+    <h2>한 SM 에서 한 tile 이 도는 동안 무슨 일이 벌어지는가</h2>
+  </div>
+  <p class="sec-lede">강의의 본론. 강의가 한 번에 정확히 따라간다고 약속한 “한 case” — Hopper (sm_90) FP16 GEMM. 이 한 케이스의 mainloop step-by-step 을 따라가면 다른 케이스 (FP8, sparse, FP4) 가 변형으로 보인다.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Hopper FP16 GEMM mainloop 의 한 stage</span><span>cp.async.bulk → wait → wgmma</span></div>
+    <div class="l101-loop">
+      <div class="step">
+        <div class="ax">step 01</div>
+        <div class="nm">TMA producer warpgroup</div>
+        <div class="d">한 warpgroup 이 <code>cp.async.bulk.tensor</code> 로 GMEM → SMEM. 비동기. 다른 warpgroup 이 동시에 다른 일을 한다.</div>
+      </div>
+      <div class="step">
+        <div class="ax">step 02</div>
+        <div class="nm">mbarrier wait</div>
+        <div class="d">consumer warpgroup 이 <code>mbarrier::wait</code> 로 도착 대기. async barrier 가 stage 간 dependency 를 잡는다.</div>
+      </div>
+      <div class="step hi">
+        <div class="ax">step 03</div>
+        <div class="nm">wgmma issue</div>
+        <div class="d">consumer 가 <code>wgmma.mma_async.sync</code> 발행. SMEM 의 A · B 타일을 register accumulator 에 곱해 더한다. async — 다음 wgmma 와 overlap.</div>
+      </div>
+      <div class="step">
+        <div class="ax">step 04</div>
+        <div class="nm">commit + arrive</div>
+        <div class="d">consumer 가 <code>wgmma.commit_group</code> 후 다음 mbarrier 에 <code>arrive</code>. producer 가 다음 stage 의 load 를 시작.</div>
+      </div>
+      <div class="step">
+        <div class="ax">step 05</div>
+        <div class="nm">accumulator 누적</div>
+        <div class="d">K 차원의 모든 tile 이 끝나면 register 에 partial dot product 가 쌓여 있음. 이것이 epilogue 의 input.</div>
+      </div>
+      <div class="step hi">
+        <div class="ax">step 06</div>
+        <div class="nm">epilogue: scale/bias</div>
+        <div class="d">accumulator 에 alpha, bias, activation (relu/gelu) 를 register 에서 fused. 별도 kernel launch 없음.</div>
+      </div>
+      <div class="step">
+        <div class="ax">step 07</div>
+        <div class="nm">SMEM 으로 cooperative store</div>
+        <div class="d">register → SMEM. swizzle 을 풀어 align. store 의 coalescing 을 위한 staging.</div>
+      </div>
+      <div class="step">
+        <div class="ax">step 08</div>
+        <div class="nm">SMEM → GMEM</div>
+        <div class="d"><code>cp.async.bulk</code> 또는 ld/st 로 결과 write. tile 종료. tile scheduler 가 다음 tile 을 할당.</div>
+      </div>
+    </div>
+    <div class="viz-note">위 흐름의 두 가지 중요한 통찰 — (1) <strong>async</strong> 가 모든 단계를 관통한다 (load, mma, store 모두 async). (2) <strong>warpgroup specialization</strong>: 한 warpgroup 이 producer (load), 다른 warpgroup 이 consumer (mma). 이 producer-consumer pattern 이 Hopper 의 새 mainloop 의 근본 형태.</div>
+  </div>
+
+  <div class="split">
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">tile size 의 결정 logic</h3>
+      <p>한 tile 의 크기 (<code>BM × BN × BK</code>) 는 — <strong>(1) accumulator 가 register 에 들어가야 한다</strong> + <strong>(2) SMEM 에 stage × (A_tile + B_tile) 이 들어가야 한다</strong> 의 두 부등식으로 결정된다.</p>
+      <p>H100 의 register file 64K × FP32 / SM 와 SMEM 228KB / SM 가 이 부등식의 우항. K 차원의 tile size (<code>BK</code>) 는 작아도 되는 (보통 32–128) 데 비해 M/N (보통 64–128) 가 커지면 register 가 빠르게 차오른다.</p>
+      <p>대표적 setup — <code>BM=BN=128, BK=64, stages=3 or 4</code>. WGMMA 의 native shape (m64n*k16 등) 의 multiple 로 맞춰져야 한다.</p>
+    </div>
+    <div>
+      <h3 style="font-size:17px;margin:0 0 10px;color:var(--ink)">왜 stages 가 필요한가</h3>
+      <p>load 와 mma 가 async 라도 — load 가 끝나기 전에 mma 가 시작되려면 다른 stage 의 데이터를 미리 가져와 둬야 한다. 그래서 <em>stages = 3 또는 4</em> 가 표준. 한 stage 가 mma 중일 때 다음 stage 가 load 중, 그 다음 stage 가 wait, 가장 멀리는 commit.</p>
+      <p>stages 늘리면 latency hiding 이 좋아지는 대신 SMEM 사용량 증가. <strong>SMEM 은 occupancy 의 직접적 결정 요소</strong>이므로 무한정 늘릴 수 없음. 측정해서 결정.</p>
+      <div class="callout">
+        <div class="label">학습 trick</div>
+        <p>tile size 와 stages 의 변화에 따른 throughput 곡선을 직접 그려본다. CUTLASS 의 <code>profiler</code> tool 이 같은 일을 자동화. 한 GPU 에 한 모델 × 한 dtype 의 sweet spot 을 한 번 찾아두면 다음 변형은 이 baseline 의 작은 이동.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>attention 응용</b><span>· FlashAttention3 in CUTLASS</span></div>
+    <h2>같은 mainloop 가 attention 에서 어떻게 변형되는가</h2>
+  </div>
+  <p class="sec-lede">강의의 응용 파트. <strong>FlashAttention-3</strong> 의 reference 구현이 사실상 CUTLASS 위에 쓰여 있다. GEMM 의 mainloop 와 attention 의 mainloop 의 공통점/차이점을 정리하면 — 한 번 GEMM 을 이해하고 attention 으로 옮길 때 어디만 새로 봐야 하는지가 명확해진다.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">공통: producer-consumer warpgroup</div>
+      <div class="d">FA3 도 TMA producer + WGMMA consumer 의 같은 골격. async pipeline 의 stage 수를 attention 의 K 차원이 아닌 sequence 차원에 맞춤.</div>
+    </div>
+    <div class="term">
+      <div class="t">공통: register accumulator</div>
+      <div class="d">QK^T 의 partial dot product 가 register 에 쌓임. softmax 가 그 위에서 register-fused.</div>
+    </div>
+    <div class="term">
+      <div class="t">차이: online softmax</div>
+      <div class="d">attention 만의 핵심 — running max + running sum 으로 softmax 를 streaming. 매 KV tile 마다 accumulator 를 rescale. GEMM 에는 없는 pattern.</div>
+    </div>
+    <div class="term">
+      <div class="t">차이: 두 GEMM</div>
+      <div class="d">QK^T 와 softmax-V. 한 mainloop 안에 GEMM 이 두 번. softmax 가 사이를 잇는다.</div>
+    </div>
+    <div class="term">
+      <div class="t">차이: causal masking</div>
+      <div class="d">tile 의 일부만 valid. predication 이 GEMM 보다 복잡.</div>
+    </div>
+    <div class="term">
+      <div class="t">차이: head/batch fusion</div>
+      <div class="d">batch × heads × seq 의 큰 grid. CTA 별 work assignment 가 GEMM 의 단순한 (M/BM, N/BN) 보다 복잡.</div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">학습 path</div>
+    <p>먼저 CUTLASS 의 <code>flash_attention</code> example 을 build → 측정. 그 다음 mainloop 의 두 GEMM 부분을 따로 떼어 GEMM 처럼 본다. 마지막으로 그 사이의 online softmax 를 추가. 이 순서를 거꾸로 (softmax 부터) 가면 길을 잃는다.</p>
+  </div>
+
+  <p>FA3 가 H100 위에서 <strong>WGMMA + TMA + warp specialization 의 모든 기능</strong>을 한꺼번에 동원한다. 이 한 example 을 따라가면 — Hopper 시대의 모든 “fast kernel” 이 같은 패턴이라는 사실이 잡힌다. <a href="lecture_086.html">L086 — FlashAttention 3</a> 와 <a href="lecture_057.html">L057 — CuTe</a> 가 같은 자리의 깊이 보충.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>자주 빠지는 함정</b><span>· common pitfalls</span></div>
+    <h2>강의가 직접 거론할 가능성이 큰 — 그리고 첫 학습자가 거의 확실히 빠지는 — 함정들</h2>
+  </div>
+
+  <div class="l101-traps">
+    <div class="trap">
+      <div class="ax">PITFALL 01</div>
+      <div class="nm">layout 의 row-major / col-major 를 직접 “기억” 하려 함</div>
+      <div class="d">CUTLASS 는 보통 <code>cutlass::layout::RowMajor</code> 같은 type 을 쓴다. 이걸 외우려 들면 거의 항상 다른 example 에서 막힌다. 대신 — <em>“이 layout 의 stride 가 무엇인가”</em> 만 본다. row-major 4×N → stride (N, 1).</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 02</div>
+      <div class="nm">SFINAE error 메세지를 다 읽으려 함</div>
+      <div class="d">한 줄에서 시작된 type mismatch 가 50줄이 되어 표시. 원인은 보통 첫 줄. <em>“candidate template ignored”</em> 의 첫 mismatch 만 보고 — type alias 가 어디가 어긋났는지 추적.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 03</div>
+      <div class="nm">tile size 를 빠르게 바꿔보려 함</div>
+      <div class="d">tile size 변경은 — collective config 를 다시 instantiate 하는 일. 한 줄 바꿔도 build 가 5 분. <em>한 build 에 한 변경</em> 만 하고 측정.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 04</div>
+      <div class="nm">CuTe 와 CUTLASS 2.x 추상을 섞음</div>
+      <div class="d">old example 들이 아직 많아서 — Iterator pattern 과 Layout 이 한 codebase 에 같이 있다. <em>3.x 위주로 학습 시작</em> — 2.x 는 maintenance 코드만.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 05</div>
+      <div class="nm">NCU profile 을 mainloop 안 한 줄로 매핑하려 함</div>
+      <div class="d">async pipeline 때문에 NCU 의 “line-level” 매핑이 실제 cause 와 다르게 보임. <em>“한 stage 가 어디서 막혔는가”</em> 의 stage-level 시각으로 본다.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 06</div>
+      <div class="nm">epilogue 의 fusion 을 mainloop 에 끼워넣으려 함</div>
+      <div class="d">CUTLASS 3.x 의 분리는 의도적. mainloop 는 mma 만, epilogue 는 store 직전 fused op 만. 둘을 섞기 시작하면 hierarchy 의 가치를 잃는다.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 07</div>
+      <div class="nm">아키텍처 detection 을 무시</div>
+      <div class="d"><code>__CUDA_ARCH__</code> 분기 없이 짠 코드는 — sm_80 에서는 cp.async, sm_90 에서는 cp.async.bulk 를 쓰는 — 패턴을 망친다. <em>arch 별 specialization</em> 은 처음부터 의식.</div>
+    </div>
+    <div class="trap">
+      <div class="ax">PITFALL 08</div>
+      <div class="nm">Python wrapper 부터 시작</div>
+      <div class="d">cutlass-python (CuTe DSL) 이 매력적이지만 — 처음 학습은 C++ template 으로. Python 의 추상이 무엇을 감추는지를 알아야 디버그 가능.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>학습 자료 navigation</b><span>· 어디서부터 무엇을 읽는가</span></div>
+    <h2>학습 시간을 가장 적게 쓰는 path</h2>
+  </div>
+  <p class="sec-lede">CUTLASS 와 CuTe 의 자료는 <em>너무 많고 산재</em>. 어떤 자료를 어떤 순서로 읽으면 학습 곡선이 가장 가파르지 않은지 — 강의의 가장 실용적인 부분이자 강의 후 가장 자주 다시 보게 되는 자리.</p>
+
+  <div class="l101-paths">
+    <div class="p">
+      <span class="ix">01</span>
+      <span class="body">
+        <span class="nm">CUTLASS quickstart (cutlass/media/docs/cute/00_quickstart.md)</span>
+        <span class="d">CuTe 의 가장 작은 entry. Layout = (Shape, Stride) 의 정의 + 좌표 mapping. 30분.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">02</span>
+      <span class="body">
+        <span class="nm">cute/01_layout.md · 02_layout_algebra.md</span>
+        <span class="d">composition / divide / product / complement 의 정의와 직관. 한 시간씩.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">03</span>
+      <span class="body">
+        <span class="nm">CUTLASS gemm/00_basic_gemm example (build & run)</span>
+        <span class="d">아무것도 수정하지 말고 그대로. Level 0–1 만. 컴파일이 도는 환경 확보 그 자체가 가치.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">04</span>
+      <span class="body">
+        <span class="nm">Colfax Research — “Tutorial: Matrix Transpose in CUTLASS”</span>
+        <span class="d">SMEM swizzle 의 의미를 잡는 가장 좋은 단일 자료. naïve → SMEM → swizzle 의 3 단계 구체 실험.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">05</span>
+      <span class="body">
+        <span class="nm">Colfax — “Mastering the NVIDIA TMA”</span>
+        <span class="d">Hopper 의 cp.async.bulk.tensor 의 정확한 모양. mainloop 의 producer 부분을 읽기 위한 prerequisite.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">06</span>
+      <span class="body">
+        <span class="nm">CUTLASS 3.x examples/cute/tutorial</span>
+        <span class="d">step-by-step 의 가장 정련된 path. transpose, copy, sgemm 을 거쳐 hopper gemm.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">07</span>
+      <span class="body">
+        <span class="nm">FlashAttention-3 (CUTLASS-based 구현)</span>
+        <span class="d">attention 응용. mainloop + online softmax + warp specialization 한 자리에서.</span>
+      </span>
+    </div>
+    <div class="p">
+      <span class="ix">08</span>
+      <span class="body">
+        <span class="nm">Jay Shah / Pradeep Ramani — “Fundamentals of CuTe Layout Algebra”</span>
+        <span class="d">L103 의 자료. category-theoretic 시각으로 layout algebra 를 다시 정리.</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">강의의 한 줄 권고</div>
+    <p>“이 path 는 약 3 개월 걸린다. 1 주에 한 자료 + 한 코드 변형. 짧게 가려는 시도 (예: 한 주 안에 다 끝내려는 시도) 는 거의 항상 실패한다 — Kapil 자신이 그렇게 시도했다고 (확인 필요). hard way 의 진짜 의미가 시간 자체.”</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>다음 단계</b><span>· CuTe DSL · Python · CUTLASS 4</span></div>
+    <h2>이 강의 이후 가야 할 자리</h2>
+  </div>
+
+  <ul>
+    <li><strong>CuTe DSL (Python)</strong> — CUTLASS 의 layout algebra 를 Python 에서 직접. 빠른 prototyping. 단 — C++ 으로 한 번 통과한 뒤에 옮기는 게 좋다.</li>
+    <li><strong>CUTLASS 4 (Blackwell)</strong> — sm_100 의 새 명령들, FP4 / FP6 native, 새 TMA 변형. 큰 mainloop 변화. 학습한 H100 골격이 80% 는 옮아간다.</li>
+    <li><strong>QuTLASS</strong> — IST-DASLab 의 CUTLASS-기반 quantized BLAS. MXFP4 / NVFP4 의 GEMM 을 보고 싶다면. <a href="lecture_102.html">L102 Quartet v2</a> 와 직접 연결.</li>
+    <li><strong>Triton 과의 비교</strong> — 같은 GEMM 을 Triton 으로 짜고 CUTLASS 와 비교. 두 stack 의 trade-off (제어 vs 생산성) 가 손에 잡힌다. <a href="lecture_029.html">L029</a> 와 같은 시리즈.</li>
+    <li><strong>custom mainloop</strong> — 자기 모델 / 자기 dtype 의 mainloop 를 직접. 이 단계가 진정한 “CUTLASS practitioner” 의 출발점.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모</b><span>· key takeaways · refs</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">두 차원 분리</div>
+      <div class="d">C++ template 의 어려움 vs GPU 아키텍처의 어려움. 한 번에 한 차원만 풀어라.</div>
+    </div>
+    <div class="term">
+      <div class="t">5-layer hierarchy</div>
+      <div class="d">device adapter → kernel → CollectiveMma → CollectiveEpilogue → cute primitives. 위에서 아래로 한 layer 씩.</div>
+    </div>
+    <div class="term">
+      <div class="t">Layout = 함수</div>
+      <div class="d"><code>(Shape, Stride)</code> 가 좌표 → index 의 함수. 모든 layout algebra 는 이 함수의 합성/분해.</div>
+    </div>
+    <div class="term">
+      <div class="t">producer-consumer warpgroup</div>
+      <div class="d">Hopper mainloop 의 본질. TMA producer + WGMMA consumer + mbarrier 의 stage pipeline.</div>
+    </div>
+    <div class="term">
+      <div class="t">tile sizing</div>
+      <div class="d">accumulator(register) + stage×(A+B)(SMEM) 의 두 부등식이 결정. 보통 BM=BN=128, BK=64, stages=3~4.</div>
+    </div>
+    <div class="term">
+      <div class="t">epilogue 분리</div>
+      <div class="d">CUTLASS 3.x 의 의도. mainloop 와 epilogue 를 따로 swap. fused activation 은 epilogue 만 변경.</div>
+    </div>
+    <div class="term">
+      <div class="t">FA3 = 두 GEMM + online softmax</div>
+      <div class="d">attention 의 mainloop 는 GEMM mainloop 의 두 번 + 그 사이 streaming softmax. 학습 path 의 자연스러운 다음 step.</div>
+    </div>
+    <div class="term">
+      <div class="t">학습 시간</div>
+      <div class="d">정직한 path 는 3 개월. 짧게 가려는 시도는 거의 실패. weekly 한 자료 + 한 코드 변형.</div>
+    </div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=jGouxuAHIfQ" target="_blank" rel="noopener">youtube.com/watch?v=jGouxuAHIfQ</a> · transcript failed</span>
+    </div>
+    <div class="row">
+      <span class="k">CUTLASS</span>
+      <span class="v"><a href="https://github.com/NVIDIA/cutlass" target="_blank" rel="noopener">github.com/NVIDIA/cutlass</a> · CUTLASS + CuTe</span>
+    </div>
+    <div class="row">
+      <span class="k">CuTe docs</span>
+      <span class="v"><a href="https://github.com/NVIDIA/cutlass/tree/main/media/docs/cpp/cute" target="_blank" rel="noopener">cutlass/media/docs/cpp/cute</a> · 00_quickstart, 01_layout, 02_layout_algebra</span>
+    </div>
+    <div class="row">
+      <span class="k">Colfax tutorials</span>
+      <span class="v"><a href="https://research.colfax-intl.com/tutorial-matrix-transpose-in-cutlass/" target="_blank" rel="noopener">colfax-intl.com matrix transpose</a> · TMA tutorial · pingpong GEMM</span>
+    </div>
+    <div class="row">
+      <span class="k">FlashAttention-3</span>
+      <span class="v"><a href="https://github.com/Dao-AILab/flash-attention" target="_blank" rel="noopener">github.com/Dao-AILab/flash-attention</a> · CUTLASS-based reference</span>
+    </div>
+    <div class="row">
+      <span class="k">L029</span>
+      <span class="v"><a href="lecture_029.html">Triton Internals</a> · 같은 발표자, 같은 자세의 prequel</span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 12주 path</h3>
+  <ol class="ex-list">
+    <li><strong>주 1</strong> — CUTLASS clone, build env (CUDA 12.x, sm_90 capable GPU), <code>00_basic_gemm</code> example 을 그대로 build & run. 측정만.</li>
+    <li><strong>주 2</strong> — CuTe quickstart 와 01_layout. 좌표 → index 의 함수 식 직접 손으로. 5 개의 layout 예시를 실제 메모리 mapping 으로 그림.</li>
+    <li><strong>주 3</strong> — 02_layout_algebra. <code>logical_divide</code> 와 <code>logical_product</code> 의 작은 예시들 (tile of 4×4 in 16×16) 직접 풀어보기.</li>
+    <li><strong>주 4</strong> — Colfax matrix transpose tutorial. 세 단계 (naïve, SMEM, swizzle) 를 모두 build 해 측정. swizzle 이 왜 bank conflict 를 푸는지 손에 잡힐 때까지.</li>
+    <li><strong>주 5</strong> — Colfax TMA tutorial. cp.async.bulk.tensor 의 mode (load, store, multicast) 한 번씩 실행.</li>
+    <li><strong>주 6</strong> — CUTLASS <code>examples/cute/tutorial</code> 의 sgemm path. 한 mainloop 의 한 stage 의 모든 step 을 손으로 그려본다.</li>
+    <li><strong>주 7</strong> — Hopper GEMM example. tile size 한 번, stages 한 번 변경. 측정 비교.</li>
+    <li><strong>주 8</strong> — epilogue swap. activation (relu) 추가, bias 추가 — 같은 mainloop 위에 다른 epilogue 만.</li>
+    <li><strong>주 9</strong> — FlashAttention example build. mainloop 두 GEMM 부분만 분리해 GEMM 처럼 본다.</li>
+    <li><strong>주 10</strong> — online softmax 의 의미 손으로. running max + running sum 의 invariant.</li>
+    <li><strong>주 11</strong> — NCU 로 mainloop profile. async pipeline 의 stage-level 시각으로 stall 추적.</li>
+    <li><strong>주 12</strong> — 자기 모델의 한 GEMM 을 CUTLASS 로 짜본다. 첫 “custom” mainloop. 이 시점이 강의가 약속한 “practitioner” 진입점.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>L101 의 path 가 다른 강의들에서 깊이 보충되는 자리</h2>
+  </div>
+  <div class="conns">
+    <a class="conn" href="lecture_029.html">
+      <div class="n">L029</div>
+      <div class="ti">Triton Internals</div>
+      <div class="by">같은 발표자 — “the hard way” 의 Triton 판. 자세의 prequel</div>
+    </a>
+    <a class="conn" href="lecture_057.html">
+      <div class="n">L057</div>
+      <div class="ti">CuTe</div>
+      <div class="by">CuTe 의 정식 introduction — § 04 layout 의 깊이 보충</div>
+    </a>
+    <a class="conn" href="lecture_086.html">
+      <div class="n">L086</div>
+      <div class="ti">FlashAttention 3</div>
+      <div class="by">§ 06 attention 응용의 본격 — Hopper 위 producer-consumer 의 표본</div>
+    </a>
+    <a class="conn" href="lecture_103.html">
+      <div class="n">L103</div>
+      <div class="ti">CuTe Layout Algebra (category)</div>
+      <div class="by">§ 04 의 수학적 기반 — Jack Carlisle / Jay Shah 의 정리</div>
+    </a>
+    <a class="conn" href="lecture_102.html">
+      <div class="n">L102</div>
+      <div class="ti">Quartet v2</div>
+      <div class="by">QuTLASS 의 FP4 mainloop — CUTLASS 위 응용</div>
+    </a>
+    <a class="conn" href="lecture_104.html">
+      <div class="n">L104</div>
+      <div class="ti">Gluon · Linear Layouts</div>
+      <div class="by">Triton 측 layout 추상 — CUTLASS 와 비교 시각</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA kernel profiling</div>
+      <div class="by">NCU profile 을 stage-level 로 읽는 dev-side 도구</div>
+    </a>
+    <a class="conn" href="lecture_008.html">
+      <div class="n">L008</div>
+      <div class="ti">CUDA Performance Checklist</div>
+      <div class="by">tile size sweep 의 hint 들 — CUTLASS profile 을 해석할 때</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>강의에서 직접 보여준 예제</strong> — Kapil 이 어떤 specific kernel 을 라이브로 풀어가며 보여줬는지 자막 실패로 확인 안 됨. 본인 GitHub repo 에 동반 코드가 있을 가능성. (확인 필요)</li>
+    <li><strong>CUTLASS 4 / Blackwell</strong> 의 변화점이 이 강의의 어디까지 다뤄졌는지 — 발표 시점 (2025) 에 따라 다름. (확인 필요)</li>
+    <li><strong>CuTe DSL (Python)</strong> 에 대한 발표자의 입장 — “Python 으로 옮긴 학습 path” 가 권고되었는지 / 거부되었는지. (확인 필요)</li>
+    <li><strong>사용자 정의 epilogue 의 fusion 패턴</strong> — softmax / layernorm 같은 더 복잡한 fused epilogue 가 다뤄졌는지. (확인 필요)</li>
+    <li><strong>WGMMA 의 swizzle pattern</strong> — Hopper 의 swizzle 이 layout algebra 로 어떻게 표현되는지의 구체 — 강의에서 깊게 들어갔을 가능성 큼. (확인 필요)</li>
+    <li><strong>Triton 과의 직접 throughput 비교</strong> — 같은 GEMM 의 Triton vs CUTLASS 측정이 발표 안에서 시연됐는지. (확인 필요)</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 mainloop step (§ 05) 과 hierarchy (§ 03) 는 <strong>CUTLASS 3.x 의 공식 docs (cute/00–02), Colfax 의 tutorial 시리즈, FlashAttention-3 의 reference 구현</strong>으로부터 일반화. Kapil 의 강의가 같은 path 를 따랐을 가능성이 매우 높지만 (L029 의 자세를 봤을 때) — 구체적 demo 와 코드는 비디오 재시청과 본인 repo 확인 필요.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a class="prv" href="lecture_100.html">
+    <span class="lbl">← Lecture 100</span>
+    <span class="nm">InferenceX — Continuous OSS Inference Benchmarking</span>
+  </a>
+  <a class="nxt" href="lecture_102.html">
+    <span class="lbl">Lecture 102 →</span>
+    <span class="nm">Quartet v2 — FP4 training</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L101 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>

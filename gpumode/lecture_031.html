@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L031 · Beginners Guide to Metal · GPU Mode Lecture Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=2">
+<style>
+.l31-pipe{font-family:'JetBrains Mono',monospace;font-size:12px;display:grid;grid-template-columns:1fr;gap:8px}
+.l31-pipe .stage{display:grid;grid-template-columns:120px 1fr 200px;gap:14px;padding:12px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px;align-items:start}
+.l31-pipe .stage .lvl{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.04em}
+.l31-pipe .stage .nm{color:var(--ink);font-weight:600;font-family:'Pretendard',sans-serif;font-size:14px}
+.l31-pipe .stage .nm em{font-style:normal;color:var(--ink-soft);font-weight:400;font-size:12.5px;display:block;margin-top:4px;line-height:1.5}
+.l31-pipe .stage .what{font-size:11px;color:var(--muted);text-align:right;font-family:'JetBrains Mono',monospace;line-height:1.5}
+.l31-pipe .stage.hi{border-color:var(--accent);background:var(--bg-soft)}
+.l31-tab{font-family:'JetBrains Mono',monospace;font-size:12px}
+.l31-tab .row{display:grid;grid-template-columns:160px 1fr 1fr;gap:14px;padding:9px 14px;background:var(--paper);border-bottom:1px dotted var(--line-soft);align-items:baseline}
+.l31-tab .row:last-child{border-bottom:none}
+.l31-tab .row.h{background:var(--bg-soft);color:var(--muted);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+.l31-tab .row .who{color:var(--muted);font-size:11px;letter-spacing:.1em}
+.l31-tab .row .ml{color:var(--ink);font-size:13px}
+.l31-tab .row .mt{color:var(--accent);font-weight:600;font-size:13px}
+.l31-uni{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.l31-uni .col{padding:14px 16px;background:var(--paper);border:1px solid var(--line);border-radius:8px}
+.l31-uni .col .t{color:var(--accent);font-family:'Pretendard',sans-serif;font-weight:700;font-size:14px;margin-bottom:6px}
+.l31-uni .col .d{color:var(--ink-soft);font-size:12.5px;line-height:1.6}
+.l31-uni .col.right{border-color:var(--accent)}
+@media (max-width:760px){
+  .l31-pipe .stage{grid-template-columns:1fr}
+  .l31-tab .row{grid-template-columns:1fr}
+  .l31-uni{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><em>gpu</em>mode · 강의 아카이브</div>
+  <nav>
+    <a href="index.html">Index</a>
+    <a href="lecture_030.html">← L030</a>
+    <a href="lecture_032.html">L032 →</a>
+    <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener">Repo</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">
+    <span class="stack">《GPU Mode》</span>
+    <span class="epn">L031</span>
+    <span>2024 · OCT · 12</span>
+    <span class="pri high">High priority</span>
+    <span class="stat ok">transcript · available</span>
+  </div>
+  <h1>Beginners Guide to Metal</h1>
+  <p class="dek">MacBook 의 GPU 위에서 어떻게 ML 코드를 짜고 디버깅할 것인가 — Nikita Shulga 가 PyTorch 의 MPS backend 를 만든 사람의 시점에서 깐 <strong>Metal compute pipeline, MPS · Metal Performance Shaders 의 이름 정리, unified memory 의 의미, Apple Silicon 의 GPU 모델</strong>의 학습 노트. CUDA 시점에서 매핑되는 자리를 명시적으로 짚으면서 — 그리고 디버깅 도구가 어디까지 있는지 정직하게 말하면서.</p>
+
+  <div class="chips">
+    <span class="chip hi">Metal</span>
+    <span class="chip hi">MPS backend</span>
+    <span class="chip hi">Apple Silicon</span>
+    <span class="chip hi">unified memory</span>
+    <span class="chip hi">Metal Performance Shaders</span>
+    <span class="chip">PyTorch MPS</span>
+    <span class="chip">JIT compile</span>
+    <span class="chip">no profiler</span>
+  </div>
+
+  <div class="speaker-row">
+    <div class="speaker">
+      <div class="av">N</div>
+      <div>
+        <div class="role">Speaker</div>
+        <div class="nm">Nikita Shulga</div>
+        <div class="role" style="margin-top:2px;color:var(--muted);text-transform:none;letter-spacing:0">Meta · PyTorch core · MPS backend 주 저자</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="cell"><div class="lbl">강의 번호</div><div class="val">L031</div></div>
+    <div class="cell"><div class="lbl">스피커</div><div class="val">Nikita Shulga</div></div>
+    <div class="cell good"><div class="lbl">학습 우선순위</div><div class="val">High · 정독</div></div>
+    <div class="cell"><div class="lbl">다시 볼 때</div><div class="val">Metal shader 직접 짜본다</div></div>
+  </div>
+
+  <div class="toc-block">
+    <div class="toc-head"><span>하위 목차 · 12개 섹션</span><span>↓ 클릭해서 이동</span></div>
+    <div class="toc-list">
+      <a href="#s1"><span class="ix">01</span><span class="body"><span class="ti">강의가 풀려는 문제</span><span class="em">CUDA-only 의 자리에서</span></span></a>
+      <a href="#s2"><span class="ix">02</span><span class="body"><span class="ti">Apple Silicon 의 GPU 모델</span><span class="em">M1 · M2 · M3 의 단위</span></span></a>
+      <a href="#s3"><span class="ix">03</span><span class="body"><span class="ti">Metal compute pipeline</span><span class="em">device · queue · shader</span></span></a>
+      <a href="#s4"><span class="ix">04</span><span class="body"><span class="ti">PyTorch MPS backend</span><span class="em">device="mps" 안의 path</span></span></a>
+      <a href="#s5"><span class="ix">05</span><span class="body"><span class="ti">unified memory architecture</span><span class="em">CPU/GPU 가 같은 RAM</span></span></a>
+      <a href="#s6"><span class="ix">06</span><span class="body"><span class="ti">디버깅 도구</span><span class="em">없는 것 · 있는 것</span></span></a>
+      <a href="#s7"><span class="ix">07</span><span class="body"><span class="ti">CUDA 와 비교</span><span class="em">단어 mapping 표</span></span></a>
+      <a href="#s8"><span class="ix">08</span><span class="body"><span class="ti">LLM 추론 사례</span><span class="em">llama.cpp · MLX</span></span></a>
+      <a href="#s9"><span class="ix">09</span><span class="body"><span class="ti">한계와 미래</span><span class="em">Tensor Core 등가물</span></span></a>
+      <a href="#s10"><span class="ix">10</span><span class="body"><span class="ti">기억할 메모와 코드</span><span class="em">key takeaways</span></span></a>
+      <a href="#s11"><span class="ix">11</span><span class="body"><span class="ti">다른 강의로 이어지는 길</span><span class="em">connections</span></span></a>
+      <a href="#s12"><span class="ix">12</span><span class="body"><span class="ti">열린 질문</span><span class="em">open questions</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s1">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 01</span><b>강의가 풀려는 문제</b><span>· CUDA-only 의 자리에서</span></div>
+    <h2>“대부분의 학생이 가진 GPU 는 NVIDIA 가 아니다” — MacBook 의 GPU 를 쓸모 있게 만드는 길</h2>
+  </div>
+  <p class="sec-lede">강의의 출발점은 — Apple Silicon 의 GPU 가 사실 매우 강력한데(M2 Max 의 GPU 는 이론적 13.6 TFLOPS FP32) <strong>대부분의 ML tutorial 이 이 자리를 가르치지 않는다</strong>. Nikita 의 입장은 명시적으로 <em>“agnostic 하게 GPU 를 쓰는 길의 일부”</em>.</p>
+
+  <p>강의가 답하려는 두 줄 — </p>
+  <ol>
+    <li><strong>PyTorch 안에서 Apple GPU 를 어떻게 쓰는가</strong> — <code>device="mps"</code> 가 무엇이고 어떤 길로 도는가.</li>
+    <li><strong>그 위에서 직접 커널을 짜야 할 때 어떻게 하는가</strong> — Metal shader 를 PyTorch extension 으로 박는 길, 디버깅 가능한 자리.</li>
+  </ol>
+
+  <p>강의의 frame 은 정직하다 — <em>“나도 advanced engineer 가 아니다, 그저 코드를 쓰는 사람이다”</em>(Nikita 의 자기소개). 그래서 강의의 톤이 <strong>입문자 시점의 정직한 재구성</strong>. CUDA 와 mapping 되는 자리는 명시적으로 짚되, <em>“여기서는 cudaProfiler 같은 게 없습니다”</em> 같이 갭도 가린 적 없다.</p>
+
+  <div class="callout">
+    <div class="label">강의의 frame</div>
+    <p>Apple Silicon 의 매력 — <strong>unified memory architecture</strong>. CPU 와 GPU 가 같은 RAM 을 공유한다. 64 GB / 128 GB 의 unified memory 가 — NVIDIA 의 80 GB H100 같은 자리에 — 훨씬 싼 가격에 같이 산다. <em>“VRAM 80 GB 인 GPU 를 가질 수 없는 학생/연구자가 LLM inference 를 직접 돌리는 첫 번째 길”</em> 이 Apple 위에 있다는 게 강의의 큰 메시지.</p>
+  </div>
+
+  <div class="pull">“Apple Silicon GPU 의 이론적 throughput 은 결코 작지 않습니다. 다만 — Tensor Core 같은 specialized 행렬 명령이 없어서 mma 짠 NVIDIA 와 직접 비교는 안 됩니다. 메모리 model 은 거꾸로 — unified memory 가 큰 강점이에요.”<span class="by">Nikita Shulga · 09:11</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s2">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 02</span><b>Apple Silicon 의 GPU 모델</b><span>· M1 · M2 · M3 의 단위</span></div>
+    <h2>“NVIDIA SM” 의 자리에 박히는 단어들 — <code>GPU core</code>, <code>thread group</code>, <code>SIMD group</code></h2>
+  </div>
+  <p class="sec-lede">M1 부터 M3 까지의 GPU 는 NVIDIA 와는 다른 단위 분해를 쓴다. 강의에서 Nikita 가 깐 매핑 — 이름은 다르지만 <em>같은 자리에서 같은 일</em>을 한다.</p>
+
+  <div class="l31-tab">
+    <div class="row h"><span>UNIT</span><span class="ml">CUDA / NVIDIA</span><span class="mt">METAL / Apple</span></div>
+    <div class="row"><span class="who">EXEC unit</span><span class="ml">Streaming Multiprocessor</span><span class="mt">GPU core</span></div>
+    <div class="row"><span class="who">WARP / sub-warp</span><span class="ml">warp = 32 threads</span><span class="mt">SIMD group = 32 (보통)</span></div>
+    <div class="row"><span class="who">BLOCK</span><span class="ml">CTA / thread block</span><span class="mt">thread group</span></div>
+    <div class="row"><span class="who">on-chip SRAM</span><span class="ml">shared memory (block 단위)</span><span class="mt">threadgroup memory</span></div>
+    <div class="row"><span class="who">DEVICE memory</span><span class="ml">HBM (전용 GPU 메모리)</span><span class="mt">unified memory (CPU 와 공유)</span></div>
+    <div class="row"><span class="who">tensor 가속</span><span class="ml">Tensor Core (mma)</span><span class="mt">없음 (M3 에 SIMD-group matrix)</span></div>
+    <div class="row"><span class="who">stream</span><span class="ml">cudaStream</span><span class="mt">command buffer</span></div>
+    <div class="row"><span class="who">kernel launch</span><span class="ml">kernel&lt;&lt;&lt;...&gt;&gt;&gt;</span><span class="mt">commandEncoder.dispatch</span></div>
+    <div class="row"><span class="who">shader 언어</span><span class="ml">CUDA C++</span><span class="mt">Metal Shading Language (MSL)</span></div>
+  </div>
+
+  <div class="split" style="margin-top:18px">
+    <div>
+      <p>M2 / M3 chip 의 한 단계 더 — </p>
+      <ul>
+        <li><strong>GPU core 수</strong> — M2 Pro: 19, M2 Max: 38, M2 Ultra: 76. M3 Max: 40. 한 GPU core 는 NVIDIA SM 의 한 partition 정도.</li>
+        <li><strong>SIMD group width</strong> — 보통 32, M3 에서는 일부 워크로드가 dynamic.</li>
+        <li><strong>threadgroup memory</strong> — M-series 는 보통 32 KB / threadgroup. NVIDIA 의 shared memory 와 같은 자리.</li>
+        <li><strong>memory bandwidth</strong> — M2 Max 400 GB/s, M2 Ultra 800 GB/s, M3 Max 400 GB/s. 같은 칩이 CPU+GPU 모두에 노출.</li>
+        <li><strong>SIMD-group matrix (M3+)</strong> — 8×8 matrix multiply 를 한 SIMD group 단위로. NVIDIA mma 와 같은 자리지만 폭이 작음.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout cool">
+        <div class="label">강의의 인상적 디테일</div>
+        <p>M2 Ultra 의 메모리 대역폭 800 GB/s 는 — A100 의 1.5–2 TB/s 의 절반. 그런데 unified memory 라 <strong>CPU↔GPU 복사 비용이 0</strong>. <em>memory-bound 워크로드(LLM inference 의 prefill, KV cache 처리)에서는 PCIe 왕복이 없어서 NVIDIA 와의 비교가 미묘</em>해진다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s3">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 03</span><b>Metal compute pipeline</b><span>· device · queue · shader</span></div>
+    <h2>Metal 의 5 객체 — CUDA 의 driver/context/stream/kernel/cudaMalloc 의 자리</h2>
+  </div>
+  <p class="sec-lede">Metal 은 graphics + compute 를 한 API 로 묶은 Apple 의 native GPU 추상. 강의에서 Nikita 가 한 화면씩 보여준 객체들 — 각 자리에서 무엇이 일어나는지.</p>
+
+  <div class="viz">
+    <div class="viz-cap"><span>FIG · Metal compute 의 5 객체</span><span>device → queue → buffer → encoder → dispatch</span></div>
+    <div class="l31-pipe">
+      <div class="stage">
+        <span class="lvl">L0 · DEVICE</span>
+        <span class="nm">MTLDevice<em><code>MTLCreateSystemDefaultDevice()</code>. CUDA 의 device handle 의 자리. M-series 에서는 보통 1개 (integrated GPU).</em></span>
+        <span class="what">≡ cudaDevice</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L1 · QUEUE</span>
+        <span class="nm">MTLCommandQueue<em><code>device.makeCommandQueue()</code>. 비동기 작업의 channel. 한 device 위에 여러 queue.</em></span>
+        <span class="what">≡ cudaStream</span>
+      </div>
+      <div class="stage hi">
+        <span class="lvl">L2 · BUFFER</span>
+        <span class="nm">MTLBuffer<em><code>device.makeBuffer(length:options:)</code>. <strong>storageModeShared</strong> 면 CPU↔GPU 가 같은 메모리 (unified). <strong>storageModePrivate</strong> 면 GPU 전용. <strong>storageModeManaged</strong> 는 macOS Intel 시절의 이중복사 (M-series 에서는 deprecated).</em></span>
+        <span class="what">≡ cudaMalloc 변종</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L3 · COMMAND BUFFER</span>
+        <span class="nm">MTLCommandBuffer<em><code>queue.makeCommandBuffer()</code>. 한 dispatch 의 묶음. 여러 encoder 가 한 buffer 에 들어감.</em></span>
+        <span class="what">≡ cudaGraph 의 single instance</span>
+      </div>
+      <div class="stage">
+        <span class="lvl">L4 · ENCODER</span>
+        <span class="nm">MTLComputeCommandEncoder<em><code>cb.makeComputeCommandEncoder()</code>. <strong>setComputePipelineState</strong>(컴파일된 셰이더), <strong>setBuffer</strong>(인자 binding), <strong>dispatchThreadgroups</strong>(launch).</em></span>
+        <span class="what">≡ kernel launch</span>
+      </div>
+    </div>
+    <div class="viz-note">CUDA 의 한 줄(<code>kernel&lt;&lt;&lt;grid,block&gt;&gt;&gt;(args)</code>)이 — Metal 에서는 (encoder 생성 → pipeline 설정 → buffer binding → dispatch → encoder.endEncoding → buffer.commit) 의 6 단계로 분해된다. <strong>boilerplate 가 더 많지만 explicit</strong>.</div>
+  </div>
+
+<pre><code><span style="color:#A99E89">// Metal compute — vector add 의 Objective-C++ (간략)</span>
+id&lt;MTLDevice&gt; device = MTLCreateSystemDefaultDevice();
+id&lt;MTLCommandQueue&gt; queue = [device newCommandQueue];
+
+<span style="color:#A99E89">// 1. shader 컴파일 — 문자열에서 jit</span>
+NSString* src = @<span style="color:#C6B98A">"kernel void add(device float* a, ...) { ... }"</span>;
+id&lt;MTLLibrary&gt; lib = [device newLibraryWithSource:src options:nil error:&amp;err];
+id&lt;MTLFunction&gt; fn  = [lib newFunctionWithName:@<span style="color:#C6B98A">"add"</span>];
+id&lt;MTLComputePipelineState&gt; pipe = [device newComputePipelineStateWithFunction:fn error:&amp;err];
+
+<span style="color:#A99E89">// 2. buffer — unified memory 면 CPU 에서 직접 fill 가능</span>
+id&lt;MTLBuffer&gt; bufA = [device newBufferWithLength:N*<span style="color:#E7B369">sizeof</span>(float) options:MTLResourceStorageModeShared];
+
+<span style="color:#A99E89">// 3. encode + dispatch</span>
+id&lt;MTLCommandBuffer&gt; cb = [queue commandBuffer];
+id&lt;MTLComputeCommandEncoder&gt; enc = [cb computeCommandEncoder];
+[enc setComputePipelineState:pipe];
+[enc setBuffer:bufA offset:<span style="color:#E7B369">0</span> atIndex:<span style="color:#E7B369">0</span>];
+[enc dispatchThreadgroups:MTLSizeMake(N/<span style="color:#E7B369">256</span>,<span style="color:#E7B369">1</span>,<span style="color:#E7B369">1</span>)
+    threadsPerThreadgroup:MTLSizeMake(<span style="color:#E7B369">256</span>,<span style="color:#E7B369">1</span>,<span style="color:#E7B369">1</span>)];
+[enc endEncoding];
+[cb commit];
+[cb waitUntilCompleted];          <span style="color:#A99E89">// ≡ cudaDeviceSynchronize</span></code></pre>
+
+  <div class="callout">
+    <div class="label">MSL 의 첫 시그널</div>
+    <p>Metal Shading Language 는 — <em>C++14 의 부분집합</em>. CUDA C++ 와 매우 비슷한 syntax. <code>kernel</code>, <code>device</code>, <code>threadgroup</code>, <code>thread</code> address space attribute. <code>thread_position_in_grid</code>, <code>threadgroup_position_in_grid</code> 같은 builtin. <em>학습 곡선이 매우 짧다</em>는 게 강의의 작은 메시지.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s4">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 04</span><b>PyTorch MPS backend</b><span>· device="mps" 안의 path</span></div>
+    <h2>PyTorch 코드 한 줄 — 그 안에서 무엇이 일어나는가</h2>
+  </div>
+  <p class="sec-lede">PyTorch 는 1.12 부터 <strong>MPS backend</strong> 를 가진다. 이름의 미묘한 점 — MPS 는 사실 <em>Metal Performance Shaders</em>(Apple 의 vendor 라이브러리)이지만, PyTorch 의 <code>device="mps"</code> 안에는 Metal 직접 호출과 MPS 호출이 모두 섞여 있다.</p>
+
+  <div class="split">
+    <div>
+      <p>한 줄 PyTorch 코드의 dispatch 분해 — </p>
+      <ol>
+        <li><strong><code>x = torch.randn(...).to("mps")</code></strong> — MTLBuffer 가 unified memory 위에 생긴다 (storageModeShared).</li>
+        <li><strong><code>y = x @ w</code></strong> — ATen 의 MPS dispatch key 가 호출됨. <em>MPS 라이브러리의 <code>MPSMatrixMultiplication</code></em> 으로 mapping. 사용자 코드 그대로.</li>
+        <li><strong><code>y.softmax(dim=-1)</code></strong> — softmax 처럼 vendor 라이브러리에 없는 op 는 — PyTorch 가 직접 짠 Metal shader 가 호출됨.</li>
+        <li><strong><code>torch.mps.synchronize()</code></strong> — CUDA 의 sync 와 같은 자리.</li>
+      </ol>
+      <p>즉 <em>MPS backend = Metal 직접 호출 + MPS 라이브러리 호출의 hybrid</em>. 강의의 인상적 디테일 — “MPS 라이브러리만으로는 모든 PyTorch op 를 cover 못 하니, 부족한 자리는 직접 Metal shader 를 짜서 PyTorch 안에 넣는 작업이 계속 진행 중”.</p>
+    </div>
+    <div>
+<pre><code><span style="color:#A99E89"># PyTorch MPS — 사용자 시점</span>
+<span style="color:#E7B369">import</span> torch
+
+<span style="color:#E7B369">assert</span> torch.backends.mps.is_available()
+device = <span style="color:#C6B98A">"mps"</span>
+
+x = torch.randn(<span style="color:#E7B369">8192</span>, <span style="color:#E7B369">8192</span>, device=device)
+y = torch.randn(<span style="color:#E7B369">8192</span>, <span style="color:#E7B369">8192</span>, device=device)
+
+<span style="color:#A99E89"># MPS backend dispatch — MPSMatrixMultiplication</span>
+z = x @ y
+
+torch.mps.synchronize()
+
+<span style="color:#A99E89"># 직접 shader 끼워넣기 — torch.utils.cpp_extension 의 MPS 버전</span>
+<span style="color:#E7B369">from</span> torch.utils.cpp_extension <span style="color:#E7B369">import</span> load
+ext = load(name=<span style="color:#C6B98A">"my_mps"</span>,
+            sources=[<span style="color:#C6B98A">"my_kernel.mm"</span>],
+            extra_cflags=[<span style="color:#C6B98A">"-fobjc-arc"</span>])</code></pre>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">MPSGraph — 한 단계 더 위</div>
+    <p>Apple 이 ML 워크로드에 맞춰 만든 <strong>MPSGraph</strong> — Metal 위 graph compiler. operator 단위 fusion, lazy execution. PyTorch 의 일부 op 가 MPSGraph 로 dispatch 된다 (<code>MPSGraph.matrixMultiplication</code>). MLX 도 이 layer 위에 산다는 점.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s5">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 05</span><b>unified memory architecture</b><span>· CPU/GPU 가 같은 RAM</span></div>
+    <h2>“cudaMemcpy 가 없는 GPU” — 메모리 모델의 근본적 차이</h2>
+  </div>
+  <p class="sec-lede">Apple Silicon 의 가장 큰 차이. NVIDIA GPU 는 별도 VRAM(HBM)이 있고 PCIe 를 통해 host RAM 과 통신. M-series 는 — <strong>CPU 와 GPU 가 같은 LPDDR5 메모리</strong>를 공유. 이게 디자인의 거의 모든 결정에 영향.</p>
+
+  <div class="l31-uni">
+    <div class="col">
+      <div class="t">전통적 discrete GPU</div>
+      <div class="d">
+        Host (CPU) RAM ⇄ <strong>PCIe</strong> ⇄ Device (GPU) VRAM<br><br>
+        <em>memcpy H→D / D→H 가 모든 작업의 시작과 끝</em>. PCIe 4.0 ≈ 32 GB/s — VRAM 1 TB/s 와 비교하면 30 배 느린 병목.<br><br>
+        <strong>큰 모델은 VRAM 안에 들어가야</strong>. 들어가지 못하면 페이지 단위 스왑 (느림).
+      </div>
+    </div>
+    <div class="col right">
+      <div class="t">Apple Silicon unified</div>
+      <div class="d">
+        CPU + GPU + Neural Engine 이 <strong>같은 LPDDR5 풀 위</strong>.<br><br>
+        <em>memcpy 자체가 없다</em>. <code>storageModeShared</code> buffer 는 CPU 와 GPU 가 동일 주소로 접근.<br><br>
+        <strong>모델 크기 한계 = unified RAM 전체</strong>. M2 Ultra 192 GB 면 192 GB 모델이 통째로 들어간다.<br>
+        대역폭 = 같은 메모리 컨트롤러 공유 (M2 Ultra 800 GB/s).
+      </div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div>
+      <p>이 차이가 프로그래밍에 어떻게 흘러가는가 — </p>
+      <ul>
+        <li><strong>memcpy 코드 없음</strong>. <code>x.to("mps")</code> 의 to 는 사실 — Buffer 의 metadata 만 바꾸는 일에 가깝다 (storageModeShared 라면).</li>
+        <li><strong>큰 모델이 가능</strong>. M2 Ultra 192 GB 면 Llama 70B (BF16) 가 통째로 RAM 에 산다. NVIDIA H100 80GB 한 개로는 불가능.</li>
+        <li><strong>memory bandwidth 가 모든 자리에서 공유</strong>. CPU 가 RAM 에 access 중이면 GPU 가 잠깐 stall 가능.</li>
+        <li><strong>cache coherence 가 비싸다</strong>. CPU 가 buffer 를 쓴 직후 GPU 가 읽으면 — 캐시 무효화가 필요. <em>storageModeShared 의 cost 가 작은 자리는 아니다</em>.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout">
+        <div class="label">강의의 인상적 자리</div>
+        <p>Q&amp;A 에서 “CPU pinned memory 가 unified 에서도 의미가 있나?” 라는 질문. Nikita 의 답: <em>“pinned 의 ‘이 페이지를 swap-out 하지 마라’ 의 의미가 unified 에서는 — GPU 가 이 페이지를 보고 있으니 CPU 가 캐시 invalidate 하지 말라 — 로 변환된다. 마음은 같다”</em>.</p>
+      </div>
+
+      <p>실용적 충격 — <em>“M2 Ultra MacBook Pro 192GB 가 70B BF16 LLM 의 inference 가 가능한 가장 작은 form factor”</em>. ChatGPT-class 모델을 자기 노트북 위에서 부분 inference 가능.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s6">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 06</span><b>디버깅 도구</b><span>· 없는 것 · 있는 것</span></div>
+    <h2>“NCU 는 없다 — 그 자리에 무엇이 있는가”</h2>
+  </div>
+  <p class="sec-lede">강의에서 Nikita 가 가장 정직하게 깐 자리. CUDA 의 ncu, nsys, compute-sanitizer 의 자리에 — Metal 위에는 무엇이 있고 무엇이 없는가.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">Metal Frame Capture (Xcode)</div>
+      <div class="d">Xcode 에서 attach 한 다음 “Capture GPU Frame”. CUDA 의 nsys 와 비슷한 timeline 뷰. 셰이더 코드와 함께 GPU 실행 표시.</div>
+    </div>
+    <div class="term">
+      <div class="t">Metal Shader Debugger</div>
+      <div class="d">Xcode 안에 셰이더 디버거. 변수 값, register 사용. <em>Triton interpret 모드의 자리</em>. 단 — 사용 경험이 좋다 보긴 어렵다는 게 강의의 솔직한 평가.</div>
+    </div>
+    <div class="term">
+      <div class="t">os_signpost</div>
+      <div class="d">셰이더 안에 marker 박는 길. 사용자가 직접 instrumentation. Apple 의 Instruments 앱 안에서 timeline 으로 보임.</div>
+    </div>
+    <div class="term">
+      <div class="t">없는 것: ncu 등가물</div>
+      <div class="d"><strong>NCU 의 actionable hint (occupancy, scoreboard stall) 가 없다</strong>. memory bandwidth, cache miss 를 직접 볼 수 있는 깊이의 도구가 빈약.</div>
+    </div>
+    <div class="term">
+      <div class="t">없는 것: compute-sanitizer</div>
+      <div class="d">memory race, OOB access 검출 도구가 NVIDIA compute-sanitizer 만큼 정교하지 않다. 잘못된 메모리 접근이 silent corruption 으로 이어질 수 있음.</div>
+    </div>
+    <div class="term">
+      <div class="t">PyTorch profiler</div>
+      <div class="d"><code>torch.profiler</code> 가 MPS activity 를 잡는다. CPU + MPS 의 timeline. 가장 일반적 진입점.</div>
+    </div>
+  </div>
+
+  <div class="pull">“정직하게 — Apple 의 GPU 디버깅 도구는 NVIDIA 의 NCU 만큼 깊지 못 합니다. graphics 워크로드 는 Frame Capture 가 잘 되어 있는데, ML 워크로드 는 그 도구가 적합한 모양이 아니에요.”<span class="by">Nikita Shulga · 47:05</span></div>
+
+  <div class="callout">
+    <div class="label">실전 디버깅 사다리</div>
+    <p>(1) <strong>logical bug</strong> — CPU 위에서 같은 코드를 돌려본다 (PyTorch 는 device='mps' 와 'cpu' 가 같은 ATen op). 결과가 다르면 MPS backend 의 버그 일 가능성. (2) <strong>numerical drift</strong> — bf16/fp32 의 자리를 명시적으로. (3) <strong>perf bug</strong> — <code>torch.profiler</code> + Metal Frame Capture. 더 깊이는 — <em>os_signpost 로 직접 instrumentation</em>.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s7">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 07</span><b>CUDA 와 비교</b><span>· 단어 mapping 표</span></div>
+    <h2>CUDA 사용자가 Metal 코드 읽을 때 손에 들고 가야 할 표</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">__global__ void kernel</div><div class="d"><code>kernel void kernel(...)</code> — MSL 의 함수 attribute</div></div>
+    <div class="term"><div class="t">__device__ helper</div><div class="d"><code>device float helper(...)</code> — address space attribute 가 동시에 storage 표시</div></div>
+    <div class="term"><div class="t">__shared__ float s[N]</div><div class="d"><code>threadgroup float s[N]</code> — block 단위 SRAM</div></div>
+    <div class="term"><div class="t">__syncthreads()</div><div class="d"><code>threadgroup_barrier(mem_flags::mem_threadgroup)</code></div></div>
+    <div class="term"><div class="t">threadIdx.x</div><div class="d"><code>thread_position_in_threadgroup</code> attribute</div></div>
+    <div class="term"><div class="t">blockIdx.x</div><div class="d"><code>threadgroup_position_in_grid</code></div></div>
+    <div class="term"><div class="t">blockDim.x</div><div class="d"><code>threads_per_threadgroup</code></div></div>
+    <div class="term"><div class="t">__shfl_xor_sync</div><div class="d"><code>simd_shuffle_xor</code> — SIMD-group 내 shuffle</div></div>
+    <div class="term"><div class="t">cudaMalloc</div><div class="d"><code>device.makeBuffer(length: options:)</code></div></div>
+    <div class="term"><div class="t">cudaMemcpy</div><div class="d">storageModeShared 면 직접 포인터 access. private 면 <code>blitCommandEncoder.copy</code></div></div>
+    <div class="term"><div class="t">kernel&lt;&lt;&lt;grid,block&gt;&gt;&gt;()</div><div class="d"><code>encoder.dispatchThreadgroups(grid, threadsPerThreadgroup: block)</code></div></div>
+    <div class="term"><div class="t">cudaStream</div><div class="d"><code>MTLCommandQueue</code> + <code>MTLCommandBuffer</code></div></div>
+    <div class="term"><div class="t">cudaEvent</div><div class="d"><code>MTLEvent</code> · queue 간 동기화</div></div>
+    <div class="term"><div class="t">cudaDeviceSynchronize</div><div class="d"><code>commandBuffer.waitUntilCompleted</code> 또는 <code>torch.mps.synchronize</code></div></div>
+    <div class="term"><div class="t">nvcc</div><div class="d"><code>xcrun -sdk macosx metal</code> 또는 jit 으로 <code>device.makeLibrary(source:)</code></div></div>
+    <div class="term"><div class="t">cuBLAS / cuDNN</div><div class="d"><code>MetalPerformanceShaders</code> / <code>MPSGraph</code></div></div>
+  </div>
+
+  <p>강의의 큰 메시지 — <em>“이 표만 옆에 두고 보면, 일주일 안에 CUDA 사용자가 Metal 커널을 읽을 수 있다”</em>. 단어가 다를 뿐 — 모델은 거의 그대로.</p>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s8">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 08</span><b>LLM 추론 사례</b><span>· llama.cpp · MLX</span></div>
+    <h2>“이미 Apple GPU 위 LLM 이 잘 돌고 있다” — 무엇이 그렇게 만들었는가</h2>
+  </div>
+  <p class="sec-lede">강의 후반부의 본론. Apple Silicon 위 LLM inference 가 — 2024 시점에 — 어떻게 구체적으로 도는지. 두 큰 stack 이 있다 — <strong>llama.cpp</strong>(C++) 와 <strong>MLX</strong>(Apple 의 ML 프레임워크).</p>
+
+  <div class="split rev">
+    <div>
+      <p><strong>llama.cpp</strong> 의 Metal backend — </p>
+      <ul>
+        <li>모든 attention, RMSNorm, RoPE, GEMM 을 직접 짠 Metal shader.</li>
+        <li>양자화 (Q4_K, Q5_K, GGUF) 가 모두 Metal shader 안에 박혀 있음. <em>Apple GPU 위에서 INT4 inference 가 이미 안정 동작</em>.</li>
+        <li>Llama 7B Q4 가 M2 Max 위에서 ~30 tok/s 정도. 매우 실용적.</li>
+        <li>코드가 작아서 — <em>Metal shader 의 좋은 예제 자료</em>로도 활용. ggml-metal.m 한 파일에 거의 다.</li>
+      </ul>
+
+      <p><strong>MLX</strong> — Apple 이 직접 만든 array 라이브러리. NumPy + PyTorch 의 mix. Metal native. lazy evaluation. <em>Apple Silicon 전용</em>이라 NVIDIA 와의 portability 는 의도적으로 포기.</p>
+    </div>
+    <div>
+      <div class="viz">
+        <div class="viz-cap"><span>FIG · LLM inference perf — M2 Max</span><span>Llama 7B · 토큰/초</span></div>
+        <div class="bars">
+          <div class="row"><span class="lbl">PyTorch MPS BF16</span><div class="bar cool"><span style="width:30%"></span></div><span class="val">~14 tok/s</span></div>
+          <div class="row"><span class="lbl">PyTorch MPS Q4 (직접)</span><div class="bar cool"><span style="width:42%"></span></div><span class="val">~22 tok/s</span></div>
+          <div class="row"><span class="lbl">llama.cpp BF16</span><div class="bar"><span style="width:48%"></span></div><span class="val">~24 tok/s</span></div>
+          <div class="row"><span class="lbl">llama.cpp Q4_K_M</span><div class="bar"><span style="width:78%"></span></div><span class="val">~38 tok/s</span></div>
+          <div class="row"><span class="lbl">MLX BF16</span><div class="bar sml"><span style="width:60%"></span></div><span class="val">~30 tok/s</span></div>
+          <div class="row"><span class="lbl">MLX 4-bit</span><div class="bar sml"><span style="width:90%"></span></div><span class="val">~46 tok/s</span></div>
+        </div>
+        <div class="viz-note">M2 Max 64GB. <strong>양자화 win 이 dominant</strong>. memory-bound 이라 INT4 가 BF16 의 ~2× 빠름. MLX 가 Apple-native 라 가장 빠름.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout cool">
+    <div class="label">unified memory 의 결정적 자리</div>
+    <p>Llama 70B BF16 ≈ 140 GB. M2 Ultra 192GB MacBook Pro 위에서 — <strong>한 노트북에 통째로 적재 + inference</strong>. 같은 모델을 NVIDIA 로 돌리려면 H100 80GB × 2 (multi-GPU). <em>Apple 의 unified memory 가 “집에서 70B 모델 돌리는” 가장 싼 길</em>.</p>
+  </div>
+
+  <div class="pull">“Apple GPU 가 매끄러운 LLM inference 가 가능한 건 — Metal shader 가 잘 짜여서가 아니라, unified memory 덕분에 모델이 통째로 메모리에 들어가서입니다. memory bandwidth 의 게임이에요.”<span class="by">Nikita Shulga · 1:18:42</span></div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s9">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 09</span><b>한계와 미래</b><span>· Tensor Core 등가물</span></div>
+    <h2>Apple GPU 가 NVIDIA 와 “같이 빠른” 자리가 어디인가 — 그리고 어디서 갈리는가</h2>
+  </div>
+  <p class="sec-lede">강의의 정직한 끝맺음. Apple GPU 가 빛나는 자리와 그렇지 않은 자리.</p>
+
+  <div class="terms">
+    <div class="term">
+      <div class="t">memory-bound 워크로드</div>
+      <div class="d"><strong>Apple 의 강점</strong>. LLM inference 의 prefill + decode, attention, memory copy 등. unified memory 가 큰 도움.</div>
+    </div>
+    <div class="term">
+      <div class="t">compute-bound GEMM</div>
+      <div class="d"><strong>Apple 의 약점</strong>. Tensor Core 가 없으니(M3 의 SIMD-group matrix 가 작은 시작) 같은 fp32/fp16 GEMM 이 한 자리수 이상 느림. <em>훈련에 적합하지 않은 자리</em>.</div>
+    </div>
+    <div class="term">
+      <div class="t">큰 모델 inference</div>
+      <div class="d"><strong>Apple 만의 자리</strong>. 70B 모델을 단일 노트북에 적재 가능. 다른 길이 없다.</div>
+    </div>
+    <div class="term">
+      <div class="t">multi-GPU 학습</div>
+      <div class="d"><strong>Apple 의 한계</strong>. NVLink 같은 고속 GPU 간 interconnect 가 없음. multi-Mac 학습은 사실상 불가능.</div>
+    </div>
+    <div class="term">
+      <div class="t">batch inference</div>
+      <div class="d"><strong>NVIDIA 의 자리</strong>. 큰 batch GEMM 이 dominant 면 Tensor Core 의 throughput 이 결정적.</div>
+    </div>
+    <div class="term">
+      <div class="t">실험·개인 프로젝트</div>
+      <div class="d"><strong>Apple 의 자리</strong>. 노트북 위에서 LLM inference, 작은 fine-tuning, prototype 모두 가능. 개발 사이클이 빠름.</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="label">M3 와 Apple 의 다음 단계</div>
+    <p>M3 부터 — <strong>SIMD-group matrix 명령</strong>. 8×8 fp16 matmul 을 한 SIMD group 단위로. NVIDIA mma 의 첫 등가물. 폭은 작지만(NVIDIA Ampere mma 가 16×8×16) 의미 있는 시작. <em>“M4/M5 에서 더 큰 matrix unit 이 들어올 가능성”</em> 이 강의의 추측.</p>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s10">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 10</span><b>기억할 메모와 코드</b><span>· key takeaways</span></div>
+    <h2>다시 열었을 때 5분 안에 손에 잡혀야 할 것</h2>
+  </div>
+
+  <div class="terms">
+    <div class="term"><div class="t">Apple GPU 단위</div><div class="d">GPU core (≡SM) · SIMD group=32 (≡warp) · thread group (≡block) · threadgroup memory (≡shared).</div></div>
+    <div class="term"><div class="t">Metal 5 객체</div><div class="d">device → queue → buffer → command buffer → encoder. CUDA 의 5 객체와 1:1 mapping.</div></div>
+    <div class="term"><div class="t">MSL syntax</div><div class="d">C++14 의 부분집합. <code>kernel</code>, <code>device</code>, <code>threadgroup</code> address space. <code>thread_position_in_grid</code> builtin.</div></div>
+    <div class="term"><div class="t">PyTorch MPS</div><div class="d"><code>device="mps"</code>. ATen 의 MPS dispatch key. MPS 라이브러리 + 직접 Metal shader 의 hybrid.</div></div>
+    <div class="term"><div class="t">unified memory</div><div class="d">CPU + GPU 가 같은 RAM. memcpy 자체가 없음. 큰 모델이 노트북 위에 적재 가능.</div></div>
+    <div class="term"><div class="t">storage mode</div><div class="d">Shared (CPU+GPU access), Private (GPU 전용), Managed (deprecated on M-series).</div></div>
+    <div class="term"><div class="t">디버깅 도구</div><div class="d">Xcode Frame Capture, Metal Shader Debugger, os_signpost, torch.profiler. NCU 등가물 없음.</div></div>
+    <div class="term"><div class="t">실전 사례</div><div class="d">llama.cpp Metal backend (Q4_K), MLX (Apple-native). 둘 다 양자화로 메모리 bandwidth 의 게임을 우호적으로.</div></div>
+  </div>
+
+  <div class="linkset" style="margin-top:24px">
+    <div class="row">
+      <span class="k">YouTube</span>
+      <span class="v"><a href="https://www.youtube.com/watch?v=cGtiaJjLkAI" target="_blank" rel="noopener">youtube.com/watch?v=cGtiaJjLkAI</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Slides</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_031/Beginner's%20guide%20to%20Metal%20kernels.pdf" target="_blank" rel="noopener">Beginner's guide to Metal kernels.pdf</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Code</span>
+      <span class="v"><a href="https://github.com/gpu-mode/lectures/blob/main/lecture_031/gemm_perf_studies.mm" target="_blank" rel="noopener">gemm_perf_studies.mm</a></span>
+    </div>
+    <div class="row">
+      <span class="k">Apple docs</span>
+      <span class="v"><a href="https://developer.apple.com/documentation/metal" target="_blank" rel="noopener">Metal</a> · <a href="https://developer.apple.com/documentation/metalperformanceshaders" target="_blank" rel="noopener">MPS</a> · <a href="https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf" target="_blank" rel="noopener">MSL spec PDF</a></span>
+    </div>
+    <div class="row">
+      <span class="k">실전 stack</span>
+      <span class="v"><a href="https://github.com/ggerganov/llama.cpp" target="_blank" rel="noopener">llama.cpp</a> · <a href="https://github.com/ml-explore/mlx" target="_blank" rel="noopener">MLX</a></span>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;margin:32px 0 10px;color:var(--ink)">손에 새기기 — 실습 시퀀스</h3>
+  <ol class="ex-list">
+    <li><strong>PyTorch MPS 첫 코드</strong> — Mac 에서 <code>device="mps"</code> 로 LLaMA-2 7B inference. 토큰/초 측정.</li>
+    <li><strong>storage mode 의 영향 측정</strong> — 같은 buffer 를 Shared vs Private 로 — 작은 sync 워크로드에서 cache coherence 비용 직접 관찰.</li>
+    <li><strong>vector add Metal shader 직접 짜기</strong> — gemm_perf_studies.mm 같은 형식. <code>kernel void add(...)</code>, jit 컴파일, dispatch.</li>
+    <li><strong>tiled GEMM 짜기</strong> — 강의 repo 의 gemm_perf_studies.mm 을 따라서. naive → threadgroup tiled → SIMD-group matrix(M3+).</li>
+    <li><strong>llama.cpp Metal 코드 읽기</strong> — ggml-metal.m 한 파일을 정독. Q4_K 의 dequant + GEMM 이 한 shader 안에 어떻게 짜여 있는지.</li>
+    <li><strong>MLX 로 같은 모델</strong> — 같은 LLaMA-2 7B 를 MLX 로. PyTorch MPS 와 throughput 비교.</li>
+    <li><strong>Frame Capture 로 timeline</strong> — Xcode 의 “Capture GPU Frame”. PyTorch profiler 와 합쳐서 하나의 step 의 분포 확인.</li>
+    <li><strong>os_signpost instrumentation</strong> — 자기 shader 안 핵심 지점에 marker. Instruments 의 timeline 에서 보기.</li>
+  </ol>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s11">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 11</span><b>다른 강의로 이어지는 길</b><span>· connections</span></div>
+    <h2>이 강의의 도구가 시리즈 안에 어떻게 다시 등장하는지</h2>
+  </div>
+
+  <div class="conns">
+    <a class="conn" href="lecture_026.html">
+      <div class="n">L026</div>
+      <div class="ti">SYCL Mode (Intel GPU)</div>
+      <div class="by">Patric Zhao — vendor portability 의 또 다른 사례. Apple Silicon = Intel GPU 와 같은 “NVIDIA 너머” 의 자리</div>
+    </a>
+    <a class="conn" href="lecture_027.html">
+      <div class="n">L027</div>
+      <div class="ti">gpu.cpp / WebGPU</div>
+      <div class="by">Austin Huang — WebGPU 의 macOS backend 가 결국 Metal. § 03 의 5 객체와 같은 자리</div>
+    </a>
+    <a class="conn" href="lecture_001.html">
+      <div class="n">L001</div>
+      <div class="ti">CUDA profiling</div>
+      <div class="by">Mark Saroufim — § 07 의 mapping 표의 reference. § 06 의 디버깅 사다리도 PyTorch profiler 의 기본 패턴</div>
+    </a>
+    <a class="conn" href="lecture_018.html">
+      <div class="n">L018</div>
+      <div class="ti">Fusing Kernels</div>
+      <div class="by">Mark · Charles — fusion 의 일반론. Metal shader 위에서도 같은 자리</div>
+    </a>
+    <a class="conn" href="lecture_028.html">
+      <div class="n">L028</div>
+      <div class="ti">Liger Kernel</div>
+      <div class="by">Byron Hsu — Triton 위 학습 커널. Apple 위 같은 자리(MPS/Metal)에서는 vendor 라이브러리 호출이 dominant</div>
+    </a>
+    <a class="conn" href="lecture_032.html">
+      <div class="n">L032</div>
+      <div class="ti">Unsloth</div>
+      <div class="by">Daniel Han — fine-tuning 의 backend 선택. Apple 은 fine-tuning 에 적합하지 않은 자리의 사례</div>
+    </a>
+    <a class="conn" href="lecture_033.html">
+      <div class="n">L033</div>
+      <div class="ti">Bitblas</div>
+      <div class="by">Wang Lei — low-bit GEMM. llama.cpp 의 Q4_K Metal 구현이 같은 자리의 Apple 측 사례</div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================== -->
+<section class="sec" id="s12">
+  <div class="sec-head">
+    <div class="num"><span class="n">§ 12</span><b>열린 질문</b><span>· open questions</span></div>
+    <h2>다음에 다시 들었을 때 직접 검증해야 할 것들</h2>
+  </div>
+  <ul>
+    <li><strong>M3 의 SIMD-group matrix 의 perf</strong> — 8×8 fp16 mma 가 NVIDIA mma 와 같은 자리의 throughput 비교. 실제로 GEMM perf 가 어디까지 따라오는가.</li>
+    <li><strong>PyTorch MPS 의 op coverage</strong> — 강의 시점 이후 어디까지 늘었는지. 특히 학습용 op (autograd, FSDP)의 지원 상태.</li>
+    <li><strong>MLX 와 PyTorch MPS 의 perf 갭</strong> — Apple-native 디자인이 정확히 어디서 win 인가. lazy graph compile 의 효과.</li>
+    <li><strong>multi-Mac 학습 가능성</strong> — Thunderbolt 5 + 향후 unified compute 발전이 multi-node 학습을 가능하게 할지. 현재는 사실상 단일 노드.</li>
+    <li><strong>Vulkan/MoltenVK 의 자리</strong> — Apple 위에 Vulkan layer 를 깔면 portable 코드가 Metal 로 변환됨. 손실은 어디서?</li>
+    <li><strong>Apple Neural Engine (ANE) 의 자리</strong> — GPU 와 별개 가속기. CoreML 만이 직접 노출. PyTorch 가 ANE 를 backend 로 쓰는 길이 있는가.</li>
+    <li><strong>Apple 의 ML 투자 방향</strong> — Apple Intelligence 가 발표된 이후 Metal 의 ML 워크로드 도구가 개선되는 속도.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">검증 메모</div>
+    <p>이 노트의 perf 수치(Llama 7B M2 Max 38 tok/s 등)는 강의 시점(2024 10월) 의 인터넷 데이터를 인용한 재구성. M3/M4 와 양자화 stack 의 변화가 빠르니 자기 환경에서 직접 측정해야 의미 있는 비교가 된다.</p>
+  </div>
+</section>
+
+<div class="artnav">
+  <a href="lecture_030.html">
+    <span class="lbl">← Lecture 030</span>
+    <span class="nm">Quantized Training — Thien Tran 의 학습 양자화</span>
+  </a>
+  <a class="nxt" href="lecture_032.html">
+    <span class="lbl">Lecture 032 →</span>
+    <span class="nm">Unsloth — Daniel Han 의 fine-tuning 가속</span>
+  </a>
+</div>
+
+</div>
+
+<footer class="bot">
+  <span>GPU Mode Lecture Archive · 학습 기록</span>
+  <span>L031 · hand-crafted · 2026</span>
+</footer>
+
+</body>
+</html>
