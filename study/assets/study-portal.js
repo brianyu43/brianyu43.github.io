@@ -549,9 +549,9 @@ function renderLibrary() {
 }
 
 function updateStats() {
-  totalBooks.textContent = orderedBooks.length;
-  totalEntries.textContent = totalEntryCount();
-  totalCategories.textContent = categories.length - 1;
+  if (totalBooks) totalBooks.textContent = orderedBooks.length;
+  if (totalEntries) totalEntries.textContent = totalEntryCount();
+  if (totalCategories) totalCategories.textContent = categories.length - 1;
 }
 
 filtersEl.addEventListener("click", (event) => {
